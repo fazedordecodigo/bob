@@ -451,7 +451,7 @@ def no_coverage_summary(mutants: list[Mutant], labels: list[str]) -> dict[str, o
 
 def _passing_result(uncovered: int) -> GateResult:
     if not uncovered:
-        return GateResult("mutate", "passed", None)
+        return GateResult("mutate", "passed")
     noun = "mutante sem teste" if uncovered == 1 else "mutantes sem teste"
     return GateResult("mutate", "warn", f"{uncovered} {noun}")
 
