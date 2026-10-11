@@ -39,6 +39,34 @@
     "focus": { "type": "array" },
     "top_crap": { "type": "array" },
     "old_debt": { "type": "array" },
+    "clones": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "first_file",
+          "first_start",
+          "first_end",
+          "second_file",
+          "second_start",
+          "second_end",
+          "lines",
+          "tokens"
+        ],
+        "properties": {
+          "first_file": { "type": "string" },
+          "first_start": { "type": "integer" },
+          "first_end": { "type": "integer" },
+          "second_file": { "type": "string" },
+          "second_start": { "type": "integer" },
+          "second_end": { "type": "integer" },
+          "lines": { "type": "integer" },
+          "tokens": { "type": "integer" },
+          "similarity": { "type": ["number", "null"] },
+          "kind": { "type": "string" }
+        }
+      }
+    },
     "waivers": { "type": "array" },
     "survivors": { "type": "array" },
     "mutation": { "type": ["object", "null"] },

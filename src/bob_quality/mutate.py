@@ -406,7 +406,15 @@ def focus_with_survivors(
         bump = 0.0 if item.get("waiver") else 100.0
         scores[file] = scores.get(file, 0.0) + bump
     ordered = sorted(scores.items(), key=lambda pair: pair[1], reverse=True)
-    return [{"file": file, "risk": risk} for file, risk in ordered]
+    extras = {str(item["file"]): item for item in focus}
+    rows: list[dict[str, object]] = []
+    for file, risk in ordered:
+        row: dict[str, object] = {"file": file, "risk": risk}
+        source = extras.get(file)
+        if source is not None and source.get("clone"):
+            row["clone"] = True
+        rows.append(row)
+    return rows
 
 
 def _measured_functions(cwd: Path, config: Config) -> list[CyclomaticFunction]:

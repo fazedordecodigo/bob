@@ -1,4 +1,4 @@
-"""CLI `bob`: orquestra check, crap e mutate."""
+"""CLI `bob`: orquestra check, crap, dry, mutate e waive."""
 
 from __future__ import annotations
 
@@ -36,6 +36,9 @@ def build_parser() -> argparse.ArgumentParser:
     crap.add_argument("--threshold", type=float, default=None)
     crap.add_argument("--coverage-file", default=None)
 
+    dry = sub.add_parser("dry", help="Reporta clones novos no diff, sem bloquear")
+    _add_shared(dry)
+
     mutate = sub.add_parser("mutate", help="Muta funções alteradas com mutmut")
     _add_shared(mutate)
     mutate.add_argument(
@@ -63,8 +66,7 @@ def main(argv: list[str] | None = None) -> int:
     cwd = Path.cwd()
     if args.command == "waive":
         return _waive_command(cwd, args)
-    out_dir, config_path = _resolve_paths(cwd, args)
-    return _dispatch(args, cwd, out_dir, config_path)
+    return _dispatch(args, cwd, _resolve_out(cwd, args.out), _resolve_config(cwd, args.config))
 
 
 def _waive_command(cwd: Path, args: argparse.Namespace) -> int:
@@ -76,14 +78,20 @@ def _waive_command(cwd: Path, args: argparse.Namespace) -> int:
     return 0
 
 
-def _resolve_paths(cwd: Path, args: argparse.Namespace) -> tuple[Path, Path | None]:
-    out_dir = Path(args.out)
-    if not out_dir.is_absolute():
-        out_dir = cwd / out_dir
-    config_path = Path(args.config) if args.config else None
-    if config_path is not None and not config_path.is_absolute():
-        config_path = cwd / config_path
-    return out_dir, config_path
+def _resolve_out(cwd: Path, raw: str) -> Path:
+    out_dir = Path(raw)
+    if out_dir.is_absolute():
+        return out_dir
+    return cwd / out_dir
+
+
+def _resolve_config(cwd: Path, raw: str | None) -> Path | None:
+    if raw is None:
+        return None
+    path = Path(raw)
+    if path.is_absolute():
+        return path
+    return cwd / path
 
 
 def _dispatch(
@@ -93,44 +101,87 @@ def _dispatch(
     config_path: Path | None,
 ) -> int:
     if args.command == "check":
-        return _run_named("check", args, cwd, out_dir, config_path)
+        return _run_check(args, cwd, out_dir, config_path)
     if args.command == "crap":
-        return _run_named("crap", args, cwd, out_dir, config_path)
+        return _run_crap(args, cwd, out_dir, config_path)
+    if args.command == "dry":
+        return _run_dry(args, cwd, out_dir, config_path)
     if args.command == "mutate":
-        return _run_named("mutate", args, cwd, out_dir, config_path)
+        return _run_mutate(args, cwd, out_dir, config_path)
     raise AssertionError("comando não tratado")
 
 
-def _run_named(
-    command: str,
+def _run_check(
     args: argparse.Namespace,
     cwd: Path,
     out_dir: Path,
     config_path: Path | None,
 ) -> int:
-    coverage_raw = getattr(args, "coverage_file", None) if command == "crap" else None
+    gates = [part.strip() for part in args.gates.split(",")] if args.gates else None
     return run_check(
         cwd=cwd,
         base=args.base,
-        gates=_gates_for(command, args),
+        gates=gates,
         config_path=config_path,
         out_dir=out_dir,
-        fmt=getattr(args, "format", "both") if command == "check" else "both",
-        threshold=getattr(args, "threshold", None) if command == "crap" else None,
-        coverage_file=Path(coverage_raw) if coverage_raw else None,
-        max_workers=getattr(args, "max_workers", None) if command == "mutate" else None,
-        reproduce=_reproduce(command, args),
+        fmt=args.format,
+        reproduce=_reproduce("check", args),
     )
 
 
-def _gates_for(command: str, args: argparse.Namespace) -> list[str] | None:
-    if command == "check":
-        if not args.gates:
-            return None
-        return [part.strip() for part in args.gates.split(",")]
-    if command == "crap":
-        return ["crap"]
-    return ["mutate"]
+def _run_crap(
+    args: argparse.Namespace,
+    cwd: Path,
+    out_dir: Path,
+    config_path: Path | None,
+) -> int:
+    coverage = Path(args.coverage_file) if args.coverage_file else None
+    return run_check(
+        cwd=cwd,
+        base=args.base,
+        gates=["crap"],
+        config_path=config_path,
+        out_dir=out_dir,
+        fmt="both",
+        threshold=args.threshold,
+        coverage_file=coverage,
+        reproduce=_reproduce("crap", args),
+    )
+
+
+def _run_dry(
+    args: argparse.Namespace,
+    cwd: Path,
+    out_dir: Path,
+    config_path: Path | None,
+) -> int:
+    return run_check(
+        cwd=cwd,
+        base=args.base,
+        gates=["dry"],
+        config_path=config_path,
+        out_dir=out_dir,
+        fmt="both",
+        reproduce=_reproduce("dry", args),
+    )
+
+
+def _run_mutate(
+    args: argparse.Namespace,
+    cwd: Path,
+    out_dir: Path,
+    config_path: Path | None,
+) -> int:
+    return run_check(
+        cwd=cwd,
+        base=args.base,
+        gates=["mutate"],
+        config_path=config_path,
+        out_dir=out_dir,
+        fmt="both",
+        max_workers=args.max_workers,
+        reproduce=_reproduce("mutate", args),
+    )
 
 
 def _reproduce(command: str, args: argparse.Namespace) -> str:

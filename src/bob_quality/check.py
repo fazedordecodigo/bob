@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -9,8 +10,9 @@ from bob_quality.config import Config, ConfigError, load_config
 from bob_quality.core import files_by_risk, informational_debt, top_changed_crap
 from bob_quality.crap_gate import run_crap_gate
 from bob_quality.diff import GitError, changed_lines, current_commit
+from bob_quality.dry_gate import run_dry_gate
 from bob_quality.exit_codes import CONFIG_OR_TOOL, PASSED
-from bob_quality.models import FunctionMetric, GateResult, Report
+from bob_quality.models import Clone, FunctionMetric, GateResult, Report
 from bob_quality.mutate import MutationOutcome, focus_with_survivors, run_mutation_gate
 from bob_quality.report import metric_row, write_report
 from bob_quality.waivers import WaiverError, load_waivers
@@ -30,36 +32,45 @@ def run_check(
     reproduce: str | None = None,
     max_workers: int | None = None,
 ) -> int:
-    opened = _open_check(cwd, base, gates, config_path, out_dir, fmt, reproduce, threshold)
-    if isinstance(opened, int):
-        return opened
-    config, chosen_base, commit, diff_lines, chosen_out, command, max_crap, chosen_gates = opened
-    versions, gate_results, metrics, exit_code, mutation = _execute_gates(
-        cwd, config, diff_lines, chosen_out, max_crap, chosen_gates, coverage_file, max_workers
-    )
-    return _write_check_report(
-        cwd, chosen_out, fmt, commit, chosen_base, command, versions,
-        gate_results, metrics, exit_code, mutation, max_crap, chosen_gates,
-    )
-
-
-def _open_check(
-    cwd: Path,
-    base: str | None,
-    gates: list[str] | None,
-    config_path: Path | None,
-    out_dir: Path | None,
-    fmt: str,
-    reproduce: str | None,
-    threshold: float | None,
-) -> int | tuple[Config, str, str, dict[str, set[int]], Path, str, float, list[str]]:
     chosen_gates = gates or list(DEFAULT_GATES)
     chosen_out = out_dir or (cwd / ".bob")
     command = reproduce or "bob check"
+    opened = _open(cwd, base, config_path, threshold, chosen_out, fmt, command, chosen_gates)
+    if isinstance(opened, int):
+        return opened
+    config, chosen_base, max_crap, commit, diff_lines = opened
+    measured = _measure(
+        cwd, config, diff_lines, max_crap, coverage_file, chosen_gates, chosen_out, max_workers
+    )
+    if measured.mutation is None:
+        loaded = _load_idle_waivers(
+            cwd, chosen_out, fmt, chosen_base, command, chosen_gates
+        )
+        if isinstance(loaded, int):
+            return loaded
+        measured.loaded_waivers = loaded
+    write_report(
+        _assemble(measured, commit, chosen_base, diff_lines, max_crap, command),
+        chosen_out,
+        fmt,
+    )
+    return measured.exit_code
+
+
+def _open(
+    cwd: Path,
+    base: str | None,
+    config_path: Path | None,
+    threshold: float | None,
+    out_dir: Path,
+    fmt: str,
+    command: str,
+    gates: list[str],
+) -> tuple[Config, str, float, str, dict[str, set[int]]] | int:
     try:
         config = load_config(config_path, cwd)
     except ConfigError as exc:
-        return _fail_early(chosen_out, fmt, CONFIG_OR_TOOL, str(exc), base, command, chosen_gates)
+        return _fail_early(out_dir, fmt, CONFIG_OR_TOOL, str(exc), base, command, gates)
     chosen_base = base or config.base
     max_crap = config.max_crap if threshold is None else threshold
     try:
@@ -67,159 +78,147 @@ def _open_check(
         diff_lines = changed_lines(cwd, chosen_base)
     except GitError as exc:
         return _fail_early(
-            chosen_out, fmt, CONFIG_OR_TOOL, str(exc), chosen_base, command, chosen_gates
+            out_dir, fmt, CONFIG_OR_TOOL, str(exc), chosen_base, command, gates
         )
-    return config, chosen_base, commit, diff_lines, chosen_out, command, max_crap, chosen_gates
+    return config, chosen_base, max_crap, commit, diff_lines
 
 
-def _execute_gates(
+@dataclass
+class _Measured:
+    versions: dict[str, str] = field(default_factory=dict)
+    gates: list[GateResult] = field(default_factory=list)
+    metrics: list[FunctionMetric] = field(default_factory=list)
+    clones: list[Clone] = field(default_factory=list)
+    exit_code: int = PASSED
+    mutation: MutationOutcome | None = None
+    loaded_waivers: list[dict[str, object]] = field(default_factory=list)
+
+
+def _measure(
     cwd: Path,
     config: Config,
     diff_lines: dict[str, set[int]],
-    chosen_out: Path,
     max_crap: float,
-    chosen_gates: list[str],
     coverage_file: Path | None,
+    gates: list[str],
+    out_dir: Path,
     max_workers: int | None,
-) -> tuple[dict[str, str], list[GateResult], list[FunctionMetric], int, MutationOutcome | None]:
-    versions: dict[str, str] = {}
-    gate_results: list[GateResult] = []
-    metrics: list[FunctionMetric] = []
-    exit_code = PASSED
-    mutation: MutationOutcome | None = None
-    for gate in chosen_gates:
-        exit_code, mutation = _apply_gate(
-            gate, cwd, config, diff_lines, chosen_out, max_crap, coverage_file,
-            max_workers, versions, gate_results, metrics, exit_code, mutation,
+) -> _Measured:
+    state = _Measured()
+    for gate in gates:
+        _absorb(
+            state, gate, cwd, config, diff_lines, max_crap, coverage_file, out_dir, max_workers
         )
-    return versions, gate_results, metrics, exit_code, mutation
+    return state
 
 
-def _apply_gate(
+def _absorb(
+    state: _Measured,
     gate: str,
     cwd: Path,
     config: Config,
     diff_lines: dict[str, set[int]],
-    chosen_out: Path,
     max_crap: float,
     coverage_file: Path | None,
+    out_dir: Path,
     max_workers: int | None,
-    versions: dict[str, str],
-    gate_results: list[GateResult],
-    metrics: list[FunctionMetric],
-    exit_code: int,
-    mutation: MutationOutcome | None,
-) -> tuple[int, MutationOutcome | None]:
+) -> None:
+    if gate == "crap":
+        result, metrics, code, versions = run_crap_gate(
+            cwd=cwd,
+            config=config,
+            diff_lines=diff_lines,
+            max_crap=max_crap,
+            coverage_file=coverage_file,
+        )
+        state.metrics = metrics
+        _record(state, result, code, versions)
+        return
+    if gate == "dry":
+        result, found, code, versions = run_dry_gate(
+            cwd=cwd, config=config, diff_lines=diff_lines
+        )
+        state.clones = found
+        _record(state, result, code, versions)
+        return
     if gate == "mutate":
-        return _apply_mutate(
-            cwd, config, diff_lines, chosen_out, max_workers, versions, gate_results, exit_code
+        mutation = run_mutation_gate(
+            cwd=cwd,
+            config=config,
+            diff_lines=diff_lines,
+            out_dir=out_dir,
+            max_workers=max_workers,
         )
-    if gate != "crap":
-        gate_results.append(
-            GateResult(name=gate, status="not_run", reason="gate não implementado nesta fatia")
-        )
-        return exit_code, mutation
-    result, measured, code, crap_versions = run_crap_gate(
-        cwd=cwd,
-        config=config,
-        diff_lines=diff_lines,
-        max_crap=max_crap,
-        coverage_file=coverage_file,
+        state.mutation = mutation
+        _record(state, mutation.result, mutation.exit_code, mutation.versions)
+        return
+    _record(
+        state,
+        GateResult(gate, "not_run", "gate não implementado nesta fatia"),
+        PASSED,
+        {},
     )
-    gate_results.append(result)
-    metrics.clear()
-    metrics.extend(measured)
-    versions.update(crap_versions)
-    return _worse(exit_code, code), mutation
 
 
-def _apply_mutate(
-    cwd: Path,
-    config: Config,
-    diff_lines: dict[str, set[int]],
-    chosen_out: Path,
-    max_workers: int | None,
+def _record(
+    state: _Measured,
+    result: GateResult,
+    code: int,
     versions: dict[str, str],
-    gate_results: list[GateResult],
-    exit_code: int,
-) -> tuple[int, MutationOutcome]:
-    mutation = run_mutation_gate(
-        cwd=cwd,
-        config=config,
-        diff_lines=diff_lines,
-        out_dir=chosen_out,
-        max_workers=max_workers,
-    )
-    gate_results.append(mutation.result)
-    versions.update(mutation.versions)
-    return _worse(exit_code, mutation.exit_code), mutation
+) -> None:
+    state.gates.append(result)
+    state.versions.update(versions)
+    state.exit_code = _worse(state.exit_code, code)
 
 
-def _write_check_report(
-    cwd: Path,
-    chosen_out: Path,
-    fmt: str,
+def _assemble(
+    measured: _Measured,
     commit: str,
-    chosen_base: str,
-    command: str,
-    versions: dict[str, str],
-    gate_results: list[GateResult],
-    metrics: list[FunctionMetric],
-    exit_code: int,
-    mutation: MutationOutcome | None,
+    base: str,
+    diff_lines: dict[str, set[int]],
     max_crap: float,
-    chosen_gates: list[str],
-) -> int:
-    focus = files_by_risk(metrics)
+    command: str,
+) -> Report:
+    focus = files_by_risk(measured.metrics, measured.clones, set(diff_lines))
     survivors: list[dict[str, object]] = []
-    mutation_summary = None
-    waivers, failed = _waivers_for_report(
-        cwd, chosen_out, fmt, chosen_base, command, chosen_gates, mutation
-    )
-    if failed is not None:
-        return failed
-    if mutation is not None:
-        survivors = mutation.survivors
-        mutation_summary = mutation.summary
+    summary = None
+    waivers = measured.loaded_waivers
+    if measured.mutation is not None:
+        survivors = measured.mutation.survivors
+        summary = measured.mutation.summary
+        waivers = measured.mutation.waivers
         focus = focus_with_survivors(focus, survivors)
-    report = Report(
+    return Report(
         schema_version=1,
         commit=commit,
-        base=chosen_base,
+        base=base,
         generated_at=datetime.now(timezone.utc).isoformat(),
-        tool_versions=versions,
-        gates=gate_results,
+        tool_versions=measured.versions,
+        gates=measured.gates,
         focus=focus,
-        top_crap=[metric_row(item) for item in top_changed_crap(metrics)],
-        old_debt=[metric_row(item) for item in informational_debt(metrics, max_crap)],
+        top_crap=[metric_row(item) for item in top_changed_crap(measured.metrics)],
+        old_debt=[metric_row(item) for item in informational_debt(measured.metrics, max_crap)],
+        clones=measured.clones,
         reproduce=command,
-        exit_code=exit_code,
+        exit_code=measured.exit_code,
         waivers=waivers,
         survivors=survivors,
-        mutation=mutation_summary,
+        mutation=summary,
     )
-    write_report(report, chosen_out, fmt)
-    return exit_code
 
 
-def _waivers_for_report(
+def _load_idle_waivers(
     cwd: Path,
-    chosen_out: Path,
+    out_dir: Path,
     fmt: str,
-    chosen_base: str,
+    base: str,
     command: str,
-    chosen_gates: list[str],
-    mutation: MutationOutcome | None,
-) -> tuple[list[dict[str, object]], int | None]:
-    if mutation is not None:
-        return mutation.waivers, None
+    gates: list[str],
+) -> list[dict[str, object]] | int:
     try:
-        return [item.as_dict() for item in load_waivers(cwd)], None
+        return [item.as_dict() for item in load_waivers(cwd)]
     except WaiverError as exc:
-        code = _fail_early(
-            chosen_out, fmt, CONFIG_OR_TOOL, str(exc), chosen_base, command, chosen_gates
-        )
-        return [], code
+        return _fail_early(out_dir, fmt, CONFIG_OR_TOOL, str(exc), base, command, gates)
 
 
 def _worse(current: int, incoming: int) -> int:

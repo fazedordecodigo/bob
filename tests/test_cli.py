@@ -136,11 +136,11 @@ def test_unimplemented_gates_are_skipped_never_passed(tmp_path: Path) -> None:
     deps = next(gate for gate in payload["gates"] if gate["name"] == "deps")
 
     assert result.returncode == 0
-    assert dry["status"] == "not_run"
-    assert dry["reason"]
+    assert dry["status"] == "passed"
     assert deps["status"] == "not_run"
+    assert deps["reason"]
     assert "⏭️" in markdown
-    assert "✅ `dry`" not in markdown
+    assert "✅ `dry`" in markdown
     assert "✅ `deps`" not in markdown
 
 
