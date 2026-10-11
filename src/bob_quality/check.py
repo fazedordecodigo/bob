@@ -1,27 +1,17 @@
-"""CLI orquestra adaptador → núcleo → relatório → exit code."""
+"""Orquestra gates → relatório → exit code. A medição mora nos probes."""
 
 from __future__ import annotations
 
-import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
 
-from bob_quality.adapters.coverage import CoverageParseError, parse_coverage_json
-from bob_quality.adapters.lizard import LizardParseError, parse_lizard_csv
-from bob_quality.config import Config, ConfigError, load_config
-from bob_quality.core import (
-    coverage_for,
-    crap_verdict,
-    files_by_risk,
-    informational_debt,
-    to_metric,
-    top_changed_crap,
-)
-from bob_quality.diff import GitError, changed_lines, current_commit, function_is_changed
-from bob_quality.exit_codes import BASELINE_BROKEN, CONFIG_OR_TOOL, PASSED
+from bob_quality.config import ConfigError, load_config
+from bob_quality.core import files_by_risk, informational_debt, top_changed_crap
+from bob_quality.crap_gate import run_crap_gate
+from bob_quality.diff import GitError, changed_lines, current_commit
+from bob_quality.exit_codes import CONFIG_OR_TOOL, PASSED
 from bob_quality.models import FunctionMetric, GateResult, Report
 from bob_quality.report import metric_row, write_report
-from bob_quality.tools import ToolError, run_coverage, run_lizard_csv, tool_version
 
 DEFAULT_GATES = ("crap", "dry", "deps")
 
@@ -73,7 +63,7 @@ def run_check(
                 )
             )
             continue
-        result, measured, code, versions = _run_crap(
+        result, measured, code, versions = run_crap_gate(
             cwd=cwd,
             config=config,
             diff_lines=diff_lines,
@@ -99,80 +89,6 @@ def run_check(
     )
     write_report(report, chosen_out, fmt)
     return exit_code
-
-
-def _run_crap(
-    cwd: Path,
-    config: Config,
-    diff_lines: dict[str, set[int]],
-    max_crap: float,
-    coverage_file: Path | None,
-) -> tuple[GateResult, list[FunctionMetric], int, dict[str, str]]:
-    versions: dict[str, str] = {}
-    try:
-        versions["lizard"] = tool_version("lizard", r"(\d+\.\d+\.\d+)")
-        versions["coverage.py"] = tool_version("coverage", r"version (\d+\.\d+\.\d+)")
-    except ToolError as exc:
-        return (
-            GateResult("crap", "not_run", f"ferramenta ausente: {exc}"),
-            [],
-            CONFIG_OR_TOOL,
-            versions,
-        )
-
-    try:
-        with tempfile.TemporaryDirectory(prefix="bob-coverage-") as tmp:
-            coverage_json = Path(tmp) / "coverage.json"
-            pytest_code = run_coverage(cwd, config.include, coverage_json, coverage_file)
-            raw_coverage = coverage_json.read_text() if coverage_json.is_file() else ""
-    except ToolError as exc:
-        return (
-            GateResult("crap", "not_run", f"coverage.py: {exc}"),
-            [],
-            CONFIG_OR_TOOL,
-            versions,
-        )
-    if pytest_code not in {0, 5}:
-        return (
-            GateResult("crap", "not_run", "testes da baseline falharam antes de medir"),
-            [],
-            BASELINE_BROKEN,
-            versions,
-        )
-
-    try:
-        raw_lizard = run_lizard_csv(cwd, config.include, config.exclude)
-        lizard_fns = parse_lizard_csv(raw_lizard)
-        coverage_files = parse_coverage_json(raw_coverage)
-    except (ToolError, OSError, LizardParseError, CoverageParseError) as exc:
-        return (
-            GateResult("crap", "not_run", str(exc)),
-            [],
-            CONFIG_OR_TOOL,
-            versions,
-        )
-
-    metrics = []
-    for item in lizard_fns:
-        rel = _relative(cwd, item.file)
-        metrics.append(
-            to_metric(
-                item,
-                rel,
-                coverage_for(coverage_files, rel),
-                function_is_changed(rel, item.start_line, item.end_line, diff_lines),
-            )
-        )
-    verdict, code = crap_verdict(metrics, max_crap, config.crap_scope)
-    return verdict, metrics, code, versions
-
-
-def _relative(cwd: Path, path: str) -> str:
-    resolved = Path(path)
-    try:
-        return resolved.resolve().relative_to(cwd.resolve()).as_posix()
-    except ValueError:
-        return Path(path).as_posix()
 
 
 def _worse(current: int, incoming: int) -> int:

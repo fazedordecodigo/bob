@@ -21,8 +21,13 @@ def tool_version(module: str, pattern: str) -> str:
     return match.group(1)
 
 
-def run_lizard_csv(cwd: Path, include: list[str], exclude: list[str]) -> str:
-    args = [sys.executable, "-m", "lizard", "--csv", "-l", "python"]
+def run_lizard_csv(
+    cwd: Path,
+    include: list[str],
+    exclude: list[str],
+    language: str = "python",
+) -> str:
+    args = [sys.executable, "-m", "lizard", "--csv", "-l", language]
     for pattern in exclude:
         args.extend(["-x", f"{pattern}/*"])
     args.extend(include or ["."])
