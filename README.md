@@ -8,7 +8,7 @@ Quality gates (CRAP, DRY, mutação, dependências) + skills para agentes de cod
 - Configuração: `bob.yaml`
 - Relatórios: `.bob/report.md` e `.bob/report.json` (schema v1)
 
-> Status: fatia fina Python (issue #1) e `bob doctor` com o pacote pronto para distribuir (issue #11). Mutação, TypeScript, Action e publicação ficam para os tickets seguintes. Nada foi enviado ao PyPI.
+> Status: fatia fina Python (issue #1), TypeScript (issue #2), GitHub Action (issue #5) e `bob doctor` com o pacote pronto para distribuir (issue #11). Mutação e publicação ficam para os tickets seguintes. Nada foi enviado ao PyPI.
 
 Skills (issue #7):
 
@@ -60,3 +60,11 @@ pytest
 ```
 
 O repo-fixture está em `tests/fixtures/python_app` (caso que passa e caso que falha por CRAP > 10).
+
+O CI (`.github/workflows/ci.yml`) roda essa suíte em pull requests e em pushes para `main`.
+
+## GitHub Action
+
+A action composta em `.github/actions/bob` instala o `bob`, roda `bob check` com `crap,dry,deps,mutate` (o que ainda não existe no CLI aparece como ⏭️), restaura e publica o artefato `bob-mutation-cache` (`.bob/mutation-cache.json`) e cria ou atualiza um único comentário no PR com `.bob/report.md`. O exit code do job é o do `bob`.
+
+Este repositório a usa em `.github/workflows/bob.yml`. `bob-quality` ainda não está no PyPI: no checkout deste repo a action faz `pip install .[dev]`; em outro repo, instala o git da action. Publicação no Marketplace não faz parte desta fatia.
