@@ -1,0 +1,215 @@
+"""Seam: CLI `bob doctor` (stdout + exit code).
+
+Versões literais das ferramentas pinadas. Os stubs imitam o `--version` real;
+o teste não importa o catálogo interno.
+"""
+
+from __future__ import annotations
+
+import json
+import os
+import stat
+import subprocess
+import sys
+import tomllib
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[1]
+
+# (nome no relatório, versão pinada, executável, banner de --version)
+PINS = (
+    ("lizard", "1.24.1", "lizard", "1.24.1"),
+    (
+        "coverage.py",
+        "7.16.2",
+        "coverage",
+        "Coverage.py, version 7.16.2 with C extension",
+    ),
+    ("node", "22.14.0", "node", "v22.14.0"),
+    ("c8", "12.0.0", "c8", "12.0.0"),
+    ("mutmut", "3.8.0", "mutmut", "mutmut, version 3.8.0"),
+    ("Stryker", "10.0.0", "stryker", "10.0.0"),
+    ("jscpd", "5.4.1", "jscpd", "jscpd 5.4.1"),
+    ("import-linter", "2.15", "lint-imports", "import-linter 2.15"),
+    ("dependency-cruiser", "18.5.0", "depcruise", "18.5.0"),
+)
+
+INSTALL = {
+    "lizard": "pip install 'lizard==1.24.1'",
+    "coverage.py": "pip install 'coverage==7.16.2'",
+    "node": "Instale Node.js 22.14.0 (https://nodejs.org/dist/v22.14.0/)",
+    "c8": "npm install c8@12.0.0",
+    "mutmut": "pip install 'mutmut==3.8.0'",
+    "Stryker": "npm install @stryker-mutator/core@10.0.0",
+    "jscpd": "npm install jscpd@5.4.1",
+    "import-linter": "pip install 'import-linter==2.15'",
+    "dependency-cruiser": "npm install dependency-cruiser@18.5.0",
+}
+
+
+def _stub(bin_dir: Path, name: str, banner: str) -> None:
+    path = bin_dir / name
+    path.write_text(f"#!/bin/sh\nprintf '%s\\n' '{banner}'\n")
+    path.chmod(path.stat().st_mode | stat.S_IEXEC)
+
+
+def _run_doctor(cwd: Path, bin_dir: Path) -> subprocess.CompletedProcess[str]:
+    env = os.environ.copy()
+    env["PATH"] = str(bin_dir)
+    env["PYTHONPATH"] = str(ROOT / "src")
+    return subprocess.run(
+        [sys.executable, "-m", "bob_quality", "doctor"],
+        cwd=cwd,
+        env=env,
+        capture_output=True,
+        text=True,
+    )
+
+
+def test_doctor_exits_0_and_lists_pinned_versions_when_tools_match(tmp_path: Path) -> None:
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    for _name, _expected, executable, banner in PINS:
+        _stub(bin_dir, executable, banner)
+
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    result = _run_doctor(repo, bin_dir)
+
+    assert result.returncode == 0, result.stderr
+    for name, expected, _executable, _banner in PINS:
+        assert f"{name} esperada {expected} encontrada {expected}" in result.stdout
+    assert "Instale" not in result.stdout
+
+
+def test_doctor_exits_4_and_prints_install_when_a_tool_is_missing(tmp_path: Path) -> None:
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    for name, _expected, executable, banner in PINS:
+        if name == "node":
+            continue
+        _stub(bin_dir, executable, banner)
+
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    result = _run_doctor(repo, bin_dir)
+
+    assert result.returncode == 4, result.stderr
+    assert "node esperada 22.14.0 encontrada ausente" in result.stdout
+    assert INSTALL["node"] in result.stdout
+    assert INSTALL["lizard"] not in result.stdout
+
+
+def test_doctor_exits_4_and_prints_install_when_version_differs(tmp_path: Path) -> None:
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    for name, _expected, executable, banner in PINS:
+        if name == "mutmut":
+            banner = "mutmut, version 0.0.1"
+        _stub(bin_dir, executable, banner)
+
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    result = _run_doctor(repo, bin_dir)
+
+    assert result.returncode == 4, result.stderr
+    assert "mutmut esperada 3.8.0 encontrada 0.0.1" in result.stdout
+    assert INSTALL["mutmut"] in result.stdout
+    assert INSTALL["lizard"] not in result.stdout
+
+
+def test_doctor_reports_c8_package_version_when_cli_prints_another(tmp_path: Path) -> None:
+    """c8 --version repassa a versão do projeto; o doctor mostra a do pacote c8."""
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    package = tmp_path / "node_modules" / "c8"
+    package_bin = package / "bin"
+    package_bin.mkdir(parents=True)
+    (package / "package.json").write_text(
+        json.dumps({"name": "c8", "version": "12.0.0", "bin": {"c8": "./bin/c8.js"}})
+    )
+    script = package_bin / "c8.js"
+    script.write_text("#!/bin/sh\nprintf '%s\\n' '1.0.0'\n")
+    script.chmod(script.stat().st_mode | stat.S_IEXEC)
+    (bin_dir / "c8").symlink_to(script)
+
+    for name, _expected, executable, banner in PINS:
+        if executable == "c8":
+            continue
+        _stub(bin_dir, executable, banner)
+
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    result = _run_doctor(repo, bin_dir)
+
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert "c8 esperada 12.0.0 encontrada 12.0.0" in result.stdout
+
+
+def test_doctor_finds_npm_tool_installed_in_the_project(tmp_path: Path) -> None:
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    for name, _expected, executable, banner in PINS:
+        if executable == "c8":
+            continue
+        _stub(bin_dir, executable, banner)
+
+    repo = tmp_path / "repo"
+    package = repo / "node_modules" / "c8"
+    package_bin = package / "bin"
+    package_bin.mkdir(parents=True)
+    (package / "package.json").write_text(
+        json.dumps({"name": "c8", "version": "12.0.0", "bin": {"c8": "./bin/c8.js"}})
+    )
+    script = package_bin / "c8.js"
+    script.write_text("#!/bin/sh\nprintf '%s\\n' '1.0.0'\n")
+    script.chmod(script.stat().st_mode | stat.S_IEXEC)
+    local_bin = repo / "node_modules" / ".bin"
+    local_bin.mkdir()
+    (local_bin / "c8").symlink_to(script)
+
+    result = _run_doctor(repo, bin_dir)
+
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert "c8 esperada 12.0.0 encontrada 12.0.0" in result.stdout
+
+
+def test_doctor_expected_versions_match_pip_and_npm_pins(tmp_path: Path) -> None:
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    for _name, _expected, executable, banner in PINS:
+        _stub(bin_dir, executable, banner)
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    result = _run_doctor(repo, bin_dir)
+    assert result.returncode == 0, result.stderr
+    expected = _expected_versions(result.stdout)
+
+    project = tomllib.loads((ROOT / "pyproject.toml").read_text())
+    requirements = {
+        spec.split("==", 1)[0]: spec.split("==", 1)[1]
+        for spec in project["project"]["dependencies"]
+        if "==" in spec
+    }
+    assert requirements["lizard"] == expected["lizard"]
+    assert requirements["coverage"] == expected["coverage.py"]
+    assert requirements["mutmut"] == expected["mutmut"]
+    assert requirements["import-linter"] == expected["import-linter"]
+
+    package = json.loads((ROOT / "package.json").read_text())
+    assert package["private"] is True
+    npm = package["dependencies"]
+    assert npm["c8"] == expected["c8"]
+    assert npm["@stryker-mutator/core"] == expected["Stryker"]
+    assert npm["jscpd"] == expected["jscpd"]
+    assert npm["dependency-cruiser"] == expected["dependency-cruiser"]
+    assert package["engines"]["node"] == expected["node"]
+
+
+def _expected_versions(stdout: str) -> dict[str, str]:
+    found: dict[str, str] = {}
+    for line in stdout.splitlines():
+        name, rest = line.split(" esperada ", 1)
+        version, _shown = rest.split(" encontrada ", 1)
+        found[name] = version
+    return found

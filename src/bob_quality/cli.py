@@ -1,4 +1,4 @@
-"""CLI `bob`: orquestra check/crap nesta fatia."""
+"""CLI `bob`: orquestra check, crap e doctor."""
 
 from __future__ import annotations
 
@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 
 from bob_quality.check import run_check
+from bob_quality.doctor import run_doctor
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -34,6 +35,8 @@ def build_parser() -> argparse.ArgumentParser:
     crap.add_argument("--threshold", type=float, default=None)
     crap.add_argument("--coverage-file", default=None)
 
+    sub.add_parser("doctor", help="Verifica as ferramentas pinadas e as versões instaladas")
+
     return parser
 
 
@@ -45,6 +48,8 @@ def _add_shared(parser: argparse.ArgumentParser) -> None:
 
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
+    if args.command == "doctor":
+        return run_doctor()
     cwd = Path.cwd()
     out_dir = Path(args.out)
     if not out_dir.is_absolute():

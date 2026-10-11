@@ -1,0 +1,41 @@
+name: package
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  dist:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22.14.0"
+
+      - name: Install package and build tools
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install 'build==1.6.1' 'twine==7.0.0'
+          python -m pip install -e ".[dev]"
+
+      - name: Install pinned npm tools
+        run: npm install
+
+      - name: Build sdist and wheel
+        run: python -m build
+
+      - name: Check distribution metadata
+        run: twine check --strict dist/*
+
+      - name: Doctor reports the pinned toolchain
+        run: bob doctor
+
+      - name: Tests
+        run: pytest
