@@ -40,13 +40,16 @@ def run_crap_gate(
             if failure is not None:
                 return failure
     verdict, code = crap_verdict(metrics, max_crap, config.crap_scope)
-    if typescript_skip:
-        note = f"TypeScript pulado: {typescript_skip}"
-        if verdict.status == "passed":
-            verdict = GateResult("crap", "warn", note)
-        else:
-            verdict = GateResult("crap", verdict.status, f"{verdict.reason}; {note}")
-    return verdict, metrics, code, versions
+    return _with_typescript_skip(verdict, typescript_skip), metrics, code, versions
+
+
+def _with_typescript_skip(verdict: GateResult, typescript_skip: str | None) -> GateResult:
+    if not typescript_skip:
+        return verdict
+    note = f"TypeScript pulado: {typescript_skip}"
+    if verdict.status == "passed":
+        return GateResult("crap", "warn", note)
+    return GateResult("crap", verdict.status, f"{verdict.reason}; {note}")
 
 
 def _node_is_missing(probed: ProbeResult) -> bool:
