@@ -7,7 +7,7 @@ from pathlib import Path
 import bob_quality.mutate as mutate_module
 from bob_quality.adapters.mutmut import MutmutParseError, mutants_from_raw
 from bob_quality.models import CyclomaticFunction
-from bob_quality.mutate import _run_and_parse
+from bob_quality.mutate import _mutants_from_cache, _run_and_parse
 from bob_quality.tools import ToolError
 
 VERSIONS = {"mutmut": "3.8.0"}
@@ -180,6 +180,56 @@ def test_a_show_without_an_added_line_keeps_line_zero(monkeypatch, tmp_path: Pat
 
     assert failed is None
     assert parsed[0].line == 0
+
+
+def test_a_cached_function_relative_line_becomes_the_file_line() -> None:
+    entry = {
+        "start_line": 474,
+        "mutants": [
+            {
+                "id": "bob_quality.mutate.x_prepare_mutmut_workspace__mutmut_10",
+                "function": "prepare_mutmut_workspace",
+                "file": "src/bob_quality/mutate.py",
+                "line": 7,
+                "operator": "a -> b",
+                "status": "survived",
+            },
+            {
+                "id": "bob_quality.mutate.x_prepare_mutmut_workspace__mutmut_11",
+                "function": "prepare_mutmut_workspace",
+                "file": "src/bob_quality/mutate.py",
+                "line": 0,
+                "operator": "",
+                "status": "killed",
+            },
+        ],
+    }
+
+    mutants = _mutants_from_cache([("src/bob_quality/mutate.py::prepare_mutmut_workspace", entry)])
+
+    assert mutants[0].line == 480
+    assert mutants[1].line == 0
+
+
+def test_a_cached_file_line_is_not_shifted_again() -> None:
+    entry = {
+        "start_line": 474,
+        "line_base": "file",
+        "mutants": [
+            {
+                "id": "bob_quality.mutate.x_prepare_mutmut_workspace__mutmut_10",
+                "function": "prepare_mutmut_workspace",
+                "file": "src/bob_quality/mutate.py",
+                "line": 480,
+                "operator": "a -> b",
+                "status": "survived",
+            }
+        ],
+    }
+
+    mutants = _mutants_from_cache([("src/bob_quality/mutate.py::prepare_mutmut_workspace", entry)])
+
+    assert mutants[0].line == 480
 
 
 def test_a_tool_failure_keeps_the_message_and_the_waivers(monkeypatch, tmp_path: Path) -> None:

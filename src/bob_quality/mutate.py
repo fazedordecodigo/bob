@@ -342,19 +342,32 @@ def _mutants_from_cache(reuse: list[tuple[str, dict[str, object]]]) -> list[Muta
         rows = entry.get("mutants")
         if not isinstance(rows, list):
             continue
+        start = _cached_start(entry)
         for row in rows:
             if isinstance(row, dict) and isinstance(row.get("id"), str):
-                mutants.append(_mutant_from_row(row))
+                mutants.append(_mutant_from_row(row, start))
     return mutants
 
 
-def _mutant_from_row(row: dict[str, object]) -> Mutant:
+def _cached_start(entry: dict[str, object]) -> int | None:
+    if entry.get("line_base") == "file":
+        return None
+    start = entry.get("start_line")
+    if isinstance(start, int) and start > 0:
+        return start
+    return None
+
+
+def _mutant_from_row(row: dict[str, object], file_start: int | None = None) -> Mutant:
     waiver = row.get("waiver")
+    line = int(row.get("line") or 0)
+    if file_start is not None and line > 0:
+        line = file_start + line - 1
     return Mutant(
         id=str(row["id"]),
         function=str(row.get("function") or ""),
         file=str(row.get("file") or ""),
-        line=int(row.get("line") or 0),
+        line=line,
         operator=str(row.get("operator") or ""),
         status=_status_from_cache(row.get("status")),
         waiver=waiver if isinstance(waiver, str) and waiver else None,
@@ -461,6 +474,7 @@ def _cache_body(
             "name": item.name,
             "start_line": item.start_line,
             "end_line": item.end_line,
+            "line_base": "file",
             "mutants": [_mutant_row(mutant) for mutant in own],
         }
     return body
