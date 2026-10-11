@@ -10,6 +10,34 @@ from bob_quality.mutmut_tool import failure_text
 from bob_quality.tools import ToolError
 
 SPINNER = "⠋ Generating mutants\r⠙ Generating mutants\r⠹ Generating mutants\r"
+# Fim da saída de `mutmut run` 3.8 quando o pytest recusa o addopts.
+BAD_ADDOPTS_STDOUT = (
+    "    done in 29ms (2 files mutated, 0 ignored, 0 unmodified)\n\n"
+    "⠧ Running stats     \n⠇ Running stats\n⠏ Running stats\n"
+)
+BAD_ADDOPTS_STDERR = (
+    "Traceback (most recent call last):\n"
+    '  File "<frozen runpy>", line 198, in _run_module_as_main\n'
+    '  File "/tmp/venv/lib/python3.12/site-packages/mutmut/runners/harness.py", line 136,'
+    " in execute_pytest\n"
+    "    raise BadTestExecutionCommandsException(params)\n"
+    "mutmut.runners.harness.BadTestExecutionCommandsException: Failed to run pytest with args:"
+    " ['--no-such-flag', '--rootdir=.']. If your config sets debug=true, the original pytest"
+    " error should be above.\n"
+)
+CHAINED = (
+    "⠇ Running statsTraceback (most recent call last):\n"
+    '  File "tests/test_safe.py", line 9, in test_add\n'
+    "    raise KeyError('a')\n"
+    "KeyError: 'a'\n\n"
+    "During handling of the above exception, another exception occurred:\n\n"
+    "Traceback (most recent call last):\n"
+    '  File "tests/test_safe.py", line 11, in test_add\n'
+    "    EXPECTED.read_text()\n"
+    "FileNotFoundError: [Errno 2] No such file or directory: 'expected.txt'\n"
+    "1 failed in 0.01s\n"
+    "failed to collect stats. runner returned 1\n"
+)
 
 
 def test_mutmut_failure_reports_the_error_after_the_spinner() -> None:
@@ -19,12 +47,21 @@ def test_mutmut_failure_reports_the_error_after_the_spinner() -> None:
         "failed to collect stats. runner returned 1\n"
     )
 
-    text = failure_text(stdout, "")
+    assert failure_text(stdout, "") == "AssertionError: filtered mutants"
 
-    assert "failed to collect stats. runner returned 1" in text
-    assert "AssertionError: filtered mutants" in text
-    assert "⠋" not in text
-    assert "Generating mutants" not in text
+
+def test_a_mutmut_crash_reports_only_the_final_exception_line() -> None:
+    assert failure_text(BAD_ADDOPTS_STDOUT, BAD_ADDOPTS_STDERR) == (
+        "mutmut.runners.harness.BadTestExecutionCommandsException: Failed to run pytest with args:"
+        " ['--no-such-flag', '--rootdir=.']. If your config sets debug=true, the original pytest"
+        " error should be above."
+    )
+
+
+def test_a_chained_traceback_glued_to_the_spinner_reports_the_last_exception() -> None:
+    assert failure_text(CHAINED, "") == (
+        "FileNotFoundError: [Errno 2] No such file or directory: 'expected.txt'"
+    )
 
 
 def test_failure_text_keeps_only_the_error_lines() -> None:
@@ -93,8 +130,10 @@ def test_nonzero_mutmut_keeps_the_error_after_the_spinner(
     with pytest.raises(ToolError) as caught:
         mutmut_tool.mutmut_show(tmp_path, "app.weak.x_classify__mutmut_1")
 
-    assert str(caught.value) == "failed to collect stats. runner returned 1"
-    assert "⠋" not in str(caught.value)
+    assert str(caught.value) == (
+        "a suíte passa no repositório e falha dentro de mutants/;"
+        " confira also_copy e a configuração [mutmut]: failed to collect stats. runner returned 1"
+    )
 
 
 def test_nothing_matches_is_its_own_tool_error(

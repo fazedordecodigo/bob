@@ -9,6 +9,7 @@ from __future__ import annotations
 import json
 import re
 
+from bob_quality.exit_codes import pytest_passed
 from bob_quality.models import Mutant, MutantStatus
 
 _RESULT_RE = re.compile(r"^\s+(\S+):\s+(.+?)\s*$")
@@ -38,11 +39,11 @@ class MutmutParseError(Exception):
     """Saída do mutmut fora do contrato da versão pinada."""
 
 
-def baseline_failed(output: str) -> bool:
-    """A suíte falhou no `mutmut run` antes de medir. Exit 5 do pytest (nada coletado) não conta."""
+def suite_failed(output: str) -> bool:
+    """A suíte falhou dentro do `mutmut run`. Exit 5 do pytest (nada coletado) não conta."""
     if _CLEAN_FAILED in output:
         return True
-    return any(int(code) not in {0, 5} for code in _STATS_FAILED_RE.findall(output))
+    return any(not pytest_passed(int(code)) for code in _STATS_FAILED_RE.findall(output))
 
 
 def ids_for_show(mutants: list[Mutant]) -> list[str]:

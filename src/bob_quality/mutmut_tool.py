@@ -8,17 +8,39 @@ import subprocess
 import sys
 from pathlib import Path
 
-from bob_quality.adapters.mutmut import baseline_failed
+from bob_quality.adapters.mutmut import suite_failed
 from bob_quality.tools import ToolError
 
 _VERSION_RE = re.compile(r"(\d+\.\d+\.\d+)")
 _SPINNER_CHAR = "⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏"
 _SPINNER_LINE = re.compile(rf"^[{_SPINNER_CHAR}]\s")
 _STATS_PATH = "mutants/mutmut-stats.json"
+_TRACEBACK = "Traceback (most recent call last):\n"
+_EXCEPTION_LINE = re.compile(r"^\S.*", re.MULTILINE)
+# O gate só chama o mutmut depois que a baseline passou no repositório.
+_SUITE_FAILS_IN_MUTANTS = (
+    "a suíte passa no repositório e falha dentro de mutants/;"
+    " confira also_copy e a configuração [mutmut]"
+)
 
 
-class BaselineFailed(ToolError):
-    """A suíte falhou dentro do `mutmut run`, antes de medir."""
+def pytest_exit_code(cwd: Path) -> int:
+    """Roda a suíte uma vez. Devolve o exit code do pytest, sem transformar falha em erro de ferramenta."""
+    env = _clean_env()
+    try:
+        completed = subprocess.run(
+            [sys.executable, "-m", "pytest", "-q"],
+            cwd=cwd,
+            capture_output=True,
+            text=True,
+            stdin=subprocess.DEVNULL,
+            env=env,
+            timeout=900,
+            check=False,
+        )
+    except subprocess.TimeoutExpired as exc:
+        raise ToolError("pytest da baseline excedeu o tempo limite") from exc
+    return completed.returncode
 
 
 def mutmut_version() -> str:
@@ -87,8 +109,8 @@ def _invoke(args: list[str], cwd: Path | None, timeout: int = 180) -> str:
     if completed.returncode != 0:
         output = f"{completed.stdout}\n{completed.stderr}"
         detail = failure_text(completed.stdout, completed.stderr)
-        if baseline_failed(output):
-            raise BaselineFailed(detail)
+        if suite_failed(output):
+            raise ToolError(f"{_SUITE_FAILS_IN_MUTANTS}: {detail}")
         if "nothing matches" in output:
             raise ToolError("nothing matches")
         raise ToolError(detail or f"exit {completed.returncode}")
@@ -96,9 +118,15 @@ def _invoke(args: list[str], cwd: Path | None, timeout: int = 180) -> str:
 
 
 def failure_text(stdout: str, stderr: str) -> str:
-    """Tira o spinner do mutmut e devolve o erro, que vem no fim da saída."""
+    """Tira o spinner do mutmut e devolve o erro, que vem no fim da saída.
+
+    Com traceback do Python, o erro é só a linha final da exceção.
+    """
     kept: list[str] = []
     blob = f"{stdout}\n{stderr}".replace("\r", "\n")
+    exception = _final_exception(blob)
+    if exception is not None:
+        return exception
     for raw in blob.splitlines():
         text = raw.strip()
         if not text or _SPINNER_LINE.match(text) or "Generating mutants" in text:
@@ -110,3 +138,12 @@ def failure_text(stdout: str, stderr: str) -> str:
     if len(compact) > 400:
         return "…" + compact[-400:]
     return compact
+
+
+def _final_exception(blob: str) -> str | None:
+    """Primeira linha sem recuo depois do último cabeçalho de traceback."""
+    _before, header, after = blob.rpartition(_TRACEBACK)
+    line = _EXCEPTION_LINE.search(after)
+    if not header or line is None:
+        return None
+    return line.group(0)

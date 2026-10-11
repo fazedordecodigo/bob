@@ -10,12 +10,9 @@ from types import ModuleType
 
 import pytest
 
-import bob_quality.mutate as mutate_module
 from bob_quality import mutmut_tool, tools
-from bob_quality.adapters.mutmut import baseline_failed, mutmut_run_patterns
-from bob_quality.models import CyclomaticFunction, GateResult
-from bob_quality.mutate import _run_and_parse
-from bob_quality.mutmut_tool import BaselineFailed
+from bob_quality.adapters.mutmut import mutmut_run_patterns, suite_failed
+from bob_quality.exit_codes import pytest_passed
 from bob_quality.tools import ToolError, run_coverage
 
 from helpers import FIXTURE_PYTHON, commit_on_branch, commit_on_main, init_python_repo, run_bob
@@ -140,7 +137,7 @@ def test_an_existing_coverage_file_is_only_exported(
     data = tmp_path / ".coverage"
     json_path = tmp_path / "coverage.json"
 
-    assert run_coverage(tmp_path, ["src"], json_path, data) == 0
+    assert run_coverage(tmp_path, ["src"], json_path, data) is None
 
     [(args, kwargs)] = calls
     assert args == [sys.executable, "-m", "coverage", "json", "-o", str(json_path)]
@@ -162,10 +159,13 @@ def test_an_existing_coverage_file_is_only_exported(
         ("AssertionError: Filtered for specific mutants, but nothing matches\n", False),
     ],
 )
-def test_baseline_failed_reads_the_suite_failures_of_mutmut_run(
-    output: str, expected: bool
-) -> None:
-    assert baseline_failed(output) is expected
+def test_suite_failed_reads_the_suite_failures_of_mutmut_run(output: str, expected: bool) -> None:
+    assert suite_failed(output) is expected
+
+
+@pytest.mark.parametrize(("code", "passed"), [(0, True), (5, True), (1, False), (4, False)])
+def test_pytest_passes_with_tests_green_or_none_collected(code: int, passed: bool) -> None:
+    assert pytest_passed(code) is passed
 
 
 def test_mutmut_run_gets_the_patterns_and_a_clean_env(
@@ -235,18 +235,21 @@ def test_other_mutmut_commands_keep_the_short_timeout_and_return_the_output(
         ),
     ],
 )
-def test_a_suite_failure_inside_mutmut_run_is_a_broken_baseline(
+def test_a_suite_failure_inside_mutmut_run_points_at_also_copy(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, stdout: str, message: str
 ) -> None:
     _record_runs(monkeypatch, mutmut_tool, 1, stdout=stdout)
 
-    with pytest.raises(BaselineFailed) as caught:
+    with pytest.raises(ToolError) as caught:
         mutmut_tool.run_mutmut(tmp_path, ["app.safe.x_add__mutmut*"], None)
 
-    assert str(caught.value) == message
+    assert str(caught.value) == (
+        "a suíte passa no repositório e falha dentro de mutants/;"
+        f" confira also_copy e a configuração [mutmut]: {message}"
+    )
 
 
-def test_no_tests_collected_stays_a_tool_error(
+def test_no_tests_collected_stays_a_plain_tool_error(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     _record_runs(monkeypatch, mutmut_tool, 1, stdout=NO_TESTS)
@@ -254,7 +257,6 @@ def test_no_tests_collected_stays_a_tool_error(
     with pytest.raises(ToolError) as caught:
         mutmut_tool.run_mutmut(tmp_path, ["app.safe.x_add__mutmut*"], None)
 
-    assert type(caught.value) is ToolError
     assert str(caught.value) == (
         "no tests ran in 0.00s failed to collect stats. runner returned 5"
     )
@@ -268,33 +270,7 @@ def test_a_filter_that_matches_no_mutant_is_reported_as_nothing_matches(
     with pytest.raises(ToolError) as caught:
         mutmut_tool.run_mutmut(tmp_path, ["app.safe.x_add__mutmut*"], None)
 
-    assert type(caught.value) is ToolError
     assert str(caught.value) == "nothing matches"
-
-
-def test_a_broken_baseline_stops_the_gate_with_exit_2_and_keeps_the_waivers(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    def broken(_cwd: Path, _patterns: list[str], _max_workers: int | None) -> None:
-        raise BaselineFailed("Failed to run clean test")
-
-    monkeypatch.setattr(mutate_module, "run_mutmut", broken)
-    versions = {"mutmut": "3.8.0"}
-    waivers = [{"id": "keep-me", "reason": "porque"}]
-    remutate = [
-        CyclomaticFunction(file="src/app/safe.py", name="add", start_line=1, end_line=2, cc=1)
-    ]
-
-    parsed, failed = _run_and_parse(tmp_path, remutate, 2, versions, waivers)
-
-    assert parsed == []
-    assert failed is not None
-    assert failed.result == GateResult(
-        "mutate", "not_run", "testes da baseline falharam antes de medir"
-    )
-    assert failed.exit_code == 2
-    assert failed.versions == versions
-    assert failed.waivers == waivers
 
 
 def _mutants_run(patterns: list[str], mutant_ids: list[str]) -> list[str]:
@@ -350,7 +326,9 @@ def test_the_run_patterns_select_only_the_mutants_of_the_function() -> None:
     assert _mutants_run(patterns, own + siblings) == own
 
 
-def test_the_gate_runs_tests_of_other_functions_only_to_collect_stats(tmp_path: Path) -> None:
+def test_the_gate_runs_tests_of_other_functions_only_for_the_baseline_and_the_stats(
+    tmp_path: Path,
+) -> None:
     log = tmp_path / "runs.log"
     repo = init_python_repo(tmp_path / "repo")
     commit_on_main(repo, "src/app/safe.py", ADD_AND_SCALE, "add and scale")
@@ -363,4 +341,4 @@ def test_the_gate_runs_tests_of_other_functions_only_to_collect_stats(tmp_path: 
 
     assert result.returncode == 0
     runs = log.read_text().splitlines()
-    assert [mode for mode in runs if mode != "fail"] == ["stats"]
+    assert [mode for mode in runs if mode != "fail"] == ["unset", "stats"]

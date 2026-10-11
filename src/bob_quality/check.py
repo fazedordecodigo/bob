@@ -94,6 +94,7 @@ class _Measured:
     exit_code: int = PASSED
     mutation: MutationOutcome | None = None
     loaded_waivers: list[dict[str, object]] = field(default_factory=list)
+    baseline: int | None = None
 
 
 def _measure(
@@ -126,7 +127,7 @@ def _absorb(
     max_workers: int | None,
 ) -> None:
     if gate == "crap":
-        result, metrics, code, versions = run_crap_gate(
+        result, metrics, code, versions, baseline = run_crap_gate(
             cwd=cwd,
             config=config,
             diff_lines=diff_lines,
@@ -134,6 +135,7 @@ def _absorb(
             coverage_file=coverage_file,
         )
         state.metrics = metrics
+        state.baseline = baseline
         _record(state, result, code, versions)
         return
     if gate == "dry":
@@ -153,6 +155,7 @@ def _absorb(
             diff_lines=diff_lines,
             out_dir=out_dir,
             max_workers=max_workers,
+            baseline=state.baseline,
         )
         state.mutation = mutation
         _record(state, mutation.result, mutation.exit_code, mutation.versions)
