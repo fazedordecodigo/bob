@@ -42,7 +42,7 @@ bob waive <mutant-id|função> --reason "uma linha"
 bob doctor
 ```
 
-`bob doctor` lista cada ferramenta com a versão pinada e a encontrada. Sai com `0` quando todas coincidem e com `4` quando alguma falta ou diverge, junto com o comando de instalação. Se o diretório do pacote não for gravável, a mensagem pede `bob doctor --install`.
+`bob doctor` lista cada ferramenta com a versão pinada e a encontrada. Sai com `0` quando todas coincidem e com `4` quando alguma falta ou diverge, junto com o comando de instalação. Se o diretório do pacote não for gravável, a mensagem pede `bob doctor --install`. Ele roda `npm ci` no pacote e, se o npm falhar com `EACCES`, `EPERM` ou `EROFS`, instala em `$XDG_CACHE_HOME/bob-quality` (padrão `~/.cache/bob-quality`). Outros erros do npm saem com `4` e o comando exato.
 
 Os comandos gravam `.bob/report.md` e `.bob/report.json`. Exit codes: `0` passou, `1` CRAP acima do limite numa função alterada, `2` testes da baseline falharam, `3` mutante sobrevivente sem waiver, `4` config/ferramenta.
 
