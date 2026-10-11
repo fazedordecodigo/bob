@@ -10,6 +10,7 @@ from pathlib import Path
 FIXTURE_PYTHON = Path(__file__).parent / "fixtures" / "python_app"
 RISKY_SOURCE = (FIXTURE_PYTHON / "cases" / "fail_crap.py").read_text()
 RISKY_WITH_CONSTANT = (FIXTURE_PYTHON / "cases" / "risky_with_constant.py").read_text()
+MESSY_WITHOUT_RETURN_2 = (FIXTURE_PYTHON / "cases" / "messy_without_return_2.py").read_text()
 SAFE_CHANGE = (FIXTURE_PYTHON / "cases" / "pass_safe.py").read_text()
 
 

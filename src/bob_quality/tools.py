@@ -47,11 +47,18 @@ def run_coverage(
         )
         return 0
     source = ",".join(include) if include else "."
+    env = {
+        key: value
+        for key, value in os.environ.items()
+        if not key.startswith("PYTEST_")
+    }
     pytest_run = subprocess.run(
         [sys.executable, "-m", "coverage", "run", f"--source={source}", "-m", "pytest"],
         cwd=cwd,
         capture_output=True,
         text=True,
+        stdin=subprocess.DEVNULL,
+        env=env,
     )
     if pytest_run.returncode in {0, 5}:
         _run([sys.executable, "-m", "coverage", "json", "-o", str(json_path)], cwd)

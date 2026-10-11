@@ -30,7 +30,13 @@ def test_pre_push_hook_runs_crap_gate_under_60s(tmp_path: Path) -> None:
     dest = _install_hook(repo)
 
     started = time.monotonic()
-    result = subprocess.run([str(dest)], cwd=repo, capture_output=True, text=True)
+    result = subprocess.run(
+        [str(dest)],
+        cwd=repo,
+        capture_output=True,
+        text=True,
+        stdin=subprocess.DEVNULL,
+    )
     elapsed = time.monotonic() - started
 
     assert "bob check --gates crap" in HOOK.read_text()
@@ -51,7 +57,13 @@ def test_pre_push_hook_blocks_when_changed_function_exceeds_crap_10(tmp_path: Pa
     dest = _install_hook(repo)
 
     started = time.monotonic()
-    result = subprocess.run([str(dest)], cwd=repo, capture_output=True, text=True)
+    result = subprocess.run(
+        [str(dest)],
+        cwd=repo,
+        capture_output=True,
+        text=True,
+        stdin=subprocess.DEVNULL,
+    )
     elapsed = time.monotonic() - started
 
     assert result.returncode == 1

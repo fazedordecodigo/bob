@@ -1,9 +1,14 @@
 """Comportamento da CLI `bob` sobre o repo-fixture Python (seam principal)."""
 
 import json
+import os
+import subprocess
+import sys
+import time
 from pathlib import Path
 
 from helpers import (
+    MESSY_WITHOUT_RETURN_2,
     RISKY_SOURCE,
     RISKY_WITH_CONSTANT,
     SAFE_CHANGE,
@@ -91,6 +96,29 @@ def test_check_does_not_block_old_debt_when_only_unrelated_line_is_removed(
     assert not any(item["name"] == "messy" and item["changed"] for item in payload["top_crap"])
 
 
+def test_check_blocks_when_line_is_removed_inside_high_crap_function(
+    tmp_path: Path,
+) -> None:
+    """Remover só `return 2` dentro de `messy` (hunk `@@ -5 +4,0 @@`) bloqueia."""
+    repo = init_python_repo(tmp_path / "repo")
+    commit_on_main(repo, "src/app/risky.py", RISKY_SOURCE, "untested messy")
+    commit_on_branch(
+        repo,
+        "drop-return",
+        "src/app/risky.py",
+        MESSY_WITHOUT_RETURN_2,
+        "remove only return 2",
+    )
+
+    result = run_bob(repo, "check", "--base", "main", "--gates", "crap")
+    payload = json.loads((repo / ".bob" / "report.json").read_text())
+    markdown = (repo / ".bob" / "report.md").read_text()
+
+    assert result.returncode == 1
+    assert any(item["name"] == "messy" and item["changed"] for item in payload["top_crap"])
+    assert "fora do diff" not in markdown
+
+
 def test_unimplemented_gates_are_skipped_never_passed(tmp_path: Path) -> None:
     repo = init_python_repo(tmp_path / "repo")
     commit_on_branch(
@@ -155,4 +183,30 @@ def test_check_exits_4_when_config_is_missing(tmp_path: Path) -> None:
     assert names["dry"]["status"] == "not_run"
     assert names["deps"]["status"] == "not_run"
     assert names["dry"]["reason"]
+
+
+def test_check_does_not_reenter_parent_pytest_via_addopts(tmp_path: Path) -> None:
+    """`bob check` no fixture não pode herdar PYTEST_ADDOPTS do pytest pai."""
+    repo = init_python_repo(tmp_path / "repo")
+    commit_on_branch(
+        repo,
+        "safe-change",
+        "src/app/safe.py",
+        SAFE_CHANGE,
+        "touch tested add",
+    )
+    env = {**os.environ, "PYTEST_ADDOPTS": str(Path(__file__).resolve().parent / "test_hook.py")}
+    started = time.monotonic()
+    result = subprocess.run(
+        [sys.executable, "-m", "bob_quality", "check", "--base", "main", "--gates", "crap"],
+        cwd=repo,
+        capture_output=True,
+        text=True,
+        env=env,
+        timeout=8,
+    )
+    elapsed = time.monotonic() - started
+    assert result.returncode == 0
+    assert elapsed < 8
+
 

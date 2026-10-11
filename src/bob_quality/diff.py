@@ -43,9 +43,11 @@ def parse_unified_diff(patch: str) -> dict[str, set[int]]:
             continue
         start = int(match.group(1))
         count = int(match.group(2) or "1")
+        touched = files.setdefault(current, set())
         if count == 0:
+            touched.add(start)
             continue
-        files.setdefault(current, set()).update(range(start, start + count))
+        touched.update(range(start, start + count))
     return files
 
 
