@@ -73,6 +73,19 @@ def _deps(repo: Path) -> tuple[dict[str, object], str]:
     return payload, markdown
 
 
+def test_deps_exits_4_when_grimp_cannot_build_the_import_graph(tmp_path: Path) -> None:
+    repo = init_python_repo(tmp_path / "repo")
+    commit_on_branch(repo, "bad", "src/app/broken.py", "def (\n", "syntax error")
+
+    code = _invoke(repo, "deps", "--base", "main")
+    payload, markdown = _deps(repo)
+    deps = next(gate for gate in payload["gates"] if gate["name"] == "deps")
+
+    assert code == 4, markdown
+    assert deps["status"] == "not_run"
+    assert "grimp" in (deps["reason"] or "").lower()
+
+
 def test_python_cycle_fails_without_import_linter_config(tmp_path: Path) -> None:
     repo = init_python_repo(tmp_path / "repo")
     assert not (repo / ".importlinter").exists()

@@ -71,6 +71,7 @@ def run_deps_gate(
     versions: dict[str, str] = {}
     python_measured = "python" in config.languages
     try:
+        components = _cycle_components(cwd, config) if python_measured else []
         if python_measured:
             violations.extend(_python_violations(cwd, config, versions))
         skip = _collect_typescript(
@@ -86,7 +87,7 @@ def run_deps_gate(
     marked = _mark_diff(
         violations,
         changed_files or set(),
-        _cycle_components(cwd, config) if python_measured else [],
+        components,
         _source_roots(cwd, config),
     )
     verdict, code = deps_verdict(marked)
@@ -200,20 +201,29 @@ def _import_edges(cwd: Path, config: Config, roots: list[str]) -> dict[str, list
         stdin=subprocess.DEVNULL,
         env=env,
     )
-    return _parse_edges(completed.stdout if completed.returncode == 0 else "")
+    if completed.returncode != 0:
+        detail = _short(completed.stderr or completed.stdout)
+        raise ToolError(f"grimp não montou o grafo: {detail}")
+    try:
+        return _parse_edges(completed.stdout)
+    except ValueError as exc:
+        raise ToolError("grimp devolveu um grafo ilegível") from exc
 
 
 def _parse_edges(raw: str) -> dict[str, list[str]]:
+    if not raw.strip():
+        raise ValueError("grafo vazio")
     try:
-        data = json.loads(raw) if raw.strip() else {}
-    except json.JSONDecodeError:
-        return {}
+        data = json.loads(raw)
+    except json.JSONDecodeError as exc:
+        raise ValueError("grafo ilegível") from exc
     if not isinstance(data, dict):
-        return {}
+        raise ValueError("grafo ilegível")
     edges: dict[str, list[str]] = {}
     for origin, destinations in data.items():
-        if isinstance(destinations, list):
-            edges[str(origin)] = [str(item) for item in destinations]
+        if not isinstance(destinations, list):
+            raise ValueError("grafo ilegível")
+        edges[str(origin)] = [str(item) for item in destinations]
     return edges
 
 

@@ -29,10 +29,19 @@ def _walk(
 ) -> None:
     if node in seen:
         return
-    seen.add(node)
-    for nxt in edges.get(node, ()):
-        _walk(nxt, edges, seen, order)
-    order.append(node)
+    stack: list[tuple[str, bool]] = [(node, False)]
+    while stack:
+        current, expanded = stack.pop()
+        if expanded:
+            order.append(current)
+            continue
+        if current in seen:
+            continue
+        seen.add(current)
+        stack.append((current, True))
+        for nxt in reversed(tuple(edges.get(current, ()))):
+            if nxt not in seen:
+                stack.append((nxt, False))
 
 
 def _inbound(nodes: set[str], edges: dict[str, list[str]]) -> dict[str, list[str]]:
@@ -68,7 +77,13 @@ def _collect(
 ) -> None:
     if node in seen:
         return
-    seen.add(node)
-    component.add(node)
-    for nxt in inbound.get(node, ()):
-        _collect(nxt, inbound, seen, component)
+    stack = [node]
+    while stack:
+        current = stack.pop()
+        if current in seen:
+            continue
+        seen.add(current)
+        component.add(current)
+        for nxt in inbound.get(current, ()):
+            if nxt not in seen:
+                stack.append(nxt)
