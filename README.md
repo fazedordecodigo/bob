@@ -59,7 +59,7 @@ flowchart TD
 
 ## Installation (development)
 
-You need Python 3.10 or later and Node 22.14.0, the versions the CI uses. The system Python of a current Ubuntu refuses `pip install` under PEP 668, so install inside a venv.
+You need Python 3.10 or later and Node 22.14.0, the versions the CI uses. The system Python of a current Ubuntu refuses `pip install` under PEP 668, so install inside a venv. To get Node 22.14.0, run `fnm install 22.14.0` or `nvm install 22.14.0`, or download the `.tar.gz` from <https://nodejs.org/dist/v22.14.0/>. Choose the `.tar.gz` over the `.tar.xz`, because the image may not have `xz`.
 
 ```bash
 python3 -m venv .venv && . .venv/bin/activate
@@ -247,7 +247,7 @@ chmod +x .git/hooks/pre-push
 pytest
 ```
 
-The repository fixtures are in `tests/fixtures`: `python_app` (a passing case and a case that fails with CRAP > 10), `ts_app`, and `mixed_app`. `tests/fixtures/raw` has recorded output from the pinned tools.
+The repository fixtures are in `tests/fixtures`: `python_app` (a passing case and a case that fails with CRAP ≥ 10), `ts_app`, and `mixed_app`. `tests/fixtures/raw` has recorded output from the pinned tools.
 
 The CI (`.github/workflows/ci.yml`) runs this suite on Python 3.10 and 3.12 with Node 22.14.0, on pull requests and on pushes to `main`.
 
