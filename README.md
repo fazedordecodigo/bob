@@ -59,8 +59,11 @@ flowchart TD
 
 ## Installation (development)
 
+You need Python 3.10 or later and Node 22.14.0, the versions the CI uses. The system Python of a current Ubuntu refuses `pip install` under PEP 668, so install inside a venv.
+
 ```bash
-pip install -e ".[dev]"
+python3 -m venv .venv && . .venv/bin/activate
+python -m pip install -e ".[dev]"
 npm ci
 ```
 
@@ -98,9 +101,9 @@ The commands write `.bob/report.md` and `.bob/report.json`. The exit codes are:
 |---|---|
 | `0` | Every gate that ran passed. |
 | `1` | A gate failed. A changed function has CRAP at or above the limit, or the diff has a dependency violation. |
-| `2` | The baseline tests failed before bob could measure. |
+| `2` | The baseline tests failed before bob could measure. The `crap` gate runs them in the default `bob check` too. |
 | `3` | A surviving mutant has no waiver. |
-| `4` | Configuration error or missing tool. |
+| `4` | Missing or different tool, or a configuration error that bob catches. A YAML syntax error or a key with the wrong type still gives a traceback and exit `1` ([#39](https://github.com/fazedordecodigo/bob/issues/39)). |
 
 When more than one gate fails, `bob check` exits with the highest code.
 
@@ -145,11 +148,11 @@ dependencies:
   typescript: .dependency-cruiser.cjs
 ```
 
-With `crap.scope: changed`, only changed functions block. Any other value makes every measured function count. If `--config` points to a file that does not exist, or the YAML is not a mapping, the run exits with `4`.
+With `crap.scope: changed`, only changed functions block. Any other value makes every measured function count. If `--config` points to a file that does not exist, or the YAML is not a mapping, the run exits with `4`. A YAML syntax error, or a key with the wrong type such as `crap: 5` or `max_per_function: abc`, gives a traceback and exit `1` without a report ([#39](https://github.com/fazedordecodigo/bob/issues/39)).
 
 ### `bob doctor` and `--install`
 
-`bob doctor` lists each tool with the pinned and the found version. It exits with `0` when all match, and with `4` when a tool is missing or differs, together with the install command. If the package directory is not writable, the message asks for `bob doctor --install`.
+`bob doctor` lists each tool with the pinned and the found version. It exits with `0` when all match, and with `4` when a tool is missing or differs, together with the install command. The versions must match exactly, so Node 20, or any Node other than 22.14.0, gives `4`. If the package directory is not writable, the message asks for `bob doctor --install`.
 
 `bob doctor --install` runs `npm ci` in the installed package. When the package directory is not writable, it installs into a user cache (`$XDG_CACHE_HOME/bob-quality`, or `~/.cache/bob-quality`). Then it prints the same report.
 
@@ -162,7 +165,7 @@ Waivers live in `.bob/waivers.yaml`, which you commit with the code. `bob waive`
 - `author`, from `git config user.name`, or `$USER`.
 - `date`, the UTC date.
 
-A waiver without a one-line reason is rejected with exit `4`. A new waiver with the same `id` replaces the old one. A waiver matches a mutant by the mutant id, the function name, `file:function`, or `file::function`. An invalid `waivers.yaml` makes the run exit with `4`. The agent writes the waiver, and the human approves it in the pull request review. Every waiver appears at the top of the report.
+A waiver without a one-line reason is rejected with exit `4`. A new waiver with the same `id` replaces the old one. A waiver matches a mutant by the mutant id, the function name, `file:function`, or `file::function`. A `waivers.yaml` with the wrong structure makes the run exit with `4`. A YAML syntax error in it gives a traceback and exit `1`. The agent writes the waiver, and the human approves it in the pull request review. Every waiver appears at the top of the report.
 
 ### The report
 
@@ -197,7 +200,7 @@ CRAP = CC² × (1 − cov)³ + CC
 | 5 | 0% | 25 × 1 + 5 = 30 | fails |
 | 10 | 100% | 0 + 10 = 10 | fails |
 
-The limit is CRAP < 10 per changed function. A function with CRAP of 10 or more fails the gate with exit `1`. Because CRAP is never below CC, a changed function with CC 10 or more fails at the default limit even with full coverage. Change the limit with `crap.max_per_function` in `bob.yaml` or with `bob crap --threshold`.
+The limit is CRAP < 10 per changed function. A function with CRAP of 10 or more fails the gate with exit `1`. The gate runs the tests to measure coverage, so a broken baseline gives exit `2`, in the default `bob check` too. Because CRAP is never below CC, a changed function with CC 10 or more fails at the default limit even with full coverage. Change the limit with `crap.max_per_function` in `bob.yaml` or with `bob crap --threshold`.
 
 ### Duplication (DRY)
 
@@ -246,7 +249,7 @@ pytest
 
 The repository fixtures are in `tests/fixtures`: `python_app` (a passing case and a case that fails with CRAP > 10), `ts_app`, and `mixed_app`. `tests/fixtures/raw` has recorded output from the pinned tools.
 
-The CI (`.github/workflows/ci.yml`) runs this suite on Python 3.10 and 3.12, on pull requests and on pushes to `main`.
+The CI (`.github/workflows/ci.yml`) runs this suite on Python 3.10 and 3.12 with Node 22.14.0, on pull requests and on pushes to `main`.
 
 ## GitHub Action
 

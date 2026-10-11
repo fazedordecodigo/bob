@@ -59,8 +59,11 @@ flowchart TD
 
 ## Instalação (desenvolvimento)
 
+Você precisa de Python 3.10 ou superior e do Node 22.14.0, as versões que o CI usa. O Python do sistema de um Ubuntu atual recusa o `pip install` pela PEP 668, então instale dentro de um venv.
+
 ```bash
-pip install -e ".[dev]"
+python3 -m venv .venv && . .venv/bin/activate
+python -m pip install -e ".[dev]"
 npm ci
 ```
 
@@ -98,9 +101,9 @@ Os comandos gravam `.bob/report.md` e `.bob/report.json`. Os exit codes são:
 |---|---|
 | `0` | Todo gate que rodou passou. |
 | `1` | Um gate falhou. Uma função alterada tem CRAP no limite ou acima, ou o diff tem uma violação de dependência. |
-| `2` | Os testes da baseline falharam antes de o bob medir. |
+| `2` | Os testes da baseline falharam antes de o bob medir. O gate `crap` também os roda no `bob check` padrão. |
 | `3` | Um mutante sobrevivente não tem waiver. |
-| `4` | Erro de configuração ou ferramenta ausente. |
+| `4` | Ferramenta ausente ou divergente, ou um erro de configuração que o bob captura. Um YAML com erro de sintaxe ou uma chave com tipo errado ainda dá traceback e exit `1` ([#39](https://github.com/fazedordecodigo/bob/issues/39)). |
 
 Quando mais de um gate falha, `bob check` sai com o código mais alto.
 
@@ -145,11 +148,11 @@ dependencies:
   typescript: .dependency-cruiser.cjs
 ```
 
-Com `crap.scope: changed`, só funções alteradas bloqueiam. Qualquer outro valor faz toda função medida contar. Se `--config` aponta para um arquivo que não existe, ou se o YAML não é um mapeamento, a execução sai com `4`.
+Com `crap.scope: changed`, só funções alteradas bloqueiam. Qualquer outro valor faz toda função medida contar. Se `--config` aponta para um arquivo que não existe, ou se o YAML não é um mapeamento, a execução sai com `4`. Um YAML com erro de sintaxe, ou uma chave com tipo errado como `crap: 5` ou `max_per_function: abc`, dá traceback e exit `1` sem relatório ([#39](https://github.com/fazedordecodigo/bob/issues/39)).
 
 ### `bob doctor` e `--install`
 
-`bob doctor` lista cada ferramenta com a versão pinada e a encontrada. Sai com `0` quando todas coincidem, e com `4` quando alguma falta ou diverge, junto com o comando de instalação. Se o diretório do pacote não for gravável, a mensagem pede `bob doctor --install`.
+`bob doctor` lista cada ferramenta com a versão pinada e a encontrada. Sai com `0` quando todas coincidem, e com `4` quando alguma falta ou diverge, junto com o comando de instalação. As versões precisam bater exatamente, então o Node 20, ou qualquer Node diferente de 22.14.0, dá `4`. Se o diretório do pacote não for gravável, a mensagem pede `bob doctor --install`.
 
 `bob doctor --install` roda `npm ci` no pacote instalado. Quando o diretório do pacote não é gravável, instala num cache do usuário (`$XDG_CACHE_HOME/bob-quality`, ou `~/.cache/bob-quality`). Depois imprime o mesmo relatório.
 
@@ -162,7 +165,7 @@ Os waivers ficam em `.bob/waivers.yaml`, versionado junto com o código. `bob wa
 - `author`, de `git config user.name`, ou `$USER`.
 - `date`, a data em UTC.
 
-Um waiver sem motivo de uma linha é rejeitado com exit `4`. Um waiver novo com o mesmo `id` substitui o antigo. Um waiver casa com um mutante pelo id do mutante, pelo nome da função, por `file:function` ou por `file::function`. Um `waivers.yaml` inválido faz a execução sair com `4`. O agente grava o waiver, e o humano o aprova no review do pull request. Todo waiver aparece no topo do relatório.
+Um waiver sem motivo de uma linha é rejeitado com exit `4`. Um waiver novo com o mesmo `id` substitui o antigo. Um waiver casa com um mutante pelo id do mutante, pelo nome da função, por `file:function` ou por `file::function`. Um `waivers.yaml` com a estrutura errada faz a execução sair com `4`. Um erro de sintaxe YAML nele dá traceback e exit `1`. O agente grava o waiver, e o humano o aprova no review do pull request. Todo waiver aparece no topo do relatório.
 
 ### O relatório
 
@@ -197,7 +200,7 @@ CRAP = CC² × (1 − cov)³ + CC
 | 5 | 0% | 25 × 1 + 5 = 30 | falha |
 | 10 | 100% | 0 + 10 = 10 | falha |
 
-O limite é CRAP < 10 por função alterada. Uma função com CRAP 10 ou mais reprova o gate com exit `1`. Como o CRAP nunca fica abaixo do CC, uma função alterada com CC 10 ou mais falha no limite padrão mesmo com cobertura total. Mude o limite com `crap.max_per_function` no `bob.yaml` ou com `bob crap --threshold`.
+O limite é CRAP < 10 por função alterada. Uma função com CRAP 10 ou mais reprova o gate com exit `1`. O gate roda os testes para medir a cobertura, então uma baseline quebrada dá exit `2`, também no `bob check` padrão. Como o CRAP nunca fica abaixo do CC, uma função alterada com CC 10 ou mais falha no limite padrão mesmo com cobertura total. Mude o limite com `crap.max_per_function` no `bob.yaml` ou com `bob crap --threshold`.
 
 ### Duplicação (DRY)
 
@@ -246,7 +249,7 @@ pytest
 
 Os repositórios-fixture estão em `tests/fixtures`: `python_app` (um caso que passa e um caso que falha por CRAP > 10), `ts_app` e `mixed_app`. `tests/fixtures/raw` tem saídas gravadas das ferramentas pinadas.
 
-O CI (`.github/workflows/ci.yml`) roda essa suíte em Python 3.10 e 3.12, em pull requests e em pushes para `main`.
+O CI (`.github/workflows/ci.yml`) roda essa suíte em Python 3.10 e 3.12 com Node 22.14.0, em pull requests e em pushes para `main`.
 
 ## GitHub Action
 

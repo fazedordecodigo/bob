@@ -11,28 +11,19 @@ Plugin de qualidade: fluxo de spec do Pocock + gates `bob check`.
 
 ## Verificar no Cloud Agent
 
-Os workflows `.github/workflows/ci.yml` e `.github/workflows/bob.yml` são a fonte destes passos. O CI usa Python 3.10 e 3.12 com Node 22.14.0.
+Os workflows `.github/workflows/ci.yml` e `.github/workflows/bob.yml` são a fonte destes passos.
 
-1. Use Python 3.10 ou superior. Os testes de pacote criam venvs, então a imagem precisa do `python3-venv`.
-2. Instale o pacote com `python -m pip install -e '.[dev]'`. Sem venv, o pip grava o `bob` em `~/.local/bin`. Ponha essa pasta no `PATH`.
-3. Instale as ferramentas npm fixadas com `npm ci` na raiz.
-4. Rode `bob doctor`. Ele lista cada ferramenta com a versão esperada e a encontrada. `bob doctor --install` roda `npm ci` dentro do pacote instalado e serve para quem instalou o wheel. Num checkout editável, ele cria `src/bob_quality/node_modules`. O mutmut copia essa pasta sem os links de `.bin` e o teste `test_mutmut_dogfood.py` falha. Apague essa pasta antes do `pytest`.
-5. Rode `python -m pytest`. A suíte inteira leva cerca de 12 minutos, porque o dogfood do mutmut gera `mutants/`.
-6. Rode `bob check --base origin/main --gates crap,dry,deps,mutate`, como no CI. Sem `--gates`, o padrão é `crap,dry,deps`. O `mutate` roda a suíte como baseline e leva mais de 10 minutos. O relatório fica em `.bob/report.md` e `.bob/report.json`.
+1. Use Python 3.10 ou superior. O CI roda 3.10 e 3.12. A imagem precisa do `python3-venv`.
+2. Use o Node 22.14.0, o mesmo do CI. O `bob doctor` exige essa versão exata e sai com `4` com outra, o Node 20 inclusive.
+3. Crie e ative um venv com `python3 -m venv .venv && . .venv/bin/activate`. O Python do sistema recusa o `pip install` pela PEP 668.
+4. Instale o pacote com `python -m pip install -e '.[dev]'`.
+5. Instale as ferramentas npm fixadas com `npm ci` na raiz.
+6. Rode `bob doctor`. Ele lista cada ferramenta com a versão esperada e a encontrada, e sai com `0` só quando todas batem. `bob doctor --install` roda `npm ci` dentro do pacote instalado e serve para quem instalou o wheel. Num checkout editável, ele cria `src/bob_quality/node_modules`, e o teste `test_mutmut_dogfood.py` falha ([#34](https://github.com/fazedordecodigo/bob/issues/34)). Apague essa pasta antes do `pytest`.
+7. Rode `python -m pytest`. A suíte leva vários minutos, porque o dogfood do mutmut gera `mutants/`.
+8. Rode `bob check --base origin/main --gates crap,dry,deps,mutate`, como no CI. Sem `--gates`, o padrão é `crap,dry,deps`. O `mutate` também leva vários minutos. O relatório fica em `.bob/report.md` e `.bob/report.json`.
 
-Gates:
+Os gates e os exit codes estão em [`docs/SPEC.md`](docs/SPEC.md). Três pontos do comportamento atual:
 
-- `crap` bloqueia função alterada com CRAP acima de `crap.max_per_function` no `bob.yaml`.
-- `dry` só avisa sobre clones novos no diff e nunca muda o exit code.
-- `deps` bloqueia ciclo de dependência ou violação de regra que toque o diff.
-- `mutate` bloqueia mutante sobrevivente sem waiver em `.bob/waivers.yaml`.
-
-Exit codes do `bob check`. Com vários gates, vale o maior:
-
-- `0`: todos os gates pedidos passaram.
-- `1`: um gate falhou, por exemplo CRAP acima do limite ou ciclo no diff.
-- `2`: o baseline quebrou, ou seja, os testes falham antes da mutação.
-- `3`: sobrou mutante sem waiver.
-- `4`: a configuração é inválida ou falta uma ferramenta.
-
-A SPEC completa da CLI fica em `docs/SPEC.md`.
+- O gate `crap` bloqueia quando o CRAP de uma função alterada é maior ou igual a `crap.max_per_function`.
+- O exit `2` também sai do `bob check` padrão. O gate `crap` roda a suíte para medir a cobertura e sai com `2` se a baseline quebra.
+- Um `--config` inexistente ou um `bob.yaml` que não é mapeamento dão exit `4`. Um YAML com erro de sintaxe ou uma chave com tipo errado dão traceback e exit `1` ([#39](https://github.com/fazedordecodigo/bob/issues/39)).
