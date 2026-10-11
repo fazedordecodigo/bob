@@ -9,6 +9,7 @@ bob gives coding agents (Cursor, Claude Code, GitHub Copilot, Devin) determinist
 - Marketplace name: `bob` (not published yet)
 - Configuration: `bob.yaml`
 - Reports: `.bob/report.md` and `.bob/report.json` (schema v1)
+- Output language: English (`en`, the default) or Brazilian Portuguese (`pt-BR`)
 
 License: MIT.
 
@@ -95,6 +96,8 @@ Each command accepts these flags:
 | `bob waive` | the mutant id or function name, `--reason` |
 | `bob doctor` | `--install` |
 
+Every command also accepts `--lang en|pt-BR`, before or after the command name. See [Output language](#output-language).
+
 The commands write `.bob/report.md` and `.bob/report.json`. The exit codes are:
 
 | Code | Meaning |
@@ -113,7 +116,7 @@ A local `bob check` does not run mutation. `bob check --gates mutate` and `bob m
 
 ### Only the diff blocks
 
-bob runs `git diff <base>...HEAD` and maps the changed lines to functions. A function counts as changed when the diff touches one of its lines. Only changed functions, and dependency violations that touch changed files, can fail a gate. Old debt goes to the informational sections of the report, marked `fora do diff; não bloqueia`, and does not change the exit code. `--base` overrides the `base` key in `bob.yaml`.
+bob runs `git diff <base>...HEAD` and maps the changed lines to functions. A function counts as changed when the diff touches one of its lines. Only changed functions, and dependency violations that touch changed files, can fail a gate. Old debt goes to the informational sections of the report, marked `outside the diff; does not block`, and does not change the exit code. `--base` overrides the `base` key in `bob.yaml`.
 
 ### Pinned tools per language
 
@@ -134,6 +137,7 @@ bob reads these keys. The values below are the defaults that apply when `bob.yam
 
 ```yaml
 base: origin/main
+language: en
 languages: [python]
 paths:
   include: [src]
@@ -149,6 +153,21 @@ dependencies:
 ```
 
 With `crap.scope: changed`, only changed functions block. Any other value makes every measured function count. If `--config` points to a file that does not exist, or the YAML is not a mapping, the run exits with `4`. A YAML syntax error, or a key with the wrong type such as `crap: 5` or `max_per_function: abc`, gives a traceback and exit `1` without a report ([#39](https://github.com/fazedordecodigo/bob/issues/39)).
+
+### Output language
+
+bob writes its text for humans in English (`en`) or Brazilian Portuguese (`pt-BR`). That covers the CLI messages, the `--help` text, `bob doctor`, the pre-push hook, and `.bob/report.md`. The first source that is set wins:
+
+1. `--lang en|pt-BR`, before or after the command name.
+2. The `BOB_LANG` environment variable.
+3. `language` in `bob.yaml`.
+4. `en`.
+
+An empty value counts as unset, and the case matters (`pt-br` is invalid). When an invalid `--lang` or `BOB_LANG` decides the language, the run exits with `4`, prints `invalid language: <value> (use en or pt-BR)` to stderr, and writes no report. An invalid `language` in `bob.yaml` is a configuration error like any other. `bob check` exits with `4` and writes the report in the language from the flag, from the environment, or in English.
+
+`.bob/report.json` does not depend on the language. Its keys stay the same and its `reason` texts are always in English, so the same input gives the same bytes in both languages. Tool output and rule names, such as `Proibido ciclo de dependência`, pass through unchanged.
+
+In CI, set `language: pt-BR` in `bob.yaml`, or `BOB_LANG: pt-BR` in the job `env`. The GitHub Action comments `.bob/report.md`, so the comment follows the same choice.
 
 ### `bob doctor` and `--install`
 
@@ -169,18 +188,18 @@ A waiver without a one-line reason is rejected with exit `4`. A new waiver with 
 
 ### The report
 
-`.bob/report.md` is one page for the reviewer. `.bob/report.json` has the same data and follows the schema in `src/bob_quality/schemas/report_v1.json` (`schema_version: 1`). `--format` picks one file or both. The Markdown report has these parts, with the headings in Portuguese:
+`.bob/report.md` is one page for the reviewer. `.bob/report.json` has the same data and follows the schema in `src/bob_quality/schemas/report_v1.json` (`schema_version: 1`). `--format` picks one file or both. The Markdown report has these parts, with the headings in the output language. The names below are the `en` ones, and `README.pt-BR.md` lists the `pt-BR` ones:
 
 1. `Waivers`, when there are waivers or mutation ran.
 2. A header with the commit, the base, the date, and the tool versions.
-3. `Veredito`, one line per gate: ✅ passed, ⚠️ warning, ❌ failed, or ⏭️ not run with the reason. A gate that did not run never shows as ✅.
-4. `Onde focar o review`, the changed files ordered by risk (highest CRAP, plus clones and survivors).
-5. `Top 5 funções por CRAP (diff)`.
-6. `Informação (dívida antiga)`, functions outside the diff at or above the limit.
-7. `Violações e ciclos de dependência`, and `Informação (dependências fora do diff)`.
-8. `Clones novos`.
-9. `Mutantes sobreviventes`.
-10. `Como reproduzir`, the exact command to run locally.
+3. `Verdict`, one line per gate: ✅ passed, ⚠️ warning, ❌ failed, or ⏭️ not run with the reason. A gate that did not run never shows as ✅.
+4. `Where to focus the review`, the changed files ordered by risk (highest CRAP, plus clones and survivors).
+5. `Top 5 functions by CRAP (diff)`.
+6. `Information (old debt)`, functions outside the diff at or above the limit.
+7. `Dependency violations and cycles`, and `Information (dependencies outside the diff)`.
+8. `New clones`.
+9. `Surviving mutants`.
+10. `How to reproduce`, the exact command to run locally.
 
 ## Concepts
 
@@ -206,7 +225,7 @@ The limit is CRAP < 10 per changed function. A function with CRAP of 10 or more 
 
 A clone is a block of code that repeats another block. New clones show where the agent copied code instead of reusing it.
 
-bob runs jscpd and keeps only the clones where at least one side touches a changed line. For example, if the diff adds a block of at least 50 tokens that matches existing code, the report lists the pair under `Clones novos` and the verdict shows ⚠️. The exit code stays `0`.
+bob runs jscpd and keeps only the clones where at least one side touches a changed line. For example, if the diff adds a block of at least 50 tokens that matches existing code, the report lists the pair under `New clones` and the verdict shows ⚠️. The exit code stays `0`.
 
 The limit is `duplication.min_tokens` (default 50). Duplication is a warning only and never changes the exit code. Without Node, the gate shows as ⏭️.
 
@@ -230,11 +249,11 @@ Dependency rules and cycles show architecture erosion. When module A imports B a
 
 bob runs the rules the repository already declares, in `.importlinter` for Python (import-linter) and in `.dependency-cruiser.cjs` for TypeScript (dependency-cruiser). It adds one rule that is always on, `Proibido ciclo de dependência`, which forbids dependency cycles. For example, if `app.a` imports `app.b` and the diff makes `app.b` import `app.a`, the gate shows ❌ and exits with `1`.
 
-The limit is zero violations in the diff. A violation blocks only when its origin, its destination, or another module in the same cycle (strongly connected component) changed in the diff. Older violations appear as `fora do diff; não bloqueia`.
+The limit is zero violations in the diff. A violation blocks only when its origin, its destination, or another module in the same cycle (strongly connected component) changed in the diff. Older violations appear as `outside the diff; does not block`.
 
 ## Pre-push hook
 
-The script `src/bob_quality/hooks/pre-push` runs `bob check --gates crap,deps`, the fast gates. `tests/test_hook.py` checks that it finishes in under 60 s on the fixture.
+The script `src/bob_quality/hooks/pre-push` runs `bob check --gates crap,deps`, the fast gates. It follows `BOB_LANG` and `language` in `bob.yaml`. `tests/test_hook.py` checks that it finishes in under 60 s on the fixture.
 
 ```bash
 cp src/bob_quality/hooks/pre-push .git/hooks/pre-push

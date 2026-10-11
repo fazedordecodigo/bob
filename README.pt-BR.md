@@ -9,6 +9,7 @@ O bob dá aos agentes de código (Cursor, Claude Code, GitHub Copilot, Devin) ga
 - Nome nos marketplaces: `bob` (ainda não publicado)
 - Configuração: `bob.yaml`
 - Relatórios: `.bob/report.md` e `.bob/report.json` (schema v1)
+- Idioma da saída: inglês (`en`, o padrão) ou português do Brasil (`pt-BR`)
 
 Licença: MIT.
 
@@ -95,6 +96,8 @@ Cada comando aceita estas flags:
 | `bob waive` | o id do mutante ou o nome da função, `--reason` |
 | `bob doctor` | `--install` |
 
+Todo comando aceita também `--lang en|pt-BR`, antes ou depois do nome do comando. Ver [Idioma da saída](#idioma-da-saída).
+
 Os comandos gravam `.bob/report.md` e `.bob/report.json`. Os exit codes são:
 
 | Código | Significado |
@@ -134,6 +137,7 @@ O bob lê estas chaves. Os valores abaixo são os padrões que valem quando o `b
 
 ```yaml
 base: origin/main
+language: en
 languages: [python]
 paths:
   include: [src]
@@ -149,6 +153,21 @@ dependencies:
 ```
 
 Com `crap.scope: changed`, só funções alteradas bloqueiam. Qualquer outro valor faz toda função medida contar. Se `--config` aponta para um arquivo que não existe, ou se o YAML não é um mapeamento, a execução sai com `4`. Um YAML com erro de sintaxe, ou uma chave com tipo errado como `crap: 5` ou `max_per_function: abc`, dá traceback e exit `1` sem relatório ([#39](https://github.com/fazedordecodigo/bob/issues/39)).
+
+### Idioma da saída
+
+O bob escreve o texto para humanos em inglês (`en`) ou em português do Brasil (`pt-BR`). Isso cobre as mensagens da CLI, o texto do `--help`, o `bob doctor`, o hook pre-push e o `.bob/report.md`. Vale a primeira fonte definida:
+
+1. `--lang en|pt-BR`, antes ou depois do nome do comando.
+2. A variável de ambiente `BOB_LANG`.
+3. `language` no `bob.yaml`.
+4. `en`.
+
+Um valor vazio conta como ausente, e a caixa importa (`pt-br` é inválido). Quando um `--lang` ou `BOB_LANG` inválido decide o idioma, a execução sai com `4`, imprime `invalid language: <valor> (use en or pt-BR)` no stderr e não grava relatório. Um `language` inválido no `bob.yaml` é um erro de configuração como qualquer outro. O `bob check` sai com `4` e grava o relatório no idioma da flag, do ambiente ou em inglês.
+
+O `.bob/report.json` não depende do idioma. As chaves continuam as mesmas e os textos de `reason` ficam sempre em inglês, então a mesma entrada dá os mesmos bytes nos dois idiomas. Saída de ferramenta e nomes de regra, como `Proibido ciclo de dependência`, passam como vieram.
+
+No CI, defina `language: pt-BR` no `bob.yaml`, ou `BOB_LANG: pt-BR` no `env` do job. A GitHub Action comenta o `.bob/report.md`, então o comentário segue a mesma escolha.
 
 ### `bob doctor` e `--install`
 
@@ -169,7 +188,7 @@ Um waiver sem motivo de uma linha é rejeitado com exit `4`. Um waiver novo com 
 
 ### O relatório
 
-`.bob/report.md` é uma página para quem revisa. `.bob/report.json` tem os mesmos dados e segue o schema em `src/bob_quality/schemas/report_v1.json` (`schema_version: 1`). `--format` escolhe um arquivo ou os dois. O relatório em Markdown tem estas partes, com os títulos em português:
+`.bob/report.md` é uma página para quem revisa. `.bob/report.json` tem os mesmos dados e segue o schema em `src/bob_quality/schemas/report_v1.json` (`schema_version: 1`). `--format` escolhe um arquivo ou os dois. O relatório em Markdown tem estas partes, com os títulos no idioma da saída. Os nomes abaixo são os de `pt-BR`, e o `README.md` lista os de `en`:
 
 1. `Waivers`, quando há waivers ou a mutação rodou.
 2. Um cabeçalho com o commit, a base, a data e as versões das ferramentas.
@@ -234,7 +253,7 @@ O limite é zero violações no diff. Uma violação só bloqueia quando a orige
 
 ## Hook pre-push
 
-O script `src/bob_quality/hooks/pre-push` roda `bob check --gates crap,deps`, os gates rápidos. `tests/test_hook.py` confere que ele termina em menos de 60 s no fixture.
+O script `src/bob_quality/hooks/pre-push` roda `bob check --gates crap,deps`, os gates rápidos. Ele segue o `BOB_LANG` e o `language` do `bob.yaml`. `tests/test_hook.py` confere que ele termina em menos de 60 s no fixture.
 
 ```bash
 cp src/bob_quality/hooks/pre-push .git/hooks/pre-push

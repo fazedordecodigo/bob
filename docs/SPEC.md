@@ -60,6 +60,7 @@ bob mutate  [--base REF] [--since-last-run] [--max-workers N]
 bob report  [--in .bob/] [--out .bob/report.md]
 bob waive   <mutant-id|function> --reason "texto de uma linha"
 bob doctor  # verifica ferramentas e versões instaladas
+bob <comando> [--lang en|pt-BR]  # idioma da saída (padrão: en)
 ```
 Exit codes (inspirados no mutator do Bob):
 - `0` passou
@@ -75,6 +76,7 @@ Por padrão, `check` no hook local executa `crap,dry,deps`; no CI executa todos.
 **Configuração `bob.yaml`**
 ```yaml
 base: origin/main
+language: en                      # idioma da saída: en ou pt-BR
 languages: [python, typescript]   # autodetect se omitido
 paths: { include: [src], exclude: [tests, node_modules, dist] }
 crap: { max_per_function: 10, scope: changed }
@@ -93,7 +95,7 @@ dependencies: { python: .importlinter, typescript: .dependency-cruiser.cjs, viol
 7. Violações e ciclos de dependência.
 8. Rodapé: como reproduzir localmente (comando exato).
 
-O JSON segue um schema versionado (`schema_version: 1`).
+O JSON segue um schema versionado (`schema_version: 1`). Os títulos e os textos do `report.md` seguem o idioma da saída. O `report.json` não muda com o idioma (decisão 12).
 
 **Waivers**: arquivo `.bob/waivers.yaml` versionado no repo. Cada entrada tem id do mutante ou função, motivo de uma linha, autor e data. Um waiver sem motivo é inválido. Todo waiver aparece no relatório.
 
@@ -169,3 +171,4 @@ O JSON segue um schema versionado (`schema_version: 1`).
 9. **Pasta de saída**: `.bob/` (relatórios, `waivers.yaml`, `mutation-cache.json`).
 10. **Monorepo sem Node** (aprovada pelo Emerson em 11/10/2026): num repositório com Python e TypeScript, a ausência do Node não é exit 4. O Python continua medido. O TypeScript aparece no relatório como pulado, com aviso (⚠️). O exit code é o do que foi medido: 0 com aviso quando não há falha bloqueante, 1 quando há. Exit 4 continua quando a ferramenta ausente impede a medição pedida (repositório só TypeScript sem Node, ou configuração inválida).
 11. **Mutantes sem teste** (Emerson, 11/10/2026): `no_coverage` aparece como aviso no `report.md` e no `report.json` (total e contagem por função e arquivo). O gate mutate fica ⚠️ quando não há sobrevivente sem waiver, e o exit code não muda. A fase 2 (testes de CLI no mesmo processo e `no_coverage` nas funções do diff falhando com exit 3) fica para depois (#31).
+12. **Idioma da saída** (#38): `en` (padrão) ou `pt-BR`. Vale a primeira fonte definida: `--lang`, depois `BOB_LANG`, depois `language` no `bob.yaml`, depois `en`. Valor vazio conta como ausente, e a caixa importa. Um `--lang` ou `BOB_LANG` inválido que decide o idioma é erro de configuração: exit 4, a mensagem em inglês no stderr e nenhum relatório. Um `language` inválido no `bob.yaml` é erro de configuração como qualquer outro, e o relatório sai no idioma da flag, do ambiente ou em inglês. O idioma muda só o texto para humanos: saída da CLI, ajuda, `bob doctor`, o hook e o `report.md`. O `report.json` tem as mesmas chaves e os `reason` sempre em inglês, então a mesma entrada dá os mesmos bytes nos dois idiomas. Saída de ferramenta e nomes de regra (`Proibido ciclo de dependência`) passam como vieram. As mensagens ficam num catálogo (`src/bob_quality/messages.py`), e um teste de paridade exige as mesmas chaves e os mesmos placeholders nos dois idiomas.
