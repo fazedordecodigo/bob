@@ -1,0 +1,8 @@
+base: main
+languages: [typescript]
+paths:
+  include: [src]
+  exclude: [tests, node_modules, dist]
+crap:
+  max_per_function: 10
+  scope: changed

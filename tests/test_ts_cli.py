@@ -1,0 +1,121 @@
+"""Comportamento da CLI `bob` sobre o repo-fixture TypeScript (seam principal)."""
+
+import json
+import os
+import shutil
+import subprocess
+import sys
+from pathlib import Path
+
+from helpers import TS_RISKY_SOURCE, TS_SAFE_CHANGE, commit_on_branch, init_ts_repo, run_bob
+
+
+def test_check_fails_when_changed_typescript_function_exceeds_crap_10(tmp_path: Path) -> None:
+    repo = init_ts_repo(tmp_path / "repo")
+    commit_on_branch(
+        repo,
+        "risky",
+        "src/messy.ts",
+        TS_RISKY_SOURCE,
+        "add untested messy function",
+    )
+
+    result = run_bob(repo, "check", "--base", "main")
+    payload = json.loads((repo / ".bob" / "report.json").read_text())
+
+    assert result.returncode == 1, result.stderr
+    messy = next(item for item in payload["top_crap"] if item["name"] == "messy")
+    assert messy["lang"] == "typescript"
+    assert messy["cc"] == 4
+    assert messy["coverage"] == 0.0
+    assert messy["crap"] == 20.0
+    assert messy["file"].endswith("src/messy.ts")
+
+
+def test_check_passes_when_changed_typescript_function_stays_under_crap_10(
+    tmp_path: Path,
+) -> None:
+    repo = init_ts_repo(tmp_path / "repo")
+    commit_on_branch(
+        repo,
+        "safe-change",
+        "src/safe.ts",
+        TS_SAFE_CHANGE,
+        "touch tested add",
+    )
+
+    result = run_bob(repo, "check", "--base", "main")
+    payload = json.loads((repo / ".bob" / "report.json").read_text())
+    markdown = (repo / ".bob" / "report.md").read_text()
+
+    assert result.returncode == 0, result.stderr
+    add = next(item for item in payload["top_crap"] if item["name"] == "add")
+    assert add["lang"] == "typescript"
+    assert add["cc"] == 1
+    assert add["coverage"] == 1.0
+    assert add["crap"] == 1.0
+    assert payload["tool_versions"]["c8"] == "12.0.0"
+    assert payload["tool_versions"]["vitest"] == "5.0.3"
+    assert "src/safe.ts" in markdown
+
+
+def test_check_exits_4_with_a_clear_message_when_node_is_missing(tmp_path: Path) -> None:
+    repo = init_ts_repo(tmp_path / "repo")
+    commit_on_branch(
+        repo,
+        "safe-change",
+        "src/safe.ts",
+        TS_SAFE_CHANGE,
+        "touch tested add",
+    )
+    bindir = tmp_path / "bin"
+    bindir.mkdir()
+    os.symlink(shutil.which("git"), bindir / "git")
+    env = {**os.environ, "PATH": str(bindir)}
+
+    result = subprocess.run(
+        [sys.executable, "-m", "bob_quality", "check", "--base", "main", "--gates", "crap"],
+        cwd=repo,
+        capture_output=True,
+        text=True,
+        env=env,
+    )
+    payload = json.loads((repo / ".bob" / "report.json").read_text())
+    markdown = (repo / ".bob" / "report.md").read_text()
+    crap = next(gate for gate in payload["gates"] if gate["name"] == "crap")
+
+    assert result.returncode == 4, result.stderr
+    assert crap["status"] == "not_run"
+    assert crap["reason"]
+    assert "Node ausente" in crap["reason"]
+    assert "Node ausente" in markdown
+    assert "✅ `crap`" not in markdown
+
+
+def test_check_exits_2_when_typescript_baseline_tests_fail(tmp_path: Path) -> None:
+    repo = init_ts_repo(tmp_path / "repo")
+    commit_on_branch(
+        repo,
+        "broken",
+        "tests/safe.test.ts",
+        "\n".join(
+            [
+                'import { expect, test } from "vitest";',
+                'import { add } from "../src/safe";',
+                "",
+                'test("add", () => {',
+                "  expect(add(1, 2)).toBe(0);",
+                "});",
+                "",
+            ]
+        ),
+        "break baseline tests",
+    )
+
+    result = run_bob(repo, "check", "--base", "main", "--gates", "crap")
+    payload = json.loads((repo / ".bob" / "report.json").read_text())
+    crap = next(gate for gate in payload["gates"] if gate["name"] == "crap")
+
+    assert result.returncode == 2, result.stderr
+    assert crap["status"] == "not_run"
+    assert crap["reason"]

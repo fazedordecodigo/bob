@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+
 from bob_quality.crap import calculate_crap
 from bob_quality.exit_codes import GATE_FAILED, PASSED
 from bob_quality.models import (
@@ -31,12 +33,13 @@ def to_metric(
     file: str,
     coverage: FileCoverage | None,
     changed: bool,
+    lang: str = "python",
 ) -> FunctionMetric:
     covered = line_coverage(coverage, item.start_line, item.end_line)
     crap = calculate_crap(item.cc, covered)
     return FunctionMetric(
-        lang="python",
-        module=file.replace("/", ".").removesuffix(".py"),
+        lang=lang,
+        module=_module_name(file),
         name=item.name,
         file=file,
         start_line=item.start_line,
@@ -46,6 +49,16 @@ def to_metric(
         crap=crap,
         changed=changed,
     )
+
+
+def _module_name(file: str) -> str:
+    path = Path(file)
+    name = path.name
+    for suffix in (".ts", ".py"):
+        if name.endswith(suffix):
+            path = path.with_name(name[: -len(suffix)])
+            break
+    return path.as_posix().replace("/", ".")
 
 
 def crap_verdict(
