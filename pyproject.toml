@@ -14,6 +14,7 @@ dependencies = [
     "lizard==1.24.1",
     "coverage==7.16.2",
     "PyYAML==6.0.3",
+    "mutmut==3.8.0",
 ]
 
 [project.optional-dependencies]
@@ -35,3 +36,16 @@ bob_quality = ["schemas/*.json", "hooks/*"]
 testpaths = ["tests"]
 pythonpath = ["src", "tests"]
 norecursedirs = ["fixtures", ".bob", ".git"]
+
+[tool.mutmut]
+source_paths = ["src"]
+also_copy = [
+    "docs",
+    "skills",
+    "js",
+    "tests/fixtures",
+    ".github",
+    "package.json",
+    "package-lock.json",
+    "AGENTS.md",
+]

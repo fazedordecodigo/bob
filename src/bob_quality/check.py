@@ -13,7 +13,9 @@ from bob_quality.diff import GitError, changed_lines, current_commit
 from bob_quality.dry_gate import run_dry_gate
 from bob_quality.exit_codes import CONFIG_OR_TOOL, PASSED
 from bob_quality.models import Clone, FunctionMetric, GateResult, Report
+from bob_quality.mutate import MutationOutcome, focus_with_survivors, run_mutation_gate
 from bob_quality.report import metric_row, write_report
+from bob_quality.waivers import WaiverError, load_waivers
 
 DEFAULT_GATES = ("crap", "dry", "deps")
 
@@ -28,6 +30,7 @@ def run_check(
     threshold: float | None = None,
     coverage_file: Path | None = None,
     reproduce: str | None = None,
+    max_workers: int | None = None,
 ) -> int:
     chosen_gates = gates or list(DEFAULT_GATES)
     chosen_out = out_dir or (cwd / ".bob")
@@ -36,7 +39,16 @@ def run_check(
     if isinstance(opened, int):
         return opened
     config, chosen_base, max_crap, commit, diff_lines = opened
-    measured = _measure(cwd, config, diff_lines, max_crap, coverage_file, chosen_gates)
+    measured = _measure(
+        cwd, config, diff_lines, max_crap, coverage_file, chosen_gates, chosen_out, max_workers
+    )
+    if measured.mutation is None:
+        loaded = _load_idle_waivers(
+            cwd, chosen_out, fmt, chosen_base, command, chosen_gates
+        )
+        if isinstance(loaded, int):
+            return loaded
+        measured.loaded_waivers = loaded
     write_report(
         _assemble(measured, commit, chosen_base, diff_lines, max_crap, command),
         chosen_out,
@@ -78,6 +90,8 @@ class _Measured:
     metrics: list[FunctionMetric] = field(default_factory=list)
     clones: list[Clone] = field(default_factory=list)
     exit_code: int = PASSED
+    mutation: MutationOutcome | None = None
+    loaded_waivers: list[dict[str, object]] = field(default_factory=list)
 
 
 def _measure(
@@ -87,10 +101,14 @@ def _measure(
     max_crap: float,
     coverage_file: Path | None,
     gates: list[str],
+    out_dir: Path,
+    max_workers: int | None,
 ) -> _Measured:
     state = _Measured()
     for gate in gates:
-        _absorb(state, gate, cwd, config, diff_lines, max_crap, coverage_file)
+        _absorb(
+            state, gate, cwd, config, diff_lines, max_crap, coverage_file, out_dir, max_workers
+        )
     return state
 
 
@@ -102,6 +120,8 @@ def _absorb(
     diff_lines: dict[str, set[int]],
     max_crap: float,
     coverage_file: Path | None,
+    out_dir: Path,
+    max_workers: int | None,
 ) -> None:
     if gate == "crap":
         result, metrics, code, versions = run_crap_gate(
@@ -120,6 +140,17 @@ def _absorb(
         )
         state.clones = found
         _record(state, result, code, versions)
+        return
+    if gate == "mutate":
+        mutation = run_mutation_gate(
+            cwd=cwd,
+            config=config,
+            diff_lines=diff_lines,
+            out_dir=out_dir,
+            max_workers=max_workers,
+        )
+        state.mutation = mutation
+        _record(state, mutation.result, mutation.exit_code, mutation.versions)
         return
     _record(
         state,
@@ -148,6 +179,15 @@ def _assemble(
     max_crap: float,
     command: str,
 ) -> Report:
+    focus = files_by_risk(measured.metrics, measured.clones, set(diff_lines))
+    survivors: list[dict[str, object]] = []
+    summary = None
+    waivers = measured.loaded_waivers
+    if measured.mutation is not None:
+        survivors = measured.mutation.survivors
+        summary = measured.mutation.summary
+        waivers = measured.mutation.waivers
+        focus = focus_with_survivors(focus, survivors)
     return Report(
         schema_version=1,
         commit=commit,
@@ -155,13 +195,30 @@ def _assemble(
         generated_at=datetime.now(timezone.utc).isoformat(),
         tool_versions=measured.versions,
         gates=measured.gates,
-        focus=files_by_risk(measured.metrics, measured.clones, set(diff_lines)),
+        focus=focus,
         top_crap=[metric_row(item) for item in top_changed_crap(measured.metrics)],
         old_debt=[metric_row(item) for item in informational_debt(measured.metrics, max_crap)],
         clones=measured.clones,
         reproduce=command,
         exit_code=measured.exit_code,
+        waivers=waivers,
+        survivors=survivors,
+        mutation=summary,
     )
+
+
+def _load_idle_waivers(
+    cwd: Path,
+    out_dir: Path,
+    fmt: str,
+    base: str,
+    command: str,
+    gates: list[str],
+) -> list[dict[str, object]] | int:
+    try:
+        return [item.as_dict() for item in load_waivers(cwd)]
+    except WaiverError as exc:
+        return _fail_early(out_dir, fmt, CONFIG_OR_TOOL, str(exc), base, command, gates)
 
 
 def _worse(current: int, incoming: int) -> int:

@@ -67,6 +67,9 @@
         }
       }
     },
+    "waivers": { "type": "array" },
+    "survivors": { "type": "array" },
+    "mutation": { "type": ["object", "null"] },
     "reproduce": { "type": "string" },
     "exit_code": { "type": "integer" }
   }

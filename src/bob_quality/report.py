@@ -38,27 +38,32 @@ def to_json(report: Report) -> dict[str, object]:
         "top_crap": report.top_crap,
         "old_debt": report.old_debt,
         "clones": [clone_row(clone) for clone in report.clones],
+        "waivers": report.waivers,
+        "survivors": report.survivors,
+        "mutation": report.mutation,
         "reproduce": report.reproduce,
         "exit_code": report.exit_code,
     }
 
 
 def to_markdown(report: Report) -> str:
-    lines = _header(report)
+    lines = ["# Relatório bob", ""]
+    if report.waivers or report.mutation is not None:
+        lines.extend(_waiver_section(report.waivers))
+    lines.extend(_header(report))
     lines.extend(_verdict_lines(report))
     lines.extend(_focus_lines(report))
     lines.extend(_crap_lines(report))
     lines.extend(_debt_lines(report))
     lines.extend(["", "## Clones novos", ""])
     lines.extend(_clone_lines(report))
+    lines.extend(_survivor_lines(report))
     lines.extend(_footer(report))
     return "\n".join(lines)
 
 
 def _header(report: Report) -> list[str]:
     return [
-        "# Relatório bob",
-        "",
         f"- Commit: `{report.commit}`",
         f"- Base: `{report.base}`",
         f"- Data: {report.generated_at}",
@@ -114,6 +119,45 @@ def _debt_lines(report: Report) -> list[str]:
         lines.append(
             f"- `{fn['name']}` em `{loc}` CRAP {fn['crap']} (fora do diff; não bloqueia)"
         )
+    return lines
+
+
+def _survivor_lines(report: Report) -> list[str]:
+    if report.mutation is None:
+        return []
+    lines = ["", "## Mutantes sobreviventes", ""]
+    if not report.survivors:
+        lines.append("Nenhum mutante sobrevivente.")
+        return lines
+    lines.append("| Id | Função | Local | Operador | Waiver |")
+    lines.append("|---|---|---|---|---|")
+    for item in report.survivors:
+        lines.append(_survivor_row(item))
+    return lines
+
+
+def _survivor_row(item: dict[str, object]) -> str:
+    waiver = item.get("waiver") or "—"
+    operator = str(item.get("operator") or "—").replace("|", "\\|")
+    return (
+        f"| `{item['id']}` | {item['function']} | {item['file']}:{item['line']} | {operator} | {waiver} |"
+    )
+
+
+def _waiver_section(waivers: list[dict[str, object]]) -> list[str]:
+    lines = ["## Waivers", ""]
+    if not waivers:
+        lines.append("Nenhum waiver.")
+        lines.append("")
+        return lines
+    lines.append("| Alvo | Motivo | Autor | Data |")
+    lines.append("|---|---|---|---|")
+    for item in waivers:
+        reason = str(item.get("reason") or "").replace("|", "\\|")
+        lines.append(
+            f"| `{item.get('id', '')}` | {reason} | {item.get('author', '')} | {item.get('date', '')} |"
+        )
+    lines.append("")
     return lines
 
 

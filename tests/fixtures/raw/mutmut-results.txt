@@ -1,0 +1,9 @@
+    app.weak.x_classify__mutmut_1: survived
+    app.weak.x_classify__mutmut_2: killed
+    app.weak.x_classify__mutmut_3: killed
+    app.weak.x_classify__mutmut_4: killed
+    app.weak.x_classify__mutmut_5: survived
+    app.weak.x_classify__mutmut_6: survived
+    app.safe.x_add__mutmut_1: killed
+    app.safe.x_scale__mutmut_1: killed
+    app.safe.x_scale__mutmut_2: killed
