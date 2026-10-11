@@ -60,6 +60,9 @@ def run_coverage(
     # coverage apaga COVERAGE_PROCESS_START no processo medido. O conftest
     # do repo copia BOB_COVERAGE_RC para os subprocessos (a CLI sob teste).
     env["BOB_COVERAGE_RC"] = str(rc)
+    # A suíte deste repo pula com esta marca o dogfood do mutmut e os builds de
+    # wheel. Eles levam minutos, não cobrem `src` e rodam no job de pytest do CI.
+    env["BOB_SKIP_MUTMUT_DOGFOOD"] = "1"
     pytest_run = subprocess.run(
         [sys.executable, "-m", "coverage", "run", "--rcfile", str(rc), "-m", "pytest"],
         cwd=cwd,
