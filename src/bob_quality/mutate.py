@@ -5,7 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 
 from bob_quality.adapters.lizard import LizardParseError, parse_lizard_csv
@@ -223,9 +223,28 @@ def _run_and_parse(
     belonging = [item for item in parsed if _belongs(item, remutate)]
     shows = _shows_for(cwd, ids_for_show(belonging))
     try:
-        return mutants_from_raw(raw_results, shows), None
+        return _with_file_lines(mutants_from_raw(raw_results, shows), remutate), None
     except MutmutParseError as exc:
         return [], _tool_outcome(str(exc), versions, waiver_rows)
+
+
+def _with_file_lines(mutants: list[Mutant], functions: list[CyclomaticFunction]) -> list[Mutant]:
+    """O diff do mutmut 3.8 começa na função. A linha do arquivo é start_line + relativa - 1."""
+    located: list[Mutant] = []
+    for mutant in mutants:
+        start = _start_line(mutant, functions)
+        if start is None or mutant.line <= 0:
+            located.append(mutant)
+            continue
+        located.append(replace(mutant, line=start + mutant.line - 1))
+    return located
+
+
+def _start_line(mutant: Mutant, functions: list[CyclomaticFunction]) -> int | None:
+    for item in functions:
+        if mutant.id.startswith(mutmut_id_prefix(item.file, item.name)):
+            return item.start_line
+    return None
 
 
 def _shows_for(cwd: Path, mutant_ids: list[str]) -> dict[str, str]:

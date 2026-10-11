@@ -1,4 +1,5 @@
-.bob/
+.bob/*
+!.bob/waivers.yaml
 mutants/
 .coverage
 coverage/

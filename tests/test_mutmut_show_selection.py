@@ -81,6 +81,52 @@ def test_show_runs_only_for_survivors_and_timeouts(monkeypatch, tmp_path: Path) 
     assert by_id["app.weak.x_classify__mutmut_4"].operator == ""
 
 
+SHOW_FAR_FROM_TOP = """\
+--- src/bob_quality/mutate.py
++++ src/bob_quality/mutate.py
+@@ -4,7 +4,7 @@
+     if not source.is_dir():
+         return
+     dest_root = cwd / "mutants"
+-    dest_root.mkdir(parents=True, exist_ok=True)
++    dest_root.mkdir(parents=None, exist_ok=True)
+     dest = dest_root / "node_modules"
+     if dest.is_symlink() or dest.exists():
+         return
+"""
+
+
+def test_show_line_is_the_file_line_when_the_function_is_not_at_the_top(
+    monkeypatch, tmp_path: Path
+) -> None:
+    """O mutmut 3.8 numera o diff a partir da função. O mkdir está na linha 7 do trecho e na 480 do arquivo."""
+
+    def fake_show(_cwd: Path, _mutant_id: str) -> str:
+        return SHOW_FAR_FROM_TOP
+
+    monkeypatch.setattr(mutate_module, "run_mutmut", lambda *_args: None)
+    monkeypatch.setattr(
+        mutate_module,
+        "mutmut_results",
+        lambda _cwd: "    bob_quality.mutate.x_prepare_mutmut_workspace__mutmut_10: survived\n",
+    )
+    monkeypatch.setattr(mutate_module, "mutmut_show", fake_show)
+    remutate = [
+        CyclomaticFunction(
+            file="src/bob_quality/mutate.py",
+            name="prepare_mutmut_workspace",
+            start_line=474,
+            end_line=484,
+            cc=2,
+        )
+    ]
+
+    parsed, failed = _run_and_parse(tmp_path, remutate, 1, VERSIONS, WAIVERS)
+
+    assert failed is None
+    assert parsed[0].line == 480
+
+
 def test_a_tool_failure_keeps_the_message_and_the_waivers(monkeypatch, tmp_path: Path) -> None:
     def boom(_cwd: Path, _patterns: list[str], _max_workers: int | None) -> None:
         raise ToolError("tool broke")
