@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 
+from bob_quality.messages import msg
 from bob_quality.models import FileCoverage
 
 
@@ -16,14 +17,14 @@ def parse_coverage_json(raw: str) -> dict[str, FileCoverage]:
     try:
         payload = json.loads(raw)
     except json.JSONDecodeError as exc:
-        raise CoverageParseError("coverage.json inválido") from exc
+        raise CoverageParseError(msg("coverage.invalid_json")) from exc
     files = payload.get("files")
     if not isinstance(files, dict):
-        raise CoverageParseError("coverage.json sem chave files")
+        raise CoverageParseError(msg("coverage.no_files"))
     parsed: dict[str, FileCoverage] = {}
     for path, data in files.items():
         if not isinstance(data, dict):
-            raise CoverageParseError(f"entrada inválida para {path}")
+            raise CoverageParseError(msg("coverage.invalid_entry", path=path))
         parsed[path] = FileCoverage(
             executed_lines=frozenset(data.get("executed_lines") or []),
             missing_lines=frozenset(data.get("missing_lines") or []),

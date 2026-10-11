@@ -196,8 +196,8 @@ def test_check_exits_4_with_a_clear_message_when_node_is_missing(tmp_path: Path)
     assert result.returncode == 4, result.stderr
     assert crap["status"] == "not_run"
     assert crap["reason"]
-    assert "Node ausente" in crap["reason"]
-    assert "Node ausente" in markdown
+    assert "Node missing" in crap["reason"]
+    assert "Node missing" in markdown
     assert "✅ `crap`" not in markdown
 
 

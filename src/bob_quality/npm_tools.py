@@ -9,6 +9,7 @@ import shutil
 import subprocess
 from pathlib import Path
 
+from bob_quality.messages import Language, Message, msg, render, t
 from bob_quality.tools import ToolError
 
 _NPM_PACKAGE = "bob-quality-tools"
@@ -23,9 +24,8 @@ _VITEST_CONFIG_NAMES = (
     "vite.config.js",
     "vite.config.ts",
 )
-NODE_MISSING = (
-    "Node ausente: instale Node.js para medir TypeScript (c8 e vitest via npx)"
-)
+NODE_MISSING = msg("npm.node_missing")
+_MANIFEST_MISSING = msg("npm.manifest_missing")
 _VITEST_WRAPPER = """\
 import { pathToFileURL } from "node:url";
 
@@ -69,10 +69,7 @@ def npm_prefix() -> Path:
     """
     matches = _plugin_packages()
     if not matches:
-        raise ToolError(
-            "package.json do plugin (bob-quality-tools) não encontrado; "
-            "c8 e vitest ficam fixados nele"
-        )
+        raise ToolError(_MANIFEST_MISSING)
     cached = user_npm_cache()
     if _cache_ready(cached, matches[0]):
         return cached
@@ -95,37 +92,35 @@ def _cache_ready(cached: Path, source: Path) -> bool:
     return _load_manifest(cached / "package.json") == _load_manifest(source / "package.json")
 
 
-def install_npm_dependencies() -> int:
+def install_npm_dependencies(lang: Language) -> int:
     """Roda `npm ci --prefix` no pacote; se o sistema de arquivos negar, no cache do usuário."""
-    source = _install_source()
+    source = _install_source(lang)
     if source is None:
         return 4
     completed = _run_npm_ci(source)
     denied = _FILESYSTEM_DENIED.search(completed.stderr)
     if denied:
-        return _install_in_cache(source, denied.group(1))
+        return _install_in_cache(source, denied.group(1), lang)
     return _npm_verdict(source, completed)
 
 
-def _install_in_cache(source: Path, code: str) -> int:
+def _install_in_cache(source: Path, code: str, lang: Language) -> int:
     cache = user_npm_cache()
-    print(f"{npm_ci_command(source)} falhou com {code}; instalando no cache do usuário {cache}")
+    command = npm_ci_command(source)
+    print(t(lang, "npm.cache_fallback", command=command, code=code, cache=cache))
     try:
         _materialize_cache(source, cache)
     except OSError as exc:
-        print(f"não foi possível preparar o cache do usuário {cache}: {exc.strerror}")
+        print(t(lang, "npm.cache_unavailable", cache=cache, detail=exc.strerror))
         return 4
     return _npm_verdict(cache, _run_npm_ci(cache))
 
 
-def _install_source() -> Path | None:
+def _install_source(lang: Language) -> Path | None:
     matches = _plugin_packages()
     if matches:
         return matches[0]
-    print(
-        "package.json do plugin (bob-quality-tools) não encontrado; "
-        "c8 e vitest ficam fixados nele"
-    )
+    print(render(_MANIFEST_MISSING, lang))
     return None
 
 
@@ -219,7 +214,7 @@ def _copy_js(src: Path, dst: Path) -> None:
         shutil.copytree(src, dst)
 
 
-def node_missing_message() -> str | None:
+def node_missing_message() -> Message | None:
     if shutil.which("node") is None or shutil.which("npx") is None:
         return NODE_MISSING
     return None
@@ -228,13 +223,11 @@ def node_missing_message() -> str | None:
 def installed_npm_version(prefix: Path, package: str) -> str:
     pkg = prefix / "node_modules" / package / "package.json"
     if not pkg.is_file():
-        raise ToolError(
-            "dependências npm do plugin ausentes: " + npm_setup_hint(prefix)
-        )
+        raise ToolError(msg("npm.deps_missing", hint=npm_setup_hint(prefix)))
     try:
         return str(json.loads(pkg.read_text())["version"])
     except (json.JSONDecodeError, KeyError) as exc:
-        raise ToolError(f"versão de {package} ilegível") from exc
+        raise ToolError(msg("npm.unreadable_version", package=package)) from exc
 
 
 def run_vitest_under_c8(
@@ -335,8 +328,8 @@ def _needs_strip_types(user_config: Path, env: dict[str, str]) -> bool:
 def _raise_if_c8_failed(completed: subprocess.CompletedProcess[str], reports_dir: Path) -> None:
     if completed.returncode == 0 or (reports_dir / "coverage-final.json").is_file():
         return
-    detail = (completed.stderr or completed.stdout or "c8/vitest falhou").strip()
-    raise ToolError(detail)
+    raw = completed.stderr or completed.stdout
+    raise ToolError(raw.strip() if raw else msg("npm.c8_failed"))
 
 
 def _c8_exclude_patterns(exclude: list[str]) -> list[str]:

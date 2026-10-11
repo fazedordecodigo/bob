@@ -5,6 +5,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Literal
 
+from bob_quality.messages import Text
+
 GateStatus = Literal["passed", "warn", "failed", "not_run"]
 
 
@@ -88,7 +90,7 @@ class DepViolation:
 class GateResult:
     name: str
     status: GateStatus
-    reason: str | None = None
+    reason: Text | None = None
 
 
 @dataclass

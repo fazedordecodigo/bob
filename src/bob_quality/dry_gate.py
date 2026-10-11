@@ -11,6 +11,7 @@ from bob_quality.adapters.jscpd import JscpdParseError, parse_jscpd_json
 from bob_quality.config import Config
 from bob_quality.diff import function_is_changed
 from bob_quality.exit_codes import PASSED
+from bob_quality.messages import Text, msg, reason
 from bob_quality.models import Clone, GateResult
 from bob_quality.npm_tools import installed_npm_version, node_missing_message, npm_prefix
 from bob_quality.tools import ToolError
@@ -34,20 +35,17 @@ def run_dry_gate(
     try:
         found = parse_jscpd_json(_run_jscpd(cwd, config, npm_prefix()))
     except (ToolError, JscpdParseError) as exc:
-        return _skipped(str(exc), versions)
+        return _skipped(reason(exc), versions)
     return _verdict(_new_clones(cwd, found, diff_lines), versions)
 
 
 def _tooling() -> tuple[dict[str, str], _Dry | None]:
     if node_missing_message() is not None:
-        return {}, _skipped("Node ausente: instale Node.js para rodar o jscpd")
+        return {}, _skipped(msg("dry.node_missing"))
     try:
         version = installed_npm_version(npm_prefix(), "jscpd")
     except ToolError:
-        return {}, _skipped(
-            "dependências npm do plugin ausentes: bob doctor --install "
-            "(#19; jscpd fixado no package.json)"
-        )
+        return {}, _skipped(msg("dry.deps_missing"))
     return {"jscpd": version}, None
 
 
@@ -55,12 +53,12 @@ def _verdict(fresh: list[Clone], versions: dict[str, str]) -> _Dry:
     if not fresh:
         return GateResult("dry", "passed", None), [], PASSED, versions
     count = len(fresh)
-    noun = "clone novo" if count == 1 else "clones novos"
-    return GateResult("dry", "warn", f"{count} {noun} no diff"), fresh, PASSED, versions
+    key = "dry.clone" if count == 1 else "dry.clones"
+    return GateResult("dry", "warn", msg(key, count=count)), fresh, PASSED, versions
 
 
-def _skipped(reason: str, versions: dict[str, str] | None = None) -> _Dry:
-    return GateResult("dry", "not_run", reason), [], PASSED, versions or {}
+def _skipped(why: Text, versions: dict[str, str] | None = None) -> _Dry:
+    return GateResult("dry", "not_run", why), [], PASSED, versions or {}
 
 
 def _new_clones(
@@ -98,7 +96,7 @@ def _roots(cwd: Path, config: Config) -> list[Path]:
     roots = [(cwd / path).resolve() for path in (config.include or ["src"])]
     missing = [str(path) for path in roots if not path.is_dir()]
     if missing:
-        raise ToolError("jscpd: caminho de include ausente: " + ", ".join(missing))
+        raise ToolError(msg("dry.include_missing", paths=", ".join(missing)))
     return roots
 
 
@@ -145,8 +143,8 @@ def _read_report(out: Path, completed: subprocess.CompletedProcess[str]) -> str:
     report = out / "jscpd-report.json"
     if report.is_file():
         return report.read_text()
-    detail = (completed.stderr or completed.stdout or "jscpd não gravou o JSON").strip()
-    raise ToolError(detail)
+    raw = completed.stderr or completed.stdout
+    raise ToolError(raw.strip() if raw else msg("dry.no_report"))
 
 
 def _formats(languages: list[str]) -> list[str]:

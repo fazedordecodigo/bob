@@ -10,6 +10,7 @@ from pathlib import Path
 
 import yaml
 
+from bob_quality.messages import Message, msg
 from bob_quality.models import Mutant
 
 
@@ -39,10 +40,10 @@ def waivers_path(cwd: Path) -> Path:
 
 def normalize_reason(reason: str | None) -> str:
     if reason is None or "\n" in reason or "\r" in reason:
-        raise WaiverError("waiver sem motivo: informe --reason com uma linha")
+        raise WaiverError(msg("waiver.no_reason"))
     text = reason.strip()
     if not text:
-        raise WaiverError("waiver sem motivo: informe --reason com uma linha")
+        raise WaiverError(msg("waiver.no_reason"))
     return text
 
 
@@ -56,27 +57,27 @@ def load_waivers(cwd: Path) -> list[Waiver]:
 def _waiver_entries(path: Path) -> list[object]:
     raw = yaml.safe_load(path.read_text()) or {}
     if not isinstance(raw, dict):
-        raise WaiverError("waivers.yaml deve ser um mapeamento")
+        raise WaiverError(msg("waiver.file_not_mapping"))
     entries = raw.get("waivers") or []
     if not isinstance(entries, list):
-        raise WaiverError("waivers.yaml: 'waivers' deve ser uma lista")
+        raise WaiverError(msg("waiver.list_required"))
     return entries
 
 
 def _waiver_from_entry(entry: object) -> Waiver:
     if not isinstance(entry, dict):
-        raise WaiverError("waiver inválido")
+        raise WaiverError(msg("waiver.invalid"))
     reason_raw = entry.get("reason")
     reason = normalize_reason(reason_raw if isinstance(reason_raw, str) else None)
     return Waiver(
-        id=_required_text(entry, "id", "waiver sem alvo"),
+        id=_required_text(entry, "id", msg("waiver.no_target")),
         reason=reason,
-        author=_required_text(entry, "author", "waiver sem autor"),
-        date=_required_text(entry, "date", "waiver sem data"),
+        author=_required_text(entry, "author", msg("waiver.no_author")),
+        date=_required_text(entry, "date", msg("waiver.no_date")),
     )
 
 
-def _required_text(entry: dict[str, object], key: str, message: str) -> str:
+def _required_text(entry: dict[str, object], key: str, message: Message) -> str:
     value = entry.get(key)
     if not isinstance(value, str) or not value.strip():
         raise WaiverError(message)
@@ -86,7 +87,7 @@ def _required_text(entry: dict[str, object], key: str, message: str) -> str:
 def add_waiver(cwd: Path, target: str, reason: str | None) -> Waiver:
     text = normalize_reason(reason)
     if not target.strip():
-        raise WaiverError("waiver sem alvo")
+        raise WaiverError(msg("waiver.no_target"))
     waiver = Waiver(
         id=target.strip(),
         reason=text,

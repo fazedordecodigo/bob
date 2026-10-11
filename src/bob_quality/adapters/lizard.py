@@ -5,6 +5,7 @@ from __future__ import annotations
 import csv
 import io
 
+from bob_quality.messages import msg
 from bob_quality.models import CyclomaticFunction
 
 
@@ -20,7 +21,7 @@ def parse_lizard_csv(raw: str) -> list[CyclomaticFunction]:
         if not row or row[0].strip().lower() == "nloc":
             continue
         if len(row) < 11:
-            raise LizardParseError(f"linha CSV inesperada: {row!r}")
+            raise LizardParseError(msg("lizard.unexpected_row", row=row))
         try:
             functions.append(
                 CyclomaticFunction(
@@ -32,5 +33,5 @@ def parse_lizard_csv(raw: str) -> list[CyclomaticFunction]:
                 )
             )
         except (TypeError, ValueError) as exc:
-            raise LizardParseError(f"linha CSV inválida: {row!r}") from exc
+            raise LizardParseError(msg("lizard.invalid_row", row=row)) from exc
     return functions

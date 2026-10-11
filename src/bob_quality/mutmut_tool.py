@@ -8,6 +8,7 @@ import subprocess
 import sys
 from pathlib import Path
 
+from bob_quality.messages import msg
 from bob_quality.tools import ToolError
 
 _VERSION_RE = re.compile(r"(\d+\.\d+\.\d+)")
@@ -30,7 +31,7 @@ def pytest_exit_code(cwd: Path) -> int:
             check=False,
         )
     except subprocess.TimeoutExpired as exc:
-        raise ToolError("pytest da baseline excedeu o tempo limite") from exc
+        raise ToolError(msg("mutmut.baseline_timeout")) from exc
     return completed.returncode
 
 
@@ -38,7 +39,7 @@ def mutmut_version() -> str:
     raw = _invoke([sys.executable, "-m", "mutmut", "--version"], cwd=None)
     match = _VERSION_RE.search(raw)
     if not match:
-        raise ToolError(f"versão do mutmut ilegível: {raw.strip()}")
+        raise ToolError(msg("mutmut.unreadable_version", raw=raw.strip()))
     return match.group(1)
 
 
@@ -87,9 +88,9 @@ def _invoke(args: list[str], cwd: Path | None, timeout: int = 180) -> str:
             check=False,
         )
     except FileNotFoundError as exc:
-        raise ToolError(f"ferramenta ausente: {args[0]}") from exc
+        raise ToolError(msg("tool.missing", tool=args[0])) from exc
     except subprocess.TimeoutExpired as exc:
-        raise ToolError("mutmut excedeu o tempo limite") from exc
+        raise ToolError(msg("mutmut.timeout")) from exc
     if completed.returncode != 0:
         detail = failure_text(completed.stdout, completed.stderr)
         if "nothing matches" in f"{completed.stdout}\n{completed.stderr}":

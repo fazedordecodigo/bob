@@ -43,7 +43,7 @@ PINS = (
 INSTALL = {
     "lizard": "pip install 'lizard==1.24.1'",
     "coverage.py": "pip install 'coverage==7.16.2'",
-    "node": "Instale Node.js 22.14.0 (https://nodejs.org/dist/v22.14.0/)",
+    "node": "Install Node.js 22.14.0 (https://nodejs.org/dist/v22.14.0/)",
     "c8": "npm install c8@12.0.0",
     "vitest": "npm install vitest@5.0.3",
     "jscpd": "npm install jscpd@5.4.1",
@@ -72,15 +72,16 @@ def _stub(bin_dir: Path, name: str, banner: str) -> None:
     path.chmod(path.stat().st_mode | stat.S_IEXEC)
 
 
-def _run_doctor(cwd: Path, bin_dir: Path) -> subprocess.CompletedProcess[str]:
+def _run_doctor(cwd: Path, bin_dir: Path, *args: str) -> subprocess.CompletedProcess[str]:
     env = os.environ.copy()
+    env.pop("BOB_LANG", None)
     env["PATH"] = str(bin_dir)
     env["PYTHONPATH"] = str(ROOT / "src")
     # O trampoline do mutmut procura source_paths no cwd do subprocesso.
     # O doctor roda num repo vazio; sem isto a coleta de stats morre.
     env["MUTANT_UNDER_TEST"] = ""
     return subprocess.run(
-        [sys.executable, "-m", "bob_quality", "doctor"],
+        [sys.executable, "-m", "bob_quality", "doctor", *args],
         cwd=cwd,
         env=env,
         capture_output=True,
@@ -99,8 +100,8 @@ def test_doctor_lists_import_linter_and_dependency_cruiser(tmp_path: Path) -> No
     result = _run_doctor(repo, bin_dir)
 
     assert result.returncode == 0, result.stdout + result.stderr
-    assert "import-linter esperada 2.15 encontrada 2.15" in result.stdout
-    assert "dependency-cruiser esperada 18.5.0 encontrada 18.5.0" in result.stdout
+    assert "import-linter expected 2.15 found 2.15" in result.stdout
+    assert "dependency-cruiser expected 18.5.0 found 18.5.0" in result.stdout
 
 
 def test_doctor_exits_0_and_lists_pinned_versions_when_tools_match(tmp_path: Path) -> None:
@@ -115,8 +116,8 @@ def test_doctor_exits_0_and_lists_pinned_versions_when_tools_match(tmp_path: Pat
 
     assert result.returncode == 0, result.stderr
     for name, expected, _executable, _banner in PINS:
-        assert f"{name} esperada {expected} encontrada {expected}" in result.stdout
-    assert "Instale" not in result.stdout
+        assert f"{name} expected {expected} found {expected}" in result.stdout
+    assert "Install" not in result.stdout
 
 
 def test_doctor_exits_4_and_prints_install_when_a_tool_is_missing(tmp_path: Path) -> None:
@@ -132,9 +133,27 @@ def test_doctor_exits_4_and_prints_install_when_a_tool_is_missing(tmp_path: Path
     result = _run_doctor(repo, bin_dir)
 
     assert result.returncode == 4, result.stderr
-    assert "node esperada 22.14.0 encontrada ausente" in result.stdout
+    assert "node expected 22.14.0 found missing" in result.stdout
     assert INSTALL["node"] in result.stdout
     assert INSTALL["lizard"] not in result.stdout
+
+
+def test_doctor_speaks_portuguese_with_lang_pt_br(tmp_path: Path) -> None:
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    for name, _expected, executable, banner in PINS:
+        if name == "node":
+            continue
+        _stub(bin_dir, executable, banner)
+
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    result = _run_doctor(repo, bin_dir, "--lang", "pt-BR")
+
+    assert result.returncode == 4, result.stderr
+    assert "lizard esperada 1.24.1 encontrada 1.24.1" in result.stdout
+    assert "node esperada 22.14.0 encontrada ausente" in result.stdout
+    assert "Instale Node.js 22.14.0 (https://nodejs.org/dist/v22.14.0/)" in result.stdout
 
 
 def test_doctor_exits_4_and_prints_install_when_version_differs(tmp_path: Path) -> None:
@@ -150,7 +169,7 @@ def test_doctor_exits_4_and_prints_install_when_version_differs(tmp_path: Path) 
     result = _run_doctor(repo, bin_dir)
 
     assert result.returncode == 4, result.stderr
-    assert "node esperada 22.14.0 encontrada 1.2.3" in result.stdout
+    assert "node expected 22.14.0 found 1.2.3" in result.stdout
     assert INSTALL["node"] in result.stdout
     assert INSTALL["lizard"] not in result.stdout
 
@@ -172,7 +191,7 @@ def test_doctor_reports_c8_package_version_when_cli_prints_another(tmp_path: Pat
     result = _run_doctor(repo, bin_dir)
 
     assert result.returncode == 0, result.stdout + result.stderr
-    assert "c8 esperada 12.0.0 encontrada 12.0.0" in result.stdout
+    assert "c8 expected 12.0.0 found 12.0.0" in result.stdout
 
 
 def test_doctor_finds_npm_tool_installed_in_the_project(tmp_path: Path) -> None:
@@ -192,7 +211,7 @@ def test_doctor_finds_npm_tool_installed_in_the_project(tmp_path: Path) -> None:
     result = _run_doctor(repo, bin_dir)
 
     assert result.returncode == 0, result.stdout + result.stderr
-    assert "c8 esperada 12.0.0 encontrada 12.0.0" in result.stdout
+    assert "c8 expected 12.0.0 found 12.0.0" in result.stdout
 
 
 def test_doctor_reads_c8_manifest_when_bin_shim_is_not_a_symlink(tmp_path: Path) -> None:
@@ -216,7 +235,7 @@ def test_doctor_reads_c8_manifest_when_bin_shim_is_not_a_symlink(tmp_path: Path)
     result = _run_doctor(repo, bin_dir)
 
     assert result.returncode == 0, result.stdout + result.stderr
-    assert "c8 esperada 12.0.0 encontrada 12.0.0" in result.stdout
+    assert "c8 expected 12.0.0 found 12.0.0" in result.stdout
 
 
 def test_doctor_reports_interpreter_lizard_not_a_path_shadow(tmp_path: Path) -> None:
@@ -232,7 +251,7 @@ def test_doctor_reports_interpreter_lizard_not_a_path_shadow(tmp_path: Path) -> 
     result = _run_doctor(repo, bin_dir)
 
     assert result.returncode == 0, result.stdout + result.stderr
-    assert "lizard esperada 1.24.1 encontrada 1.24.1" in result.stdout
+    assert "lizard expected 1.24.1 found 1.24.1" in result.stdout
 
 
 def test_doctor_pins_match_pyproject_and_package_json() -> None:
@@ -292,7 +311,7 @@ def test_doctor_expected_versions_match_pip_and_npm_pins(tmp_path: Path) -> None
 def _expected_versions(stdout: str) -> dict[str, str]:
     found: dict[str, str] = {}
     for line in stdout.splitlines():
-        name, rest = line.split(" esperada ", 1)
-        version, _shown = rest.split(" encontrada ", 1)
+        name, rest = line.split(" expected ", 1)
+        version, _shown = rest.split(" found ", 1)
         found[name] = version
     return found

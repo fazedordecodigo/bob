@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import re
 
+from bob_quality.messages import msg
 from bob_quality.models import Mutant, MutantStatus
 
 _RESULT_RE = re.compile(r"^\s+(\S+):\s+(.+?)\s*$")
@@ -82,7 +83,7 @@ def _parse_results(raw: str) -> list[tuple[str, MutantStatus]]:
             continue
         status = _STATUS.get(label)
         if status is None:
-            raise MutmutParseError(f"status desconhecido do mutmut: {label!r}")
+            raise MutmutParseError(msg("mutmut.unknown_status", label=label))
         found.append((mutant_id, status))
     return found
 
@@ -94,7 +95,7 @@ def _function_name(mutant_id: str) -> str:
     function = _FUNCTION_RE.search(mutant_id)
     if function:
         return function.group("name")
-    raise MutmutParseError(f"id de mutante fora do contrato: {mutant_id}")
+    raise MutmutParseError(msg("mutmut.bad_id", mutant_id=mutant_id))
 
 
 class _ShowState:

@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 from typing import Any
 
+from bob_quality.messages import msg
 from bob_quality.models import Clone
 
 
@@ -17,28 +18,28 @@ def parse_jscpd_json(raw: str) -> list[Clone]:
     try:
         payload = json.loads(raw)
     except json.JSONDecodeError as exc:
-        raise JscpdParseError("jscpd: JSON inválido") from exc
+        raise JscpdParseError(msg("jscpd.invalid_json")) from exc
     if not isinstance(payload, dict) or not isinstance(payload.get("duplicates"), list):
-        raise JscpdParseError("jscpd: JSON sem a lista duplicates")
+        raise JscpdParseError(msg("jscpd.no_duplicates"))
     return [_clone(item) for item in payload["duplicates"]]
 
 
 def _clone(item: Any) -> Clone:
     if not isinstance(item, dict):
-        raise JscpdParseError("jscpd: duplicata fora do formato")
+        raise JscpdParseError(msg("jscpd.malformed"))
     first = _side(item, "firstFile")
     second = _side(item, "secondFile")
     try:
         lines = int(item["lines"])
         tokens = int(item["tokens"])
     except (KeyError, TypeError, ValueError) as exc:
-        raise JscpdParseError("jscpd: duplicata sem lines ou tokens") from exc
+        raise JscpdParseError(msg("jscpd.no_size")) from exc
     similarity = item.get("similarity")
     if similarity is not None:
         try:
             similarity = float(similarity)
         except (TypeError, ValueError) as exc:
-            raise JscpdParseError("jscpd: similarity inválida") from exc
+            raise JscpdParseError(msg("jscpd.invalid_similarity")) from exc
     kind = item.get("kind")
     return Clone(
         first_file=first[0],
@@ -57,13 +58,13 @@ def _clone(item: Any) -> Clone:
 def _side(item: dict[str, Any], key: str) -> tuple[str, int, int]:
     side = item.get(key)
     if not isinstance(side, dict):
-        raise JscpdParseError(f"jscpd: duplicata sem {key}")
+        raise JscpdParseError(msg("jscpd.missing_side", key=key))
     name = side.get("name")
     if not isinstance(name, str) or not name:
-        raise JscpdParseError(f"jscpd: {key} sem name")
+        raise JscpdParseError(msg("jscpd.side_no_name", key=key))
     try:
         start = int(side["start"])
         end = int(side["end"])
     except (KeyError, TypeError, ValueError) as exc:
-        raise JscpdParseError(f"jscpd: {key} sem linhas") from exc
+        raise JscpdParseError(msg("jscpd.side_no_lines", key=key)) from exc
     return name, start, end

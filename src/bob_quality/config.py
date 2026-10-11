@@ -1,4 +1,4 @@
-"""Carrega `bob.yaml`."""
+"""Carrega `bob.yaml` e escolhe o idioma da saída."""
 
 from __future__ import annotations
 
@@ -8,6 +8,7 @@ from typing import Any
 
 import yaml
 
+from bob_quality.messages import DEFAULT_LANGUAGE, LANGUAGES, Language, msg
 
 DEFAULT_EXCLUDE = ["tests", "node_modules", "dist"]
 
@@ -23,6 +24,7 @@ class Config:
     python_deps_config: str = ".importlinter"
     typescript_deps_config: str = ".dependency-cruiser.cjs"
     min_tokens: int = 50
+    language: Language | None = None
 
 
 class ConfigError(Exception):
@@ -33,12 +35,37 @@ def load_config(path: Path | None, cwd: Path) -> Config:
     config_path = path if path is not None else cwd / "bob.yaml"
     if not config_path.is_file():
         if path is not None:
-            raise ConfigError(f"arquivo de configuração não encontrado: {config_path}")
+            raise ConfigError(msg("config.not_found", path=config_path))
         return Config()
     raw = yaml.safe_load(config_path.read_text()) or {}
     if not isinstance(raw, dict):
-        raise ConfigError("bob.yaml deve ser um mapeamento")
+        raise ConfigError(msg("config.not_mapping"))
     return _from_dict(raw)
+
+
+def configured_language(path: Path | None, cwd: Path) -> Language | None:
+    """O `language` do bob.yaml. Config inválida fica para o check reportar."""
+    try:
+        return load_config(path, cwd).language
+    except ConfigError:
+        return None
+
+
+def resolve_language(
+    flag: str | None, env: str | None, configured: Language | None
+) -> Language:
+    """Precedência: flag, BOB_LANG, bob.yaml, en. Vazio conta como ausente."""
+    chosen = flag or env
+    if chosen:
+        return parse_language(chosen)
+    return configured or DEFAULT_LANGUAGE
+
+
+def parse_language(value: str) -> Language:
+    for language in LANGUAGES:
+        if value == language:
+            return language
+    raise ConfigError(msg("config.invalid_language", value=value))
 
 
 def _from_dict(raw: dict[str, Any]) -> Config:
@@ -57,7 +84,14 @@ def _from_dict(raw: dict[str, Any]) -> Config:
         python_deps_config=python_deps,
         typescript_deps_config=typescript_deps,
         min_tokens=_min_tokens(raw.get("duplication")),
+        language=_language(raw.get("language")),
     )
+
+
+def _language(raw: Any) -> Language | None:
+    if raw is None or raw == "":
+        return None
+    return parse_language(str(raw))
 
 
 def _dependency_paths(raw: dict[str, Any]) -> tuple[str, str]:
@@ -71,8 +105,8 @@ def _min_tokens(duplication: Any) -> int:
     if not duplication:
         return 50
     if not isinstance(duplication, dict):
-        raise ConfigError("duplication deve ser um mapeamento")
+        raise ConfigError(msg("config.duplication_not_mapping"))
     try:
         return int(duplication.get("min_tokens", 50))
     except (TypeError, ValueError) as exc:
-        raise ConfigError("duplication.min_tokens deve ser um inteiro") from exc
+        raise ConfigError(msg("config.min_tokens_not_integer")) from exc

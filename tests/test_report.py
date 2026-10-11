@@ -33,10 +33,10 @@ def test_check_report_matches_schema_v1_and_required_sections(tmp_path: Path) ->
     assert payload["top_crap"][0]["crap"] > 10
     assert payload["focus"][0]["file"] == "src/app/risky.py"
     assert "bob check --base main" in payload["reproduce"]
-    assert "## Veredito" in markdown
-    assert "## Onde focar o review" in markdown
-    assert "## Top 5 funções por CRAP" in markdown
-    assert "## Como reproduzir" in markdown
+    assert "## Verdict" in markdown
+    assert "## Where to focus the review" in markdown
+    assert "## Top 5 functions by CRAP" in markdown
+    assert "## How to reproduce" in markdown
     assert "src/app/risky.py" in markdown
 
 

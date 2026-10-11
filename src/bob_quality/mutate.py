@@ -18,6 +18,7 @@ from bob_quality.adapters.mutmut import (
 from bob_quality.config import Config
 from bob_quality.diff import function_is_changed
 from bob_quality.exit_codes import BASELINE_BROKEN, CONFIG_OR_TOOL, PASSED, UNWAIVED_SURVIVOR
+from bob_quality.messages import Text, msg, reason
 from bob_quality.models import CyclomaticFunction, GateResult, Mutant, MutantStatus
 from bob_quality.mutmut_tool import (
     mutmut_results,
@@ -113,7 +114,7 @@ def _mutmut_versions() -> tuple[dict[str, str], MutationOutcome | None]:
         versions["mutmut"] = mutmut_version()
     except ToolError as exc:
         return versions, _outcome(
-            GateResult("mutate", "not_run", f"ferramenta ausente: {exc}"),
+            GateResult("mutate", "not_run", msg("tool.missing", tool=reason(exc))),
             CONFIG_OR_TOOL,
             versions,
         )
@@ -126,7 +127,7 @@ def _loaded_waivers(
     try:
         return load_waivers(cwd), None
     except WaiverError as exc:
-        return [], _outcome(GateResult("mutate", "not_run", str(exc)), CONFIG_OR_TOOL, versions)
+        return [], _outcome(GateResult("mutate", "not_run", reason(exc)), CONFIG_OR_TOOL, versions)
 
 
 def _safe_measured(
@@ -138,7 +139,7 @@ def _safe_measured(
     try:
         return _measured_functions(cwd, config), None
     except (ToolError, OSError, LizardParseError) as exc:
-        return [], _tool_outcome(str(exc), versions, waiver_rows)
+        return [], _tool_outcome(reason(exc), versions, waiver_rows)
 
 
 def _safe_cache(
@@ -149,7 +150,8 @@ def _safe_cache(
     try:
         return _read_cache(cache_path), None
     except (OSError, json.JSONDecodeError) as exc:
-        return {}, _tool_outcome(f"cache de mutação inválido: {exc}", versions, waiver_rows)
+        broken = msg("mutate.cache_invalid", detail=str(exc))
+        return {}, _tool_outcome(broken, versions, waiver_rows)
 
 
 def _plan_functions(
@@ -176,11 +178,11 @@ def _baseline_outcome(
     try:
         code = pytest_exit_code(cwd)
     except ToolError as exc:
-        return _tool_outcome(str(exc), versions, waiver_rows)
+        return _tool_outcome(reason(exc), versions, waiver_rows)
     if code in {0, 5}:
         return None
     return _outcome(
-        GateResult("mutate", "not_run", "testes da baseline falharam antes de medir"),
+        GateResult("mutate", "not_run", msg("probe.baseline_failed")),
         BASELINE_BROKEN,
         versions,
         waivers=waiver_rows,
@@ -220,13 +222,13 @@ def _run_and_parse(
         raw_results = mutmut_results(cwd)
         parsed = mutants_from_raw(raw_results, {})
     except (ToolError, MutmutParseError) as exc:
-        return [], _tool_outcome(str(exc), versions, waiver_rows)
+        return [], _tool_outcome(reason(exc), versions, waiver_rows)
     belonging = [item for item in parsed if _belongs(item, remutate)]
     shows = _shows_for(cwd, ids_for_show(belonging))
     try:
         return _with_file_lines(mutants_from_raw(raw_results, shows), remutate), None
     except MutmutParseError as exc:
-        return [], _tool_outcome(str(exc), versions, waiver_rows)
+        return [], _tool_outcome(reason(exc), versions, waiver_rows)
 
 
 def _with_file_lines(mutants: list[Mutant], functions: list[CyclomaticFunction]) -> list[Mutant]:
@@ -265,10 +267,10 @@ def _one_show(cwd: Path, mutant_id: str) -> str | None:
 
 
 def _tool_outcome(
-    reason: str, versions: dict[str, str], waiver_rows: list[dict[str, object]]
+    why: Text, versions: dict[str, str], waiver_rows: list[dict[str, object]]
 ) -> MutationOutcome:
     return _outcome(
-        GateResult("mutate", "not_run", reason), CONFIG_OR_TOOL, versions, waivers=waiver_rows
+        GateResult("mutate", "not_run", why), CONFIG_OR_TOOL, versions, waivers=waiver_rows
     )
 
 
@@ -420,11 +422,9 @@ def _finish(
             survivors=rows,
             summary=summary,
         )
-    reason = "sobrevivente sem waiver: " + ", ".join(
-        f"{item.function}@{item.file}:{item.line}" for item in unwaived
-    )
+    mutants = ", ".join(f"{item.function}@{item.file}:{item.line}" for item in unwaived)
     return _outcome(
-        GateResult("mutate", "failed", reason),
+        GateResult("mutate", "failed", msg("mutate.unwaived", mutants=mutants)),
         UNWAIVED_SURVIVOR,
         versions,
         waivers=waiver_rows,
@@ -452,8 +452,8 @@ def no_coverage_summary(mutants: list[Mutant], labels: list[str]) -> dict[str, o
 def _passing_result(uncovered: int) -> GateResult:
     if not uncovered:
         return GateResult("mutate", "passed")
-    noun = "mutante sem teste" if uncovered == 1 else "mutantes sem teste"
-    return GateResult("mutate", "warn", f"{uncovered} {noun}")
+    key = "mutate.uncovered_one" if uncovered == 1 else "mutate.uncovered_many"
+    return GateResult("mutate", "warn", msg(key, count=uncovered))
 
 
 def focus_with_survivors(

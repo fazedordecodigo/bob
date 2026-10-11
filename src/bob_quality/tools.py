@@ -8,6 +8,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+from bob_quality.messages import msg
+
 
 class ToolError(Exception):
     """Ferramenta pinada ausente ou falhou de forma inesperada."""
@@ -112,7 +114,7 @@ def _run(
             env=env,
         )
     except FileNotFoundError as exc:
-        raise ToolError(f"ferramenta ausente: {args[0]}") from exc
+        raise ToolError(msg("tool.missing", tool=args[0])) from exc
     except subprocess.CalledProcessError as exc:
         raise ToolError(exc.stderr or exc.stdout or str(exc)) from exc
     return completed.stdout + completed.stderr

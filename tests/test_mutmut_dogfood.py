@@ -12,6 +12,7 @@ import pytest
 from bob_quality import mutmut_tool
 from bob_quality.mutate import prepare_mutmut_workspace
 from bob_quality.tools import ToolError
+from helpers import in_both
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -59,7 +60,10 @@ def test_baseline_timeout_is_a_tool_error(tmp_path: Path, monkeypatch: pytest.Mo
     monkeypatch.setattr(mutmut_tool.subprocess, "run", expired)
     with pytest.raises(ToolError) as caught:
         mutmut_tool.pytest_exit_code(tmp_path)
-    assert str(caught.value) == "pytest da baseline excedeu o tempo limite"
+    assert in_both(caught.value) == (
+        "baseline pytest timed out",
+        "pytest da baseline excedeu o tempo limite",
+    )
 
 
 def test_baseline_pytest_receives_the_repo_command_and_a_clean_env(

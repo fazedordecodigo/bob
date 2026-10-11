@@ -10,6 +10,7 @@ import pytest
 from bob_quality.adapters.dependency_cruiser import parse_dependency_cruiser
 from bob_quality.adapters.import_linter import broken_contract_name, parse_import_linter
 from bob_quality.deps_gate import UnparsedBreak, _import_linter_violations, _ini_roots, _short
+from bob_quality.messages import render
 from bob_quality.models import GateResult, Report
 from bob_quality.report import to_markdown
 from bob_quality.tools import ToolError
@@ -38,16 +39,23 @@ def test_broken_contract_keeps_a_long_name_and_strips_color() -> None:
     assert broken_contract_name(raw) == "Independence contract"
 
 
-def test_linter_exit_without_edges_does_not_count_as_passed() -> None:
+def _broken_layers() -> UnparsedBreak:
     completed = subprocess.CompletedProcess(
         args=["lint-imports"],
         returncode=1,
         stdout="Layers BROKEN\n",
         stderr="",
     )
-
-    with pytest.raises(UnparsedBreak, match="contrato quebrado: Layers"):
+    with pytest.raises(UnparsedBreak) as caught:
         _import_linter_violations(completed)
+    return caught.value
+
+
+def test_linter_exit_without_edges_does_not_count_as_passed() -> None:
+    broken = _broken_layers()
+
+    assert render(broken.reason, "en") == "broken contract: Layers"
+    assert render(broken.reason, "pt-BR") == "contrato quebrado: Layers"
 
 
 def test_report_names_a_broken_contract_when_no_edge_was_parsed() -> None:
@@ -57,16 +65,19 @@ def test_report_names_a_broken_contract_when_no_edge_was_parsed() -> None:
         base="main",
         generated_at="2026-10-11T00:00:00+00:00",
         tool_versions={},
-        gates=[GateResult("deps", "failed", "contrato quebrado: Layers")],
+        gates=[GateResult("deps", "failed", _broken_layers().reason)],
         focus=[],
         top_crap=[],
         reproduce="bob deps",
         exit_code=1,
     )
-    markdown = to_markdown(report)
+    portuguese = to_markdown(report, "pt-BR")
+    english = to_markdown(report, "en")
 
-    assert "❌ `deps`: falhou (contrato quebrado: Layers)" in markdown
-    assert "- contrato quebrado: Layers" in markdown
+    assert "❌ `deps`: falhou (contrato quebrado: Layers)" in portuguese
+    assert "- contrato quebrado: Layers" in portuguese
+    assert "❌ `deps`: failed (broken contract: Layers)" in english
+    assert "- broken contract: Layers" in english
 
 
 def test_import_linter_adapter_reads_forbidden_contract() -> None:
@@ -297,8 +308,10 @@ def test_linter_broken_exit_with_edges_returns_them() -> None:
 
 
 def test_linter_broken_exit_without_contract_name_blames_import_linter() -> None:
-    with pytest.raises(UnparsedBreak, match="^contrato quebrado: import-linter$"):
+    with pytest.raises(UnparsedBreak) as caught:
         _import_linter_violations(_linted(1, "nada útil\n"))
+
+    assert render(caught.value.reason, "pt-BR") == "contrato quebrado: import-linter"
 
 
 def test_linter_traceback_is_a_tool_failure_with_stderr_first() -> None:
@@ -333,5 +346,6 @@ def test_linter_unexpected_exit_code_is_a_tool_failure() -> None:
 
 def test_tool_failure_text_is_one_line_capped_at_300_characters() -> None:
     assert _short("a\n\nb") == "a b"
-    assert _short(" \n\t") == "ferramenta de dependência falhou"
+    assert render(_short(" \n\t"), "pt-BR") == "ferramenta de dependência falhou"
+    assert render(_short(" \n\t"), "en") == "dependency tool failed"
     assert _short("x" * 400) == "x" * 300

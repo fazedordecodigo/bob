@@ -10,8 +10,9 @@ from pathlib import Path
 import pytest
 
 from bob_quality.adapters.istanbul import parse_coverage_final
-from bob_quality.npm_tools import NODE_MISSING, run_vitest_under_c8
+from bob_quality.npm_tools import run_vitest_under_c8
 from bob_quality.tools import ToolError
+from helpers import in_both
 
 FIXTURE_TS = Path(__file__).parent / "fixtures" / "ts_app"
 _EXCLUDE = ["tests", "node_modules", "dist"]
@@ -38,7 +39,10 @@ def test_run_vitest_under_c8_names_the_missing_node(
     with pytest.raises(ToolError) as caught:
         run_vitest_under_c8(FIXTURE_TS, ["src"], tmp_path / "coverage", _EXCLUDE)
 
-    assert str(caught.value) == NODE_MISSING
+    assert in_both(caught.value) == (
+        "Node missing: install Node.js to measure TypeScript (c8 and vitest via npx)",
+        "Node ausente: instale Node.js para medir TypeScript (c8 e vitest via npx)",
+    )
 
 
 def test_c8_creates_a_nested_reports_directory_and_can_run_again(tmp_path: Path) -> None:
@@ -285,7 +289,7 @@ def test_c8_failure_without_output_uses_the_fallback_message(
     with pytest.raises(ToolError) as caught:
         run_vitest_under_c8(FIXTURE_TS, ["src"], tmp_path / "coverage", _EXCLUDE)
 
-    assert str(caught.value) == "c8/vitest falhou"
+    assert in_both(caught.value) == ("c8/vitest failed", "c8/vitest falhou")
 
 
 def _assert_captured_pinned_call(args: list[str], kwargs: dict[str, object]) -> None:

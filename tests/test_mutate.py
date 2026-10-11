@@ -65,14 +65,14 @@ def test_uncovered_mutants_warn_without_changing_the_exit_code(tmp_path: Path) -
     assert mutate == {
         "name": "mutate",
         "status": "warn",
-        "reason": "2 mutantes sem teste",
+        "reason": "2 mutants without a test",
     }
     assert payload["mutation"]["no_coverage"] == {
         "total": 2,
         "functions": [{"file": "src/app/orphan.py", "function": "orphan", "count": 2}],
     }
-    assert "## Mutantes sem teste" in markdown
-    assert "⚠️ Total: 2. Não bloqueia." in markdown
+    assert "## Mutants without tests" in markdown
+    assert "⚠️ Total: 2. Does not block." in markdown
     assert "| orphan | src/app/orphan.py | 2 |" in markdown
     Draft202012Validator(SCHEMA).validate(payload)
 
@@ -132,7 +132,7 @@ def test_waive_rejects_a_reason_that_is_missing_blank_or_multiline(tmp_path: Pat
     multiline = run_bob(repo, "waive", "classify", "--reason", "uma linha\noutra")
 
     assert missing.returncode != 0
-    assert "motivo" in (missing.stderr + missing.stdout).lower()
+    assert missing.stderr == "waiver without a reason: pass --reason with one line\n"
     assert blank.returncode != 0
     assert multiline.returncode != 0
     assert not (repo / ".bob" / "waivers.yaml").exists()
@@ -147,11 +147,11 @@ def test_waive_puts_the_reason_at_the_top_of_the_report(tmp_path: Path) -> None:
     markdown = (repo / ".bob" / "report.md").read_text()
     payload = json.loads((repo / ".bob" / "report.json").read_text())
     stored = (repo / ".bob" / "waivers.yaml").read_text()
-    head = markdown.split("## Veredito")[0]
+    head = markdown.split("## Verdict")[0]
 
     assert saved.returncode == 0
     assert result.returncode == 0
-    assert markdown.startswith("# Relatório bob\n\n## Waivers\n")
+    assert markdown.startswith("# bob report\n\n## Waivers\n")
     assert reason in head
     assert "bob-test" in head
     assert reason in stored
@@ -181,7 +181,7 @@ def test_only_changed_functions_are_mutated_and_clean_ones_are_not_remutated(
     assert mutate["status"] == "passed"
     assert mutate["reason"] is None
     assert payload["mutation"]["no_coverage"] == {"total": 0, "functions": []}
-    assert "## Mutantes sem teste\n\nNenhum mutante sem teste." in markdown
+    assert "## Mutants without tests\n\nNo mutants without tests." in markdown
     assert "src/app/safe.py::add" in payload["mutation"]["remutated"]
     assert "src/app/safe.py::scale" not in payload["mutation"]["remutated"]
     assert "src/app/safe.py::scale" not in functions
@@ -251,10 +251,10 @@ def test_check_lists_an_existing_waiver_at_the_top(tmp_path: Path) -> None:
 
     result = run_bob(repo, "check", "--base", "main", "--gates", "crap")
     markdown = (repo / ".bob" / "report.md").read_text()
-    head = markdown.split("## Veredito")[0]
+    head = markdown.split("## Verdict")[0]
 
     assert result.returncode == 0
-    assert markdown.startswith("# Relatório bob\n\n## Waivers\n")
+    assert markdown.startswith("# bob report\n\n## Waivers\n")
     assert "o contrato exige estritamente maior que zero" in head
 
 
@@ -271,7 +271,7 @@ def test_removed_waiver_fails_the_survivor_again(tmp_path: Path) -> None:
     markdown = (repo / ".bob" / "report.md").read_text()
 
     assert result.returncode == 3
-    assert reason not in markdown.split("## Veredito")[0]
+    assert reason not in markdown.split("## Verdict")[0]
 
 
 def test_harden_skill_kills_mutants_without_weakening_production_code() -> None:

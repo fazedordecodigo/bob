@@ -94,7 +94,7 @@ def test_python_cycle_fails_without_import_linter_config(tmp_path: Path) -> None
 
     assert code == 1, markdown
     assert deps["status"] == "failed"
-    assert "## Violações e ciclos de dependência" in markdown
+    assert "## Dependency violations and cycles" in markdown
     assert "`app.right → app.left` (Proibido ciclo de dependência)" in markdown
 
 
@@ -125,7 +125,7 @@ def test_changing_x_b_does_not_mark_y_b_in_the_diff(tmp_path: Path) -> None:
     assert code == 0, markdown
     assert deps["status"] == "passed"
     assert payload["dependencies"] == []
-    assert "fora do diff; não bloqueia" in markdown
+    assert "outside the diff; does not block" in markdown
 
 
 def test_python_three_cycle_blocks_when_only_the_middle_module_changes(
@@ -171,7 +171,7 @@ def test_python_cycle_already_on_main_is_information_and_does_not_fail(
         }
     ]
     assert "`app.right → app.left` (Proibido ciclo de dependência)" in markdown
-    assert "fora do diff; não bloqueia" in markdown
+    assert "outside the diff; does not block" in markdown
     assert "❌ `deps`" not in markdown
 
 
@@ -199,7 +199,7 @@ def test_python_without_cycle_passes_deps(tmp_path: Path) -> None:
 
     assert code == 0, markdown
     assert deps["status"] == "passed"
-    assert "Nenhuma violação de dependência." in markdown
+    assert "No dependency violations." in markdown
     assert payload["tool_versions"]["import-linter"] == "2.15"
 
 
@@ -294,7 +294,7 @@ def test_typescript_cycle_already_on_main_is_information_and_does_not_fail(
     assert payload["dependencies"] == []
     assert ("src/left.ts", "src/right.ts") in old
     assert ("src/right.ts", "src/left.ts") in old
-    assert "fora do diff; não bloqueia" in markdown
+    assert "outside the diff; does not block" in markdown
     assert "❌ `deps`" not in markdown
 
 
@@ -337,10 +337,10 @@ def test_mixed_repo_without_node_measures_python_deps_and_skips_typescript(
 
     assert code == 0, markdown
     assert deps["status"] == "warn"
-    assert deps["reason"].startswith("TypeScript pulado:")
-    assert "Node ausente" in deps["reason"]
+    assert deps["reason"].startswith("TypeScript skipped:")
+    assert "Node missing" in deps["reason"]
     assert "import-linter" in payload["tool_versions"]
-    assert "⚠️ `deps`: aviso (TypeScript pulado:" in markdown
+    assert "⚠️ `deps`: warning (TypeScript skipped:" in markdown
 
 
 def test_mixed_repo_without_node_still_fails_a_new_python_dependency_violation(
@@ -358,7 +358,7 @@ def test_mixed_repo_without_node_still_fails_a_new_python_dependency_violation(
     assert code == 1, markdown
     assert deps["status"] == "failed"
     assert "app.right → app.left" in deps["reason"]
-    assert "TypeScript pulado:" in deps["reason"]
+    assert "TypeScript skipped:" in deps["reason"]
     assert "❌ `deps`" in markdown
 
 
@@ -371,8 +371,8 @@ def test_typescript_repo_without_node_keeps_deps_exit_4(tmp_path: Path) -> None:
 
     assert code == 4, markdown
     assert deps["status"] == "not_run"
-    assert "Node ausente" in deps["reason"]
-    assert "TypeScript pulado" not in deps["reason"]
+    assert "Node missing" in deps["reason"]
+    assert "TypeScript skipped" not in deps["reason"]
 
 
 def _deps_without_node(repo: Path) -> tuple[int, dict[str, object], str]:

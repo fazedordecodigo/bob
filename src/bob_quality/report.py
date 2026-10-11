@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+from bob_quality.messages import Language, Message, Text, msg, render
 from bob_quality.models import (
     Clone,
     DepViolation,
@@ -14,6 +15,8 @@ from bob_quality.models import (
     Report,
 )
 
+JSON_LANGUAGE: Language = "en"
+
 GATE_MARK: dict[GateStatus, str] = {
     "passed": "✅",
     "warn": "⚠️",
@@ -21,13 +24,20 @@ GATE_MARK: dict[GateStatus, str] = {
     "not_run": "⏭️",
 }
 
+STATUS_LABEL: dict[GateStatus, Message] = {
+    "passed": msg("status.passed"),
+    "warn": msg("status.warn"),
+    "failed": msg("status.failed"),
+    "not_run": msg("status.not_run"),
+}
 
-def write_report(report: Report, out_dir: Path, fmt: str) -> None:
+
+def write_report(report: Report, out_dir: Path, fmt: str, lang: Language) -> None:
     out_dir.mkdir(parents=True, exist_ok=True)
     if fmt in {"json", "both"}:
         (out_dir / "report.json").write_text(json.dumps(to_json(report), indent=2) + "\n")
     if fmt in {"md", "both"}:
-        (out_dir / "report.md").write_text(to_markdown(report))
+        (out_dir / "report.md").write_text(to_markdown(report, lang))
 
 
 def to_json(report: Report) -> dict[str, object]:
@@ -38,7 +48,7 @@ def to_json(report: Report) -> dict[str, object]:
         "generated_at": report.generated_at,
         "tool_versions": report.tool_versions,
         "gates": [
-            {"name": gate.name, "status": gate.status, "reason": gate.reason}
+            {"name": gate.name, "status": gate.status, "reason": _json_reason(gate.reason)}
             for gate in report.gates
         ],
         "focus": report.focus,
@@ -55,8 +65,14 @@ def to_json(report: Report) -> dict[str, object]:
     }
 
 
-def to_markdown(report: Report) -> str:
-    lines = ["# Relatório bob", ""]
+def _json_reason(reason: Text | None) -> str | None:
+    if reason is None:
+        return None
+    return render(reason, JSON_LANGUAGE)
+
+
+def to_markdown(report: Report, lang: Language) -> str:
+    lines: list[Text] = [msg("report.title"), ""]
     if report.waivers or report.mutation is not None:
         lines.extend(_waiver_section(report.waivers))
     lines.extend(_header(report))
@@ -65,50 +81,58 @@ def to_markdown(report: Report) -> str:
     lines.extend(_crap_lines(report))
     lines.extend(_debt_lines(report))
     lines.extend(_dependency_lines(report))
-    lines.extend(["", "## Clones novos", ""])
+    lines.extend(["", msg("report.clones"), ""])
     lines.extend(_clone_lines(report))
     lines.extend(_survivor_lines(report))
     lines.extend(_no_coverage_lines(report))
     lines.extend(_footer(report))
-    return "\n".join(lines)
+    return "\n".join(render(line, lang) for line in lines)
 
 
-def _header(report: Report) -> list[str]:
+def _header(report: Report) -> list[Text]:
     return [
         f"- Commit: `{report.commit}`",
         f"- Base: `{report.base}`",
-        f"- Data: {report.generated_at}",
-        f"- Ferramentas: {_tools(report.tool_versions)}",
+        msg("report.date", value=report.generated_at),
+        msg("report.tools", value=_tools(report.tool_versions)),
         "",
     ]
 
 
-def _verdict_lines(report: Report) -> list[str]:
-    lines = ["## Veredito", ""]
+def _verdict_lines(report: Report) -> list[Text]:
+    lines: list[Text] = [msg("report.verdict"), ""]
     for gate in report.gates:
-        mark = GATE_MARK[gate.status]
-        extra = f" ({gate.reason})" if gate.reason else ""
-        lines.append(f"- {mark} `{gate.name}`: {_status_label(gate.status)}{extra}")
+        lines.append(_verdict_line(gate))
     return lines
 
 
-def _focus_lines(report: Report) -> list[str]:
-    lines = ["", "## Onde focar o review", ""]
+def _verdict_line(gate: GateResult) -> Message:
+    mark = GATE_MARK[gate.status]
+    status = STATUS_LABEL[gate.status]
+    if gate.reason:
+        return msg(
+            "report.gate_reason", mark=mark, name=gate.name, status=status, reason=gate.reason
+        )
+    return msg("report.gate", mark=mark, name=gate.name, status=status)
+
+
+def _focus_lines(report: Report) -> list[Text]:
+    lines: list[Text] = ["", msg("report.focus"), ""]
     if not report.focus:
-        lines.append("- Nenhum arquivo alterado com risco de CRAP.")
+        lines.append(msg("report.no_focus"))
         return lines
     for item in report.focus:
-        suffix = ", clone" if item.get("clone") else ""
-        lines.append(f"- `{item['file']}` (risco {item['risk']}{suffix})")
+        key = "report.focus_item_clone" if item.get("clone") else "report.focus_item"
+        lines.append(msg(key, file=item["file"], risk=item["risk"]))
     return lines
 
 
-def _crap_lines(report: Report) -> list[str]:
-    lines = ["", "## Top 5 funções por CRAP (diff)", ""]
+def _crap_lines(report: Report) -> list[Text]:
+    lines: list[Text] = ["", msg("report.top_crap"), ""]
     if not report.top_crap:
-        lines.append("Nenhuma função alterada medida.")
+        lines.append(msg("report.no_top_crap"))
         return lines
-    lines.append("| Função | Arquivo | CC | Cobertura | CRAP | Delta |")
+    lines.append(msg("report.crap_header"))
     lines.append("|---|---|---:|---:|---:|---|")
     lines.extend(_crap_row(fn) for fn in report.top_crap)
     return lines
@@ -121,42 +145,40 @@ def _crap_row(fn: dict[str, object]) -> str:
     return f"| {fn['name']} | {loc} | {fn['cc']} | {cov} | {fn['crap']} | {delta} |"
 
 
-def _debt_lines(report: Report) -> list[str]:
+def _debt_lines(report: Report) -> list[Text]:
     if not report.old_debt:
         return []
-    lines = ["", "## Informação (dívida antiga)", ""]
+    lines: list[Text] = ["", msg("report.old_debt"), ""]
     for fn in report.old_debt:
         loc = f"{fn['file']}:{fn['start_line']}"
-        lines.append(
-            f"- `{fn['name']}` em `{loc}` CRAP {fn['crap']} (fora do diff; não bloqueia)"
-        )
+        lines.append(msg("report.old_debt_item", name=fn["name"], loc=loc, crap=fn["crap"]))
     return lines
 
 
-def _survivor_lines(report: Report) -> list[str]:
+def _survivor_lines(report: Report) -> list[Text]:
     if report.mutation is None:
         return []
-    lines = ["", "## Mutantes sobreviventes", ""]
+    lines: list[Text] = ["", msg("report.survivors"), ""]
     if not report.survivors:
-        lines.append("Nenhum mutante sobrevivente.")
+        lines.append(msg("report.no_survivors"))
         return lines
-    lines.append("| Id | Função | Local | Operador | Waiver |")
+    lines.append(msg("report.survivor_header"))
     lines.append("|---|---|---|---|---|")
     for item in report.survivors:
         lines.append(_survivor_row(item))
     return lines
 
 
-def _no_coverage_lines(report: Report) -> list[str]:
+def _no_coverage_lines(report: Report) -> list[Text]:
     uncovered = (report.mutation or {}).get("no_coverage")
     if not isinstance(uncovered, dict):
         return []
-    lines = ["", "## Mutantes sem teste", ""]
+    lines: list[Text] = ["", msg("report.no_coverage"), ""]
     if not uncovered["functions"]:
-        lines.append("Nenhum mutante sem teste.")
+        lines.append(msg("report.no_uncovered"))
         return lines
-    lines.extend([f"⚠️ Total: {uncovered['total']}. Não bloqueia.", ""])
-    lines.extend(["| Função | Arquivo | Mutantes |", "|---|---|---:|"])
+    lines.extend([msg("report.uncovered_total", total=uncovered["total"]), ""])
+    lines.extend([msg("report.uncovered_header"), "|---|---|---:|"])
     for row in uncovered["functions"]:
         lines.append(f"| {row['function']} | {row['file']} | {row['count']} |")
     return lines
@@ -170,13 +192,13 @@ def _survivor_row(item: dict[str, object]) -> str:
     )
 
 
-def _waiver_section(waivers: list[dict[str, object]]) -> list[str]:
-    lines = ["## Waivers", ""]
+def _waiver_section(waivers: list[dict[str, object]]) -> list[Text]:
+    lines: list[Text] = ["## Waivers", ""]
     if not waivers:
-        lines.append("Nenhum waiver.")
+        lines.append(msg("report.no_waivers"))
         lines.append("")
         return lines
-    lines.append("| Alvo | Motivo | Autor | Data |")
+    lines.append(msg("report.waiver_header"))
     lines.append("|---|---|---|---|")
     for item in waivers:
         reason = str(item.get("reason") or "").replace("|", "\\|")
@@ -187,8 +209,8 @@ def _waiver_section(waivers: list[dict[str, object]]) -> list[str]:
     return lines
 
 
-def _footer(report: Report) -> list[str]:
-    return ["", "## Como reproduzir", "", "```", report.reproduce, "```", ""]
+def _footer(report: Report) -> list[Text]:
+    return ["", msg("report.reproduce"), "", "```", report.reproduce, "```", ""]
 
 
 def clone_row(clone: Clone) -> dict[str, object]:
@@ -206,21 +228,21 @@ def clone_row(clone: Clone) -> dict[str, object]:
     }
 
 
-def _dependency_lines(report: Report) -> list[str]:
-    lines = ["", "## Violações e ciclos de dependência", ""]
+def _dependency_lines(report: Report) -> list[Text]:
+    lines: list[Text] = ["", msg("report.dependencies"), ""]
     lines.extend(_dependency_items(report))
     lines.extend(_old_dependency_lines(report))
     return lines
 
 
-def _dependency_items(report: Report) -> list[str]:
+def _dependency_items(report: Report) -> list[Text]:
     gate = _gate_named(report, "deps")
     if gate is None or gate.status == "not_run":
-        return ["- Gate não executado."]
+        return [msg("report.deps_not_run")]
     if gate.status == "failed" and not report.dependencies:
-        return [f"- {gate.reason}"]
+        return [msg("report.deps_failed", reason=gate.reason)]
     if not report.dependencies:
-        return ["- Nenhuma violação de dependência."]
+        return [msg("report.no_violations")]
     return [_dependency_item(item) for item in report.dependencies]
 
 
@@ -235,12 +257,12 @@ def _gate_named(report: Report, name: str) -> GateResult | None:
     return None
 
 
-def _old_dependency_lines(report: Report) -> list[str]:
+def _old_dependency_lines(report: Report) -> list[Text]:
     if not report.old_dependencies:
         return []
-    lines = ["", "## Informação (dependências fora do diff)", ""]
+    lines: list[Text] = ["", msg("report.old_dependencies"), ""]
     for item in report.old_dependencies:
-        lines.append(f"{_dependency_item(item)} (fora do diff; não bloqueia)")
+        lines.append(msg("report.old_dependency_item", item=_dependency_item(item)))
     return lines
 
 
@@ -268,35 +290,37 @@ def metric_row(metric: FunctionMetric) -> dict[str, object]:
     }
 
 
-def _clone_lines(report: Report) -> list[str]:
+def _clone_lines(report: Report) -> list[Text]:
     if report.clones:
         return [_clone_line(clone) for clone in report.clones]
     return [_clone_absent(report)]
 
 
-def _clone_absent(report: Report) -> str:
+def _clone_absent(report: Report) -> Message:
     dry = next((gate for gate in report.gates if gate.name == "dry"), None)
     if dry is not None and dry.status == "passed":
-        return "Nenhum clone novo no diff."
+        return msg("report.no_clones")
     if dry is not None and dry.reason:
-        return f"Não executado ({dry.reason})."
-    return "Não executado."
+        return msg("report.clones_not_run_reason", reason=dry.reason)
+    return msg("report.clones_not_run")
 
 
-def _clone_line(clone: Clone) -> str:
-    left = f"`{clone.first_file}:{clone.first_start}-{clone.first_end}`"
-    right = f"`{clone.second_file}:{clone.second_start}-{clone.second_end}`"
-    return (
-        f"- {left} ↔ {right} — {clone.lines} linhas, {clone.tokens} tokens, "
-        f"similaridade {_similarity(clone)}"
+def _clone_line(clone: Clone) -> Message:
+    return msg(
+        "report.clone_item",
+        left=f"`{clone.first_file}:{clone.first_start}-{clone.first_end}`",
+        right=f"`{clone.second_file}:{clone.second_start}-{clone.second_end}`",
+        lines=clone.lines,
+        tokens=clone.tokens,
+        similarity=_similarity(clone),
     )
 
 
-def _similarity(clone: Clone) -> str:
+def _similarity(clone: Clone) -> Text:
     if clone.similarity is not None:
         return f"{clone.similarity * 100:.0f}%"
     if clone.kind == "exact":
-        return "exata"
+        return msg("report.exact")
     if clone.kind:
         return clone.kind
     return "—"
@@ -306,13 +330,3 @@ def _tools(versions: dict[str, str]) -> str:
     if not versions:
         return "—"
     return ", ".join(f"{name} {ver}" for name, ver in versions.items())
-
-
-def _status_label(status: str) -> str:
-    labels = {
-        "passed": "passou",
-        "warn": "aviso",
-        "failed": "falhou",
-        "not_run": "não executado",
-    }
-    return labels[status]

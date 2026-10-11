@@ -19,6 +19,7 @@ from bob_quality.config import Config
 from bob_quality.core import deps_verdict, unique_violations
 from bob_quality.cycles import strongly_connected
 from bob_quality.exit_codes import CONFIG_OR_TOOL, GATE_FAILED, PASSED
+from bob_quality.messages import Text, msg, reason
 from bob_quality.models import DepViolation, GateResult
 from bob_quality.npm_tools import node_missing_message, npm_prefix
 from bob_quality.tools import ToolError
@@ -31,11 +32,8 @@ raise SystemExit(
 )
 """
 _TS_EXTENSIONS = (".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs")
-_NODE_MISSING = (
-    "Node ausente: instale Node.js para o gate de dependências "
-    "(dependency-cruiser via npx)"
-)
-_CRUISER_MISSING = "ferramenta ausente: dependency-cruiser"
+_NODE_MISSING = msg("deps.node_missing")
+_CRUISER_MISSING = msg("tool.missing", tool="dependency-cruiser")
 _CYCLE_RULE = "Proibido ciclo de dependência"
 _GRAPH_RUNNER = """\
 import json, os, sys, grimp
@@ -81,7 +79,7 @@ def run_deps_gate(
             sink=violations,
         )
     except ToolError as exc:
-        return GateResult("deps", "not_run", str(exc)), CONFIG_OR_TOOL, versions, []
+        return GateResult("deps", "not_run", reason(exc)), CONFIG_OR_TOOL, versions, []
     except UnparsedBreak as exc:
         return GateResult("deps", "failed", exc.reason), GATE_FAILED, versions, []
     marked = _mark_diff(
@@ -101,7 +99,7 @@ def _collect_typescript(
     python_measured: bool,
     measure: Callable[[], list[DepViolation]],
     sink: list[DepViolation],
-) -> str | None:
+) -> Text | None:
     """Mede o TypeScript. Sem Node, e com Python no repo, devolve o motivo do pulo."""
     if not enabled:
         return None
@@ -110,21 +108,21 @@ def _collect_typescript(
     except NodeMissing as exc:
         if not python_measured:
             raise
-        return str(exc)
+        return reason(exc)
     return None
 
 
 def _note_typescript_skipped(
     result: GateResult,
     code: int,
-    reason: str | None,
+    skipped: Text | None,
 ) -> tuple[GateResult, int]:
     """Aviso no veredito. Exit 1 continua 1; o passe vira aviso e não sai 4."""
-    if not reason:
+    if not skipped:
         return result, code
-    note = f"TypeScript pulado: {reason}"
+    note = msg("probe.typescript_skipped", reason=skipped)
     if result.status == "failed":
-        detail = f"{result.reason}; {note}" if result.reason else note
+        detail = msg("probe.joined", first=result.reason, second=note) if result.reason else note
         return GateResult("deps", "failed", detail), code
     if code != PASSED:
         return result, code
@@ -203,11 +201,11 @@ def _import_edges(cwd: Path, config: Config, roots: list[str]) -> dict[str, list
     )
     if completed.returncode != 0:
         detail = _short(completed.stderr or completed.stdout)
-        raise ToolError(f"grimp não montou o grafo: {detail}")
+        raise ToolError(msg("deps.grimp_failed", detail=detail))
     try:
         return _parse_edges(completed.stdout)
     except ValueError as exc:
-        raise ToolError("grimp devolveu um grafo ilegível") from exc
+        raise ToolError(msg("deps.grimp_unreadable")) from exc
 
 
 def _parse_edges(raw: str) -> dict[str, list[str]]:
@@ -307,7 +305,7 @@ def _import_linter_version() -> str:
         stdin=subprocess.DEVNULL,
     )
     if completed.returncode != 0:
-        raise ToolError("ferramenta ausente: import-linter")
+        raise ToolError(msg("tool.missing", tool="import-linter"))
     return completed.stdout.strip()
 
 
@@ -341,7 +339,7 @@ class NodeMissing(ToolError):
 class UnparsedBreak(Exception):
     """import-linter saiu quebrado e o texto não trouxe aresta origem → destino."""
 
-    def __init__(self, reason: str) -> None:
+    def __init__(self, reason: Text) -> None:
         self.reason = reason
         super().__init__(reason)
 
@@ -353,7 +351,7 @@ def _import_linter_violations(completed: subprocess.CompletedProcess[str]) -> li
     parsed = parse_import_linter(completed.stdout)
     if completed.returncode == 1 and not parsed:
         name = broken_contract_name(completed.stdout) or "import-linter"
-        raise UnparsedBreak(f"contrato quebrado: {name}")
+        raise UnparsedBreak(msg("deps.contract_broken", name=name))
     return parsed
 
 
@@ -560,8 +558,8 @@ def _resolve(cwd: Path, configured: str) -> Path:
     return cwd / path
 
 
-def _short(text: str) -> str:
+def _short(text: str) -> Text:
     compact = " ".join(text.split())
     if not compact:
-        return "ferramenta de dependência falhou"
+        return msg("deps.tool_failed")
     return compact[:300]

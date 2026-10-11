@@ -10,20 +10,44 @@ import pytest
 from bob_quality.npm_tools import (
     ToolError,
     installed_npm_version,
+    node_missing_message,
     npm_prefix,
     npm_setup_hint,
     user_npm_cache,
 )
+from helpers import in_both
 
 
 def test_npm_prefix_names_the_missing_plugin_manifest(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr("bob_quality.npm_tools._plugin_packages", lambda: [])
     with pytest.raises(ToolError) as caught:
         npm_prefix()
-    assert str(caught.value) == (
+    assert in_both(caught.value) == (
+        "plugin package.json (bob-quality-tools) not found; c8 and vitest are pinned in it",
         "package.json do plugin (bob-quality-tools) não encontrado; "
-        "c8 e vitest ficam fixados nele"
+        "c8 e vitest ficam fixados nele",
     )
+
+
+@pytest.mark.parametrize("absent", ["node", "npx"])
+def test_node_counts_as_missing_when_node_or_npx_is_absent(
+    absent: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(
+        "bob_quality.npm_tools.shutil.which",
+        lambda name: None if name == absent else f"/usr/bin/{name}",
+    )
+    assert in_both(node_missing_message()) == (
+        "Node missing: install Node.js to measure TypeScript (c8 and vitest via npx)",
+        "Node ausente: instale Node.js para medir TypeScript (c8 e vitest via npx)",
+    )
+
+
+def test_node_is_present_when_node_and_npx_are_on_the_path(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr("bob_quality.npm_tools.shutil.which", lambda name: f"/usr/bin/{name}")
+    assert node_missing_message() is None
 
 
 def test_npm_prefix_uses_the_package_dir_when_nothing_is_installed(
@@ -91,8 +115,9 @@ def test_npm_prefix_prefers_a_ready_user_cache(
 def test_missing_npm_package_message_keeps_the_prefix_and_the_hint(tmp_path: Path) -> None:
     with pytest.raises(ToolError) as caught:
         installed_npm_version(tmp_path, "c8")
-    assert str(caught.value) == (
-        "dependências npm do plugin ausentes: " + f"npm ci --prefix {tmp_path}"
+    assert in_both(caught.value) == (
+        f"plugin npm dependencies missing: npm ci --prefix {tmp_path}",
+        f"dependências npm do plugin ausentes: npm ci --prefix {tmp_path}",
     )
 
 
@@ -109,6 +134,4 @@ def test_illegible_npm_version_names_the_package(tmp_path: Path) -> None:
     (pkg / "package.json").write_text("{")
     with pytest.raises(ToolError) as caught:
         installed_npm_version(tmp_path, "c8")
-    message = str(caught.value)
-    assert "c8" in message
-    assert "ilegível" in message
+    assert in_both(caught.value) == ("unreadable c8 version", "versão de c8 ilegível")
