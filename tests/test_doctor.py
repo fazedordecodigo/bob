@@ -14,6 +14,8 @@ import sys
 import tomllib
 from pathlib import Path
 
+from bob_quality.doctor import PINS as DOCTOR_PINS
+
 ROOT = Path(__file__).resolve().parents[1]
 
 # (nome no relatório, versão pinada, executável, banner de --version)
@@ -209,6 +211,27 @@ def test_doctor_reports_interpreter_lizard_not_a_path_shadow(tmp_path: Path) -> 
 
     assert result.returncode == 0, result.stdout + result.stderr
     assert "lizard esperada 1.24.1 encontrada 1.24.1" in result.stdout
+
+
+def test_doctor_pins_match_pyproject_and_package_json() -> None:
+    """doctor.PINS e os manifestos são a mesma pinagem. Qualquer versão diferente falha."""
+    project = tomllib.loads((ROOT / "pyproject.toml").read_text())
+    requirements = {
+        spec.split("==", 1)[0]: spec.split("==", 1)[1]
+        for spec in project["project"]["dependencies"]
+        if "==" in spec
+    }
+    package = json.loads((ROOT / "package.json").read_text())
+    npm = package["dependencies"]
+
+    for pin in DOCTOR_PINS:
+        if pin.distribution is not None:
+            assert requirements[pin.distribution] == pin.expected
+        elif pin.npm_package is not None:
+            assert npm[pin.npm_package] == pin.expected
+        else:
+            assert pin.name == "node"
+            assert package["engines"]["node"] == pin.expected
 
 
 def test_doctor_expected_versions_match_pip_and_npm_pins(tmp_path: Path) -> None:
