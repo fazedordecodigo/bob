@@ -12,6 +12,7 @@ from bob_quality.adapters.import_linter import broken_contract_name, parse_impor
 from bob_quality.deps_gate import UnparsedBreak, _import_linter_violations, _ini_roots, _short
 from bob_quality.models import GateResult, Report
 from bob_quality.report import to_markdown
+from bob_quality.tools import ToolError
 
 RAW = Path(__file__).parent / "fixtures" / "raw"
 
@@ -153,6 +154,181 @@ def test_importlinter_roots_read_utf8_names(tmp_path: Path) -> None:
         assert _ini_roots(path) == ["nãoapp"]
     finally:
         locale.setlocale(locale.LC_ALL, previous)
+
+
+def test_importlinter_roots_are_empty_when_the_section_declares_none(tmp_path: Path) -> None:
+    path = tmp_path / ".importlinter"
+    path.write_text("[importlinter]\nroot_packages =\n", encoding="utf-8")
+
+    assert _ini_roots(path) == []
+
+
+def test_import_linter_edges_are_never_marked_in_diff() -> None:
+    violations = parse_import_linter((RAW / "import-linter-forbidden.txt").read_text())
+
+    assert [item.in_diff for item in violations] == [False]
+
+
+def test_import_linter_reads_edges_painted_with_ansi_color() -> None:
+    raw = "Layers\n------\n\n\x1b[31m- app.api -> app.domain\x1b[0m\n"
+
+    assert [(item.origin, item.destination, item.rule) for item in parse_import_linter(raw)] == [
+        ("app.api", "app.domain", "Layers")
+    ]
+
+
+def test_import_linter_edge_before_any_heading_keeps_the_default_rule() -> None:
+    raw = "------\n- a.x -> a.y\n"
+
+    assert [item.rule for item in parse_import_linter(raw)] == ["import-linter"]
+
+
+def test_import_linter_heading_names_every_edge_below_it() -> None:
+    raw = "Layers\n------\n\n------\n- a.x -> a.y\n- a.z -> a.y\n"
+
+    assert [item.rule for item in parse_import_linter(raw)] == ["Layers", "Layers"]
+
+
+def test_import_linter_sentence_ending_in_a_period_is_not_a_cycle_package() -> None:
+    raw = (
+        "Cycles\n------\n\n"
+        "No cycles are allowed in app.\n"
+        "Remove one dependency.\n"
+        "- .right -> .left\n"
+    )
+
+    assert [(item.origin, item.destination) for item in parse_import_linter(raw)] == [
+        ("app.right", "app.left")
+    ]
+
+
+def test_import_linter_cycle_line_without_final_period_keeps_the_previous_package() -> None:
+    raw = (
+        "Cycles\n------\n\n"
+        "No cycles are allowed in app.\n"
+        "No cycles are allowed in other\n"
+        "- .right -> .left\n"
+    )
+
+    assert [(item.origin, item.destination) for item in parse_import_linter(raw)] == [
+        ("app.right", "app.left")
+    ]
+
+
+def test_import_linter_repeated_edge_is_reported_once_and_later_edges_survive() -> None:
+    raw = "Layers\n------\n\n- a.x -> a.y\n- a.x -> a.y\n- a.z -> a.y\n"
+
+    assert [(item.origin, item.destination) for item in parse_import_linter(raw)] == [
+        ("a.x", "a.y"),
+        ("a.z", "a.y"),
+    ]
+
+
+def test_cruiser_cycle_skips_steps_without_a_name() -> None:
+    raw = json.dumps(
+        {
+            "summary": {
+                "violations": [
+                    {
+                        "rule": {"name": "no-circular", "severity": "error"},
+                        "cycle": [{"name": "src/a.ts"}, {}, 5, "src/b.ts"],
+                    }
+                ]
+            }
+        }
+    )
+
+    assert [(item.origin, item.destination) for item in parse_dependency_cruiser(raw)] == [
+        ("src/a.ts", "src/b.ts"),
+        ("src/b.ts", "src/a.ts"),
+    ]
+
+
+def test_cruiser_rule_without_name_or_severity_uses_the_defaults() -> None:
+    raw = json.dumps(
+        {
+            "summary": {
+                "violations": [
+                    {"from": "src/a.ts", "to": "src/b.ts", "rule": {"severity": "warn"}},
+                    {"from": "src/c.ts", "to": "src/d.ts", "rule": {"name": "layers"}},
+                ]
+            }
+        }
+    )
+
+    assert [(item.origin, item.destination, item.rule) for item in parse_dependency_cruiser(raw)] == [
+        ("src/a.ts", "src/b.ts", "dependência"),
+        ("src/c.ts", "src/d.ts", "layers"),
+    ]
+
+
+def test_cruiser_reads_top_level_violations_when_summary_has_none() -> None:
+    raw = json.dumps(
+        {"summary": {}, "violations": [{"from": "src/a.ts", "to": "src/b.ts"}]}
+    )
+
+    assert [(item.origin, item.destination) for item in parse_dependency_cruiser(raw)] == [
+        ("src/a.ts", "src/b.ts")
+    ]
+
+
+def test_cruiser_violation_without_a_destination_is_dropped() -> None:
+    raw = json.dumps({"violations": [{"from": "src/a.ts"}]})
+
+    assert parse_dependency_cruiser(raw) == []
+
+
+def _linted(returncode: int, stdout: str = "", stderr: str = "") -> subprocess.CompletedProcess[str]:
+    return subprocess.CompletedProcess(
+        args=["lint-imports"], returncode=returncode, stdout=stdout, stderr=stderr
+    )
+
+
+def test_linter_clean_exit_returns_no_violation() -> None:
+    assert _import_linter_violations(_linted(0, "Contracts: 1 kept, 0 broken.\n")) == []
+
+
+def test_linter_broken_exit_with_edges_returns_them() -> None:
+    raw = (RAW / "import-linter-forbidden.txt").read_text()
+
+    violations = _import_linter_violations(_linted(1, raw))
+
+    assert [(item.origin, item.destination) for item in violations] == [("app.api", "app.domain")]
+
+
+def test_linter_broken_exit_without_contract_name_blames_import_linter() -> None:
+    with pytest.raises(UnparsedBreak, match="^contrato quebrado: import-linter$"):
+        _import_linter_violations(_linted(1, "nada útil\n"))
+
+
+def test_linter_traceback_is_a_tool_failure_with_stderr_first() -> None:
+    completed = _linted(1, "saída comum", "Traceback (most recent call last):\n  boom")
+
+    with pytest.raises(ToolError, match="^Traceback \\(most recent call last\\): boom$"):
+        _import_linter_violations(completed)
+
+
+def test_linter_failure_falls_back_to_stdout_when_stderr_is_empty() -> None:
+    with pytest.raises(ToolError, match="^Contract not configured correctly$"):
+        _import_linter_violations(_linted(1, "Contract not configured correctly"))
+
+
+def test_linter_could_not_import_without_an_edge_is_a_tool_failure() -> None:
+    with pytest.raises(ToolError, match="^Could not import app$"):
+        _import_linter_violations(_linted(1, "", "Could not import app"))
+
+
+def test_linter_could_not_import_beside_an_edge_is_still_a_violation() -> None:
+    raw = "Layers\n------\n\nCould not import app.extra\n- app.api -> app.domain\n"
+
+    violations = _import_linter_violations(_linted(1, raw))
+
+    assert [(item.origin, item.destination) for item in violations] == [("app.api", "app.domain")]
+
+
+def test_linter_unexpected_exit_code_is_a_tool_failure() -> None:
+    with pytest.raises(ToolError, match="^exit estranho$"):
+        _import_linter_violations(_linted(2, "", "exit estranho"))
 
 
 def test_tool_failure_text_is_one_line_capped_at_300_characters() -> None:
