@@ -55,41 +55,75 @@ def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     if args.command == "doctor":
         return run_doctor(install=args.install)
-    cwd = Path.cwd()
-    out_dir = Path(args.out)
-    if not out_dir.is_absolute():
-        out_dir = cwd / out_dir
-    config_path = Path(args.config) if args.config else None
-    if config_path is not None and not config_path.is_absolute():
-        config_path = cwd / config_path
+    return _run_measured(args)
 
+
+def _run_measured(args: argparse.Namespace) -> int:
+    cwd = Path.cwd()
+    out_dir = _under_cwd(Path(args.out), cwd)
+    config_path = _optional_path(args.config, cwd)
     if args.command == "check":
-        gates = [part.strip() for part in args.gates.split(",")] if args.gates else None
-        reproduce = _reproduce("check", args)
-        return run_check(
-            cwd=cwd,
-            base=args.base,
-            gates=gates,
-            config_path=config_path,
-            out_dir=out_dir,
-            fmt=args.format,
-            reproduce=reproduce,
-        )
+        return _run_check_command(args, cwd, out_dir, config_path)
     if args.command == "crap":
-        coverage = Path(args.coverage_file) if args.coverage_file else None
-        reproduce = _reproduce("crap", args)
-        return run_check(
-            cwd=cwd,
-            base=args.base,
-            gates=["crap"],
-            config_path=config_path,
-            out_dir=out_dir,
-            fmt="both",
-            threshold=args.threshold,
-            coverage_file=coverage,
-            reproduce=reproduce,
-        )
+        return _run_crap_command(args, cwd, out_dir, config_path)
     raise AssertionError("comando não tratado")
+
+
+def _under_cwd(path: Path, cwd: Path) -> Path:
+    if path.is_absolute():
+        return path
+    return cwd / path
+
+
+def _optional_path(raw: str | None, cwd: Path) -> Path | None:
+    if not raw:
+        return None
+    return _under_cwd(Path(raw), cwd)
+
+
+def _run_check_command(
+    args: argparse.Namespace,
+    cwd: Path,
+    out_dir: Path,
+    config_path: Path | None,
+) -> int:
+    gates = None
+    if args.gates:
+        gates = [part.strip() for part in args.gates.split(",")]
+    return run_check(
+        cwd=cwd,
+        base=args.base,
+        gates=gates,
+        config_path=config_path,
+        out_dir=out_dir,
+        fmt=args.format,
+        reproduce=_reproduce("check", args),
+    )
+
+
+def _coverage_file(raw: str | None) -> Path | None:
+    if not raw:
+        return None
+    return Path(raw)
+
+
+def _run_crap_command(
+    args: argparse.Namespace,
+    cwd: Path,
+    out_dir: Path,
+    config_path: Path | None,
+) -> int:
+    return run_check(
+        cwd=cwd,
+        base=args.base,
+        gates=["crap"],
+        config_path=config_path,
+        out_dir=out_dir,
+        fmt="both",
+        threshold=args.threshold,
+        coverage_file=_coverage_file(args.coverage_file),
+        reproduce=_reproduce("crap", args),
+    )
 
 
 def _reproduce(command: str, args: argparse.Namespace) -> str:

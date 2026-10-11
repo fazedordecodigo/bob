@@ -70,37 +70,76 @@ def npm_prefix() -> Path:
             "package.json do plugin (bob-quality-tools) não encontrado; "
             "c8 e vitest ficam fixados nele"
         )
+    installed = _first_with_modules(matches)
+    if installed is not None:
+        return installed
+    return _cache_or_first(matches)
+
+
+def _first_with_modules(matches: list[Path]) -> Path | None:
     for parent in matches:
         if (parent / "node_modules").is_dir():
             return parent
+    return None
+
+
+def _cache_or_first(matches: list[Path]) -> Path:
     cached = user_npm_cache()
-    if (cached / "node_modules").is_dir() and _is_plugin_manifest(cached / "package.json"):
+    if _cache_ready(cached):
         return cached
     return matches[0]
 
 
+def _cache_ready(cached: Path) -> bool:
+    if not (cached / "node_modules").is_dir():
+        return False
+    return _is_plugin_manifest(cached / "package.json")
+
+
 def install_npm_dependencies() -> int:
     """Roda `npm ci --prefix` no pacote instalado, ou num cache se ele não for gravável."""
-    matches = _plugin_packages()
-    if not matches:
-        print(
-            "package.json do plugin (bob-quality-tools) não encontrado; "
-            "c8 e vitest ficam fixados nele"
-        )
+    source = _install_source()
+    if source is None:
         return 4
-    source = matches[0]
-    target = source if _can_write(source) else _materialize_cache(source)
+    return _npm_ci(_install_target(source))
+
+
+def _install_source() -> Path | None:
+    matches = _plugin_packages()
+    if matches:
+        return matches[0]
+    print(
+        "package.json do plugin (bob-quality-tools) não encontrado; "
+        "c8 e vitest ficam fixados nele"
+    )
+    return None
+
+
+def _install_target(source: Path) -> Path:
+    if _can_write(source):
+        return source
+    return _materialize_cache(source)
+
+
+def _npm_ci(target: Path) -> int:
     command = npm_ci_command(target)
     completed = subprocess.run(
         ["npm", "ci", "--prefix", str(target)],
         capture_output=True,
         text=True,
     )
-    if completed.returncode != 0:
-        detail = (completed.stderr or completed.stdout or "").strip()
-        print(command if not detail else f"{command}\n{detail}")
-        return 4
-    return 0
+    if completed.returncode == 0:
+        return 0
+    _print_npm_failure(command, completed)
+    return 4
+
+
+def _print_npm_failure(command: str, completed: subprocess.CompletedProcess[str]) -> None:
+    detail = (completed.stderr or completed.stdout or "").strip()
+    if detail:
+        print(f"{command}\n{detail}")
+        return
+    print(command)
 
 
 def user_npm_cache() -> Path:
@@ -118,13 +157,24 @@ def _plugin_packages() -> list[Path]:
 
 
 def _is_plugin_manifest(path: Path) -> bool:
+    data = _load_manifest(path)
+    return data is not None and data.get("name") == _NPM_PACKAGE
+
+
+def _load_manifest(path: Path) -> dict[str, object] | None:
     if not path.is_file():
-        return False
+        return None
+    return _parse_manifest(path)
+
+
+def _parse_manifest(path: Path) -> dict[str, object] | None:
     try:
         data = json.loads(path.read_text())
     except json.JSONDecodeError:
-        return False
-    return data.get("name") == _NPM_PACKAGE
+        return None
+    if isinstance(data, dict):
+        return data
+    return None
 
 
 def _can_write(directory: Path) -> bool:
@@ -140,17 +190,23 @@ def _can_write(directory: Path) -> bool:
 def _materialize_cache(source: Path) -> Path:
     cache = user_npm_cache()
     cache.mkdir(parents=True, exist_ok=True)
+    _copy_manifests(source, cache)
+    _copy_js(source / "js", cache / "js")
+    return cache
+
+
+def _copy_manifests(source: Path, cache: Path) -> None:
     shutil.copy2(source / "package.json", cache / "package.json")
     lock = source / "package-lock.json"
     if lock.is_file():
         shutil.copy2(lock, cache / "package-lock.json")
-    js_src = source / "js"
-    js_dst = cache / "js"
-    if js_dst.exists():
-        shutil.rmtree(js_dst)
-    if js_src.is_dir():
-        shutil.copytree(js_src, js_dst)
-    return cache
+
+
+def _copy_js(src: Path, dst: Path) -> None:
+    if dst.exists():
+        shutil.rmtree(dst)
+    if src.is_dir():
+        shutil.copytree(src, dst)
 
 
 def node_missing_message() -> str | None:

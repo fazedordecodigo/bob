@@ -56,31 +56,66 @@ PINS: tuple[ToolPin, ...] = (
 )
 
 
+@dataclass(frozen=True)
+class _PinRow:
+    line: str
+    ok: bool
+    install: str | None
+    npm_missing: bool
+
+
 def run_doctor(install: bool = False) -> int:
     if install:
-        code = install_npm_dependencies()
-        if code != 0:
-            return code
-    lines: list[str] = []
-    installs: list[str] = []
-    npm_missing = False
-    ok = True
-    for pin in PINS:
-        found = _found_version(pin)
-        if found != pin.expected:
-            ok = False
-            if pin.npm_package is not None:
-                npm_missing = True
-            else:
-                installs.append(pin.install)
-        shown = found if found is not None else "ausente"
-        lines.append(f"{pin.name} esperada {pin.expected} encontrada {shown}")
-    if npm_missing:
-        installs.append(_npm_ci_hint())
+        return _install_then_report()
+    return _report_pins()
+
+
+def _install_then_report() -> int:
+    code = install_npm_dependencies()
+    if code != 0:
+        return code
+    return _report_pins()
+
+
+def _report_pins() -> int:
+    rows = [_assess(pin) for pin in PINS]
+    lines = [row.line for row in rows]
+    installs = _install_lines(rows)
     if installs:
         lines.extend(installs)
     print("\n".join(lines))
-    return PASSED if ok else CONFIG_OR_TOOL
+    return PASSED if _all_ok(rows) else CONFIG_OR_TOOL
+
+
+def _all_ok(rows: list[_PinRow]) -> bool:
+    return all(row.ok for row in rows)
+
+
+def _install_lines(rows: list[_PinRow]) -> list[str]:
+    installs = [row.install for row in rows if row.install]
+    if any(row.npm_missing for row in rows):
+        installs.append(_npm_ci_hint())
+    return installs
+
+
+def _assess(pin: ToolPin) -> _PinRow:
+    found = _found_version(pin)
+    line = f"{pin.name} esperada {pin.expected} encontrada {_shown(found)}"
+    if found == pin.expected:
+        return _PinRow(line, True, None, False)
+    return _PinRow(line, False, _install_text(pin), pin.npm_package is not None)
+
+
+def _shown(found: str | None) -> str:
+    if found is None:
+        return "ausente"
+    return found
+
+
+def _install_text(pin: ToolPin) -> str | None:
+    if pin.npm_package is not None:
+        return None
+    return pin.install
 
 
 def _npm_ci_hint() -> str:
@@ -91,13 +126,18 @@ def _npm_ci_hint() -> str:
 
 
 def _found_version(pin: ToolPin) -> str | None:
+    packaged = _packaged_version(pin)
+    if packaged is not None:
+        return packaged
+    return _cli_version(pin.executable)
+
+
+def _packaged_version(pin: ToolPin) -> str | None:
     if pin.distribution is not None:
         return _distribution_version(pin.distribution)
     if pin.npm_package is not None:
-        packaged = _npm_package_version(pin.npm_package, pin.executable)
-        if packaged is not None:
-            return packaged
-    return _cli_version(pin.executable)
+        return _npm_package_version(pin.npm_package, pin.executable)
+    return None
 
 
 def _npm_root() -> Path | None:
@@ -115,20 +155,42 @@ def _distribution_version(distribution: str) -> str | None:
 
 
 def _npm_package_version(package_name: str, executable: str) -> str | None:
-    direct = Path.cwd() / "node_modules" / package_name / "package.json"
-    version = _manifest_version(direct, package_name)
-    if version is not None:
-        return version
+    return _first_version(
+        _cwd_npm_version(package_name),
+        _prefix_npm_version(package_name),
+        _executable_npm_version(package_name, executable),
+    )
+
+
+def _first_version(*candidates: str | None) -> str | None:
+    for candidate in candidates:
+        if candidate is not None:
+            return candidate
+    return None
+
+
+def _cwd_npm_version(package_name: str) -> str | None:
+    path = Path.cwd() / "node_modules" / package_name / "package.json"
+    return _manifest_version(path, package_name)
+
+
+def _prefix_npm_version(package_name: str) -> str | None:
     prefix = _npm_root()
-    if prefix is not None:
-        bundled = prefix / "node_modules" / package_name / "package.json"
-        version = _manifest_version(bundled, package_name)
-    if version is not None:
-        return version
+    if prefix is None:
+        return None
+    path = prefix / "node_modules" / package_name / "package.json"
+    return _manifest_version(path, package_name)
+
+
+def _executable_npm_version(package_name: str, executable: str) -> str | None:
     located = _locate(executable)
     if located is None:
         return None
-    for parent in Path(located).resolve().parents:
+    return _version_near(Path(located).resolve(), package_name)
+
+
+def _version_near(path: Path, package_name: str) -> str | None:
+    for parent in path.parents:
         version = _manifest_version(parent / "package.json", package_name)
         if version is not None:
             return version
@@ -136,18 +198,37 @@ def _npm_package_version(package_name: str, executable: str) -> str | None:
 
 
 def _manifest_version(manifest: Path, package_name: str) -> str | None:
-    if not manifest.is_file():
+    data = _read_json(manifest)
+    if not _owns_package(data, package_name):
         return None
+    return _string_version(data)
+
+
+def _owns_package(data: dict[str, object] | None, package_name: str) -> bool:
+    return data is not None and data.get("name") == package_name
+
+
+def _string_version(data: dict[str, object]) -> str | None:
+    version = data.get("version")
+    if isinstance(version, str):
+        return version
+    return None
+
+
+def _read_json(path: Path) -> dict[str, object] | None:
+    if not path.is_file():
+        return None
+    return _parse_json(path)
+
+
+def _parse_json(path: Path) -> dict[str, object] | None:
     try:
-        data = json.loads(manifest.read_text())
+        data = json.loads(path.read_text())
     except json.JSONDecodeError:
         return None
-    if data.get("name") != package_name:
-        return None
-    version = data.get("version")
-    if not isinstance(version, str):
-        return None
-    return version
+    if isinstance(data, dict):
+        return data
+    return None
 
 
 def _cli_version(executable: str) -> str | None:
