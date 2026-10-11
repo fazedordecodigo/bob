@@ -9,12 +9,15 @@ from typing import Any
 import yaml
 
 
+DEFAULT_EXCLUDE = ["tests", "node_modules", "dist"]
+
+
 @dataclass
 class Config:
     base: str = "origin/main"
     languages: list[str] = field(default_factory=lambda: ["python"])
     include: list[str] = field(default_factory=lambda: ["src"])
-    exclude: list[str] = field(default_factory=lambda: ["tests"])
+    exclude: list[str] = field(default_factory=lambda: list(DEFAULT_EXCLUDE))
     max_crap: float = 10.0
     crap_scope: str = "changed"
     python_deps_config: str = ".importlinter"
@@ -42,7 +45,7 @@ def _from_dict(raw: dict[str, Any]) -> Config:
     paths = raw.get("paths") or {}
     crap = raw.get("crap") or {}
     include = paths.get("include") or ["src"]
-    exclude = paths.get("exclude") or ["tests"]
+    exclude = paths.get("exclude") or list(DEFAULT_EXCLUDE)
     python_deps, typescript_deps = _dependency_paths(raw)
     return Config(
         base=str(raw.get("base") or "origin/main"),

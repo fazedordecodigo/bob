@@ -2,6 +2,7 @@
 !.bob/waivers.yaml
 mutants/
 .coverage
+.coverage.*
 coverage/
 coverage.xml
 htmlcov/

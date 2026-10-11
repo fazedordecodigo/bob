@@ -47,7 +47,9 @@ def test_pinned_lizard_csv_contract_on_typescript_fixture() -> None:
 
 def test_pinned_c8_coverage_final_contract_on_typescript_fixture(tmp_path: Path) -> None:
     reports = tmp_path / "coverage"
-    code = run_vitest_under_c8(FIXTURE_TS, ["src"], reports)
+    code = run_vitest_under_c8(
+        FIXTURE_TS, ["src"], reports, ["tests", "node_modules", "dist"]
+    )
     files = parse_coverage_final((reports / "coverage-final.json").read_text())
     assert code == 0
     assert line_coverage(_by_suffix(files, "src/safe.ts"), 1, 3) == 1.0

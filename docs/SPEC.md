@@ -68,6 +68,8 @@ Exit codes (inspirados no mutator do Bob):
 - `3` mutante sobrevivente sem waiver
 - `4` erro de configuração ou ferramenta ausente
 
+Num monorepo com Python e TypeScript, a ausência do Node não é exit `4`. O Python continua medido. O TypeScript aparece no relatório como pulado, com aviso. O exit code é o dos gates que rodaram: `0` e veredito ⚠️ (não ✅) quando o CRAP medido cabe no limite; `1` e veredito ❌ quando estoura, e o motivo ainda cita o TypeScript pulado. Exit `4` continua quando a ferramenta ausente impede a medição pedida (repositório só TypeScript sem Node, ou configuração inválida).
+
 Por padrão, `check` no hook local executa `crap,dry,deps`; no CI executa todos.
 
 **Configuração `bob.yaml`**
