@@ -132,6 +132,19 @@ def test_other_npm_errors_exit_4_on_the_package_without_touching_the_cache(
     assert not (tmp_path / "xdg").exists()
 
 
+def test_install_exits_4_naming_the_missing_plugin_manifest(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    monkeypatch.setattr("bob_quality.npm_tools._plugin_packages", lambda: [])
+
+    assert install_npm_dependencies() == 4
+
+    assert capsys.readouterr().out == (
+        "package.json do plugin (bob-quality-tools) não encontrado; c8 e vitest ficam fixados nele\n"
+    )
+
+
 def test_npm_prefix_ignores_a_cache_from_another_manifest(
     package: Path,
     tmp_path: Path,
