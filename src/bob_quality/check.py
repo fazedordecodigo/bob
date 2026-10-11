@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -11,9 +11,12 @@ from bob_quality.core import files_by_risk, informational_debt, top_changed_crap
 from bob_quality.crap_gate import run_crap_gate
 from bob_quality.deps_gate import run_deps_gate
 from bob_quality.diff import GitError, changed_lines, current_commit
+from bob_quality.dry_gate import run_dry_gate
 from bob_quality.exit_codes import CONFIG_OR_TOOL, PASSED
-from bob_quality.models import DepViolation, FunctionMetric, GateResult, Report
+from bob_quality.models import Clone, DepViolation, FunctionMetric, GateResult, Report
+from bob_quality.mutate import MutationOutcome, focus_with_survivors, run_mutation_gate
 from bob_quality.report import metric_row, violation_rows, write_report
+from bob_quality.waivers import WaiverError, load_waivers
 
 DEFAULT_GATES = ("crap", "dry", "deps")
 
@@ -28,223 +31,212 @@ def run_check(
     threshold: float | None = None,
     coverage_file: Path | None = None,
     reproduce: str | None = None,
+    max_workers: int | None = None,
 ) -> int:
-    context = _context(
-        cwd, base, gates, config_path, out_dir, fmt, threshold, coverage_file, reproduce
-    )
-    if isinstance(context, int):
-        return context
-    applied = _apply_gates(
-        cwd=context.cwd,
-        config=context.config,
-        gates=context.gates,
-        diff_lines=context.diff_lines,
-        max_crap=context.max_crap,
-        coverage_file=context.coverage_file,
-    )
-    write_report(_report(context, applied), context.out_dir, context.fmt)
-    return applied.exit_code
-
-
-@dataclass
-class _Context:
-    cwd: Path
-    config: Config
-    gates: list[str]
-    out_dir: Path
-    fmt: str
-    command: str
-    base: str
-    commit: str
-    diff_lines: dict[str, set[int]]
-    max_crap: float
-    coverage_file: Path | None
-
-
-def _context(
-    cwd: Path,
-    base: str | None,
-    gates: list[str] | None,
-    config_path: Path | None,
-    out_dir: Path | None,
-    fmt: str,
-    threshold: float | None,
-    coverage_file: Path | None,
-    reproduce: str | None,
-) -> _Context | int:
     chosen_gates = gates or list(DEFAULT_GATES)
     chosen_out = out_dir or (cwd / ".bob")
     command = reproduce or "bob check"
-    config = _load_config(config_path, cwd, chosen_out, fmt, base, command, chosen_gates)
-    if isinstance(config, int):
-        return config
-    chosen_base = base or config.base
-    diff = _load_diff(cwd, chosen_base, chosen_out, fmt, command, chosen_gates)
-    if isinstance(diff, int):
-        return diff
-    commit, diff_lines = diff
-    max_crap = config.max_crap if threshold is None else threshold
-    return _Context(
-        cwd,
-        config,
-        chosen_gates,
+    opened = _open(cwd, base, config_path, threshold, chosen_out, fmt, command, chosen_gates)
+    if isinstance(opened, int):
+        return opened
+    config, chosen_base, max_crap, commit, diff_lines = opened
+    measured = _measure(
+        cwd, config, diff_lines, max_crap, coverage_file, chosen_gates, chosen_out, max_workers
+    )
+    if measured.mutation is None:
+        loaded = _load_idle_waivers(
+            cwd, chosen_out, fmt, chosen_base, command, chosen_gates
+        )
+        if isinstance(loaded, int):
+            return loaded
+        measured.loaded_waivers = loaded
+    write_report(
+        _assemble(measured, commit, chosen_base, diff_lines, max_crap, command),
         chosen_out,
         fmt,
-        command,
-        chosen_base,
-        commit,
-        diff_lines,
-        max_crap,
-        coverage_file,
     )
+    return measured.exit_code
 
 
-def _load_config(
-    config_path: Path | None,
+def _open(
     cwd: Path,
+    base: str | None,
+    config_path: Path | None,
+    threshold: float | None,
     out_dir: Path,
     fmt: str,
-    base: str | None,
     command: str,
     gates: list[str],
-) -> Config | int:
+) -> tuple[Config, str, float, str, dict[str, set[int]]] | int:
     try:
-        return load_config(config_path, cwd)
+        config = load_config(config_path, cwd)
     except ConfigError as exc:
         return _fail_early(out_dir, fmt, CONFIG_OR_TOOL, str(exc), base, command, gates)
-
-
-def _load_diff(
-    cwd: Path,
-    base: str,
-    out_dir: Path,
-    fmt: str,
-    command: str,
-    gates: list[str],
-) -> tuple[str, dict[str, set[int]]] | int:
+    chosen_base = base or config.base
+    max_crap = config.max_crap if threshold is None else threshold
     try:
-        return current_commit(cwd), changed_lines(cwd, base)
+        commit = current_commit(cwd)
+        diff_lines = changed_lines(cwd, chosen_base)
     except GitError as exc:
-        return _fail_early(out_dir, fmt, CONFIG_OR_TOOL, str(exc), base, command, gates)
-
-
-def _report(context: _Context, applied: _Applied) -> Report:
-    metrics = applied.metrics
-    return Report(
-        schema_version=1,
-        commit=context.commit,
-        base=context.base,
-        generated_at=datetime.now(timezone.utc).isoformat(),
-        tool_versions=applied.versions,
-        gates=applied.gates,
-        focus=files_by_risk(metrics),
-        top_crap=[metric_row(item) for item in top_changed_crap(metrics)],
-        old_debt=[metric_row(item) for item in informational_debt(metrics, applied.max_crap)],
-        dependencies=violation_rows(applied.violations, in_diff=True),
-        old_dependencies=violation_rows(applied.violations, in_diff=False),
-        reproduce=context.command,
-        exit_code=applied.exit_code,
-    )
+        return _fail_early(
+            out_dir, fmt, CONFIG_OR_TOOL, str(exc), chosen_base, command, gates
+        )
+    return config, chosen_base, max_crap, commit, diff_lines
 
 
 @dataclass
-class _Applied:
-    gates: list[GateResult]
-    metrics: list[FunctionMetric]
-    violations: list[DepViolation]
-    versions: dict[str, str]
-    exit_code: int
-    max_crap: float
+class _Measured:
+    versions: dict[str, str] = field(default_factory=dict)
+    gates: list[GateResult] = field(default_factory=list)
+    metrics: list[FunctionMetric] = field(default_factory=list)
+    clones: list[Clone] = field(default_factory=list)
+    violations: list[DepViolation] = field(default_factory=list)
+    exit_code: int = PASSED
+    mutation: MutationOutcome | None = None
+    loaded_waivers: list[dict[str, object]] = field(default_factory=list)
 
 
-def _apply_gates(
+def _measure(
     cwd: Path,
     config: Config,
-    gates: list[str],
     diff_lines: dict[str, set[int]],
     max_crap: float,
     coverage_file: Path | None,
-) -> _Applied:
-    versions: dict[str, str] = {}
-    gate_results: list[GateResult] = []
-    metrics: list[FunctionMetric] = []
-    violations: list[DepViolation] = []
-    exit_code = PASSED
+    gates: list[str],
+    out_dir: Path,
+    max_workers: int | None,
+) -> _Measured:
+    state = _Measured()
     for gate in gates:
-        exit_code = _one_gate(
-            gate,
-            _GateCall(cwd, config, diff_lines, max_crap, coverage_file),
-            gate_results,
-            metrics,
-            violations,
-            versions,
-            exit_code,
+        _absorb(
+            state, gate, cwd, config, diff_lines, max_crap, coverage_file, out_dir, max_workers
         )
-    return _Applied(gate_results, metrics, violations, versions, exit_code, max_crap)
+    return state
 
 
-@dataclass
-class _GateCall:
-    cwd: Path
-    config: Config
-    diff_lines: dict[str, set[int]]
-    max_crap: float
-    coverage_file: Path | None
-
-
-def _one_gate(
+def _absorb(
+    state: _Measured,
     gate: str,
-    call: _GateCall,
-    gate_results: list[GateResult],
-    metrics: list[FunctionMetric],
-    violations: list[DepViolation],
-    versions: dict[str, str],
-    exit_code: int,
-) -> int:
+    cwd: Path,
+    config: Config,
+    diff_lines: dict[str, set[int]],
+    max_crap: float,
+    coverage_file: Path | None,
+    out_dir: Path,
+    max_workers: int | None,
+) -> None:
     if gate == "crap":
-        return _apply_crap(call, gate_results, metrics, versions, exit_code)
+        result, metrics, code, versions = run_crap_gate(
+            cwd=cwd,
+            config=config,
+            diff_lines=diff_lines,
+            max_crap=max_crap,
+            coverage_file=coverage_file,
+        )
+        state.metrics = metrics
+        _record(state, result, code, versions)
+        return
+    if gate == "dry":
+        result, found, code, versions = run_dry_gate(
+            cwd=cwd, config=config, diff_lines=diff_lines
+        )
+        state.clones = found
+        _record(state, result, code, versions)
+        return
     if gate == "deps":
-        return _apply_deps(call, gate_results, violations, versions, exit_code)
-    gate_results.append(
-        GateResult(name=gate, status="not_run", reason="gate não implementado nesta fatia")
+        _absorb_deps(state, cwd, config, diff_lines)
+        return
+    if gate == "mutate":
+        mutation = run_mutation_gate(
+            cwd=cwd,
+            config=config,
+            diff_lines=diff_lines,
+            out_dir=out_dir,
+            max_workers=max_workers,
+        )
+        state.mutation = mutation
+        _record(state, mutation.result, mutation.exit_code, mutation.versions)
+        return
+    _record(
+        state,
+        GateResult(gate, "not_run", "gate não implementado nesta fatia"),
+        PASSED,
+        {},
     )
-    return exit_code
 
 
-def _apply_crap(
-    call: _GateCall,
-    gate_results: list[GateResult],
-    metrics: list[FunctionMetric],
+def _absorb_deps(
+    state: _Measured,
+    cwd: Path,
+    config: Config,
+    diff_lines: dict[str, set[int]],
+) -> None:
+    result, code, versions, found = run_deps_gate(cwd, config, set(diff_lines))
+    state.violations = found
+    _record(state, result, code, versions)
+
+
+def _record(
+    state: _Measured,
+    result: GateResult,
+    code: int,
     versions: dict[str, str],
-    exit_code: int,
-) -> int:
-    result, measured, code, gate_versions = run_crap_gate(
-        cwd=call.cwd,
-        config=call.config,
-        diff_lines=call.diff_lines,
-        max_crap=call.max_crap,
-        coverage_file=call.coverage_file,
-    )
-    gate_results.append(result)
-    metrics[:] = measured
-    versions.update(gate_versions)
-    return _worse(exit_code, code)
+) -> None:
+    state.gates.append(result)
+    state.versions.update(versions)
+    state.exit_code = _worse(state.exit_code, code)
 
 
-def _apply_deps(
-    call: _GateCall,
-    gate_results: list[GateResult],
-    violations: list[DepViolation],
-    versions: dict[str, str],
-    exit_code: int,
-) -> int:
-    result, code, gate_versions, found = run_deps_gate(
-        call.cwd, call.config, set(call.diff_lines)
+def _assemble(
+    measured: _Measured,
+    commit: str,
+    base: str,
+    diff_lines: dict[str, set[int]],
+    max_crap: float,
+    command: str,
+) -> Report:
+    focus = files_by_risk(measured.metrics, measured.clones, set(diff_lines))
+    survivors: list[dict[str, object]] = []
+    summary = None
+    waivers = measured.loaded_waivers
+    if measured.mutation is not None:
+        survivors = measured.mutation.survivors
+        summary = measured.mutation.summary
+        waivers = measured.mutation.waivers
+        focus = focus_with_survivors(focus, survivors)
+    return Report(
+        schema_version=1,
+        commit=commit,
+        base=base,
+        generated_at=datetime.now(timezone.utc).isoformat(),
+        tool_versions=measured.versions,
+        gates=measured.gates,
+        focus=focus,
+        top_crap=[metric_row(item) for item in top_changed_crap(measured.metrics)],
+        old_debt=[metric_row(item) for item in informational_debt(measured.metrics, max_crap)],
+        dependencies=violation_rows(measured.violations, in_diff=True),
+        old_dependencies=violation_rows(measured.violations, in_diff=False),
+        clones=measured.clones,
+        reproduce=command,
+        exit_code=measured.exit_code,
+        waivers=waivers,
+        survivors=survivors,
+        mutation=summary,
     )
-    gate_results.append(result)
-    violations.extend(found)
-    versions.update(gate_versions)
-    return _worse(exit_code, code)
+
+
+def _load_idle_waivers(
+    cwd: Path,
+    out_dir: Path,
+    fmt: str,
+    base: str,
+    command: str,
+    gates: list[str],
+) -> list[dict[str, object]] | int:
+    try:
+        return [item.as_dict() for item in load_waivers(cwd)]
+    except WaiverError as exc:
+        return _fail_early(out_dir, fmt, CONFIG_OR_TOOL, str(exc), base, command, gates)
 
 
 def _worse(current: int, incoming: int) -> int:

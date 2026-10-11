@@ -19,6 +19,7 @@ class Config:
     crap_scope: str = "changed"
     python_deps_config: str = ".importlinter"
     typescript_deps_config: str = ".dependency-cruiser.cjs"
+    min_tokens: int = 50
 
 
 class ConfigError(Exception):
@@ -52,6 +53,7 @@ def _from_dict(raw: dict[str, Any]) -> Config:
         crap_scope=str(crap.get("scope") or "changed"),
         python_deps_config=python_deps,
         typescript_deps_config=typescript_deps,
+        min_tokens=_min_tokens(raw.get("duplication")),
     )
 
 
@@ -60,3 +62,14 @@ def _dependency_paths(raw: dict[str, Any]) -> tuple[str, str]:
     python = str(dependencies.get("python") or ".importlinter")
     typescript = str(dependencies.get("typescript") or ".dependency-cruiser.cjs")
     return python, typescript
+
+
+def _min_tokens(duplication: Any) -> int:
+    if not duplication:
+        return 50
+    if not isinstance(duplication, dict):
+        raise ConfigError("duplication deve ser um mapeamento")
+    try:
+        return int(duplication.get("min_tokens", 50))
+    except (TypeError, ValueError) as exc:
+        raise ConfigError("duplication.min_tokens deve ser um inteiro") from exc

@@ -42,6 +42,38 @@ class FunctionMetric:
     delta: float | None = None
 
 
+MutantStatus = Literal["killed", "survived", "timeout", "no_coverage"]
+
+
+@dataclass(frozen=True)
+class Mutant:
+    """Mutante. Produzido pelo adaptador mutmut a partir da saída bruta."""
+
+    id: str
+    function: str
+    file: str
+    line: int
+    operator: str
+    status: MutantStatus
+    waiver: str | None = None
+
+
+@dataclass(frozen=True)
+class Clone:
+    """Par duplicado. Produzido pelo adaptador jscpd a partir do JSON."""
+
+    first_file: str
+    first_start: int
+    first_end: int
+    second_file: str
+    second_start: int
+    second_end: int
+    lines: int
+    tokens: int
+    similarity: float | None = None
+    kind: str = ""
+
+
 @dataclass(frozen=True)
 class DepViolation:
     """Aresta proibida ou de ciclo. `origin → destination`."""
@@ -72,5 +104,9 @@ class Report:
     old_debt: list[dict[str, object]] = field(default_factory=list)
     dependencies: list[dict[str, object]] = field(default_factory=list)
     old_dependencies: list[dict[str, object]] = field(default_factory=list)
+    clones: list[Clone] = field(default_factory=list)
     reproduce: str = ""
     exit_code: int = 0
+    waivers: list[dict[str, object]] = field(default_factory=list)
+    survivors: list[dict[str, object]] = field(default_factory=list)
+    mutation: dict[str, object] | None = None

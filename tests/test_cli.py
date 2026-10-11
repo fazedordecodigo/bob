@@ -119,7 +119,7 @@ def test_check_blocks_when_line_is_removed_inside_high_crap_function(
     assert "fora do diff" not in markdown
 
 
-def test_unimplemented_dry_gate_is_skipped_never_passed(tmp_path: Path) -> None:
+def test_default_check_runs_dry_and_deps(tmp_path: Path) -> None:
     repo = init_python_repo(tmp_path / "repo")
     commit_on_branch(
         repo,
@@ -136,11 +136,9 @@ def test_unimplemented_dry_gate_is_skipped_never_passed(tmp_path: Path) -> None:
     deps = next(gate for gate in payload["gates"] if gate["name"] == "deps")
 
     assert result.returncode == 0, result.stderr
-    assert dry["status"] == "not_run"
-    assert dry["reason"]
+    assert dry["status"] == "passed"
     assert deps["status"] == "passed"
-    assert "⏭️" in markdown
-    assert "✅ `dry`" not in markdown
+    assert "✅ `dry`" in markdown
     assert "✅ `deps`" in markdown
 
 

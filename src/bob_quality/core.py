@@ -7,6 +7,7 @@ from pathlib import Path
 from bob_quality.crap import calculate_crap
 from bob_quality.exit_codes import GATE_FAILED, PASSED
 from bob_quality.models import (
+    Clone,
     CyclomaticFunction,
     DepViolation,
     FileCoverage,
@@ -91,14 +92,36 @@ def top_changed_crap(metrics: list[FunctionMetric], limit: int = 5) -> list[Func
     return sorted(changed, key=lambda item: item.crap, reverse=True)[:limit]
 
 
-def files_by_risk(metrics: list[FunctionMetric]) -> list[dict[str, object]]:
+def files_by_risk(
+    metrics: list[FunctionMetric],
+    clones: list[Clone],
+    changed_files: set[str],
+) -> list[dict[str, object]]:
     by_file: dict[str, float] = {}
     for item in metrics:
-        if not item.changed:
-            continue
-        by_file[item.file] = max(by_file.get(item.file, 0.0), item.crap)
+        if item.changed:
+            by_file[item.file] = max(by_file.get(item.file, 0.0), item.crap)
+    cloned = _clone_files_in_diff(clones, changed_files)
+    for file in cloned:
+        by_file.setdefault(file, 0.0)
     ordered = sorted(by_file.items(), key=lambda pair: pair[1], reverse=True)
-    return [{"file": file, "risk": risk} for file, risk in ordered]
+    return [_focus_row(file, risk, file in cloned) for file, risk in ordered]
+
+
+def _clone_files_in_diff(clones: list[Clone], changed_files: set[str]) -> set[str]:
+    found: set[str] = set()
+    for clone in clones:
+        for file in (clone.first_file, clone.second_file):
+            if file in changed_files:
+                found.add(file)
+    return found
+
+
+def _focus_row(file: str, risk: float, cloned: bool) -> dict[str, object]:
+    row: dict[str, object] = {"file": file, "risk": risk}
+    if cloned:
+        row["clone"] = True
+    return row
 
 
 def deps_verdict(violations: list[DepViolation]) -> tuple[GateResult, int]:
