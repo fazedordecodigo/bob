@@ -46,6 +46,7 @@ def _fake_npm(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, failures: dict[Pa
     npm = bin_dir / "npm"
     npm.write_text(
         "#!/bin/sh\n"
+        '[ "$1 $2 $#" = "ci --prefix 3" ] || { echo "npm falso: argv inesperado: $*" >&2; exit 99; }\n'
         'case "$3" in\n'
         f"{cases}"
         "esac\n"
@@ -162,6 +163,9 @@ def test_real_npm_ci_with_node_modules_555_installs_in_the_user_cache(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    # Um mutante sem `--prefix` faria o npm real rodar `npm ci` no node_modules do repo.
+    if os.environ.get("MUTANT_UNDER_TEST"):
+        pytest.skip("o npm real não participa da execução do mutmut")
     root = tmp_path / "root"
     tiny = root / "tiny"
     tiny.mkdir(parents=True)
