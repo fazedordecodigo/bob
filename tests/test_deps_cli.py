@@ -7,9 +7,9 @@ Não pega o formato cru das ferramentas (seam do adaptador).
 import json
 import os
 import shutil
+import subprocess
+import sys
 from pathlib import Path
-
-from bob_quality.cli import main
 
 from helpers import (
     SAFE_CHANGE,
@@ -19,6 +19,7 @@ from helpers import (
     init_mixed_repo,
     init_python_repo,
     init_ts_repo,
+    run_bob,
 )
 
 LEFT = (Path(__file__).parent / "fixtures" / "python_app" / "cases" / "cycle_left.py").read_text()
@@ -59,12 +60,7 @@ module.exports = {
 
 
 def _invoke(repo: Path, *args: str) -> int:
-    previous = os.getcwd()
-    os.chdir(repo)
-    try:
-        return main(list(args))
-    finally:
-        os.chdir(previous)
+    return run_bob(repo, *args).returncode
 
 
 def _deps(repo: Path) -> tuple[dict[str, object], str]:
@@ -383,15 +379,14 @@ def _deps_without_node(repo: Path) -> tuple[int, dict[str, object], str]:
     bindir = repo.parent / "bin"
     bindir.mkdir()
     os.symlink(shutil.which("git"), bindir / "git")
-    previous_path = os.environ.get("PATH", "")
-    previous_cwd = os.getcwd()
-    os.environ["PATH"] = str(bindir)
-    os.chdir(repo)
-    try:
-        code = main(["deps", "--base", "main"])
-    finally:
-        os.environ["PATH"] = previous_path
-        os.chdir(previous_cwd)
+    result = subprocess.run(
+        [sys.executable, "-m", "bob_quality", "deps", "--base", "main"],
+        cwd=repo,
+        capture_output=True,
+        text=True,
+        env={**os.environ, "PATH": str(bindir)},
+    )
+    code = result.returncode
     payload = json.loads((repo / ".bob" / "report.json").read_text())
     markdown = (repo / ".bob" / "report.md").read_text()
     return code, payload, markdown
