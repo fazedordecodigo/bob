@@ -9,6 +9,7 @@ import re
 import subprocess
 import sys
 import tempfile
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -16,8 +17,7 @@ from bob_quality.adapters.dependency_cruiser import parse_dependency_cruiser
 from bob_quality.adapters.import_linter import broken_contract_name, parse_import_linter
 from bob_quality.config import Config
 from bob_quality.core import deps_verdict, unique_violations
-from bob_quality.deps_typescript_skip import collect_typescript_deps, note_typescript_skipped
-from bob_quality.exit_codes import CONFIG_OR_TOOL, GATE_FAILED
+from bob_quality.exit_codes import CONFIG_OR_TOOL, GATE_FAILED, PASSED
 from bob_quality.models import DepViolation, GateResult
 from bob_quality.npm_tools import node_missing_message, npm_prefix
 from bob_quality.tools import ToolError
@@ -55,7 +55,7 @@ def run_deps_gate(
     try:
         if python_measured:
             violations.extend(_python_violations(cwd, config, versions))
-        skip = collect_typescript_deps(
+        skip = _collect_typescript(
             enabled="typescript" in config.languages,
             python_measured=python_measured,
             measure=lambda: _typescript_violations(cwd, config, versions),
@@ -67,8 +67,44 @@ def run_deps_gate(
         return GateResult("deps", "failed", exc.reason), GATE_FAILED, versions, []
     marked = _mark_diff(violations, changed_files or set())
     verdict, code = deps_verdict(marked)
-    verdict, code = note_typescript_skipped(verdict, code, skip)
+    verdict, code = _note_typescript_skipped(verdict, code, skip)
     return verdict, code, versions, marked
+
+
+def _collect_typescript(
+    *,
+    enabled: bool,
+    python_measured: bool,
+    measure: Callable[[], list[DepViolation]],
+    sink: list[DepViolation],
+) -> str | None:
+    """Mede o TypeScript. Sem Node, e com Python no repo, devolve o motivo do pulo."""
+    if not enabled:
+        return None
+    try:
+        sink.extend(measure())
+    except ToolError as exc:
+        if not python_measured or not str(exc).startswith("Node ausente"):
+            raise
+        return str(exc)
+    return None
+
+
+def _note_typescript_skipped(
+    result: GateResult,
+    code: int,
+    reason: str | None,
+) -> tuple[GateResult, int]:
+    """Aviso no veredito. Exit 1 continua 1; o passe vira aviso e não sai 4."""
+    if not reason:
+        return result, code
+    note = f"TypeScript pulado: {reason}"
+    if result.status == "failed":
+        detail = f"{result.reason}; {note}" if result.reason else note
+        return GateResult("deps", "failed", detail), code
+    if code != PASSED:
+        return result, code
+    return GateResult("deps", "warn", note), code
 
 
 def _mark_diff(violations: list[DepViolation], changed_files: set[str]) -> list[DepViolation]:
