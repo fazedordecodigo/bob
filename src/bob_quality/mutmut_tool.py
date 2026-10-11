@@ -14,7 +14,6 @@ from bob_quality.tools import ToolError
 _VERSION_RE = re.compile(r"(\d+\.\d+\.\d+)")
 _SPINNER_CHAR = "⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏"
 _SPINNER_LINE = re.compile(rf"^[{_SPINNER_CHAR}]\s")
-_STATS_PATH = "mutants/mutmut-stats.json"
 _TRACEBACK = "Traceback (most recent call last):\n"
 _EXCEPTION_LINE = re.compile(r"^\S.*", re.MULTILINE)
 # O gate só chama o mutmut depois que a baseline passou no repositório.
@@ -68,13 +67,6 @@ def mutmut_results(cwd: Path) -> str:
 
 def mutmut_show(cwd: Path, mutant_id: str) -> str:
     return _invoke([sys.executable, "-m", "mutmut", "show", mutant_id], cwd)
-
-
-def mutmut_stats(cwd: Path) -> str:
-    try:
-        return (cwd / _STATS_PATH).read_text()
-    except OSError as exc:
-        raise ToolError(f"stats do mutmut ausente: {_STATS_PATH}") from exc
 
 
 def _clean_env() -> dict[str, str]:

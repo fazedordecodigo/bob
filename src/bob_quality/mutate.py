@@ -11,12 +11,10 @@ from pathlib import Path
 from bob_quality.adapters.lizard import LizardParseError, parse_lizard_csv
 from bob_quality.adapters.mutmut import (
     MutmutParseError,
-    covering_test_files,
     ids_for_show,
     mutants_from_raw,
     mutmut_id_prefix,
     mutmut_run_patterns,
-    mutmut_stats_key,
 )
 from bob_quality.config import Config
 from bob_quality.diff import function_is_changed
@@ -31,12 +29,12 @@ from bob_quality.models import CyclomaticFunction, GateResult, Mutant, MutantSta
 from bob_quality.mutmut_tool import (
     mutmut_results,
     mutmut_show,
-    mutmut_stats,
     mutmut_version,
     pytest_exit_code,
     run_mutmut,
 )
 from bob_quality.probe import relative_path
+from bob_quality.suite_fingerprint import suite_fingerprint
 from bob_quality.tools import ToolError, run_lizard_csv
 from bob_quality.waivers import Waiver, WaiverError, apply_waivers, load_waivers
 
@@ -65,9 +63,9 @@ def run_mutation_gate(
     prepared = _prepare_mutation(cwd, config, diff_lines, out_dir)
     if isinstance(prepared, MutationOutcome):
         return prepared
-    versions, waivers, waiver_rows, cache_path, plan = prepared
+    versions, waivers, waiver_rows, cache, plan = prepared
     if not plan.remutate:
-        _write_cache(cache_path, versions["mutmut"], dict(plan.reuse))
+        _write_cache(cache, dict(plan.reuse))
         return _finish(
             plan.reused_mutants, plan.remutated_labels, plan.reused_labels, versions, waiver_rows
         )
@@ -77,15 +75,19 @@ def run_mutation_gate(
     fresh = _collect_fresh(cwd, config, plan.remutate, max_workers, versions, waiver_rows, waivers)
     if isinstance(fresh, MutationOutcome):
         return fresh
-    tests, unreadable = _safe_stats(cwd, versions, waiver_rows)
-    if unreadable is not None:
-        return unreadable
     body = dict(plan.reuse)
-    body.update(_cache_body(cwd, plan.remutate, fresh, tests))
-    _write_cache(cache_path, versions["mutmut"], body)
+    body.update(_cache_body(cwd, plan.remutate, fresh))
+    _write_cache(cache, body)
     return _finish(
         fresh + plan.reused_mutants, plan.remutated_labels, plan.reused_labels, versions, waiver_rows
     )
+
+
+@dataclass(frozen=True)
+class _Cache:
+    path: Path
+    # Versão do mutmut e impressão da suíte. Qualquer diferença descarta o cache inteiro.
+    key: dict[str, str]
 
 
 @dataclass
@@ -102,7 +104,7 @@ def _prepare_mutation(
     config: Config,
     diff_lines: dict[str, set[int]],
     out_dir: Path,
-) -> MutationOutcome | tuple[dict[str, str], list[Waiver], list[dict[str, object]], Path, _Plan]:
+) -> MutationOutcome | tuple[dict[str, str], list[Waiver], list[dict[str, object]], _Cache, _Plan]:
     versions, missing = _mutmut_versions()
     if missing is not None:
         return missing
@@ -113,11 +115,14 @@ def _prepare_mutation(
     measured, failed = _safe_measured(cwd, config, versions, waiver_rows)
     if failed is not None:
         return failed
-    cache_path = out_dir / CACHE_NAME
-    cached, broken = _safe_cache(cache_path, versions, waiver_rows)
+    suite = _safe_fingerprint(cwd, versions, waiver_rows)
+    if isinstance(suite, MutationOutcome):
+        return suite
+    cache = _Cache(out_dir / CACHE_NAME, {"mutmut": versions["mutmut"], "suite": suite})
+    cached, broken = _safe_cache(cache, versions, waiver_rows)
     if broken is not None:
         return broken
-    return versions, waivers, waiver_rows, cache_path, _plan_functions(
+    return versions, waivers, waiver_rows, cache, _plan_functions(
         measured, diff_lines, cached, cwd, waivers
     )
 
@@ -156,24 +161,24 @@ def _safe_measured(
         return [], _tool_outcome(str(exc), versions, waiver_rows)
 
 
+def _safe_fingerprint(
+    cwd: Path, versions: dict[str, str], waiver_rows: list[dict[str, object]]
+) -> str | MutationOutcome:
+    try:
+        return suite_fingerprint(cwd)
+    except ToolError as exc:
+        return _tool_outcome(str(exc), versions, waiver_rows)
+
+
 def _safe_cache(
-    cache_path: Path,
+    cache: _Cache,
     versions: dict[str, str],
     waiver_rows: list[dict[str, object]],
 ) -> tuple[dict[str, dict[str, object]], MutationOutcome | None]:
     try:
-        return _read_cache(cache_path, versions["mutmut"]), None
+        return _read_cache(cache), None
     except (OSError, json.JSONDecodeError) as exc:
         return {}, _tool_outcome(f"cache de mutação inválido: {exc}", versions, waiver_rows)
-
-
-def _safe_stats(
-    cwd: Path, versions: dict[str, str], waiver_rows: list[dict[str, object]]
-) -> tuple[dict[str, set[str]], MutationOutcome | None]:
-    try:
-        return covering_test_files(mutmut_stats(cwd)), None
-    except (ToolError, MutmutParseError) as exc:
-        return {}, _tool_outcome(str(exc), versions, waiver_rows)
 
 
 def _plan_functions(
@@ -316,7 +321,7 @@ def _split_functions(
         item = by_key[key]
         entry = cache.get(key)
         digest = _function_hash(cwd, item.file, item.start_line, item.end_line)
-        if isinstance(entry, dict) and not _needs_remutation(entry, digest, cwd, waivers):
+        if isinstance(entry, dict) and not _needs_remutation(entry, digest, waivers):
             reuse.append((key, entry))
         else:
             remutate.append(item)
@@ -341,18 +346,10 @@ def _candidate_keys(
     return keys
 
 
-def _needs_remutation(
-    entry: dict[str, object], digest: str, cwd: Path, waivers: list[Waiver]
-) -> bool:
-    if entry.get("hash") != digest or not _tests_unchanged(cwd, entry.get("tests")):
+def _needs_remutation(entry: dict[str, object], digest: str, waivers: list[Waiver]) -> bool:
+    if entry.get("hash") != digest:
         return True
     return _has_unwaived_survivor(entry, waivers)
-
-
-def _tests_unchanged(cwd: Path, tests: object) -> bool:
-    if not isinstance(tests, dict):
-        return False
-    return all(_file_hash(cwd / str(file)) == digest for file, digest in tests.items())
 
 
 def _has_unwaived_survivor(entry: dict[str, object], waivers: list[Waiver]) -> bool:
@@ -364,11 +361,11 @@ def _has_unwaived_survivor(entry: dict[str, object], waivers: list[Waiver]) -> b
     return any(item.status == "survived" and not item.waiver for item in current)
 
 
-def _read_cache(path: Path, mutmut: str) -> dict[str, dict[str, object]]:
-    if not path.is_file():
+def _read_cache(cache: _Cache) -> dict[str, dict[str, object]]:
+    if not cache.path.is_file():
         return {}
-    raw = json.loads(path.read_text())
-    if not isinstance(raw, dict) or raw.get("mutmut") != mutmut:
+    raw = json.loads(cache.path.read_text())
+    if not isinstance(raw, dict) or any(raw.get(field) != cache.key[field] for field in cache.key):
         return {}
     functions = raw.get("functions")
     if not isinstance(functions, dict):
@@ -539,20 +536,15 @@ def _belongs(mutant: Mutant, functions: list[CyclomaticFunction]) -> bool:
 
 
 def _cache_body(
-    cwd: Path,
-    functions: list[CyclomaticFunction],
-    mutants: list[Mutant],
-    tests: dict[str, set[str]],
+    cwd: Path, functions: list[CyclomaticFunction], mutants: list[Mutant]
 ) -> dict[str, object]:
     body: dict[str, object] = {}
     for item in functions:
         prefix = mutmut_id_prefix(item.file, item.name)
         own = [mutant for mutant in mutants if mutant.id.startswith(prefix)]
         key = f"{item.file}::{item.name}"
-        covering = tests.get(mutmut_stats_key(item.file, item.name), set())
         body[key] = {
             "hash": _function_hash(cwd, item.file, item.start_line, item.end_line),
-            "tests": _test_hashes(cwd, covering),
             "file": item.file,
             "name": item.name,
             "start_line": item.start_line,
@@ -569,25 +561,10 @@ def _function_hash(cwd: Path, file: str, start: int, end: int) -> str:
     return hashlib.sha256(text.encode()).hexdigest()
 
 
-def _test_hashes(cwd: Path, files: set[str]) -> dict[str, str]:
-    hashes: dict[str, str] = {}
-    for file in sorted(files):
-        digest = _file_hash(cwd / file)
-        if digest is not None:
-            hashes[file] = digest
-    return hashes
-
-
-def _file_hash(path: Path) -> str | None:
-    if not path.is_file():
-        return None
-    return hashlib.sha256(path.read_bytes()).hexdigest()
-
-
-def _write_cache(path: Path, mutmut: str, functions: dict[str, object]) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    payload = {"mutmut": mutmut, "functions": functions}
-    path.write_text(json.dumps(payload, indent=2) + "\n")
+def _write_cache(cache: _Cache, functions: dict[str, object]) -> None:
+    cache.path.parent.mkdir(parents=True, exist_ok=True)
+    payload = {**cache.key, "functions": functions}
+    cache.path.write_text(json.dumps(payload, indent=2) + "\n")
 
 
 def _mutant_row(mutant: Mutant) -> dict[str, object]:
