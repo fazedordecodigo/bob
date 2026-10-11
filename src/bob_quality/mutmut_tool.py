@@ -18,16 +18,19 @@ _SPINNER_LINE = re.compile(rf"^[{_SPINNER_CHAR}]\s")
 def pytest_exit_code(cwd: Path) -> int:
     """Roda a suíte uma vez. Devolve o exit code do pytest, sem transformar falha em erro de ferramenta."""
     env = _clean_env()
-    completed = subprocess.run(
-        [sys.executable, "-m", "pytest", "-q"],
-        cwd=cwd,
-        capture_output=True,
-        text=True,
-        stdin=subprocess.DEVNULL,
-        env=env,
-        timeout=120,
-        check=False,
-    )
+    try:
+        completed = subprocess.run(
+            [sys.executable, "-m", "pytest", "-q"],
+            cwd=cwd,
+            capture_output=True,
+            text=True,
+            stdin=subprocess.DEVNULL,
+            env=env,
+            timeout=900,
+            check=False,
+        )
+    except subprocess.TimeoutExpired as exc:
+        raise ToolError("pytest da baseline excedeu o tempo limite") from exc
     return completed.returncode
 
 
@@ -39,11 +42,15 @@ def mutmut_version() -> str:
     return match.group(1)
 
 
+# A coleta de stats neste repo sozinha passa de 180s. O limite continua existindo.
+_RUN_TIMEOUT_SECONDS = 1800
+
+
 def run_mutmut(cwd: Path, patterns: list[str], max_workers: int | None) -> None:
     args = [sys.executable, "-m", "mutmut", "run", *patterns]
     if max_workers is not None:
         args.extend(["--max-children", str(max_workers)])
-    _invoke(args, cwd)
+    _invoke(args, cwd, timeout=_RUN_TIMEOUT_SECONDS)
 
 
 def mutmut_results(cwd: Path) -> str:
@@ -55,14 +62,18 @@ def mutmut_show(cwd: Path, mutant_id: str) -> str:
 
 
 def _clean_env() -> dict[str, str]:
-    return {
+    env = {
         key: value
         for key, value in os.environ.items()
         if not key.startswith("PYTEST_") and key != "MUTANT_UNDER_TEST"
     }
+    # A suíte deste repo inclui um teste que dispara o mutmut. Sem esta marca,
+    # a baseline e a coleta reentram nele.
+    env["BOB_SKIP_MUTMUT_DOGFOOD"] = "1"
+    return env
 
 
-def _invoke(args: list[str], cwd: Path | None) -> str:
+def _invoke(args: list[str], cwd: Path | None, timeout: int = 180) -> str:
     env = _clean_env()
     try:
         completed = subprocess.run(
@@ -72,7 +83,7 @@ def _invoke(args: list[str], cwd: Path | None) -> str:
             text=True,
             stdin=subprocess.DEVNULL,
             env=env,
-            timeout=180,
+            timeout=timeout,
             check=False,
         )
     except FileNotFoundError as exc:

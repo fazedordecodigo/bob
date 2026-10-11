@@ -167,7 +167,11 @@ def _plan_functions(
 def _baseline_outcome(
     cwd: Path, versions: dict[str, str], waiver_rows: list[dict[str, object]]
 ) -> MutationOutcome | None:
-    if pytest_exit_code(cwd) in {0, 5}:
+    try:
+        code = pytest_exit_code(cwd)
+    except ToolError as exc:
+        return _tool_outcome(str(exc), versions, waiver_rows)
+    if code in {0, 5}:
         return None
     return _outcome(
         GateResult("mutate", "not_run", "testes da baseline falharam antes de medir"),
@@ -187,6 +191,7 @@ def _collect_fresh(
     waivers: list[Waiver],
 ) -> list[Mutant] | MutationOutcome:
     cleanup = _install_mutmut_config(cwd, config.include)
+    prepare_mutmut_workspace(cwd)
     try:
         parsed, failed = _run_and_parse(cwd, remutate, max_workers, versions, waiver_rows)
     finally:
@@ -460,6 +465,19 @@ def _mutant_row(mutant: Mutant) -> dict[str, object]:
         "status": mutant.status,
         "waiver": mutant.waiver,
     }
+
+
+def prepare_mutmut_workspace(cwd: Path) -> None:
+    """Aponta `mutants/node_modules` para o diretório real. Não copia."""
+    source = cwd / "node_modules"
+    if not source.is_dir():
+        return
+    dest_root = cwd / "mutants"
+    dest_root.mkdir(parents=True, exist_ok=True)
+    dest = dest_root / "node_modules"
+    if dest.is_symlink() or dest.exists():
+        return
+    dest.symlink_to(source.resolve(), target_is_directory=True)
 
 
 def _install_mutmut_config(cwd: Path, source_paths: list[str]) -> Callable[[], None]:

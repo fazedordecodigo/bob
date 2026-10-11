@@ -36,3 +36,16 @@ bob_quality = ["schemas/*.json", "hooks/*"]
 testpaths = ["tests"]
 pythonpath = ["src", "tests"]
 norecursedirs = ["fixtures", ".bob", ".git"]
+
+[tool.mutmut]
+source_paths = ["src"]
+also_copy = [
+    "docs",
+    "skills",
+    "js",
+    "tests/fixtures",
+    ".github",
+    "package.json",
+    "package-lock.json",
+    "AGENTS.md",
+]
