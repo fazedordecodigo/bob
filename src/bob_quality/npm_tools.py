@@ -150,8 +150,6 @@ def _c8_argv(
 
 def _vitest_env(prefix: Path, user_config: Path | None) -> dict[str, str]:
     env = {key: value for key, value in os.environ.items() if not key.startswith("PYTEST_")}
-    bindir = prefix / "node_modules" / ".bin"
-    env["PATH"] = str(bindir) + os.pathsep + env.get("PATH", "")
     env["BOB_VITEST_SETUP"] = str(prefix / "js" / "flush-coverage.mjs")
     if user_config is None:
         return env
@@ -160,16 +158,23 @@ def _vitest_env(prefix: Path, user_config: Path | None) -> dict[str, str]:
     return env
 
 
+_STRIP_TYPES_FLAG = "--experimental-strip-types"
+_TYPESCRIPT_CONFIG_SUFFIXES = (".ts", ".mts")
+
+
 def _enable_strip_types(env: dict[str, str], user_config: Path) -> None:
     if not _needs_strip_types(user_config, env):
         return
     current = env.get("NODE_OPTIONS", "")
-    env["NODE_OPTIONS"] = (current + " --experimental-strip-types").strip()
+    env["NODE_OPTIONS"] = (current + " " + _STRIP_TYPES_FLAG).strip()
 
 
 def _needs_strip_types(user_config: Path, env: dict[str, str]) -> bool:
-    flag = "--experimental-strip-types"
-    return user_config.suffix in {".ts", ".mts", ".cts"} and flag not in env.get("NODE_OPTIONS", "").split()
+    options = env.get("NODE_OPTIONS") or ""
+    return (
+        user_config.suffix in _TYPESCRIPT_CONFIG_SUFFIXES
+        and _STRIP_TYPES_FLAG not in options.split()
+    )
 
 
 def _raise_if_c8_failed(completed: subprocess.CompletedProcess[str], reports_dir: Path) -> None:
