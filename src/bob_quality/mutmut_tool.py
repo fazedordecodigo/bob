@@ -42,7 +42,6 @@ def mutmut_version() -> str:
     return match.group(1)
 
 
-# A coleta de stats passa de 180s. O diff desta fatia não terminou em 1800s.
 _RUN_TIMEOUT_SECONDS = 10800
 
 
