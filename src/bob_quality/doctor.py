@@ -78,24 +78,67 @@ def _install_then_report() -> int:
 
 
 def _report_pins() -> int:
-    rows = [_assess(pin) for pin in PINS]
-    lines = [row.line for row in rows]
-    installs = _install_lines(rows)
-    if installs:
-        lines.extend(installs)
-    print("\n".join(lines))
-    return PASSED if _all_ok(rows) else CONFIG_OR_TOOL
+    rows = _rows()
+    print("\n".join(_lines(rows)))
+    return _verdict(rows)
+
+
+def _rows() -> list[_PinRow]:
+    rows: list[_PinRow] = []
+    for pin in PINS:
+        rows.append(_assess(pin))
+    return rows
+
+
+def _lines(rows: list[_PinRow]) -> list[str]:
+    lines: list[str] = []
+    for row in rows:
+        lines.append(row.line)
+    lines.extend(_install_lines(rows))
+    return lines
+
+
+def _verdict(rows: list[_PinRow]) -> int:
+    if _all_ok(rows):
+        return PASSED
+    return CONFIG_OR_TOOL
 
 
 def _all_ok(rows: list[_PinRow]) -> bool:
-    return all(row.ok for row in rows)
+    for row in rows:
+        if not row.ok:
+            return False
+    return True
 
 
 def _install_lines(rows: list[_PinRow]) -> list[str]:
-    installs = [row.install for row in rows if row.install]
-    if any(row.npm_missing for row in rows):
-        installs.append(_npm_ci_hint())
+    installs = _explicit_installs(rows)
+    _append_npm_hint(installs, rows)
     return installs
+
+
+def _explicit_installs(rows: list[_PinRow]) -> list[str]:
+    installs: list[str] = []
+    for row in rows:
+        _append_install(installs, row)
+    return installs
+
+
+def _append_install(installs: list[str], row: _PinRow) -> None:
+    if row.install:
+        installs.append(row.install)
+
+
+def _append_npm_hint(installs: list[str], rows: list[_PinRow]) -> None:
+    if _any_npm_missing(rows):
+        installs.append(_npm_ci_hint())
+
+
+def _any_npm_missing(rows: list[_PinRow]) -> bool:
+    for row in rows:
+        if row.npm_missing:
+            return True
+    return False
 
 
 def _assess(pin: ToolPin) -> _PinRow:

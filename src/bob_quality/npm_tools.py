@@ -135,11 +135,19 @@ def _npm_ci(target: Path) -> int:
 
 
 def _print_npm_failure(command: str, completed: subprocess.CompletedProcess[str]) -> None:
-    detail = (completed.stderr or completed.stdout or "").strip()
+    detail = _failure_detail(completed)
     if detail:
         print(f"{command}\n{detail}")
         return
     print(command)
+
+
+def _failure_detail(completed: subprocess.CompletedProcess[str]) -> str:
+    if completed.stderr:
+        return completed.stderr.strip()
+    if completed.stdout:
+        return completed.stdout.strip()
+    return ""
 
 
 def user_npm_cache() -> Path:

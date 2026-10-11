@@ -62,11 +62,10 @@ def _run_measured(args: argparse.Namespace) -> int:
     cwd = Path.cwd()
     out_dir = _under_cwd(Path(args.out), cwd)
     config_path = _optional_path(args.config, cwd)
-    if args.command == "check":
-        return _run_check_command(args, cwd, out_dir, config_path)
-    if args.command == "crap":
-        return _run_crap_command(args, cwd, out_dir, config_path)
-    raise AssertionError("comando não tratado")
+    runner = _MEASURED.get(args.command)
+    if runner is None:
+        raise AssertionError("comando não tratado")
+    return runner(args, cwd, out_dir, config_path)
 
 
 def _under_cwd(path: Path, cwd: Path) -> Path:
@@ -81,24 +80,37 @@ def _optional_path(raw: str | None, cwd: Path) -> Path | None:
     return _under_cwd(Path(raw), cwd)
 
 
+_MEASURED = {}
+
+
 def _run_check_command(
     args: argparse.Namespace,
     cwd: Path,
     out_dir: Path,
     config_path: Path | None,
 ) -> int:
-    gates = None
-    if args.gates:
-        gates = [part.strip() for part in args.gates.split(",")]
     return run_check(
         cwd=cwd,
         base=args.base,
-        gates=gates,
+        gates=_split_gates(args.gates),
         config_path=config_path,
         out_dir=out_dir,
         fmt=args.format,
         reproduce=_reproduce("check", args),
     )
+
+
+def _split_gates(raw: str | None) -> list[str] | None:
+    if not raw:
+        return None
+    return _csv(raw)
+
+
+def _csv(raw: str) -> list[str]:
+    parts: list[str] = []
+    for part in raw.split(","):
+        parts.append(part.strip())
+    return parts
 
 
 def _coverage_file(raw: str | None) -> Path | None:
@@ -143,6 +155,10 @@ def _reproduce(command: str, args: argparse.Namespace) -> str:
     if getattr(args, "coverage_file", None):
         parts.extend(["--coverage-file", args.coverage_file])
     return " ".join(parts)
+
+
+_MEASURED["check"] = _run_check_command
+_MEASURED["crap"] = _run_crap_command
 
 
 if __name__ == "__main__":
