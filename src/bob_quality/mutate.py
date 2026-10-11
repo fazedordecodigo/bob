@@ -351,7 +351,6 @@ def _has_unwaived_survivor(entry: dict[str, object], waivers: list[Waiver]) -> b
 
 
 def _read_cache(path: Path, mutmut: str) -> dict[str, dict[str, object]]:
-    """Um cache de outra versão do mutmut vale como vazio."""
     if not path.is_file():
         return {}
     raw = json.loads(path.read_text())

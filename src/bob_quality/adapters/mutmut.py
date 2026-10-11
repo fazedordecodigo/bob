@@ -73,7 +73,7 @@ def mutmut_id_prefix(file: str, name: str) -> str:
 
 
 def mutmut_stats_key(file: str, name: str) -> str:
-    """Chave da função em `tests_by_mangled_function_name`: o prefixo do id sem `__mutmut`."""
+    """Chave da função em `tests_by_mangled_function_name` do mutmut 3.8."""
     return mutmut_id_prefix(file, name).removesuffix("__mutmut")
 
 

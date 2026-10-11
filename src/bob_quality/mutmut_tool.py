@@ -63,7 +63,6 @@ def mutmut_show(cwd: Path, mutant_id: str) -> str:
 
 
 def mutmut_stats(cwd: Path) -> str:
-    """Texto de `mutants/mutmut-stats.json`, que o `mutmut run` grava."""
     try:
         return (cwd / _STATS_PATH).read_text()
     except OSError as exc:
