@@ -1,0 +1,1 @@
+../../../js/flush-coverage.mjs

@@ -2,13 +2,13 @@
 
 Quality gates (CRAP, DRY, mutação, dependências) + skills para agentes de codificação (Cursor, Claude Code, GitHub Copilot, Devin), inspirados no fluxo do Uncle Bob e nas skills do Matt Pocock.
 
-- CLI: `bob` (`bob check | crap | dry | mutate | waive`; os demais comandos da spec entram nas fatias seguintes)
-- Pacote PyPI: `bob-quality` (ainda não publicado)
+- CLI: `bob` (`bob check | crap | dry | mutate | waive | doctor`; os demais comandos da spec entram nas fatias seguintes)
+- Pacote PyPI: `bob-quality` (sdist/wheel prontos; ainda não publicado)
 - Nome nos marketplaces: `bob` (ainda não publicado)
 - Configuração: `bob.yaml`
 - Relatórios: `.bob/report.md` e `.bob/report.json` (schema v1)
 
-> Status: CRAP em Python e TypeScript, mutação diferencial em Python (issue #3) e GitHub Action (issue #5). Publicação fica para os tickets seguintes.
+> Status: CRAP em Python e TypeScript, duplicação (jscpd), mutação diferencial em Python (issue #3), GitHub Action (issue #5) e `bob doctor` com o pacote pronto para distribuir (issue #11). Publicação fica para os tickets seguintes. Nada foi enviado ao PyPI.
 
 Skills (issue #7):
 
@@ -27,7 +27,7 @@ pip install -e ".[dev]"
 npm ci
 ```
 
-Isso instala o comando `bob`, as dependências pinadas `lizard==1.24.1`, `coverage==7.16.2` e `mutmut==3.8.0`, e as ferramentas npm pinadas (`c8`, `vitest`, `jscpd`).
+Isso instala o comando `bob`, as dependências pinadas em `pyproject.toml` (`lizard`, `coverage`, `mutmut`, `import-linter`) e as ferramentas npm pinadas em `package.json` (`c8`, `vitest`, `jscpd`, `dependency-cruiser`). `bob doctor` mostra a versão esperada e a encontrada de cada uma.
 
 ## Uso
 
@@ -39,7 +39,10 @@ bob crap --base main
 bob dry --base main
 bob mutate --base main
 bob waive <mutant-id|função> --reason "uma linha"
+bob doctor
 ```
+
+`bob doctor` lista cada ferramenta com a versão pinada e a encontrada. Sai com `0` quando todas coincidem e com `4` quando alguma falta ou diverge, junto com o comando de instalação. Se o diretório do pacote não for gravável, a mensagem pede `bob doctor --install`.
 
 Os comandos gravam `.bob/report.md` e `.bob/report.json`. Exit codes: `0` passou, `1` CRAP acima do limite numa função alterada, `2` testes da baseline falharam, `3` mutante sobrevivente sem waiver, `4` config/ferramenta.
 
@@ -68,6 +71,6 @@ O CI (`.github/workflows/ci.yml`) roda essa suíte em pull requests e em pushes 
 
 ## GitHub Action
 
-A action composta em `.github/actions/bob` instala o `bob`, roda `bob check` com `crap,dry,deps,mutate` (`dry` e `deps` ainda não existem no CLI e aparecem como ⏭️), restaura e publica o artefato `bob-mutation-cache` (`.bob/mutation-cache.json`) e cria ou atualiza um único comentário no PR com `.bob/report.md`. O exit code do job é o do `bob`.
+A action composta em `.github/actions/bob` instala o `bob`, roda `bob check` com `crap,dry,deps,mutate`, restaura e publica o artefato `bob-mutation-cache` (`.bob/mutation-cache.json`) e cria ou atualiza um único comentário no PR com `.bob/report.md`. O exit code do job é o do `bob`.
 
 Este repositório a usa em `.github/workflows/bob.yml`. `bob-quality` ainda não está no PyPI: no checkout deste repo a action faz `pip install .[dev]`; em outro repo, instala o git da action. Publicação no Marketplace não faz parte desta fatia.

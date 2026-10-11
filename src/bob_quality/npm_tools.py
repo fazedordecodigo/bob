@@ -46,22 +46,169 @@ export default { ...user, test };
 """
 
 
+def npm_ci_command(prefix: Path) -> str:
+    return f"npm ci --prefix {prefix}"
+
+
+def npm_setup_hint(prefix: Path) -> str:
+    """Comando para instalar as deps npm. Diretório travado: `bob doctor --install`."""
+    if _can_write(prefix):
+        return npm_ci_command(prefix)
+    return "bob doctor --install"
+
+
 def npm_prefix() -> Path:
-    """Raiz do package.json fixado do plugin (não o repo alvo)."""
-    for parent in Path(__file__).resolve().parents:
-        pkg = parent / "package.json"
-        if not pkg.is_file():
-            continue
-        try:
-            data = json.loads(pkg.read_text())
-        except json.JSONDecodeError:
-            continue
-        if data.get("name") == _NPM_PACKAGE:
+    """Raiz do package.json fixado do plugin (não o repo alvo).
+
+    Prefere quem já tem node_modules: a raiz do repo no desenvolvimento, o
+    pacote instalado depois de `bob doctor --install`, ou o cache do usuário
+    quando o diretório do pacote não é gravável.
+    """
+    matches = _plugin_packages()
+    if not matches:
+        raise ToolError(
+            "package.json do plugin (bob-quality-tools) não encontrado; "
+            "c8 e vitest ficam fixados nele"
+        )
+    installed = _first_with_modules(matches)
+    if installed is not None:
+        return installed
+    return _cache_or_first(matches)
+
+
+def _first_with_modules(matches: list[Path]) -> Path | None:
+    for parent in matches:
+        if (parent / "node_modules").is_dir():
             return parent
-    raise ToolError(
+    return None
+
+
+def _cache_or_first(matches: list[Path]) -> Path:
+    cached = user_npm_cache()
+    if _cache_ready(cached):
+        return cached
+    return matches[0]
+
+
+def _cache_ready(cached: Path) -> bool:
+    if not (cached / "node_modules").is_dir():
+        return False
+    return _is_plugin_manifest(cached / "package.json")
+
+
+def install_npm_dependencies() -> int:
+    """Roda `npm ci --prefix` no pacote instalado, ou num cache se ele não for gravável."""
+    source = _install_source()
+    if source is None:
+        return 4
+    return _npm_ci(_install_target(source))
+
+
+def _install_source() -> Path | None:
+    matches = _plugin_packages()
+    if matches:
+        return matches[0]
+    print(
         "package.json do plugin (bob-quality-tools) não encontrado; "
         "c8 e vitest ficam fixados nele"
     )
+    return None
+
+
+def _install_target(source: Path) -> Path:
+    if _can_write(source):
+        return source
+    return _materialize_cache(source)
+
+
+def _npm_ci(target: Path) -> int:
+    command = npm_ci_command(target)
+    completed = subprocess.run(
+        ["npm", "ci", "--prefix", str(target)],
+        capture_output=True,
+        text=True,
+    )
+    if completed.returncode == 0:
+        return 0
+    _print_npm_failure(command, completed)
+    return 4
+
+
+def _print_npm_failure(command: str, completed: subprocess.CompletedProcess[str]) -> None:
+    detail = _failure_detail(completed)
+    if detail:
+        print(f"{command}\n{detail}")
+        return
+    print(command)
+
+
+def _failure_detail(completed: subprocess.CompletedProcess[str]) -> str:
+    if completed.stderr:
+        return completed.stderr.strip()
+    if completed.stdout:
+        return completed.stdout.strip()
+    return ""
+
+
+def user_npm_cache() -> Path:
+    base = os.environ.get("XDG_CACHE_HOME")
+    root = Path(base) if base else Path.home() / ".cache"
+    return root / "bob-quality"
+
+
+def _plugin_packages() -> list[Path]:
+    matches: list[Path] = []
+    for parent in Path(__file__).resolve().parents:
+        if _is_plugin_manifest(parent / "package.json"):
+            matches.append(parent)
+    return matches
+
+
+def _is_plugin_manifest(path: Path) -> bool:
+    data = _load_manifest(path)
+    return data is not None and data.get("name") == _NPM_PACKAGE
+
+
+def _load_manifest(path: Path) -> dict[str, object] | None:
+    if not path.is_file():
+        return None
+    return _parse_manifest(path)
+
+
+def _parse_manifest(path: Path) -> dict[str, object] | None:
+    try:
+        data = json.loads(path.read_text())
+    except json.JSONDecodeError:
+        return None
+    if isinstance(data, dict):
+        return data
+    return None
+
+
+def _can_write(directory: Path) -> bool:
+    return os.access(directory, os.W_OK)
+
+
+def _materialize_cache(source: Path) -> Path:
+    cache = user_npm_cache()
+    cache.mkdir(parents=True, exist_ok=True)
+    _copy_manifests(source, cache)
+    _copy_js(source / "js", cache / "js")
+    return cache
+
+
+def _copy_manifests(source: Path, cache: Path) -> None:
+    shutil.copy2(source / "package.json", cache / "package.json")
+    lock = source / "package-lock.json"
+    if lock.is_file():
+        shutil.copy2(lock, cache / "package-lock.json")
+
+
+def _copy_js(src: Path, dst: Path) -> None:
+    if dst.exists():
+        shutil.rmtree(dst)
+    if src.is_dir():
+        shutil.copytree(src, dst)
 
 
 def node_missing_message() -> str | None:
@@ -74,8 +221,7 @@ def installed_npm_version(prefix: Path, package: str) -> str:
     pkg = prefix / "node_modules" / package / "package.json"
     if not pkg.is_file():
         raise ToolError(
-            "dependências npm do plugin ausentes: bob doctor --install "
-            "(#19; c8 e vitest fixados no package.json)"
+            "dependências npm do plugin ausentes: " + npm_setup_hint(prefix)
         )
     try:
         return str(json.loads(pkg.read_text())["version"])
