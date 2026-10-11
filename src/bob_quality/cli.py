@@ -12,7 +12,7 @@ from bob_quality.check import run_check
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="bob",
-        description="Gates de qualidade para agentes (CRAP nesta fatia).",
+        description="Gates de qualidade para agentes.",
     )
     sub = parser.add_subparsers(dest="command", required=True)
 
@@ -33,6 +33,9 @@ def build_parser() -> argparse.ArgumentParser:
     _add_shared(crap)
     crap.add_argument("--threshold", type=float, default=None)
     crap.add_argument("--coverage-file", default=None)
+
+    dry = sub.add_parser("dry", help="Reporta clones novos no diff, sem bloquear")
+    _add_shared(dry)
 
     return parser
 
@@ -77,6 +80,17 @@ def main(argv: list[str] | None = None) -> int:
             fmt="both",
             threshold=args.threshold,
             coverage_file=coverage,
+            reproduce=reproduce,
+        )
+    if args.command == "dry":
+        reproduce = _reproduce("dry", args)
+        return run_check(
+            cwd=cwd,
+            base=args.base,
+            gates=["dry"],
+            config_path=config_path,
+            out_dir=out_dir,
+            fmt="both",
             reproduce=reproduce,
         )
     raise AssertionError("comando não tratado")

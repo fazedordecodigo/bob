@@ -17,6 +17,7 @@ class Config:
     exclude: list[str] = field(default_factory=lambda: ["tests"])
     max_crap: float = 10.0
     crap_scope: str = "changed"
+    min_tokens: int = 50
 
 
 class ConfigError(Exception):
@@ -38,8 +39,15 @@ def load_config(path: Path | None, cwd: Path) -> Config:
 def _from_dict(raw: dict[str, Any]) -> Config:
     paths = raw.get("paths") or {}
     crap = raw.get("crap") or {}
+    duplication = raw.get("duplication") or {}
+    if not isinstance(duplication, dict):
+        raise ConfigError("duplication deve ser um mapeamento")
     include = paths.get("include") or ["src"]
     exclude = paths.get("exclude") or ["tests"]
+    try:
+        min_tokens = int(duplication.get("min_tokens", 50))
+    except (TypeError, ValueError) as exc:
+        raise ConfigError("duplication.min_tokens deve ser um inteiro") from exc
     return Config(
         base=str(raw.get("base") or "origin/main"),
         languages=list(raw.get("languages") or ["python"]),
@@ -47,4 +55,5 @@ def _from_dict(raw: dict[str, Any]) -> Config:
         exclude=list(exclude),
         max_crap=float(crap.get("max_per_function", 10)),
         crap_scope=str(crap.get("scope") or "changed"),
+        min_tokens=min_tokens,
     )

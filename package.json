@@ -4,6 +4,7 @@
   "description": "Ferramentas npm fixadas que o bob chama via npx. Não publicar.",
   "dependencies": {
     "c8": "12.0.0",
+    "jscpd": "5.4.1",
     "vitest": "5.0.3"
   }
 }

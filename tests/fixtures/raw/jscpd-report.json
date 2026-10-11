@@ -1,0 +1,71 @@
+{
+  "duplicates": [
+    {
+      "firstFile": {
+        "end": 11,
+        "endLoc": {
+          "column": 122,
+          "line": 11,
+          "position": 491
+        },
+        "name": "src/receipt_a.py",
+        "start": 1,
+        "startLoc": {
+          "column": 0,
+          "line": 1,
+          "position": 0
+        }
+      },
+      "format": "python",
+      "fragment": "def format_receipt(name, street, city, amount, tax, note):\n    line_name = \"name=\" + name\n    line_street = \"street=\" + street\n    line_city = \"city=\" + city\n    line_amount = \"amount=\" + str(amount)\n    line_tax = \"tax=\" + str(tax)\n    line_note = \"note=\" + note\n    line_total = \"total=\" + str(amount + tax)\n    line_paid = \"paid=\" + \"yes\"\n    line_footer = \"thanks\"\n    return line_name + line_street + line_city + line_amount + line_tax + line_note + line_total + line_paid + line_footer",
+      "isNew": false,
+      "kind": "exact",
+      "lines": 11,
+      "secondFile": {
+        "end": 11,
+        "endLoc": {
+          "column": 122,
+          "line": 11,
+          "position": 491
+        },
+        "name": "src/receipt_b.py",
+        "start": 1,
+        "startLoc": {
+          "column": 0,
+          "line": 1,
+          "position": 0
+        }
+      },
+      "tokens": 88
+    }
+  ],
+  "statistics": {
+    "detectionDate": "2026-10-11T02:32:29.536Z",
+    "formats": {
+      "python": {
+        "clones": 1,
+        "duplicatedLines": 11,
+        "duplicatedTokens": 88,
+        "lines": 22,
+        "newClones": 0,
+        "newDuplicatedLines": 0,
+        "percentage": 50.0,
+        "percentageTokens": 50.0,
+        "sources": 2,
+        "tokens": 176
+      }
+    },
+    "total": {
+      "clones": 1,
+      "duplicatedLines": 11,
+      "duplicatedTokens": 88,
+      "lines": 22,
+      "newClones": 0,
+      "newDuplicatedLines": 0,
+      "percentage": 50.0,
+      "percentageTokens": 50.0,
+      "sources": 2,
+      "tokens": 176
+    }
+  }
+}

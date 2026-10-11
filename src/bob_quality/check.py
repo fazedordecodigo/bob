@@ -9,8 +9,9 @@ from bob_quality.config import ConfigError, load_config
 from bob_quality.core import files_by_risk, informational_debt, top_changed_crap
 from bob_quality.crap_gate import run_crap_gate
 from bob_quality.diff import GitError, changed_lines, current_commit
+from bob_quality.dry_gate import run_dry_gate
 from bob_quality.exit_codes import CONFIG_OR_TOOL, PASSED
-from bob_quality.models import FunctionMetric, GateResult, Report
+from bob_quality.models import Clone, FunctionMetric, GateResult, Report
 from bob_quality.report import metric_row, write_report
 
 DEFAULT_GATES = ("crap", "dry", "deps")
@@ -51,28 +52,41 @@ def run_check(
     versions: dict[str, str] = {}
     gate_results: list[GateResult] = []
     metrics: list[FunctionMetric] = []
+    clones: list[Clone] = []
     exit_code = PASSED
 
     for gate in chosen_gates:
-        if gate != "crap":
-            gate_results.append(
-                GateResult(
-                    name=gate,
-                    status="not_run",
-                    reason="gate não implementado nesta fatia",
-                )
+        if gate == "crap":
+            result, measured, code, gate_versions = run_crap_gate(
+                cwd=cwd,
+                config=config,
+                diff_lines=diff_lines,
+                max_crap=max_crap,
+                coverage_file=coverage_file,
             )
+            gate_results.append(result)
+            metrics = measured
+            versions.update(gate_versions)
+            exit_code = _worse(exit_code, code)
             continue
-        result, measured, code, versions = run_crap_gate(
-            cwd=cwd,
-            config=config,
-            diff_lines=diff_lines,
-            max_crap=max_crap,
-            coverage_file=coverage_file,
+        if gate == "dry":
+            result, found, code, gate_versions = run_dry_gate(
+                cwd=cwd,
+                config=config,
+                diff_lines=diff_lines,
+            )
+            gate_results.append(result)
+            clones = found
+            versions.update(gate_versions)
+            exit_code = _worse(exit_code, code)
+            continue
+        gate_results.append(
+            GateResult(
+                name=gate,
+                status="not_run",
+                reason="gate não implementado nesta fatia",
+            )
         )
-        gate_results.append(result)
-        metrics = measured
-        exit_code = _worse(exit_code, code)
 
     report = Report(
         schema_version=1,
@@ -81,9 +95,10 @@ def run_check(
         generated_at=datetime.now(timezone.utc).isoformat(),
         tool_versions=versions,
         gates=gate_results,
-        focus=files_by_risk(metrics),
+        focus=files_by_risk(metrics, clones),
         top_crap=[metric_row(item) for item in top_changed_crap(metrics)],
         old_debt=[metric_row(item) for item in informational_debt(metrics, max_crap)],
+        clones=clones,
         reproduce=command,
         exit_code=exit_code,
     )

@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from bob_quality.models import FunctionMetric, GateStatus, Report
+from bob_quality.models import Clone, FunctionMetric, GateStatus, Report
 
 GATE_MARK: dict[GateStatus, str] = {
     "passed": "✅",
@@ -37,6 +37,7 @@ def to_json(report: Report) -> dict[str, object]:
         "focus": report.focus,
         "top_crap": report.top_crap,
         "old_debt": report.old_debt,
+        "clones": [clone_row(clone) for clone in report.clones],
         "reproduce": report.reproduce,
         "exit_code": report.exit_code,
     }
@@ -62,7 +63,8 @@ def to_markdown(report: Report) -> str:
     lines.extend(["", "## Onde focar o review", ""])
     if report.focus:
         for item in report.focus:
-            lines.append(f"- `{item['file']}` (risco {item['risk']})")
+            suffix = ", clone" if item.get("clone") else ""
+            lines.append(f"- `{item['file']}` (risco {item['risk']}{suffix})")
     else:
         lines.append("- Nenhum arquivo alterado com risco de CRAP.")
     lines.extend(["", "## Top 5 funções por CRAP (diff)", ""])
@@ -85,6 +87,8 @@ def to_markdown(report: Report) -> str:
             lines.append(
                 f"- `{fn['name']}` em `{loc}` CRAP {fn['crap']} (fora do diff; não bloqueia)"
             )
+    lines.extend(["", "## Clones novos", ""])
+    lines.extend(_clone_lines(report))
     lines.extend(
         [
             "",
@@ -97,6 +101,21 @@ def to_markdown(report: Report) -> str:
         ]
     )
     return "\n".join(lines)
+
+
+def clone_row(clone: Clone) -> dict[str, object]:
+    return {
+        "first_file": clone.first_file,
+        "first_start": clone.first_start,
+        "first_end": clone.first_end,
+        "second_file": clone.second_file,
+        "second_start": clone.second_start,
+        "second_end": clone.second_end,
+        "lines": clone.lines,
+        "tokens": clone.tokens,
+        "similarity": clone.similarity,
+        "kind": clone.kind,
+    }
 
 
 def metric_row(metric: FunctionMetric) -> dict[str, object]:
@@ -113,6 +132,36 @@ def metric_row(metric: FunctionMetric) -> dict[str, object]:
         "changed": metric.changed,
         "delta": metric.delta,
     }
+
+
+def _clone_lines(report: Report) -> list[str]:
+    if report.clones:
+        return [_clone_line(clone) for clone in report.clones]
+    dry = next((gate for gate in report.gates if gate.name == "dry"), None)
+    if dry is not None and dry.status == "passed":
+        return ["Nenhum clone novo no diff."]
+    if dry is not None and dry.reason:
+        return [f"Não executado ({dry.reason})."]
+    return ["Não executado."]
+
+
+def _clone_line(clone: Clone) -> str:
+    left = f"`{clone.first_file}:{clone.first_start}-{clone.first_end}`"
+    right = f"`{clone.second_file}:{clone.second_start}-{clone.second_end}`"
+    return (
+        f"- {left} ↔ {right} — {clone.lines} linhas, {clone.tokens} tokens, "
+        f"similaridade {_similarity(clone)}"
+    )
+
+
+def _similarity(clone: Clone) -> str:
+    if clone.similarity is not None:
+        return f"{clone.similarity * 100:.0f}%"
+    if clone.kind == "exact":
+        return "exata"
+    if clone.kind:
+        return clone.kind
+    return "—"
 
 
 def _tools(versions: dict[str, str]) -> str:

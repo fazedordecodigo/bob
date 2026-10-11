@@ -7,6 +7,7 @@ from pathlib import Path
 from bob_quality.crap import calculate_crap
 from bob_quality.exit_codes import GATE_FAILED, PASSED
 from bob_quality.models import (
+    Clone,
     CyclomaticFunction,
     FileCoverage,
     FunctionMetric,
@@ -90,14 +91,48 @@ def top_changed_crap(metrics: list[FunctionMetric], limit: int = 5) -> list[Func
     return sorted(changed, key=lambda item: item.crap, reverse=True)[:limit]
 
 
-def files_by_risk(metrics: list[FunctionMetric]) -> list[dict[str, object]]:
+def clones_touching_diff(clones: list[Clone], lines: dict[str, set[int]]) -> list[Clone]:
+    """Clones cujo par cruza alguma linha do diff. O resto é dívida antiga."""
+    return [clone for clone in clones if _clone_touches(clone, lines)]
+
+
+def _clone_touches(clone: Clone, lines: dict[str, set[int]]) -> bool:
+    sides = (
+        (clone.first_file, clone.first_start, clone.first_end),
+        (clone.second_file, clone.second_start, clone.second_end),
+    )
+    return any(_range_touches(file, start, end, lines) for file, start, end in sides)
+
+
+def _range_touches(file: str, start: int, end: int, lines: dict[str, set[int]]) -> bool:
+    touched = lines.get(file)
+    if not touched:
+        return False
+    return any(start <= line <= end for line in touched)
+
+
+def files_by_risk(
+    metrics: list[FunctionMetric],
+    clones: list[Clone] | None = None,
+) -> list[dict[str, object]]:
     by_file: dict[str, float] = {}
+    cloned: set[str] = set()
     for item in metrics:
         if not item.changed:
             continue
         by_file[item.file] = max(by_file.get(item.file, 0.0), item.crap)
+    for clone in clones or []:
+        for file in (clone.first_file, clone.second_file):
+            cloned.add(file)
+            by_file.setdefault(file, 0.0)
     ordered = sorted(by_file.items(), key=lambda pair: pair[1], reverse=True)
-    return [{"file": file, "risk": risk} for file, risk in ordered]
+    rows: list[dict[str, object]] = []
+    for file, risk in ordered:
+        row: dict[str, object] = {"file": file, "risk": risk}
+        if file in cloned:
+            row["clone"] = True
+        rows.append(row)
+    return rows
 
 
 def coverage_for(coverage_by_file: dict[str, FileCoverage], rel: str) -> FileCoverage | None:
