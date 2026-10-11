@@ -11,6 +11,8 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from bob_quality.exit_codes import CONFIG_OR_TOOL, PASSED
+from bob_quality.npm_tools import npm_prefix
+from bob_quality.tools import ToolError
 
 _VERSION = re.compile(r"\d+\.\d+(?:\.\d+)?")
 
@@ -42,28 +44,14 @@ PINS: tuple[ToolPin, ...] = (
         "Instale Node.js 22.14.0 (https://nodejs.org/dist/v22.14.0/)",
     ),
     ToolPin("c8", "12.0.0", "c8", "npm install c8@12.0.0", npm_package="c8"),
+    ToolPin("vitest", "5.0.3", "vitest", "npm install vitest@5.0.3", npm_package="vitest"),
     ToolPin("mutmut", "3.8.0", "mutmut", "pip install 'mutmut==3.8.0'", distribution="mutmut"),
-    ToolPin(
-        "Stryker",
-        "10.0.0",
-        "stryker",
-        "npm install @stryker-mutator/core@10.0.0",
-        npm_package="@stryker-mutator/core",
-    ),
-    ToolPin("jscpd", "5.4.1", "jscpd", "npm install jscpd@5.4.1", npm_package="jscpd"),
     ToolPin(
         "import-linter",
         "2.15",
         "lint-imports",
         "pip install 'import-linter==2.15'",
         distribution="import-linter",
-    ),
-    ToolPin(
-        "dependency-cruiser",
-        "18.5.0",
-        "depcruise",
-        "npm install dependency-cruiser@18.5.0",
-        npm_package="dependency-cruiser",
     ),
 )
 
@@ -95,6 +83,13 @@ def _found_version(pin: ToolPin) -> str | None:
     return _cli_version(pin.executable)
 
 
+def _npm_root() -> Path | None:
+    try:
+        return npm_prefix()
+    except ToolError:
+        return None
+
+
 def _distribution_version(distribution: str) -> str | None:
     try:
         return importlib.metadata.version(distribution)
@@ -105,6 +100,12 @@ def _distribution_version(distribution: str) -> str | None:
 def _npm_package_version(package_name: str, executable: str) -> str | None:
     direct = Path.cwd() / "node_modules" / package_name / "package.json"
     version = _manifest_version(direct, package_name)
+    if version is not None:
+        return version
+    prefix = _npm_root()
+    if prefix is not None:
+        bundled = prefix / "node_modules" / package_name / "package.json"
+        version = _manifest_version(bundled, package_name)
     if version is not None:
         return version
     located = _locate(executable)

@@ -31,7 +31,7 @@ bob = "bob_quality.cli:main"
 where = ["src"]
 
 [tool.setuptools.package-data]
-bob_quality = ["schemas/*.json", "hooks/*"]
+bob_quality = ["schemas/*.json", "hooks/*", "package.json"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

@@ -29,11 +29,9 @@ PINS = (
     ),
     ("node", "22.14.0", "node", "v22.14.0"),
     ("c8", "12.0.0", "c8", "12.0.0"),
+    ("vitest", "5.0.3", "vitest", "5.0.3"),
     ("mutmut", "3.8.0", "mutmut", "mutmut, version 3.8.0"),
-    ("Stryker", "10.0.0", "stryker", "10.0.0"),
-    ("jscpd", "5.4.1", "jscpd", "jscpd 5.4.1"),
     ("import-linter", "2.15", "lint-imports", "import-linter 2.15"),
-    ("dependency-cruiser", "18.5.0", "depcruise", "18.5.0"),
 )
 
 INSTALL = {
@@ -41,11 +39,9 @@ INSTALL = {
     "coverage.py": "pip install 'coverage==7.16.2'",
     "node": "Instale Node.js 22.14.0 (https://nodejs.org/dist/v22.14.0/)",
     "c8": "npm install c8@12.0.0",
+    "vitest": "npm install vitest@5.0.3",
     "mutmut": "pip install 'mutmut==3.8.0'",
-    "Stryker": "npm install @stryker-mutator/core@10.0.0",
-    "jscpd": "npm install jscpd@5.4.1",
     "import-linter": "pip install 'import-linter==2.15'",
-    "dependency-cruiser": "npm install dependency-cruiser@18.5.0",
 }
 
 
@@ -231,7 +227,8 @@ def test_doctor_pins_match_pyproject_and_package_json() -> None:
             assert npm[pin.npm_package] == pin.expected
         else:
             assert pin.name == "node"
-            assert package["engines"]["node"] == pin.expected
+    npm_pins = {pin.npm_package: pin.expected for pin in DOCTOR_PINS if pin.npm_package}
+    assert npm_pins == npm
 
 
 def test_doctor_expected_versions_match_pip_and_npm_pins(tmp_path: Path) -> None:
@@ -260,10 +257,8 @@ def test_doctor_expected_versions_match_pip_and_npm_pins(tmp_path: Path) -> None
     assert package["private"] is True
     npm = package["dependencies"]
     assert npm["c8"] == expected["c8"]
-    assert npm["@stryker-mutator/core"] == expected["Stryker"]
-    assert npm["jscpd"] == expected["jscpd"]
-    assert npm["dependency-cruiser"] == expected["dependency-cruiser"]
-    assert package["engines"]["node"] == expected["node"]
+    assert npm["vitest"] == expected["vitest"]
+    assert set(npm) == {"c8", "vitest"}
 
 
 def _expected_versions(stdout: str) -> dict[str, str]:

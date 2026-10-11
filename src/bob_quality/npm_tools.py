@@ -47,7 +47,12 @@ export default { ...user, test };
 
 
 def npm_prefix() -> Path:
-    """Raiz do package.json fixado do plugin (não o repo alvo)."""
+    """Raiz do package.json fixado do plugin (não o repo alvo).
+
+    O wheel também carrega esse arquivo ao lado do módulo. Se houver mais de
+    um, vale o que já tem node_modules (a raiz do repo no desenvolvimento).
+    """
+    matches: list[Path] = []
     for parent in Path(__file__).resolve().parents:
         pkg = parent / "package.json"
         if not pkg.is_file():
@@ -57,11 +62,16 @@ def npm_prefix() -> Path:
         except json.JSONDecodeError:
             continue
         if data.get("name") == _NPM_PACKAGE:
+            matches.append(parent)
+    if not matches:
+        raise ToolError(
+            "package.json do plugin (bob-quality-tools) não encontrado; "
+            "c8 e vitest ficam fixados nele"
+        )
+    for parent in matches:
+        if (parent / "node_modules").is_dir():
             return parent
-    raise ToolError(
-        "package.json do plugin (bob-quality-tools) não encontrado; "
-        "c8 e vitest ficam fixados nele"
-    )
+    return matches[0]
 
 
 def node_missing_message() -> str | None:
