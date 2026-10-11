@@ -45,105 +45,200 @@ def run_mutation_gate(
     out_dir: Path,
     max_workers: int | None = None,
 ) -> MutationOutcome:
+    prepared = _prepare_mutation(cwd, config, diff_lines, out_dir)
+    if isinstance(prepared, MutationOutcome):
+        return prepared
+    versions, waivers, waiver_rows, cache_path, plan = prepared
+    if not plan.remutate:
+        _write_cache(cache_path, dict(plan.reuse))
+        return _finish(
+            plan.reused_mutants, plan.remutated_labels, plan.reused_labels, versions, waiver_rows
+        )
+    blocked = _baseline_outcome(cwd, versions, waiver_rows)
+    if blocked is not None:
+        return blocked
+    fresh = _collect_fresh(cwd, config, plan.remutate, max_workers, versions, waiver_rows, waivers)
+    if isinstance(fresh, MutationOutcome):
+        return fresh
+    body = dict(plan.reuse)
+    body.update(_cache_body(cwd, plan.remutate, fresh))
+    _write_cache(cache_path, body)
+    return _finish(
+        fresh + plan.reused_mutants, plan.remutated_labels, plan.reused_labels, versions, waiver_rows
+    )
+
+
+@dataclass
+class _Plan:
+    remutate: list[CyclomaticFunction]
+    reuse: list[tuple[str, dict[str, object]]]
+    reused_mutants: list[Mutant]
+    remutated_labels: list[str]
+    reused_labels: list[str]
+
+
+def _prepare_mutation(
+    cwd: Path,
+    config: Config,
+    diff_lines: dict[str, set[int]],
+    out_dir: Path,
+) -> MutationOutcome | tuple[dict[str, str], list[Waiver], list[dict[str, object]], Path, _Plan]:
+    versions, missing = _mutmut_versions()
+    if missing is not None:
+        return missing
+    waivers, invalid = _loaded_waivers(cwd, versions)
+    if invalid is not None:
+        return invalid
+    waiver_rows = [item.as_dict() for item in waivers]
+    measured, failed = _safe_measured(cwd, config, versions, waiver_rows)
+    if failed is not None:
+        return failed
+    cache_path = out_dir / CACHE_NAME
+    cached, broken = _safe_cache(cache_path, versions, waiver_rows)
+    if broken is not None:
+        return broken
+    return versions, waivers, waiver_rows, cache_path, _plan_functions(
+        measured, diff_lines, cached, cwd, waivers
+    )
+
+
+def _mutmut_versions() -> tuple[dict[str, str], MutationOutcome | None]:
     versions: dict[str, str] = {}
     try:
         versions["mutmut"] = mutmut_version()
     except ToolError as exc:
-        return _outcome(
+        return versions, _outcome(
             GateResult("mutate", "not_run", f"ferramenta ausente: {exc}"),
             CONFIG_OR_TOOL,
             versions,
         )
+    return versions, None
+
+
+def _loaded_waivers(
+    cwd: Path, versions: dict[str, str]
+) -> tuple[list[Waiver], MutationOutcome | None]:
     try:
-        waivers = load_waivers(cwd)
+        return load_waivers(cwd), None
     except WaiverError as exc:
-        return _outcome(GateResult("mutate", "not_run", str(exc)), CONFIG_OR_TOOL, versions)
-    waiver_rows = [item.as_dict() for item in waivers]
+        return [], _outcome(GateResult("mutate", "not_run", str(exc)), CONFIG_OR_TOOL, versions)
 
+
+def _safe_measured(
+    cwd: Path,
+    config: Config,
+    versions: dict[str, str],
+    waiver_rows: list[dict[str, object]],
+) -> tuple[list[CyclomaticFunction], MutationOutcome | None]:
     try:
-        measured = _measured_functions(cwd, config)
+        return _measured_functions(cwd, config), None
     except (ToolError, OSError, LizardParseError) as exc:
-        return _outcome(
-            GateResult("mutate", "not_run", str(exc)),
-            CONFIG_OR_TOOL,
-            versions,
-            waivers=waiver_rows,
-        )
+        return [], _tool_outcome(str(exc), versions, waiver_rows)
 
-    cache_path = out_dir / CACHE_NAME
+
+def _safe_cache(
+    cache_path: Path,
+    versions: dict[str, str],
+    waiver_rows: list[dict[str, object]],
+) -> tuple[dict[str, dict[str, object]], MutationOutcome | None]:
     try:
-        cached = _read_cache(cache_path)
+        return _read_cache(cache_path), None
     except (OSError, json.JSONDecodeError) as exc:
-        return _outcome(
-            GateResult("mutate", "not_run", f"cache de mutação inválido: {exc}"),
-            CONFIG_OR_TOOL,
-            versions,
-            waivers=waiver_rows,
-        )
+        return {}, _tool_outcome(f"cache de mutação inválido: {exc}", versions, waiver_rows)
+
+
+def _plan_functions(
+    measured: list[CyclomaticFunction],
+    diff_lines: dict[str, set[int]],
+    cached: dict[str, dict[str, object]],
+    cwd: Path,
+    waivers: list[Waiver],
+) -> _Plan:
     remutate, reuse = _split_functions(measured, diff_lines, cached, cwd, waivers)
-    reused_mutants = apply_waivers(_mutants_from_cache(reuse), waivers)
-    remutated_labels = [f"{item.file}::{item.name}" for item in remutate]
-    reused_labels = [key for key, _entry in reuse]
+    return _Plan(
+        remutate=remutate,
+        reuse=reuse,
+        reused_mutants=apply_waivers(_mutants_from_cache(reuse), waivers),
+        remutated_labels=[f"{item.file}::{item.name}" for item in remutate],
+        reused_labels=[key for key, _entry in reuse],
+    )
 
-    if not remutate:
-        body = {key: entry for key, entry in reuse}
-        _write_cache(cache_path, body)
-        return _finish(reused_mutants, remutated_labels, reused_labels, versions, waiver_rows)
 
-    if pytest_exit_code(cwd) not in {0, 5}:
-        return _outcome(
-            GateResult("mutate", "not_run", "testes da baseline falharam antes de medir"),
-            BASELINE_BROKEN,
-            versions,
-            waivers=waiver_rows,
-        )
+def _baseline_outcome(
+    cwd: Path, versions: dict[str, str], waiver_rows: list[dict[str, object]]
+) -> MutationOutcome | None:
+    if pytest_exit_code(cwd) in {0, 5}:
+        return None
+    return _outcome(
+        GateResult("mutate", "not_run", "testes da baseline falharam antes de medir"),
+        BASELINE_BROKEN,
+        versions,
+        waivers=waiver_rows,
+    )
 
+
+def _collect_fresh(
+    cwd: Path,
+    config: Config,
+    remutate: list[CyclomaticFunction],
+    max_workers: int | None,
+    versions: dict[str, str],
+    waiver_rows: list[dict[str, object]],
+    waivers: list[Waiver],
+) -> list[Mutant] | MutationOutcome:
     cleanup = _install_mutmut_config(cwd, config.include)
     try:
-        patterns = [f"{mutmut_id_prefix(item.file, item.name)}*" for item in remutate]
-        try:
-            run_mutmut(cwd, patterns, max_workers)
-            raw_results = mutmut_results(cwd)
-        except ToolError as exc:
-            return _outcome(
-                GateResult("mutate", "not_run", str(exc)),
-                CONFIG_OR_TOOL,
-                versions,
-                waivers=waiver_rows,
-            )
-        try:
-            parsed = mutants_from_raw(raw_results, {})
-        except MutmutParseError as exc:
-            return _outcome(
-                GateResult("mutate", "not_run", str(exc)),
-                CONFIG_OR_TOOL,
-                versions,
-                waivers=waiver_rows,
-            )
-        selected_ids = [item.id for item in parsed if _belongs(item, remutate)]
-        shows: dict[str, str] = {}
-        for mutant_id in selected_ids:
-            try:
-                shows[mutant_id] = mutmut_show(cwd, mutant_id)
-            except ToolError:
-                continue
-        try:
-            parsed = mutants_from_raw(raw_results, shows)
-        except MutmutParseError as exc:
-            return _outcome(
-                GateResult("mutate", "not_run", str(exc)),
-                CONFIG_OR_TOOL,
-                versions,
-                waivers=waiver_rows,
-            )
+        parsed, failed = _run_and_parse(cwd, remutate, max_workers, versions, waiver_rows)
     finally:
         cleanup()
+    if failed is not None:
+        return failed
+    return apply_waivers([item for item in parsed if _belongs(item, remutate)], waivers)
 
-    fresh = apply_waivers([item for item in parsed if _belongs(item, remutate)], waivers)
-    body = {key: entry for key, entry in reuse}
-    body.update(_cache_body(cwd, remutate, fresh))
-    _write_cache(cache_path, body)
-    return _finish(fresh + reused_mutants, remutated_labels, reused_labels, versions, waiver_rows)
+
+def _run_and_parse(
+    cwd: Path,
+    remutate: list[CyclomaticFunction],
+    max_workers: int | None,
+    versions: dict[str, str],
+    waiver_rows: list[dict[str, object]],
+) -> tuple[list[Mutant], MutationOutcome | None]:
+    patterns = [f"{mutmut_id_prefix(item.file, item.name)}*" for item in remutate]
+    try:
+        run_mutmut(cwd, patterns, max_workers)
+        raw_results = mutmut_results(cwd)
+        parsed = mutants_from_raw(raw_results, {})
+    except (ToolError, MutmutParseError) as exc:
+        return [], _tool_outcome(str(exc), versions, waiver_rows)
+    shows = _shows_for(cwd, [item.id for item in parsed if _belongs(item, remutate)])
+    try:
+        return mutants_from_raw(raw_results, shows), None
+    except MutmutParseError as exc:
+        return [], _tool_outcome(str(exc), versions, waiver_rows)
+
+
+def _shows_for(cwd: Path, mutant_ids: list[str]) -> dict[str, str]:
+    shows: dict[str, str] = {}
+    for mutant_id in mutant_ids:
+        shown = _one_show(cwd, mutant_id)
+        if shown is not None:
+            shows[mutant_id] = shown
+    return shows
+
+
+def _one_show(cwd: Path, mutant_id: str) -> str | None:
+    try:
+        return mutmut_show(cwd, mutant_id)
+    except ToolError:
+        return None
+
+
+def _tool_outcome(
+    reason: str, versions: dict[str, str], waiver_rows: list[dict[str, object]]
+) -> MutationOutcome:
+    return _outcome(
+        GateResult("mutate", "not_run", reason), CONFIG_OR_TOOL, versions, waivers=waiver_rows
+    )
 
 
 def _split_functions(
@@ -154,28 +249,52 @@ def _split_functions(
     waivers: list[Waiver],
 ) -> tuple[list[CyclomaticFunction], list[tuple[str, dict[str, object]]]]:
     by_key = {f"{item.file}::{item.name}": item for item in measured}
-    keys: set[str] = set()
-    for item in measured:
-        if function_is_changed(item.file, item.start_line, item.end_line, diff_lines):
-            keys.add(f"{item.file}::{item.name}")
+    keys = _candidate_keys(measured, diff_lines, cache, by_key, waivers)
+    return _classify(keys, by_key, cache, cwd, waivers)
+
+
+def _candidate_keys(
+    measured: list[CyclomaticFunction],
+    diff_lines: dict[str, set[int]],
+    cache: dict[str, dict[str, object]],
+    by_key: dict[str, CyclomaticFunction],
+    waivers: list[Waiver],
+) -> set[str]:
+    keys = {
+        f"{item.file}::{item.name}"
+        for item in measured
+        if function_is_changed(item.file, item.start_line, item.end_line, diff_lines)
+    }
     for key, entry in cache.items():
         if key in by_key and _has_unwaived_survivor(entry, waivers):
             keys.add(key)
+    return keys
+
+
+def _classify(
+    keys: set[str],
+    by_key: dict[str, CyclomaticFunction],
+    cache: dict[str, dict[str, object]],
+    cwd: Path,
+    waivers: list[Waiver],
+) -> tuple[list[CyclomaticFunction], list[tuple[str, dict[str, object]]]]:
     remutate: list[CyclomaticFunction] = []
     reuse: list[tuple[str, dict[str, object]]] = []
     for key in sorted(keys):
         item = by_key[key]
         entry = cache.get(key)
         digest = _function_hash(cwd, item.file, item.start_line, item.end_line)
-        if (
-            not isinstance(entry, dict)
-            or entry.get("hash") != digest
-            or _has_unwaived_survivor(entry, waivers)
-        ):
+        if isinstance(entry, dict) and not _needs_remutation(entry, digest, waivers):
+            reuse.append((key, entry))
+        else:
             remutate.append(item)
-            continue
-        reuse.append((key, entry))
     return remutate, reuse
+
+
+def _needs_remutation(entry: dict[str, object], digest: str, waivers: list[Waiver]) -> bool:
+    if entry.get("hash") != digest:
+        return True
+    return _has_unwaived_survivor(entry, waivers)
 
 
 def _has_unwaived_survivor(entry: dict[str, object], waivers: list[Waiver]) -> bool:

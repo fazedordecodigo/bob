@@ -62,81 +62,101 @@ def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     cwd = Path.cwd()
     if args.command == "waive":
-        try:
-            add_waiver(cwd, args.target, args.reason)
-        except WaiverError as exc:
-            print(str(exc), file=sys.stderr)
-            return CONFIG_OR_TOOL
-        return 0
+        return _waive_command(cwd, args)
+    out_dir, config_path = _resolve_paths(cwd, args)
+    return _dispatch(args, cwd, out_dir, config_path)
+
+
+def _waive_command(cwd: Path, args: argparse.Namespace) -> int:
+    try:
+        add_waiver(cwd, args.target, args.reason)
+    except WaiverError as exc:
+        print(str(exc), file=sys.stderr)
+        return CONFIG_OR_TOOL
+    return 0
+
+
+def _resolve_paths(cwd: Path, args: argparse.Namespace) -> tuple[Path, Path | None]:
     out_dir = Path(args.out)
     if not out_dir.is_absolute():
         out_dir = cwd / out_dir
     config_path = Path(args.config) if args.config else None
     if config_path is not None and not config_path.is_absolute():
         config_path = cwd / config_path
+    return out_dir, config_path
 
+
+def _dispatch(
+    args: argparse.Namespace,
+    cwd: Path,
+    out_dir: Path,
+    config_path: Path | None,
+) -> int:
     if args.command == "check":
-        gates = [part.strip() for part in args.gates.split(",")] if args.gates else None
-        reproduce = _reproduce("check", args)
-        return run_check(
-            cwd=cwd,
-            base=args.base,
-            gates=gates,
-            config_path=config_path,
-            out_dir=out_dir,
-            fmt=args.format,
-            reproduce=reproduce,
-        )
+        return _run_named("check", args, cwd, out_dir, config_path)
     if args.command == "crap":
-        coverage = Path(args.coverage_file) if args.coverage_file else None
-        reproduce = _reproduce("crap", args)
-        return run_check(
-            cwd=cwd,
-            base=args.base,
-            gates=["crap"],
-            config_path=config_path,
-            out_dir=out_dir,
-            fmt="both",
-            threshold=args.threshold,
-            coverage_file=coverage,
-            reproduce=reproduce,
-        )
+        return _run_named("crap", args, cwd, out_dir, config_path)
     if args.command == "mutate":
-        reproduce = _reproduce("mutate", args)
-        return run_check(
-            cwd=cwd,
-            base=args.base,
-            gates=["mutate"],
-            config_path=config_path,
-            out_dir=out_dir,
-            fmt="both",
-            max_workers=args.max_workers,
-            reproduce=reproduce,
-        )
+        return _run_named("mutate", args, cwd, out_dir, config_path)
     raise AssertionError("comando não tratado")
+
+
+def _run_named(
+    command: str,
+    args: argparse.Namespace,
+    cwd: Path,
+    out_dir: Path,
+    config_path: Path | None,
+) -> int:
+    coverage_raw = getattr(args, "coverage_file", None) if command == "crap" else None
+    return run_check(
+        cwd=cwd,
+        base=args.base,
+        gates=_gates_for(command, args),
+        config_path=config_path,
+        out_dir=out_dir,
+        fmt=getattr(args, "format", "both") if command == "check" else "both",
+        threshold=getattr(args, "threshold", None) if command == "crap" else None,
+        coverage_file=Path(coverage_raw) if coverage_raw else None,
+        max_workers=getattr(args, "max_workers", None) if command == "mutate" else None,
+        reproduce=_reproduce(command, args),
+    )
+
+
+def _gates_for(command: str, args: argparse.Namespace) -> list[str] | None:
+    if command == "check":
+        if not args.gates:
+            return None
+        return [part.strip() for part in args.gates.split(",")]
+    if command == "crap":
+        return ["crap"]
+    return ["mutate"]
 
 
 def _reproduce(command: str, args: argparse.Namespace) -> str:
     parts = ["bob", command]
-    if getattr(args, "base", None):
-        parts.extend(["--base", args.base])
-    if getattr(args, "gates", None):
-        parts.extend(["--gates", args.gates])
-    if getattr(args, "config", None):
-        parts.extend(["--config", args.config])
-    if getattr(args, "out", None) and args.out not in {".bob/", ".bob"}:
-        parts.extend(["--out", args.out])
-    if getattr(args, "format", None) and args.format != "both":
-        parts.extend(["--format", args.format])
-    if getattr(args, "threshold", None) is not None:
-        parts.extend(["--threshold", str(args.threshold)])
-    if getattr(args, "coverage_file", None):
-        parts.extend(["--coverage-file", args.coverage_file])
+    _append_flag(parts, "--base", getattr(args, "base", None))
+    _append_flag(parts, "--gates", getattr(args, "gates", None))
+    _append_flag(parts, "--config", getattr(args, "config", None))
+    _append_flag(parts, "--out", getattr(args, "out", None), skip={".bob/", ".bob"})
+    _append_flag(parts, "--format", getattr(args, "format", None), skip={"both"})
+    _append_flag(parts, "--threshold", getattr(args, "threshold", None))
+    _append_flag(parts, "--coverage-file", getattr(args, "coverage_file", None))
+    _append_flag(parts, "--max-workers", getattr(args, "max_workers", None))
     if getattr(args, "since_last_run", False):
         parts.append("--since-last-run")
-    if getattr(args, "max_workers", None) is not None:
-        parts.extend(["--max-workers", str(args.max_workers)])
     return " ".join(parts)
+
+
+def _append_flag(
+    parts: list[str],
+    flag: str,
+    value: object,
+    skip: set[object] | None = None,
+) -> None:
+    if value is None or (skip is not None and value in skip):
+        return
+    parts.extend([flag, str(value)])
 
 
 if __name__ == "__main__":

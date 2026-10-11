@@ -92,39 +92,58 @@ def _function_name(mutant_id: str) -> str:
     raise MutmutParseError(f"id de mutante fora do contrato: {mutant_id}")
 
 
+class _ShowState:
+    def __init__(self) -> None:
+        self.file = ""
+        self.removed: list[str] = []
+        self.added: list[str] = []
+        self.new_line = 0
+        self.change_line = 0
+        self.in_hunk = False
+
+
 def _parse_show(raw: str) -> tuple[str, int, str]:
-    file = ""
-    removed: list[str] = []
-    added: list[str] = []
-    new_line = 0
-    change_line = 0
-    in_hunk = False
+    state = _ShowState()
     for line in raw.splitlines():
-        if line.startswith("--- "):
-            file = line[4:].strip()
-            if file.startswith("a/"):
-                file = file[2:]
-            continue
-        if line.startswith("+++ ") or line.startswith("\\"):
-            continue
-        hunk = _HUNK_RE.match(line)
-        if hunk:
-            new_line = int(hunk.group(1))
-            in_hunk = True
-            continue
-        if not in_hunk:
-            continue
-        if line.startswith("+"):
-            if change_line == 0:
-                change_line = new_line
-            added.append(line[1:].strip())
-            new_line += 1
-            continue
-        if line.startswith("-"):
-            removed.append(line[1:].strip())
-            continue
-        new_line += 1
-    operator = ""
-    if removed or added:
-        operator = f"{' ; '.join(removed)} -> {' ; '.join(added)}"
-    return file, change_line, operator
+        _consume_show_line(state, line)
+    return state.file, state.change_line, _operator(state.removed, state.added)
+
+
+def _consume_show_line(state: _ShowState, line: str) -> None:
+    if _consume_show_header(state, line):
+        return
+    if state.in_hunk:
+        _consume_hunk_line(state, line)
+
+
+def _consume_show_header(state: _ShowState, line: str) -> bool:
+    if line.startswith("--- "):
+        state.file = line[4:].strip().removeprefix("a/")
+        return True
+    if line.startswith("+++ ") or line.startswith("\\"):
+        return True
+    hunk = _HUNK_RE.match(line)
+    if hunk:
+        state.new_line = int(hunk.group(1))
+        state.in_hunk = True
+        return True
+    return False
+
+
+def _consume_hunk_line(state: _ShowState, line: str) -> None:
+    if line.startswith("+"):
+        if state.change_line == 0:
+            state.change_line = state.new_line
+        state.added.append(line[1:].strip())
+        state.new_line += 1
+        return
+    if line.startswith("-"):
+        state.removed.append(line[1:].strip())
+        return
+    state.new_line += 1
+
+
+def _operator(removed: list[str], added: list[str]) -> str:
+    if not removed and not added:
+        return ""
+    return f"{' ; '.join(removed)} -> {' ; '.join(added)}"

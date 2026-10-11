@@ -11,6 +11,8 @@ from pathlib import Path
 from bob_quality.tools import ToolError
 
 _VERSION_RE = re.compile(r"(\d+\.\d+\.\d+)")
+_SPINNER_CHAR = "⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏"
+_SPINNER_LINE = re.compile(rf"^[{_SPINNER_CHAR}]\s")
 
 
 def pytest_exit_code(cwd: Path) -> int:
@@ -78,15 +80,25 @@ def _invoke(args: list[str], cwd: Path | None) -> str:
     except subprocess.TimeoutExpired as exc:
         raise ToolError("mutmut excedeu o tempo limite") from exc
     if completed.returncode != 0:
-        detail = (completed.stdout + "\n" + completed.stderr).strip()
-        if "nothing matches" in detail:
+        detail = failure_text(completed.stdout, completed.stderr)
+        if "nothing matches" in f"{completed.stdout}\n{completed.stderr}":
             raise ToolError("nothing matches")
-        raise ToolError(_one_line(detail or f"exit {completed.returncode}"))
+        raise ToolError(detail or f"exit {completed.returncode}")
     return completed.stdout + completed.stderr
 
 
-def _one_line(text: str) -> str:
-    compact = " ".join(text.split())
+def failure_text(stdout: str, stderr: str) -> str:
+    """Tira o spinner do mutmut e devolve o erro, que vem no fim da saída."""
+    kept: list[str] = []
+    blob = f"{stdout}\n{stderr}".replace("\r", "\n")
+    for raw in blob.splitlines():
+        text = raw.strip()
+        if not text or _SPINNER_LINE.match(text) or "Generating mutants" in text:
+            continue
+        if all(char in _SPINNER_CHAR or char.isspace() for char in text):
+            continue
+        kept.append(text)
+    compact = " ".join(kept)
     if len(compact) > 400:
-        return compact[:400] + "…"
+        return "…" + compact[-400:]
     return compact

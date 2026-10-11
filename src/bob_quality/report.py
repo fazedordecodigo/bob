@@ -49,73 +49,93 @@ def to_markdown(report: Report) -> str:
     lines = ["# Relatório bob", ""]
     if report.waivers or report.mutation is not None:
         lines.extend(_waiver_section(report.waivers))
-    lines.extend(
-        [
-            f"- Commit: `{report.commit}`",
-            f"- Base: `{report.base}`",
-            f"- Data: {report.generated_at}",
-            f"- Ferramentas: {_tools(report.tool_versions)}",
-            "",
-            "## Veredito",
-            "",
-        ]
-    )
-    for gate in report.gates:
-        mark = GATE_MARK[gate.status]
-        label = _status_label(gate.status)
-        extra = f" ({gate.reason})" if gate.reason else ""
-        lines.append(f"- {mark} `{gate.name}`: {label}{extra}")
-    lines.extend(["", "## Onde focar o review", ""])
-    if report.focus:
-        for item in report.focus:
-            lines.append(f"- `{item['file']}` (risco {item['risk']})")
-    else:
-        lines.append("- Nenhum arquivo alterado com risco de CRAP.")
-    lines.extend(["", "## Top 5 funções por CRAP (diff)", ""])
-    if report.top_crap:
-        lines.append("| Função | Arquivo | CC | Cobertura | CRAP | Delta |")
-        lines.append("|---|---|---:|---:|---:|---|")
-        for fn in report.top_crap:
-            loc = f"{fn['file']}:{fn['start_line']}"
-            cov = f"{float(fn['coverage']) * 100:.0f}%"
-            delta = "—" if fn.get("delta") is None else fn["delta"]
-            lines.append(
-                f"| {fn['name']} | {loc} | {fn['cc']} | {cov} | {fn['crap']} | {delta} |"
-            )
-    else:
-        lines.append("Nenhuma função alterada medida.")
-    if report.old_debt:
-        lines.extend(["", "## Informação (dívida antiga)", ""])
-        for fn in report.old_debt:
-            loc = f"{fn['file']}:{fn['start_line']}"
-            lines.append(
-                f"- `{fn['name']}` em `{loc}` CRAP {fn['crap']} (fora do diff; não bloqueia)"
-            )
-    if report.mutation is not None:
-        lines.extend(["", "## Mutantes sobreviventes", ""])
-        if report.survivors:
-            lines.append("| Id | Função | Local | Operador | Waiver |")
-            lines.append("|---|---|---|---|---|")
-            for item in report.survivors:
-                waiver = item.get("waiver") or "—"
-                operator = str(item.get("operator") or "—").replace("|", "\\|")
-                lines.append(
-                    f"| `{item['id']}` | {item['function']} | {item['file']}:{item['line']} | {operator} | {waiver} |"
-                )
-        else:
-            lines.append("Nenhum mutante sobrevivente.")
-    lines.extend(
-        [
-            "",
-            "## Como reproduzir",
-            "",
-            "```",
-            report.reproduce,
-            "```",
-            "",
-        ]
-    )
+    lines.extend(_heading_lines(report))
+    lines.extend(_verdict_lines(report))
+    lines.extend(_focus_lines(report))
+    lines.extend(_top_lines(report))
+    lines.extend(_debt_lines(report))
+    lines.extend(_survivor_lines(report))
+    lines.extend(["", "## Como reproduzir", "", "```", report.reproduce, "```", ""])
     return "\n".join(lines)
+
+
+def _heading_lines(report: Report) -> list[str]:
+    return [
+        f"- Commit: `{report.commit}`",
+        f"- Base: `{report.base}`",
+        f"- Data: {report.generated_at}",
+        f"- Ferramentas: {_tools(report.tool_versions)}",
+        "",
+    ]
+
+
+def _verdict_lines(report: Report) -> list[str]:
+    lines = ["## Veredito", ""]
+    for gate in report.gates:
+        extra = f" ({gate.reason})" if gate.reason else ""
+        lines.append(f"- {GATE_MARK[gate.status]} `{gate.name}`: {_status_label(gate.status)}{extra}")
+    return lines
+
+
+def _focus_lines(report: Report) -> list[str]:
+    lines = ["", "## Onde focar o review", ""]
+    if not report.focus:
+        lines.append("- Nenhum arquivo alterado com risco de CRAP.")
+        return lines
+    for item in report.focus:
+        lines.append(f"- `{item['file']}` (risco {item['risk']})")
+    return lines
+
+
+def _top_lines(report: Report) -> list[str]:
+    lines = ["", "## Top 5 funções por CRAP (diff)", ""]
+    if not report.top_crap:
+        lines.append("Nenhuma função alterada medida.")
+        return lines
+    lines.append("| Função | Arquivo | CC | Cobertura | CRAP | Delta |")
+    lines.append("|---|---|---:|---:|---:|---|")
+    for fn in report.top_crap:
+        lines.append(_top_row(fn))
+    return lines
+
+
+def _top_row(fn: dict[str, object]) -> str:
+    loc = f"{fn['file']}:{fn['start_line']}"
+    cov = f"{float(fn['coverage']) * 100:.0f}%"
+    delta = "—" if fn.get("delta") is None else fn["delta"]
+    return f"| {fn['name']} | {loc} | {fn['cc']} | {cov} | {fn['crap']} | {delta} |"
+
+
+def _debt_lines(report: Report) -> list[str]:
+    if not report.old_debt:
+        return []
+    lines = ["", "## Informação (dívida antiga)", ""]
+    for fn in report.old_debt:
+        loc = f"{fn['file']}:{fn['start_line']}"
+        lines.append(f"- `{fn['name']}` em `{loc}` CRAP {fn['crap']} (fora do diff; não bloqueia)")
+    return lines
+
+
+def _survivor_lines(report: Report) -> list[str]:
+    if report.mutation is None:
+        return []
+    lines = ["", "## Mutantes sobreviventes", ""]
+    if not report.survivors:
+        lines.append("Nenhum mutante sobrevivente.")
+        return lines
+    lines.append("| Id | Função | Local | Operador | Waiver |")
+    lines.append("|---|---|---|---|---|")
+    for item in report.survivors:
+        lines.append(_survivor_row(item))
+    return lines
+
+
+def _survivor_row(item: dict[str, object]) -> str:
+    waiver = item.get("waiver") or "—"
+    operator = str(item.get("operator") or "—").replace("|", "\\|")
+    return (
+        f"| `{item['id']}` | {item['function']} | {item['file']}:{item['line']} | {operator} | {waiver} |"
+    )
 
 
 def metric_row(metric: FunctionMetric) -> dict[str, object]:

@@ -50,35 +50,37 @@ def load_waivers(cwd: Path) -> list[Waiver]:
     path = waivers_path(cwd)
     if not path.is_file():
         return []
+    return [_waiver_from_entry(entry) for entry in _waiver_entries(path)]
+
+
+def _waiver_entries(path: Path) -> list[object]:
     raw = yaml.safe_load(path.read_text()) or {}
     if not isinstance(raw, dict):
         raise WaiverError("waivers.yaml deve ser um mapeamento")
     entries = raw.get("waivers") or []
     if not isinstance(entries, list):
         raise WaiverError("waivers.yaml: 'waivers' deve ser uma lista")
-    loaded: list[Waiver] = []
-    for entry in entries:
-        if not isinstance(entry, dict):
-            raise WaiverError("waiver inválido")
-        reason = normalize_reason(entry.get("reason") if isinstance(entry.get("reason"), str) else None)
-        target = entry.get("id")
-        author = entry.get("author")
-        date = entry.get("date")
-        if not isinstance(target, str) or not target.strip():
-            raise WaiverError("waiver sem alvo")
-        if not isinstance(author, str) or not author.strip():
-            raise WaiverError("waiver sem autor")
-        if not isinstance(date, str) or not date.strip():
-            raise WaiverError("waiver sem data")
-        loaded.append(
-            Waiver(
-                id=target.strip(),
-                reason=reason,
-                author=author.strip(),
-                date=date.strip(),
-            )
-        )
-    return loaded
+    return entries
+
+
+def _waiver_from_entry(entry: object) -> Waiver:
+    if not isinstance(entry, dict):
+        raise WaiverError("waiver inválido")
+    reason_raw = entry.get("reason")
+    reason = normalize_reason(reason_raw if isinstance(reason_raw, str) else None)
+    return Waiver(
+        id=_required_text(entry, "id", "waiver sem alvo"),
+        reason=reason,
+        author=_required_text(entry, "author", "waiver sem autor"),
+        date=_required_text(entry, "date", "waiver sem data"),
+    )
+
+
+def _required_text(entry: dict[str, object], key: str, message: str) -> str:
+    value = entry.get(key)
+    if not isinstance(value, str) or not value.strip():
+        raise WaiverError(message)
+    return value.strip()
 
 
 def add_waiver(cwd: Path, target: str, reason: str | None) -> Waiver:
