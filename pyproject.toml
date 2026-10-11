@@ -21,6 +21,9 @@ dependencies = [
 dev = [
     "pytest==9.1.1",
     "jsonschema==4.26.0",
+    "build==1.6.1",
+    "twine==7.0.0",
+    "tomli==2.5.0; python_version < '3.11'",
 ]
 
 [project.scripts]
@@ -30,7 +33,7 @@ bob = "bob_quality.cli:main"
 where = ["src"]
 
 [tool.setuptools.package-data]
-bob_quality = ["schemas/*.json", "hooks/*"]
+bob_quality = ["schemas/*.json", "hooks/*", "package.json", "package-lock.json", "js/*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
