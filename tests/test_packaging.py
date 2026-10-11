@@ -131,11 +131,16 @@ def test_marketplace_lists_only_bob_from_the_plugin_root() -> None:
     assert "Matt Pocock" in entry["description"]
 
 
-def test_cursor_manifest_uses_only_schema_keys_and_the_claude_skill_dirs() -> None:
+def test_cursor_manifest_uses_only_schema_keys_and_displays_bob() -> None:
     cursor = _json(CURSOR_PLUGIN)
     assert set(cursor) <= CURSOR_ALLOWED_KEYS
     assert cursor["displayName"] == "bob"
-    assert cursor["skills"] == _json(CLAUDE_PLUGIN)["skills"]
+
+
+def test_cursor_and_claude_manifests_list_the_same_skills() -> None:
+    cursor_skills = _json(CURSOR_PLUGIN)["skills"]
+    assert cursor_skills == _json(CLAUDE_PLUGIN)["skills"]
+    assert len(cursor_skills) == 30
 
 
 def test_each_manifest_entry_is_a_relative_skill_folder() -> None:
