@@ -229,7 +229,12 @@ def installed_npm_version(prefix: Path, package: str) -> str:
         raise ToolError(f"versão de {package} ilegível") from exc
 
 
-def run_vitest_under_c8(cwd: Path, include: list[str], reports_dir: Path) -> int:
+def run_vitest_under_c8(
+    cwd: Path,
+    include: list[str],
+    reports_dir: Path,
+    exclude: list[str],
+) -> int:
     """Roda vitest sob c8 via npx e grava coverage-final.json. Devolve o exit do vitest."""
     missing = node_missing_message()
     if missing:
@@ -241,6 +246,26 @@ def run_vitest_under_c8(cwd: Path, include: list[str], reports_dir: Path) -> int
     wrapper = reports_dir.parent / "vitest.bob.config.mjs"
     wrapper.write_text(_VITEST_WRAPPER)
     user_config = _user_vitest_config(cwd)
+    completed = subprocess.run(
+        _c8_argv(prefix, cwd, include, exclude, reports_dir, wrapper),
+        cwd=cwd,
+        capture_output=True,
+        text=True,
+        stdin=subprocess.DEVNULL,
+        env=_vitest_env(prefix, user_config),
+    )
+    _raise_if_c8_failed(completed, reports_dir)
+    return completed.returncode
+
+
+def _c8_argv(
+    prefix: Path,
+    cwd: Path,
+    include: list[str],
+    exclude: list[str],
+    reports_dir: Path,
+    wrapper: Path,
+) -> list[str]:
     args = [
         "npx",
         "--prefix",
@@ -251,7 +276,7 @@ def run_vitest_under_c8(cwd: Path, include: list[str], reports_dir: Path) -> int
         str(reports_dir),
         "--all",
     ]
-    for pattern in ("tests/**", "node_modules/**", "dist/**"):
+    for pattern in _c8_exclude_patterns(exclude):
         args.extend(["--exclude", pattern])
     for path in include or ["src"]:
         args.extend(["--include", f"{path}/**"])
@@ -266,29 +291,49 @@ def run_vitest_under_c8(cwd: Path, include: list[str], reports_dir: Path) -> int
             "--reporter=dot",
         ]
     )
+    return args
+
+
+def _vitest_env(prefix: Path, user_config: Path | None) -> dict[str, str]:
     env = {key: value for key, value in os.environ.items() if not key.startswith("PYTEST_")}
-    bindir = prefix / "node_modules" / ".bin"
-    env["PATH"] = str(bindir) + os.pathsep + env.get("PATH", "")
     env["BOB_VITEST_SETUP"] = str(prefix / "js" / "flush-coverage.mjs")
-    if user_config is not None:
-        env["BOB_USER_VITEST_CONFIG"] = str(user_config)
-        if user_config.suffix in {".ts", ".mts", ".cts"}:
-            current = env.get("NODE_OPTIONS", "")
-            flag = "--experimental-strip-types"
-            if flag not in current.split():
-                env["NODE_OPTIONS"] = (current + " " + flag).strip()
-    completed = subprocess.run(
-        args,
-        cwd=cwd,
-        capture_output=True,
-        text=True,
-        stdin=subprocess.DEVNULL,
-        env=env,
+    if user_config is None:
+        return env
+    env["BOB_USER_VITEST_CONFIG"] = str(user_config)
+    _enable_strip_types(env, user_config)
+    return env
+
+
+_STRIP_TYPES_FLAG = "--experimental-strip-types"
+_TYPESCRIPT_CONFIG_SUFFIXES = (".ts", ".mts")
+
+
+def _enable_strip_types(env: dict[str, str], user_config: Path) -> None:
+    if not _needs_strip_types(user_config, env):
+        return
+    current = env.get("NODE_OPTIONS", "")
+    env["NODE_OPTIONS"] = (current + " " + _STRIP_TYPES_FLAG).strip()
+
+
+def _needs_strip_types(user_config: Path, env: dict[str, str]) -> bool:
+    raw = env.get("NODE_OPTIONS")
+    options = raw.split() if isinstance(raw, str) else []
+    return (
+        user_config.suffix in _TYPESCRIPT_CONFIG_SUFFIXES
+        and _STRIP_TYPES_FLAG not in options
     )
-    if completed.returncode != 0 and not (reports_dir / "coverage-final.json").is_file():
-        detail = (completed.stderr or completed.stdout or "c8/vitest falhou").strip()
-        raise ToolError(detail)
-    return completed.returncode
+
+
+def _raise_if_c8_failed(completed: subprocess.CompletedProcess[str], reports_dir: Path) -> None:
+    if completed.returncode == 0 or (reports_dir / "coverage-final.json").is_file():
+        return
+    detail = (completed.stderr or completed.stdout or "c8/vitest falhou").strip()
+    raise ToolError(detail)
+
+
+def _c8_exclude_patterns(exclude: list[str]) -> list[str]:
+    """`paths.exclude` lista diretórios; o c8 recebe o glob correspondente."""
+    return [f"{pattern}/**" for pattern in exclude]
 
 
 def _user_vitest_config(cwd: Path) -> Path | None:

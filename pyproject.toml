@@ -40,6 +40,10 @@ testpaths = ["tests"]
 pythonpath = ["src", "tests"]
 norecursedirs = ["fixtures", ".bob", ".git"]
 
+# A CLI é testada num subprocesso. Sem isto o CRAP mede cobertura 0.
+[tool.coverage.run]
+patch = ["subprocess"]
+
 [tool.mutmut]
 source_paths = ["src"]
 also_copy = [
