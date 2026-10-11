@@ -54,11 +54,12 @@ def _parser() -> argparse.ArgumentParser:
 
 
 def _skill_dirs(source: Path) -> list[Path]:
-    """Cada pasta de `skills` no manifesto, um nível: `<nome>/SKILL.md`, como os agentes leem."""
+    """Cada entrada de `skills` é uma pasta com `SKILL.md` direto nela, como os agentes leem."""
     manifest = source / MANIFEST
-    skills: list[Path] = []
-    for entry in _skill_entries(manifest):
-        skills.extend(_skills_in(source / entry, manifest))
+    skills = [source / entry for entry in _skill_entries(manifest)]
+    for skill in skills:
+        if not (skill / "SKILL.md").is_file():
+            raise SourceError(f"pasta de skill sem SKILL.md: {skill} (listada em {manifest})")
     return skills
 
 
@@ -79,12 +80,6 @@ def _read_manifest(manifest: Path) -> object:
         return json.loads(raw)
     except ValueError:
         return None
-
-
-def _skills_in(container: Path, manifest: Path) -> list[Path]:
-    if not container.is_dir():
-        raise SourceError(f"pasta de skills não encontrada: {container} (listada em {manifest})")
-    return [child for child in container.iterdir() if (child / "SKILL.md").is_file()]
 
 
 def _install(skills: list[Path], dest: Path) -> None:

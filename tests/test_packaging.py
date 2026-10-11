@@ -99,13 +99,8 @@ def _json(path: Path) -> dict:
 
 
 def _skill_folders(entries: list[str]) -> list[Path]:
-    """Mesma leitura dos agentes: cada pasta listada, um nível, `<nome>/SKILL.md`."""
-    return [
-        child
-        for entry in entries
-        for child in (ROOT / entry).iterdir()
-        if (child / "SKILL.md").is_file()
-    ]
+    """Mesma leitura dos agentes: cada entrada é a pasta de uma skill."""
+    return [ROOT / entry for entry in entries]
 
 
 def _frontmatter(skill_md: Path) -> dict:
@@ -141,11 +136,11 @@ def test_cursor_manifest_uses_only_schema_keys_and_the_claude_skill_dirs() -> No
     assert cursor["skills"] == _json(CLAUDE_PLUGIN)["skills"]
 
 
-def test_manifest_skill_dirs_are_relative_and_exist() -> None:
+def test_each_manifest_entry_is_a_relative_skill_folder() -> None:
     for entry in _json(CLAUDE_PLUGIN)["skills"]:
         assert entry.startswith("./"), entry
         assert ".." not in Path(entry).parts, entry
-        assert (ROOT / entry).is_dir(), entry
+        assert (ROOT / entry / "SKILL.md").is_file(), entry
 
 
 def test_manifest_reaches_exactly_the_expected_skills() -> None:
@@ -281,15 +276,20 @@ def test_malformed_manifest_exits_4_and_names_it(
     assert not (tmp_path / ".github").exists()
 
 
-def test_missing_skill_folder_exits_4_before_writing_anything(
-    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+@pytest.mark.parametrize(
+    ("entry", "folder"),
+    [("./skills/", "skills"), ("./sumiu", "sumiu")],
+    ids=["pasta-que-agrupa-skills", "pasta-inexistente"],
+)
+def test_entry_without_skill_md_exits_4_before_writing_anything(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str], entry: str, folder: str
 ) -> None:
     source = tmp_path / "plugin"
     (source / "skills" / "uma").mkdir(parents=True)
     (source / "skills" / "uma" / "SKILL.md").write_text("---\nname: uma\n---\n")
     manifest = source / ".claude-plugin" / "plugin.json"
     manifest.parent.mkdir()
-    manifest.write_text(json.dumps({"skills": ["./skills/", "./sumiu/"]}))
+    manifest.write_text(json.dumps({"skills": ["./skills/uma", entry]}))
     project = tmp_path / "projeto"
 
     result = _install(capsys, "--project", str(project), "--source", str(source), "copilot")
@@ -297,7 +297,7 @@ def test_missing_skill_folder_exits_4_before_writing_anything(
     assert result == (
         4,
         "",
-        f"pasta de skills não encontrada: {source / 'sumiu'} (listada em {manifest})."
+        f"pasta de skill sem SKILL.md: {source / folder} (listada em {manifest})."
         " Passe --source com a raiz do plugin bob.\n",
     )
     assert not project.exists()
