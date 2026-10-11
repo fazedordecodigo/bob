@@ -82,6 +82,24 @@ def test_denied_npm_ci_installs_in_the_user_cache_and_npm_prefix_finds_it(
     assert npm_prefix() == cache
 
 
+def test_rerun_refreshes_an_existing_cache_with_the_package_js(
+    package: Path,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    (package / "js").mkdir()
+    (package / "js" / "flush-coverage.mjs").write_text("// atual\n")
+    cache = tmp_path / "xdg" / "bob-quality"
+    (cache / "js").mkdir(parents=True)
+    (cache / "js" / "stale.mjs").write_text("// antigo\n")
+    _fake_npm(tmp_path, monkeypatch, {package: "EACCES"})
+
+    assert install_npm_dependencies() == 0
+
+    assert sorted(path.name for path in (cache / "js").iterdir()) == ["flush-coverage.mjs"]
+    assert (cache / "js" / "flush-coverage.mjs").read_text() == "// atual\n"
+
+
 def test_cache_install_falls_back_to_home_cache_without_xdg(
     package: Path,
     tmp_path: Path,
