@@ -1,0 +1,45 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/fazedordecodigo/bob/schemas/report-v1.json",
+  "title": "bob report",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "commit",
+    "base",
+    "generated_at",
+    "tool_versions",
+    "gates",
+    "focus",
+    "top_crap",
+    "reproduce",
+    "exit_code"
+  ],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "commit": { "type": "string" },
+    "base": { "type": "string" },
+    "generated_at": { "type": "string" },
+    "tool_versions": {
+      "type": "object",
+      "additionalProperties": { "type": "string" }
+    },
+    "gates": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["name", "status"],
+        "properties": {
+          "name": { "type": "string" },
+          "status": { "enum": ["passed", "warn", "failed", "not_run"] },
+          "reason": { "type": ["string", "null"] }
+        }
+      }
+    },
+    "focus": { "type": "array" },
+    "top_crap": { "type": "array" },
+    "old_debt": { "type": "array" },
+    "reproduce": { "type": "string" },
+    "exit_code": { "type": "integer" }
+  }
+}

@@ -1,0 +1,4 @@
+#!/bin/sh
+# Hook local (pre-push): só o gate rápido CRAP desta fatia.
+set -e
+exec bob check --gates crap
