@@ -154,7 +154,7 @@ Com `crap.scope: changed`, só funções alteradas bloqueiam. Qualquer outro val
 
 `bob doctor` lista cada ferramenta com a versão pinada e a encontrada. Sai com `0` quando todas coincidem, e com `4` quando alguma falta ou diverge, junto com o comando de instalação. As versões precisam bater exatamente, então o Node 20, ou qualquer Node diferente de 22.14.0, dá `4`. Se o diretório do pacote não for gravável, a mensagem pede `bob doctor --install`.
 
-`bob doctor --install` roda `npm ci` no pacote instalado. Quando o diretório do pacote não é gravável, instala num cache do usuário (`$XDG_CACHE_HOME/bob-quality`, ou `~/.cache/bob-quality`). Depois imprime o mesmo relatório.
+`bob doctor --install` roda `npm ci` no pacote instalado. Quando o npm falha ali com `EACCES`, `EPERM` ou `EROFS`, instala num cache do usuário (`$XDG_CACHE_HOME/bob-quality`, ou `~/.cache/bob-quality`). Outros erros do npm saem com `4` e o comando exato. Depois imprime o mesmo relatório.
 
 ### Waivers
 

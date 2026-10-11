@@ -154,7 +154,7 @@ With `crap.scope: changed`, only changed functions block. Any other value makes 
 
 `bob doctor` lists each tool with the pinned and the found version. It exits with `0` when all match, and with `4` when a tool is missing or differs, together with the install command. The versions must match exactly, so Node 20, or any Node other than 22.14.0, gives `4`. If the package directory is not writable, the message asks for `bob doctor --install`.
 
-`bob doctor --install` runs `npm ci` in the installed package. When the package directory is not writable, it installs into a user cache (`$XDG_CACHE_HOME/bob-quality`, or `~/.cache/bob-quality`). Then it prints the same report.
+`bob doctor --install` runs `npm ci` in the installed package. When npm fails there with `EACCES`, `EPERM` or `EROFS`, it installs into a user cache (`$XDG_CACHE_HOME/bob-quality`, or `~/.cache/bob-quality`). Other npm errors exit with `4` and the exact command. Then it prints the same report.
 
 ### Waivers
 

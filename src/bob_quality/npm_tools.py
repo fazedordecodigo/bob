@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import shutil
 import subprocess
 from pathlib import Path
@@ -11,6 +12,7 @@ from pathlib import Path
 from bob_quality.tools import ToolError
 
 _NPM_PACKAGE = "bob-quality-tools"
+_FILESYSTEM_DENIED = re.compile(r"\bcode (EACCES|EPERM|EROFS)\b")
 _VITEST_CONFIG_NAMES = (
     "vitest.config.mjs",
     "vitest.config.js",
@@ -60,9 +62,10 @@ def npm_setup_hint(prefix: Path) -> str:
 def npm_prefix() -> Path:
     """Raiz do package.json fixado do plugin (não o repo alvo).
 
-    Prefere quem já tem node_modules: a raiz do repo no desenvolvimento, o
-    pacote instalado depois de `bob doctor --install`, ou o cache do usuário
-    quando o diretório do pacote não é gravável.
+    Prefere o cache do usuário instalado com o mesmo package.json do pacote
+    (o `bob doctor --install` só o cria quando o npm não escreve no pacote).
+    Depois, quem já tem node_modules: a raiz do repo no desenvolvimento ou o
+    pacote instalado.
     """
     matches = _plugin_packages()
     if not matches:
@@ -70,10 +73,13 @@ def npm_prefix() -> Path:
             "package.json do plugin (bob-quality-tools) não encontrado; "
             "c8 e vitest ficam fixados nele"
         )
+    cached = user_npm_cache()
+    if _cache_ready(cached, matches[0]):
+        return cached
     installed = _first_with_modules(matches)
     if installed is not None:
         return installed
-    return _cache_or_first(matches)
+    return matches[0]
 
 
 def _first_with_modules(matches: list[Path]) -> Path | None:
@@ -83,25 +89,33 @@ def _first_with_modules(matches: list[Path]) -> Path | None:
     return None
 
 
-def _cache_or_first(matches: list[Path]) -> Path:
-    cached = user_npm_cache()
-    if _cache_ready(cached):
-        return cached
-    return matches[0]
-
-
-def _cache_ready(cached: Path) -> bool:
+def _cache_ready(cached: Path, source: Path) -> bool:
     if not (cached / "node_modules").is_dir():
         return False
-    return _is_plugin_manifest(cached / "package.json")
+    return _load_manifest(cached / "package.json") == _load_manifest(source / "package.json")
 
 
 def install_npm_dependencies() -> int:
-    """Roda `npm ci --prefix` no pacote instalado, ou num cache se ele não for gravável."""
+    """Roda `npm ci --prefix` no pacote; se o sistema de arquivos negar, no cache do usuário."""
     source = _install_source()
     if source is None:
         return 4
-    return _npm_ci(_install_target(source))
+    completed = _run_npm_ci(source)
+    denied = _FILESYSTEM_DENIED.search(completed.stderr)
+    if denied:
+        return _install_in_cache(source, denied.group(1))
+    return _npm_verdict(source, completed)
+
+
+def _install_in_cache(source: Path, code: str) -> int:
+    cache = user_npm_cache()
+    print(f"{npm_ci_command(source)} falhou com {code}; instalando no cache do usuário {cache}")
+    try:
+        _materialize_cache(source, cache)
+    except OSError as exc:
+        print(f"não foi possível preparar o cache do usuário {cache}: {exc.strerror}")
+        return 4
+    return _npm_verdict(cache, _run_npm_ci(cache))
 
 
 def _install_source() -> Path | None:
@@ -115,22 +129,18 @@ def _install_source() -> Path | None:
     return None
 
 
-def _install_target(source: Path) -> Path:
-    if _can_write(source):
-        return source
-    return _materialize_cache(source)
-
-
-def _npm_ci(target: Path) -> int:
-    command = npm_ci_command(target)
-    completed = subprocess.run(
+def _run_npm_ci(target: Path) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(
         ["npm", "ci", "--prefix", str(target)],
         capture_output=True,
         text=True,
     )
+
+
+def _npm_verdict(target: Path, completed: subprocess.CompletedProcess[str]) -> int:
     if completed.returncode == 0:
         return 0
-    _print_npm_failure(command, completed)
+    _print_npm_failure(npm_ci_command(target), completed)
     return 4
 
 
@@ -189,12 +199,10 @@ def _can_write(directory: Path) -> bool:
     return os.access(directory, os.W_OK)
 
 
-def _materialize_cache(source: Path) -> Path:
-    cache = user_npm_cache()
+def _materialize_cache(source: Path, cache: Path) -> None:
     cache.mkdir(parents=True, exist_ok=True)
     _copy_manifests(source, cache)
     _copy_js(source / "js", cache / "js")
-    return cache
 
 
 def _copy_manifests(source: Path, cache: Path) -> None:
