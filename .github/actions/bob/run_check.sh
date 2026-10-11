@@ -23,7 +23,4 @@ code=$?
 set -e
 
 printf '%s\n' "$code" >"$exit_file"
-if [[ -n "${GITHUB_OUTPUT:-}" ]]; then
-  printf 'exit_code=%s\n' "$code" >>"$GITHUB_OUTPUT"
-fi
 exit 0

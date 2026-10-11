@@ -100,8 +100,23 @@ def test_missing_report_still_posts_a_single_comment(tmp_path: Path) -> None:
     finally:
         server.shutdown()
 
-    assert result.returncode == 0, result.stderr
+    assert result.returncode != 0
     assert len(api.comments) == 1
     body = str(api.comments[0]["body"])
     assert MARKER in body
     assert "report.md" in body
+
+
+def test_github_rejects_the_comment_and_the_step_fails(tmp_path: Path) -> None:
+    report = tmp_path / "report.md"
+    report.write_text("# Relatório bob\n\n- ✅ `crap`: passou\n")
+    api = GitHubApi()
+    api.write_status = 403
+    server, base = serve(api)
+    try:
+        result = _upsert(report, base)
+    finally:
+        server.shutdown()
+
+    assert result.returncode != 0
+    assert api.comments == []

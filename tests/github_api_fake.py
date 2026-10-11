@@ -16,6 +16,7 @@ class GitHubApi:
         self.artifacts: list[dict[str, object]] = []
         self.zips: dict[int, bytes] = {}
         self.require_auth = True
+        self.write_status: int | None = None
         self.comment_pages: list[list[dict[str, object]]] | None = None
         self._next_id = 1
         self.redirect_downloads = False
@@ -119,6 +120,9 @@ class _Handler(BaseHTTPRequestHandler):
             self._send_json({"message": "not found"}, 404)
             return
         payload = self._read_json()
+        if self.server.api.write_status is not None:
+            self._send_json({"message": "rejected"}, self.server.api.write_status)
+            return
         comment = self.server.api.add_comment(str(payload["body"]))
         self._send_json(comment, 201)
 
@@ -126,9 +130,12 @@ class _Handler(BaseHTTPRequestHandler):
         if not self._authorized():
             self._send_json({"message": "unauthorized"}, 401)
             return
-        artifact_path = self.path.split("?", 1)[0]
-        comment_id = int(artifact_path.rstrip("/").rsplit("/", 1)[1])
+        comment_path = self.path.split("?", 1)[0]
+        comment_id = int(comment_path.rstrip("/").rsplit("/", 1)[1])
         payload = self._read_json()
+        if self.server.api.write_status is not None:
+            self._send_json({"message": "rejected"}, self.server.api.write_status)
+            return
         for comment in self.server.api.comments:
             if comment["id"] == comment_id:
                 comment["body"] = str(payload["body"])

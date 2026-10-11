@@ -45,19 +45,21 @@ def upsert_comment(
     body = build_body(report_text)
     target = comment_to_update(comments)
     if target is None:
-        _request(
+        status, payload, _headers = _request(
             "POST",
             f"{api_base}/repos/{repo}/issues/{pr}/comments",
             token,
             {"body": body},
         )
+        _raise_for_status(status, payload)
         return
-    _request(
+    status, payload, _headers = _request(
         "PATCH",
         f"{api_base}/repos/{repo}/issues/comments/{target}",
         token,
         {"body": body},
     )
+    _raise_for_status(status, payload)
 
 
 def _list_comments(api_base: str, repo: str, pr: str, token: str) -> list[dict[str, object]]:
@@ -65,14 +67,18 @@ def _list_comments(api_base: str, repo: str, pr: str, token: str) -> list[dict[s
     collected: list[dict[str, object]] = []
     while url is not None:
         status, payload, headers = _request("GET", url, token, None)
-        if status >= 400:
-            raise RuntimeError(f"GitHub API {status}: {payload.decode()[:300]}")
+        _raise_for_status(status, payload)
         page = json.loads(payload.decode())
         if not isinstance(page, list):
             raise RuntimeError("lista de comentários inválida")
         collected.extend(page)
         url = next_link(headers.get("link", ""))
     return collected
+
+
+def _raise_for_status(status: int, payload: bytes) -> None:
+    if status >= 400:
+        raise RuntimeError(f"GitHub API {status}: {payload.decode()[:300]}")
 
 
 def _request(
@@ -108,10 +114,11 @@ def main(argv: list[str] | None = None) -> int:
         print("repo, pr e token são obrigatórios", file=sys.stderr)
         return 4
     report_path = Path(args.report)
-    if report_path.is_file():
-        text = report_path.read_text(encoding="utf-8")
-    else:
+    report_missing = not report_path.is_file()
+    if report_missing:
         text = f"`{report_path.as_posix()}` não foi gerado."
+    else:
+        text = report_path.read_text(encoding="utf-8")
     try:
         upsert_comment(
             report_text=text,
@@ -122,6 +129,9 @@ def main(argv: list[str] | None = None) -> int:
         )
     except (OSError, RuntimeError, urllib.error.URLError, json.JSONDecodeError) as exc:
         print(str(exc), file=sys.stderr)
+        return 1
+    if report_missing:
+        print(text, file=sys.stderr)
         return 1
     return 0
 
