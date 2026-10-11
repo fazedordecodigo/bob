@@ -39,7 +39,9 @@ def measure_typescript(
     try:
         with tempfile.TemporaryDirectory(prefix="bob-c8-") as tmp:
             reports = Path(tmp) / "coverage"
-            vitest_code = run_vitest_under_c8(cwd, config.include, reports)
+            vitest_code = run_vitest_under_c8(
+                cwd, config.include, reports, config.exclude
+            )
             final = reports / "coverage-final.json"
             raw_coverage = final.read_text() if final.is_file() else ""
     except ToolError as exc:

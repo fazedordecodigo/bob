@@ -83,7 +83,12 @@ def installed_npm_version(prefix: Path, package: str) -> str:
         raise ToolError(f"versão de {package} ilegível") from exc
 
 
-def run_vitest_under_c8(cwd: Path, include: list[str], reports_dir: Path) -> int:
+def run_vitest_under_c8(
+    cwd: Path,
+    include: list[str],
+    reports_dir: Path,
+    exclude: list[str],
+) -> int:
     """Roda vitest sob c8 via npx e grava coverage-final.json. Devolve o exit do vitest."""
     missing = node_missing_message()
     if missing:
@@ -105,7 +110,7 @@ def run_vitest_under_c8(cwd: Path, include: list[str], reports_dir: Path) -> int
         str(reports_dir),
         "--all",
     ]
-    for pattern in ("tests/**", "node_modules/**", "dist/**"):
+    for pattern in _c8_exclude_patterns(exclude):
         args.extend(["--exclude", pattern])
     for path in include or ["src"]:
         args.extend(["--include", f"{path}/**"])
@@ -143,6 +148,11 @@ def run_vitest_under_c8(cwd: Path, include: list[str], reports_dir: Path) -> int
         detail = (completed.stderr or completed.stdout or "c8/vitest falhou").strip()
         raise ToolError(detail)
     return completed.returncode
+
+
+def _c8_exclude_patterns(exclude: list[str]) -> list[str]:
+    """`paths.exclude` lista diretórios; o c8 recebe o glob correspondente."""
+    return [f"{pattern}/**" for pattern in exclude]
 
 
 def _user_vitest_config(cwd: Path) -> Path | None:
