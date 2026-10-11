@@ -267,8 +267,10 @@ def test_renaming_or_deleting_a_staged_test_changes_the_fingerprint(tmp_path: Pa
 
 
 ALSO_COPY_CONFIGS = {
-    "pyproject": {"pyproject.toml": '[tool.mutmut]\nalso_copy = ["data", "notes.txt"]\n'},
-    "setup.cfg": {"setup.cfg": "[mutmut]\nalso_copy =\n    data\n    notes.txt\n"},
+    "pyproject": {
+        "pyproject.toml": '[tool.mutmut]\nalso_copy = ["data", "notes.txt", "shared data"]\n'
+    },
+    "setup.cfg": {"setup.cfg": "[mutmut]\nalso_copy =\n    data\n    notes.txt\n    shared data\n"},
 }
 
 
@@ -279,6 +281,7 @@ ALSO_COPY_CONFIGS = {
         ("data/a.txt", True),
         ("data/deep/b.txt", True),
         ("notes.txt", True),
+        ("shared data/a.txt", True),
         ("other.txt", False),
         ("datafile.txt", False),
     ],
