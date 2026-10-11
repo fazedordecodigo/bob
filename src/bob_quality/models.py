@@ -6,12 +6,25 @@ from dataclasses import dataclass, field
 from typing import Literal
 
 GateStatus = Literal["passed", "warn", "failed", "not_run"]
-GATE_MARK = {
-    "passed": "✅",
-    "warn": "⚠️",
-    "failed": "❌",
-    "not_run": "⏭️",
-}
+
+
+@dataclass(frozen=True)
+class CyclomaticFunction:
+    """Função com CC. Produzido pelo adaptador lizard a partir da saída bruta."""
+
+    file: str
+    name: str
+    start_line: int
+    end_line: int
+    cc: int
+
+
+@dataclass(frozen=True)
+class FileCoverage:
+    """Cobertura por linha de um arquivo. Produzido pelo adaptador coverage.py."""
+
+    executed_lines: frozenset[int]
+    missing_lines: frozenset[int]
 
 
 @dataclass(frozen=True)

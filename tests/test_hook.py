@@ -5,7 +5,7 @@ import subprocess
 import time
 from pathlib import Path
 
-from helpers import commit_on_branch, init_python_repo
+from helpers import SAFE_CHANGE, commit_on_branch, init_python_repo
 
 HOOK = Path(__file__).resolve().parents[1] / "src/bob_quality/hooks/pre-push"
 
@@ -16,7 +16,7 @@ def test_pre_push_hook_runs_crap_gate_under_60s(tmp_path: Path) -> None:
         repo,
         "safe-change",
         "src/app/safe.py",
-        'def add(left: int, right: int) -> int:\n    """Soma dois inteiros."""\n    return left + right\n',
+        SAFE_CHANGE,
         "touch tested add",
     )
     dest = repo / ".git" / "hooks" / "pre-push"

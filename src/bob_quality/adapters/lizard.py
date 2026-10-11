@@ -1,28 +1,20 @@
-"""Adaptador lizard: CSV da ferramenta pinada → funções com CC."""
+"""Adaptador lizard: CSV da ferramenta pinada → modelo do núcleo."""
 
 from __future__ import annotations
 
 import csv
 import io
-from dataclasses import dataclass
 
-
-@dataclass(frozen=True)
-class LizardFunction:
-    file: str
-    name: str
-    start_line: int
-    end_line: int
-    cc: int
+from bob_quality.models import CyclomaticFunction
 
 
 class LizardParseError(Exception):
     """CSV do lizard fora do contrato da versão pinada."""
 
 
-def parse_lizard_csv(raw: str) -> list[LizardFunction]:
-    """Recebe o stdout de `lizard --csv` (versão pinada) e devolve funções."""
-    functions: list[LizardFunction] = []
+def parse_lizard_csv(raw: str) -> list[CyclomaticFunction]:
+    """Recebe o stdout de `lizard --csv` (versão pinada) e devolve o modelo."""
+    functions: list[CyclomaticFunction] = []
     reader = csv.reader(io.StringIO(raw))
     for row in reader:
         if not row or row[0].strip().lower() == "nloc":
@@ -31,7 +23,7 @@ def parse_lizard_csv(raw: str) -> list[LizardFunction]:
             raise LizardParseError(f"linha CSV inesperada: {row!r}")
         try:
             functions.append(
-                LizardFunction(
+                CyclomaticFunction(
                     file=row[6],
                     name=row[7],
                     start_line=int(row[9]),

@@ -88,6 +88,12 @@ def _reproduce(command: str, args: argparse.Namespace) -> str:
         parts.extend(["--base", args.base])
     if getattr(args, "gates", None):
         parts.extend(["--gates", args.gates])
+    if getattr(args, "config", None):
+        parts.extend(["--config", args.config])
+    if getattr(args, "out", None) and args.out not in {".bob/", ".bob"}:
+        parts.extend(["--out", args.out])
+    if getattr(args, "format", None) and args.format != "both":
+        parts.extend(["--format", args.format])
     if getattr(args, "threshold", None) is not None:
         parts.extend(["--threshold", str(args.threshold)])
     if getattr(args, "coverage_file", None):

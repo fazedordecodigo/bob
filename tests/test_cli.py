@@ -5,6 +5,7 @@ from pathlib import Path
 
 from helpers import (
     RISKY_SOURCE,
+    SAFE_CHANGE,
     commit_on_branch,
     commit_on_main,
     init_python_repo,
@@ -35,7 +36,7 @@ def test_check_passes_when_changed_function_stays_under_crap_10(tmp_path: Path) 
         repo,
         "safe-change",
         "src/app/safe.py",
-        'def add(left: int, right: int) -> int:\n    """Soma dois inteiros."""\n    return left + right\n',
+        SAFE_CHANGE,
         "touch tested add",
     )
 
@@ -52,7 +53,7 @@ def test_check_does_not_fail_on_old_debt_outside_the_diff(tmp_path: Path) -> Non
         repo,
         "safe-change",
         "src/app/safe.py",
-        'def add(left: int, right: int) -> int:\n    """Soma dois inteiros."""\n    return left + right\n',
+        SAFE_CHANGE,
         "touch tested add",
     )
 
@@ -73,7 +74,7 @@ def test_unimplemented_gates_are_skipped_never_passed(tmp_path: Path) -> None:
         repo,
         "safe-change",
         "src/app/safe.py",
-        'def add(left: int, right: int) -> int:\n    """Soma dois inteiros."""\n    return left + right\n',
+        SAFE_CHANGE,
         "touch tested add",
     )
 
@@ -117,12 +118,18 @@ def test_check_exits_4_when_config_is_missing(tmp_path: Path) -> None:
         repo,
         "safe-change",
         "src/app/safe.py",
-        'def add(left: int, right: int) -> int:\n    """Soma dois inteiros."""\n    return left + right\n',
+        SAFE_CHANGE,
         "touch tested add",
     )
 
     result = run_bob(repo, "check", "--base", "main", "--config", "missing.yaml")
+    payload = json.loads((repo / ".bob" / "report.json").read_text())
+    names = {gate["name"]: gate for gate in payload["gates"]}
 
     assert result.returncode == 4
     assert (repo / ".bob" / "report.md").is_file()
+    assert names["crap"]["status"] == "not_run"
+    assert names["dry"]["status"] == "not_run"
+    assert names["deps"]["status"] == "not_run"
+    assert names["dry"]["reason"]
 
