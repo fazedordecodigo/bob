@@ -183,32 +183,75 @@ def test_a_show_without_an_added_line_keeps_line_zero(monkeypatch, tmp_path: Pat
 
 
 def test_a_cached_function_relative_line_becomes_the_file_line() -> None:
-    entry = {
-        "start_line": 474,
-        "mutants": [
-            {
-                "id": "bob_quality.mutate.x_prepare_mutmut_workspace__mutmut_10",
-                "function": "prepare_mutmut_workspace",
-                "file": "src/bob_quality/mutate.py",
-                "line": 7,
-                "operator": "a -> b",
-                "status": "survived",
-            },
-            {
-                "id": "bob_quality.mutate.x_prepare_mutmut_workspace__mutmut_11",
-                "function": "prepare_mutmut_workspace",
-                "file": "src/bob_quality/mutate.py",
-                "line": 0,
-                "operator": "",
-                "status": "killed",
-            },
-        ],
+    kept = {
+        "id": "bob_quality.mutate.x_prepare_mutmut_workspace__mutmut_10",
+        "function": "prepare_mutmut_workspace",
+        "file": "src/bob_quality/mutate.py",
+        "line": 7,
+        "operator": "a -> b",
+        "status": "survived",
+        "waiver": "porque",
     }
+    skipped_noise = {"line": 1}
+    blank_line = {
+        "id": "bob_quality.mutate.x_prepare_mutmut_workspace__mutmut_11",
+        "function": "prepare_mutmut_workspace",
+        "file": "src/bob_quality/mutate.py",
+        "line": 0,
+        "operator": "",
+        "status": "killed",
+        "waiver": "",
+    }
+    first_line = {
+        "id": "bob_quality.mutate.x_prepare_mutmut_workspace__mutmut_12",
+        "function": "prepare_mutmut_workspace",
+        "file": "src/bob_quality/mutate.py",
+        "line": 1,
+        "operator": "old -> new",
+        "status": "timeout",
+    }
+    zero_start = {
+        "id": "bob_quality.mutate.x_prepare_mutmut_workspace__mutmut_13",
+        "function": "prepare_mutmut_workspace",
+        "file": "src/bob_quality/mutate.py",
+        "line": 7,
+        "operator": "a -> b",
+        "status": "killed",
+    }
+    text_start = {
+        "id": "bob_quality.mutate.x_prepare_mutmut_workspace__mutmut_14",
+        "function": "prepare_mutmut_workspace",
+        "file": "src/bob_quality/mutate.py",
+        "line": 7,
+        "operator": "a -> b",
+        "status": "killed",
+    }
+    mutants = _mutants_from_cache(
+        [
+            ("noise", {"start_line": 474, "mutants": "não é lista"}),
+            (
+                "src/bob_quality/mutate.py::prepare_mutmut_workspace",
+                {"start_line": 474, "mutants": [kept, skipped_noise, blank_line, first_line]},
+            ),
+            ("zero", {"start_line": 0, "mutants": [zero_start]}),
+            ("text", {"start_line": "474", "mutants": [text_start]}),
+        ]
+    )
 
-    mutants = _mutants_from_cache([("src/bob_quality/mutate.py::prepare_mutmut_workspace", entry)])
-
-    assert mutants[0].line == 480
-    assert mutants[1].line == 0
+    assert [(item.id, item.line) for item in mutants] == [
+        (kept["id"], 480),
+        (blank_line["id"], 0),
+        (first_line["id"], 474),
+        (zero_start["id"], 7),
+        (text_start["id"], 7),
+    ]
+    shifted = mutants[0]
+    assert shifted.function == "prepare_mutmut_workspace"
+    assert shifted.file == "src/bob_quality/mutate.py"
+    assert shifted.operator == "a -> b"
+    assert shifted.status == "survived"
+    assert shifted.waiver == "porque"
+    assert mutants[1].waiver is None
 
 
 def test_a_cached_file_line_is_not_shifted_again() -> None:
@@ -223,6 +266,7 @@ def test_a_cached_file_line_is_not_shifted_again() -> None:
                 "line": 480,
                 "operator": "a -> b",
                 "status": "survived",
+                "waiver": "porque",
             }
         ],
     }
@@ -230,6 +274,9 @@ def test_a_cached_file_line_is_not_shifted_again() -> None:
     mutants = _mutants_from_cache([("src/bob_quality/mutate.py::prepare_mutmut_workspace", entry)])
 
     assert mutants[0].line == 480
+    assert mutants[0].waiver == "porque"
+    assert mutants[0].operator == "a -> b"
+    assert mutants[0].status == "survived"
 
 
 def test_a_tool_failure_keeps_the_message_and_the_waivers(monkeypatch, tmp_path: Path) -> None:
