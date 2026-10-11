@@ -5,6 +5,8 @@ Seams:
 1. CLI `bob mutate` sobre o fixture Python e o cache `.bob/mutation-cache.json`.
 2. Adaptador mutmut: o texto de `mutants/mutmut-stats.json` (mutmut==3.8.0)
    vira os arquivos de teste de cada função.
+3. O gate lê esse stats depois do `mutmut run`. Stats ausente ou fora do
+   contrato é erro de ferramenta (exit 4).
 """
 
 from __future__ import annotations
@@ -16,11 +18,8 @@ from pathlib import Path
 
 import pytest
 
-import bob_quality.mutate as mutate_module
 from bob_quality.adapters.mutmut import MutmutParseError, covering_test_files, mutmut_stats_key
-from bob_quality.config import load_config
-from bob_quality.diff import changed_lines
-from bob_quality.mutate import run_mutation_gate
+from bob_quality.mutate import MutationOutcome, _safe_stats
 from bob_quality.mutmut_tool import mutmut_stats
 from bob_quality.tools import ToolError
 from helpers import commit_on_branch, commit_on_main, init_python_repo, run_bob
@@ -34,6 +33,8 @@ WEAK_ADD_TEST = "from app.safe import add\n\n\ndef test_add() -> None:\n    asse
 SCALE_TEST = "from app.safe import scale\n\n\ndef test_scale() -> None:\n    assert scale(3) == 6\n"
 ADD = "src/app/safe.py::add"
 SCALE = "src/app/safe.py::scale"
+VERSIONS = {"mutmut": "3.8.0"}
+WAIVERS = [{"id": "keep-me", "reason": "porque"}]
 
 STATS = """\
 {
@@ -232,34 +233,46 @@ def test_a_moved_covering_test_remutates_and_records_the_new_file(tmp_path: Path
     assert cache["functions"][ADD]["tests"] == {"tests/test_add.py": _sha(ADD_TEST)}
 
 
-@pytest.mark.parametrize(
-    ("files", "reason"),
-    [
-        ({}, "stats do mutmut ausente: mutants/mutmut-stats.json"),
-        (
-            {"mutants/mutmut-stats.json": "{}"},
-            "stats do mutmut sem tests_by_mangled_function_name",
-        ),
-    ],
-    ids=["missing", "bad-shape"],
-)
-def test_unreadable_stats_after_a_successful_run_is_a_tool_error(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, files: dict[str, str], reason: str
+def test_the_gate_reads_the_test_files_from_the_run_stats(tmp_path: Path) -> None:
+    (tmp_path / "mutants").mkdir()
+    (tmp_path / "mutants" / "mutmut-stats.json").write_text(STATS)
+
+    assert _safe_stats(tmp_path, VERSIONS, WAIVERS) == (
+        {
+            "app.safe.x_add": {"tests/test_safe.py", "tests/test_param.py", "tests/test_box.py"},
+            "app.safe.x_scale": set(),
+        },
+        None,
+    )
+
+
+def _assert_tool_error(
+    stats: tuple[dict[str, set[str]], MutationOutcome | None], reason: str
 ) -> None:
-    repo = _repo(tmp_path)
-    for relative, text in files.items():
-        (repo / relative).parent.mkdir(parents=True, exist_ok=True)
-        (repo / relative).write_text(text)
-    monkeypatch.setattr(mutate_module, "run_mutmut", lambda *_args: None)
-    monkeypatch.setattr(
-        mutate_module, "mutmut_results", lambda _cwd: "    app.safe.x_add__mutmut_1: killed\n"
+    tests, failed = stats
+    assert tests == {}
+    assert failed is not None
+    assert failed.exit_code == 4
+    assert failed.result.status == "not_run"
+    assert failed.result.reason == reason
+    assert failed.versions == VERSIONS
+    assert failed.waivers == WAIVERS
+
+
+def test_missing_stats_after_a_successful_run_is_a_tool_error(tmp_path: Path) -> None:
+    _assert_tool_error(
+        _safe_stats(tmp_path, VERSIONS, WAIVERS),
+        "stats do mutmut ausente: mutants/mutmut-stats.json",
     )
 
-    outcome = run_mutation_gate(
-        repo, load_config(None, repo), changed_lines(repo, "main"), repo / ".bob"
-    )
 
-    assert outcome.exit_code == 4
-    assert outcome.result.status == "not_run"
-    assert outcome.result.reason == reason
-    assert not (repo / ".bob" / "mutation-cache.json").exists()
+def test_stats_outside_the_contract_after_a_successful_run_is_a_tool_error(
+    tmp_path: Path,
+) -> None:
+    (tmp_path / "mutants").mkdir()
+    (tmp_path / "mutants" / "mutmut-stats.json").write_text("{}")
+
+    _assert_tool_error(
+        _safe_stats(tmp_path, VERSIONS, WAIVERS),
+        "stats do mutmut sem tests_by_mangled_function_name",
+    )
