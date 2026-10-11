@@ -24,6 +24,7 @@ _ALSO_COPY = (
     "package.json",
     "package-lock.json",
     "AGENTS.md",
+    "LICENSE",
     ".claude-plugin",
     ".cursor-plugin",
 )
