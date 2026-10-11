@@ -14,6 +14,7 @@ PINNED = {
     "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
     "actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97",
     "actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9",
+    "actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020",
 }
 SHA = re.compile(r"@[0-9a-f]{40}$")
 
