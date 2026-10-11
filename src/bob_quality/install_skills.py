@@ -22,6 +22,7 @@ TARGETS: dict[str, str] = {
 
 PLUGIN_ROOT = Path(__file__).resolve().parents[2]
 MANIFEST = Path(".claude-plugin") / "plugin.json"
+ATTRIBUTION = ("LICENSE", "NOTICE")
 
 # Mesmo valor de bob_quality.exit_codes.CONFIG_OR_TOOL. O script roda sem o pacote
 # instalado e não pode importá-lo.
@@ -35,7 +36,7 @@ class SourceError(Exception):
 def main(argv: list[str] | None = None) -> int:
     args = _parser().parse_args(argv)
     try:
-        skills = _skill_dirs(args.source)
+        skills = _skills(args.source)
     except SourceError as exc:
         print(f"{exc}. Passe --source com a raiz do plugin bob.", file=sys.stderr)
         return CONFIG_ERROR
@@ -53,14 +54,32 @@ def _parser() -> argparse.ArgumentParser:
     return parser
 
 
-def _skill_dirs(source: Path) -> list[Path]:
-    """Cada entrada de `skills` é uma pasta com `SKILL.md` direto nela, como os agentes leem."""
+def _skills(source: Path) -> dict[Path, list[Path]]:
+    """Cada entrada de `skills` é uma pasta com `SKILL.md` direto nela, como os agentes leem.
+
+    Devolve cada pasta com os arquivos de licença que vão junto dela.
+    """
     manifest = source / MANIFEST
     skills = [source / entry for entry in _skill_entries(manifest)]
     for skill in skills:
         if not (skill / "SKILL.md").is_file():
             raise SourceError(f"pasta de skill sem SKILL.md: {skill} (listada em {manifest})")
-    return skills
+    return {skill: _attribution(skill, source) for skill in skills}
+
+
+def _attribution(skill: Path, source: Path) -> list[Path]:
+    """`LICENSE`, e `NOTICE` ao lado dele, da pasta mais próxima entre a skill e a raiz.
+
+    A cópia achatada deixa para trás a pasta do vendor, e a MIT exige o aviso em
+    toda cópia. A raiz do destino é compartilhada com outras skills, então a licença
+    vai dentro da pasta de cada skill.
+    """
+    for folder in (skill, *skill.parents):
+        if (folder / "LICENSE").is_file():
+            return [folder / name for name in ATTRIBUTION if (folder / name).is_file()]
+        if folder == source:
+            break
+    return []
 
 
 def _skill_entries(manifest: Path) -> list[str]:
@@ -82,12 +101,14 @@ def _read_manifest(manifest: Path) -> object:
         return None
 
 
-def _install(skills: list[Path], dest: Path) -> None:
-    for skill in skills:
+def _install(skills: dict[Path, list[Path]], dest: Path) -> None:
+    for skill, attribution in skills.items():
         target = dest / skill.name
         if target.exists():
             shutil.rmtree(target)
         shutil.copytree(skill, target)
+        for path in attribution:
+            shutil.copy2(path, target / path.name)
 
 
 if __name__ == "__main__":

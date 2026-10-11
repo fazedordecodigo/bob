@@ -104,7 +104,7 @@ python3 <clone path>/src/bob_quality/install_skills.py --project <project> agent
 | `devin` | `.agents/skills` | Devin (its recommended folder) |
 | `copilot` | `.github/skills` | Copilot, Devin |
 
-Devin reads both folders. If one project gets `copilot` and `devin`, Devin loads every skill twice, so pick one. Running the installer again replaces bob's skills and leaves other skills in the folder alone. It also runs as `python -m bob_quality.install_skills`. A pip-installed `bob-quality` does not carry the skills, so pass `--source <clone path>`. Without a manifest the installer names the path it read and exits with `4`.
+Devin reads both folders. If one project gets `copilot` and `devin`, Devin loads every skill twice, so pick one. Running the installer again replaces bob's skills and leaves other skills in the folder alone. Because the installer flattens the folders, each installed skill carries its `LICENSE`, plus `NOTICE` for Pocock's skills. It also runs as `python -m bob_quality.install_skills`. A pip-installed `bob-quality` does not carry the skills, so pass `--source <clone path>`. Without a manifest the installer names the path it read and exits with `4`.
 
 ## Usage
 

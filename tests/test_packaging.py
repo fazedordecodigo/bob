@@ -30,7 +30,8 @@ else:
     import tomli as tomllib
 
 ROOT = Path(__file__).resolve().parents[1]
-TDD_SKILL = ROOT / "skills" / "vendor" / "mattpocock" / "engineering" / "tdd" / "SKILL.md"
+POCOCK = ROOT / "skills" / "vendor" / "mattpocock"
+TDD_SKILL = POCOCK / "engineering" / "tdd" / "SKILL.md"
 CLAUDE_PLUGIN = ROOT / ".claude-plugin" / "plugin.json"
 CLAUDE_MARKETPLACE = ROOT / ".claude-plugin" / "marketplace.json"
 CURSOR_PLUGIN = ROOT / ".cursor-plugin" / "plugin.json"
@@ -67,6 +68,7 @@ EXPECTED_SKILLS = [
     "wizard",
     "writing-for-agents",
 ]
+BOB_SKILLS = ["bob-check", "harden", "review-report"]
 
 # Schema do Cursor tem additionalProperties: false. Chave fora daqui invalida o plugin.
 CURSOR_ALLOWED_KEYS = {
@@ -211,6 +213,58 @@ def test_reinstall_replaces_bob_skills_and_keeps_the_projects_own(
     assert not (dest / "tdd" / "stale.md").exists()
     assert (dest / "tdd" / "SKILL.md").read_bytes() == TDD_SKILL.read_bytes()
     assert _files(dest) == after_first
+
+
+def test_every_installed_skill_carries_the_license_of_its_origin(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    result = _install(capsys, "--project", str(tmp_path), "copilot", "devin")
+
+    assert result == (0, "30 skills em .github/skills\n30 skills em .agents/skills\n", "")
+    pocock_skills = [name for name in EXPECTED_SKILLS if name not in BOB_SKILLS]
+    assert len(pocock_skills) == 27
+    for dest in (tmp_path / ".github" / "skills", tmp_path / ".agents" / "skills"):
+        for name in pocock_skills:
+            assert (dest / name / "LICENSE").read_bytes() == (POCOCK / "LICENSE").read_bytes(), name
+            assert (dest / name / "NOTICE").read_bytes() == (POCOCK / "NOTICE").read_bytes(), name
+        for name in BOB_SKILLS:
+            assert (dest / name / "LICENSE").read_bytes() == (ROOT / "LICENSE").read_bytes(), name
+            assert not (dest / name / "NOTICE").exists(), name
+
+
+def _write(path: Path, text: str) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(text)
+
+
+def test_each_skill_bundles_the_nearest_license_inside_the_plugin(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    source = tmp_path / "plugin"
+    _write(tmp_path / "LICENSE", "fora do plugin\n")
+    _write(source / "skills" / "solta" / "SKILL.md", "solta\n")
+    _write(source / "skills" / "vendor" / "LICENSE", "do vendor\n")
+    _write(source / "skills" / "vendor" / "NOTICE", "aviso do vendor\n")
+    _write(source / "skills" / "vendor" / "propria" / "SKILL.md", "propria\n")
+    _write(source / "skills" / "vendor" / "propria" / "LICENSE", "da propria\n")
+    _write(source / "skills" / "vendor" / "herdada" / "SKILL.md", "herdada\n")
+    skills = ["./skills/solta", "./skills/vendor/propria", "./skills/vendor/herdada"]
+    _write(source / ".claude-plugin" / "plugin.json", json.dumps({"skills": skills}))
+    source_before = _files(source)
+    project = tmp_path / "projeto"
+
+    result = _install(capsys, "--project", str(project), "--source", str(source), "copilot")
+
+    assert result == (0, "3 skills em .github/skills\n", "")
+    assert _files(project / ".github" / "skills") == {
+        "solta/SKILL.md": b"solta\n",
+        "propria/SKILL.md": b"propria\n",
+        "propria/LICENSE": b"da propria\n",
+        "herdada/SKILL.md": b"herdada\n",
+        "herdada/LICENSE": b"do vendor\n",
+        "herdada/NOTICE": b"aviso do vendor\n",
+    }
+    assert _files(source) == source_before
 
 
 def test_project_defaults_to_the_current_directory(
