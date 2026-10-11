@@ -299,6 +299,69 @@ def test_a_cached_file_line_is_not_shifted_again() -> None:
     assert _cached_start({"start_line": 1}) == 1
     assert _cached_start({"start_line": 0}) is None
     assert _cached_start({"line_base": "file", "start_line": 474}) is None
+    already_file = {
+        "id": "bob_quality.mutate.x_prepare_mutmut_workspace__mutmut_16",
+        "function": "prepare_mutmut_workspace",
+        "file": "src/bob_quality/mutate.py",
+        "line": 40,
+        "operator": "a -> b",
+        "status": "killed",
+    }
+    at_top = {
+        "id": "bob_quality.mutate.x_prepare_mutmut_workspace__mutmut_17",
+        "function": "prepare_mutmut_workspace",
+        "file": "src/bob_quality/mutate.py",
+        "line": 4,
+        "operator": "a -> b",
+        "status": "killed",
+    }
+    no_live_start = {
+        "id": "bob_quality.mutate.x_prepare_mutmut_workspace__mutmut_18",
+        "function": "prepare_mutmut_workspace",
+        "file": "src/bob_quality/mutate.py",
+        "line": 7,
+        "operator": "a -> b",
+        "status": "killed",
+    }
+    file_rows = _mutants_from_cache(
+        [("kept", {"line_base": "file", "start_line": 100, "mutants": [already_file]})],
+        {
+            "kept": CyclomaticFunction(
+                file="src/bob_quality/mutate.py",
+                name="prepare_mutmut_workspace",
+                start_line=474,
+                end_line=484,
+                cc=1,
+            )
+        },
+    )
+    top_rows = _mutants_from_cache(
+        [("top", {"start_line": 100, "mutants": [at_top]})],
+        {
+            "top": CyclomaticFunction(
+                file="src/app/far.py",
+                name="place",
+                start_line=1,
+                end_line=8,
+                cc=1,
+            )
+        },
+    )
+    zero_rows = _mutants_from_cache(
+        [("zero-live", {"mutants": [no_live_start]})],
+        {
+            "zero-live": CyclomaticFunction(
+                file="src/app/far.py",
+                name="place",
+                start_line=0,
+                end_line=8,
+                cc=1,
+            )
+        },
+    )
+    assert file_rows[0].line == 40
+    assert top_rows[0].line == 4
+    assert zero_rows[0].line == 7
     assert mutants[0].line == 480
     assert mutants[0].waiver == "porque"
     assert mutants[0].operator == "a -> b"
