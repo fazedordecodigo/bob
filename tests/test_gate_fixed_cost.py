@@ -81,12 +81,12 @@ def _record_runs(
     return calls
 
 
-def test_the_crap_coverage_run_skips_the_mutmut_dogfood(
+def test_the_crap_coverage_run_gets_the_rc_and_keeps_the_dogfood(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.setenv("PYTEST_CURRENT_TEST", "leak")
     monkeypatch.setenv("KEEP_ME", "yes")
-    monkeypatch.setenv("BOB_SKIP_MUTMUT_DOGFOOD", "stale")
+    monkeypatch.delenv("BOB_SKIP_MUTMUT_DOGFOOD", raising=False)
     calls = _record_runs(monkeypatch, tools, 1)
     rc = tmp_path / "coverage.rc"
 
@@ -100,7 +100,7 @@ def test_the_crap_coverage_run_skips_the_mutmut_dogfood(
     assert kwargs["stdin"] is subprocess.DEVNULL
     env = kwargs["env"]
     assert isinstance(env, dict)
-    assert env["BOB_SKIP_MUTMUT_DOGFOOD"] == "1"
+    assert "BOB_SKIP_MUTMUT_DOGFOOD" not in env
     assert env["BOB_COVERAGE_RC"] == str(rc)
     assert env["KEEP_ME"] == "yes"
     assert not any(key.startswith("PYTEST_") for key in env)
