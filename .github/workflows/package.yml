@@ -34,6 +34,7 @@ jobs:
       - name: Check distribution metadata
         run: twine check --strict dist/*
 
+      # Evidência do exit 0 com as ferramentas pinadas. Não publica.
       - name: Doctor reports the pinned toolchain
         run: bob doctor
 

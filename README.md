@@ -26,7 +26,7 @@ pip install -e ".[dev]"
 npm install
 ```
 
-Isso instala o comando `bob`, as dependências Python pinadas (`lizard==1.24.1`, `coverage==7.16.2`, `mutmut==3.8.0`, `import-linter==2.15`) e as ferramentas npm pinadas em `package.json` (`c8@12.0.0`, `@stryker-mutator/core@10.0.0`, `jscpd@5.4.1`, `dependency-cruiser@18.5.0`). Node.js esperado: 22.14.0. O `package.json` é `private` e não entra no npm.
+Isso instala o comando `bob`, as dependências Python pinadas em `pyproject.toml` e as ferramentas npm pinadas em `package.json` (`private`, sem publicação no npm). `bob doctor` mostra a versão esperada e a encontrada de cada uma.
 
 ## Uso
 

@@ -47,6 +47,19 @@ INSTALL = {
 }
 
 
+def _c8_package(parent: Path, *, cli_banner: str) -> Path:
+    package = parent / "c8"
+    package_bin = package / "bin"
+    package_bin.mkdir(parents=True)
+    (package / "package.json").write_text(
+        json.dumps({"name": "c8", "version": "12.0.0", "bin": {"c8": "./bin/c8.js"}})
+    )
+    script = package_bin / "c8.js"
+    script.write_text(f"#!/bin/sh\nprintf '%s\\n' '{cli_banner}'\n")
+    script.chmod(script.stat().st_mode | stat.S_IEXEC)
+    return script
+
+
 def _stub(bin_dir: Path, name: str, banner: str) -> None:
     path = bin_dir / name
     path.write_text(f"#!/bin/sh\nprintf '%s\\n' '{banner}'\n")
@@ -104,8 +117,8 @@ def test_doctor_exits_4_and_prints_install_when_version_differs(tmp_path: Path) 
     bin_dir = tmp_path / "bin"
     bin_dir.mkdir()
     for name, _expected, executable, banner in PINS:
-        if name == "mutmut":
-            banner = "mutmut, version 0.0.1"
+        if name == "node":
+            banner = "v1.2.3"
         _stub(bin_dir, executable, banner)
 
     repo = tmp_path / "repo"
@@ -113,8 +126,8 @@ def test_doctor_exits_4_and_prints_install_when_version_differs(tmp_path: Path) 
     result = _run_doctor(repo, bin_dir)
 
     assert result.returncode == 4, result.stderr
-    assert "mutmut esperada 3.8.0 encontrada 0.0.1" in result.stdout
-    assert INSTALL["mutmut"] in result.stdout
+    assert "node esperada 22.14.0 encontrada 1.2.3" in result.stdout
+    assert INSTALL["node"] in result.stdout
     assert INSTALL["lizard"] not in result.stdout
 
 
@@ -122,15 +135,7 @@ def test_doctor_reports_c8_package_version_when_cli_prints_another(tmp_path: Pat
     """c8 --version repassa a versão do projeto; o doctor mostra a do pacote c8."""
     bin_dir = tmp_path / "bin"
     bin_dir.mkdir()
-    package = tmp_path / "node_modules" / "c8"
-    package_bin = package / "bin"
-    package_bin.mkdir(parents=True)
-    (package / "package.json").write_text(
-        json.dumps({"name": "c8", "version": "12.0.0", "bin": {"c8": "./bin/c8.js"}})
-    )
-    script = package_bin / "c8.js"
-    script.write_text("#!/bin/sh\nprintf '%s\\n' '1.0.0'\n")
-    script.chmod(script.stat().st_mode | stat.S_IEXEC)
+    script = _c8_package(tmp_path / "node_modules", cli_banner="1.0.0")
     (bin_dir / "c8").symlink_to(script)
 
     for name, _expected, executable, banner in PINS:
@@ -155,15 +160,7 @@ def test_doctor_finds_npm_tool_installed_in_the_project(tmp_path: Path) -> None:
         _stub(bin_dir, executable, banner)
 
     repo = tmp_path / "repo"
-    package = repo / "node_modules" / "c8"
-    package_bin = package / "bin"
-    package_bin.mkdir(parents=True)
-    (package / "package.json").write_text(
-        json.dumps({"name": "c8", "version": "12.0.0", "bin": {"c8": "./bin/c8.js"}})
-    )
-    script = package_bin / "c8.js"
-    script.write_text("#!/bin/sh\nprintf '%s\\n' '1.0.0'\n")
-    script.chmod(script.stat().st_mode | stat.S_IEXEC)
+    script = _c8_package(repo / "node_modules", cli_banner="1.0.0")
     local_bin = repo / "node_modules" / ".bin"
     local_bin.mkdir()
     (local_bin / "c8").symlink_to(script)
@@ -172,6 +169,46 @@ def test_doctor_finds_npm_tool_installed_in_the_project(tmp_path: Path) -> None:
 
     assert result.returncode == 0, result.stdout + result.stderr
     assert "c8 esperada 12.0.0 encontrada 12.0.0" in result.stdout
+
+
+def test_doctor_reads_c8_manifest_when_bin_shim_is_not_a_symlink(tmp_path: Path) -> None:
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    for _name, _expected, executable, banner in PINS:
+        if executable == "c8":
+            continue
+        _stub(bin_dir, executable, banner)
+
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    (repo / "package.json").write_text(json.dumps({"name": "bob", "version": "0.1.0"}))
+    _c8_package(repo / "node_modules", cli_banner="12.0.0")
+    local_bin = repo / "node_modules" / ".bin"
+    local_bin.mkdir()
+    shim = local_bin / "c8"
+    shim.write_text("#!/bin/sh\nprintf '%s\\n' '0.1.0'\n")
+    shim.chmod(shim.stat().st_mode | stat.S_IEXEC)
+
+    result = _run_doctor(repo, bin_dir)
+
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert "c8 esperada 12.0.0 encontrada 12.0.0" in result.stdout
+
+
+def test_doctor_reports_interpreter_lizard_not_a_path_shadow(tmp_path: Path) -> None:
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    for _name, _expected, executable, banner in PINS:
+        if executable == "lizard":
+            banner = "9.9.9"
+        _stub(bin_dir, executable, banner)
+
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    result = _run_doctor(repo, bin_dir)
+
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert "lizard esperada 1.24.1 encontrada 1.24.1" in result.stdout
 
 
 def test_doctor_expected_versions_match_pip_and_npm_pins(tmp_path: Path) -> None:
