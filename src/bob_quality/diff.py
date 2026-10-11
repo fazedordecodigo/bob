@@ -19,10 +19,7 @@ def current_commit(cwd: Path) -> str:
 
 def changed_lines(cwd: Path, base: str) -> dict[str, set[int]]:
     """Linhas do lado novo por arquivo relativo ao root."""
-    try:
-        patch = _git(cwd, "diff", "--unified=0", f"{base}...HEAD")
-    except GitError:
-        raise
+    patch = _git(cwd, "diff", "--unified=0", f"{base}...HEAD")
     return parse_unified_diff(patch)
 
 
@@ -38,7 +35,6 @@ def parse_unified_diff(patch: str) -> dict[str, set[int]]:
             if target.startswith("b/"):
                 target = target[2:]
             current = target
-            files.setdefault(current, set())
             continue
         if current is None:
             continue
@@ -49,16 +45,14 @@ def parse_unified_diff(patch: str) -> dict[str, set[int]]:
         count = int(match.group(2) or "1")
         if count == 0:
             continue
-        files[current].update(range(start, start + count))
+        files.setdefault(current, set()).update(range(start, start + count))
     return files
 
 
 def function_is_changed(file: str, start: int, end: int, lines: dict[str, set[int]]) -> bool:
     touched = lines.get(file)
-    if touched is None:
-        return False
     if not touched:
-        return True
+        return False
     return any(start <= line <= end for line in touched)
 
 

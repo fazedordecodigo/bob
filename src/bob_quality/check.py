@@ -163,7 +163,7 @@ def _run_crap(
                 function_is_changed(rel, item.start_line, item.end_line, diff_lines),
             )
         )
-    verdict, code = crap_verdict(metrics, max_crap)
+    verdict, code = crap_verdict(metrics, max_crap, config.crap_scope)
     return verdict, metrics, code, versions
 
 

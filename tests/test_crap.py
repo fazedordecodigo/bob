@@ -45,7 +45,7 @@ def test_crap_verdict_fails_only_changed_functions_over_ten() -> None:
         crap=20.0,
         changed=False,
     )
-    result, code = crap_verdict([changed, debt], max_crap=10)
+    result, code = crap_verdict([changed, debt], max_crap=10, scope="changed")
     assert code == 1
     assert result.status == "failed"
     safe = FunctionMetric(
@@ -60,6 +60,25 @@ def test_crap_verdict_fails_only_changed_functions_over_ten() -> None:
         crap=1.0,
         changed=True,
     )
-    result, code = crap_verdict([safe, debt], max_crap=10)
+    result, code = crap_verdict([safe, debt], max_crap=10, scope="changed")
     assert code == 0
     assert result.status == "passed"
+
+
+def test_crap_verdict_fails_when_crap_equals_threshold() -> None:
+    """SPEC: só CRAP < 10 passa; CRAP = 10 falha."""
+    on_the_limit = FunctionMetric(
+        lang="python",
+        module="app.edge",
+        name="edge",
+        file="src/app/edge.py",
+        start_line=1,
+        end_line=4,
+        cc=10,
+        coverage=1.0,
+        crap=10.0,
+        changed=True,
+    )
+    result, code = crap_verdict([on_the_limit], max_crap=10, scope="changed")
+    assert code == 1
+    assert result.status == "failed"

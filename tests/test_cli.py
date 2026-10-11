@@ -5,6 +5,7 @@ from pathlib import Path
 
 from helpers import (
     RISKY_SOURCE,
+    RISKY_WITH_CONSTANT,
     SAFE_CHANGE,
     commit_on_branch,
     commit_on_main,
@@ -66,6 +67,28 @@ def test_check_does_not_fail_on_old_debt_outside_the_diff(tmp_path: Path) -> Non
     assert any(item["name"] == "messy" for item in payload["old_debt"])
     assert "dívida antiga" in markdown
     assert not any(item["name"] == "messy" for item in payload["top_crap"])
+
+
+def test_check_does_not_block_old_debt_when_only_unrelated_line_is_removed(
+    tmp_path: Path,
+) -> None:
+    """AC5: remover só `X = 1` de um arquivo com `messy` (CRAP 20) não bloqueia."""
+    repo = init_python_repo(tmp_path / "repo")
+    commit_on_main(repo, "src/app/risky.py", RISKY_WITH_CONSTANT, "messy plus unused constant")
+    commit_on_branch(
+        repo,
+        "drop-const",
+        "src/app/risky.py",
+        RISKY_SOURCE,
+        "remove only X = 1",
+    )
+
+    result = run_bob(repo, "check", "--base", "main", "--gates", "crap")
+    payload = json.loads((repo / ".bob" / "report.json").read_text())
+
+    assert result.returncode == 0
+    assert any(item["name"] == "messy" for item in payload["old_debt"])
+    assert not any(item["name"] == "messy" and item["changed"] for item in payload["top_crap"])
 
 
 def test_unimplemented_gates_are_skipped_never_passed(tmp_path: Path) -> None:

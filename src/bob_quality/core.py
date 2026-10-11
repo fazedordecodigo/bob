@@ -49,14 +49,19 @@ def to_metric(
 
 
 def crap_verdict(
-    metrics: list[FunctionMetric], max_crap: float
+    metrics: list[FunctionMetric],
+    max_crap: float,
+    scope: str = "changed",
 ) -> tuple[GateResult, int]:
-    blockers = [item for item in metrics if item.changed and item.crap > max_crap]
+    considered = [
+        item for item in metrics if scope != "changed" or item.changed
+    ]
+    blockers = [item for item in considered if item.crap >= max_crap]
     if not blockers:
         return GateResult("crap", "passed", None), PASSED
     names = ", ".join(f"{item.name}@{item.file}:{item.start_line}" for item in blockers)
     return (
-        GateResult("crap", "failed", f"CRAP > {max_crap}: {names}"),
+        GateResult("crap", "failed", f"CRAP >= {max_crap}: {names}"),
         GATE_FAILED,
     )
 
@@ -64,7 +69,7 @@ def crap_verdict(
 def informational_debt(
     metrics: list[FunctionMetric], max_crap: float
 ) -> list[FunctionMetric]:
-    return [item for item in metrics if not item.changed and item.crap > max_crap]
+    return [item for item in metrics if not item.changed and item.crap >= max_crap]
 
 
 def top_changed_crap(metrics: list[FunctionMetric], limit: int = 5) -> list[FunctionMetric]:

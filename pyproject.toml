@@ -33,5 +33,5 @@ bob_quality = ["schemas/*.json", "hooks/*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-pythonpath = ["src"]
+pythonpath = ["src", "tests"]
 norecursedirs = ["fixtures", ".bob", ".git"]
