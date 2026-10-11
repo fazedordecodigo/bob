@@ -91,48 +91,36 @@ def top_changed_crap(metrics: list[FunctionMetric], limit: int = 5) -> list[Func
     return sorted(changed, key=lambda item: item.crap, reverse=True)[:limit]
 
 
-def clones_touching_diff(clones: list[Clone], lines: dict[str, set[int]]) -> list[Clone]:
-    """Clones cujo par cruza alguma linha do diff. O resto é dívida antiga."""
-    return [clone for clone in clones if _clone_touches(clone, lines)]
-
-
-def _clone_touches(clone: Clone, lines: dict[str, set[int]]) -> bool:
-    sides = (
-        (clone.first_file, clone.first_start, clone.first_end),
-        (clone.second_file, clone.second_start, clone.second_end),
-    )
-    return any(_range_touches(file, start, end, lines) for file, start, end in sides)
-
-
-def _range_touches(file: str, start: int, end: int, lines: dict[str, set[int]]) -> bool:
-    touched = lines.get(file)
-    if not touched:
-        return False
-    return any(start <= line <= end for line in touched)
-
-
 def files_by_risk(
     metrics: list[FunctionMetric],
-    clones: list[Clone] | None = None,
+    clones: list[Clone],
+    changed_files: set[str],
 ) -> list[dict[str, object]]:
     by_file: dict[str, float] = {}
-    cloned: set[str] = set()
     for item in metrics:
-        if not item.changed:
-            continue
-        by_file[item.file] = max(by_file.get(item.file, 0.0), item.crap)
-    for clone in clones or []:
-        for file in (clone.first_file, clone.second_file):
-            cloned.add(file)
-            by_file.setdefault(file, 0.0)
+        if item.changed:
+            by_file[item.file] = max(by_file.get(item.file, 0.0), item.crap)
+    cloned = _clone_files_in_diff(clones, changed_files)
+    for file in cloned:
+        by_file.setdefault(file, 0.0)
     ordered = sorted(by_file.items(), key=lambda pair: pair[1], reverse=True)
-    rows: list[dict[str, object]] = []
-    for file, risk in ordered:
-        row: dict[str, object] = {"file": file, "risk": risk}
-        if file in cloned:
-            row["clone"] = True
-        rows.append(row)
-    return rows
+    return [_focus_row(file, risk, file in cloned) for file, risk in ordered]
+
+
+def _clone_files_in_diff(clones: list[Clone], changed_files: set[str]) -> set[str]:
+    found: set[str] = set()
+    for clone in clones:
+        for file in (clone.first_file, clone.second_file):
+            if file in changed_files:
+                found.add(file)
+    return found
+
+
+def _focus_row(file: str, risk: float, cloned: bool) -> dict[str, object]:
+    row: dict[str, object] = {"file": file, "risk": risk}
+    if cloned:
+        row["clone"] = True
+    return row
 
 
 def coverage_for(coverage_by_file: dict[str, FileCoverage], rel: str) -> FileCoverage | None:

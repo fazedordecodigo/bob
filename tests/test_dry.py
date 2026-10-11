@@ -208,8 +208,9 @@ def test_dry_is_not_run_when_node_is_missing(tmp_path: Path) -> None:
     markdown = (repo / ".bob" / "report.md").read_text()
     dry = next(gate for gate in payload["gates"] if gate["name"] == "dry")
 
-    assert result.returncode == 4, result.stderr
+    assert result.returncode == 0, result.stderr
     assert dry["status"] == "not_run"
     assert "Node ausente" in dry["reason"]
+    assert "⏭️" in markdown
     assert "⚠️" not in markdown
     assert "✅ `dry`" not in markdown

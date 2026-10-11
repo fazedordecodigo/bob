@@ -9,8 +9,8 @@ from pathlib import Path
 
 from bob_quality.adapters.jscpd import JscpdParseError, parse_jscpd_json
 from bob_quality.config import Config
-from bob_quality.core import clones_touching_diff
-from bob_quality.exit_codes import CONFIG_OR_TOOL, PASSED
+from bob_quality.diff import function_is_changed
+from bob_quality.exit_codes import PASSED
 from bob_quality.models import Clone, GateResult
 from bob_quality.npm_tools import installed_npm_version, node_missing_message, npm_prefix
 from bob_quality.tools import ToolError
@@ -20,37 +20,38 @@ _FORMATS = {
     "typescript": ("typescript", "javascript"),
 }
 _ALWAYS_IGNORE = ("node_modules", "dist", ".git", ".bob")
+_Dry = tuple[GateResult, list[Clone], int, dict[str, str]]
 
 
 def run_dry_gate(
     cwd: Path,
     config: Config,
     diff_lines: dict[str, set[int]],
-) -> tuple[GateResult, list[Clone], int, dict[str, str]]:
-    if node_missing_message() is not None:
-        return _skipped("Node ausente: instale Node.js para rodar o jscpd")
+) -> _Dry:
+    versions, skipped = _tooling()
+    if skipped is not None:
+        return skipped
     try:
-        prefix = npm_prefix()
-        version = installed_npm_version(prefix, "jscpd")
+        found = parse_jscpd_json(_run_jscpd(cwd, config, npm_prefix()))
+    except (ToolError, JscpdParseError) as exc:
+        return _skipped(str(exc), versions)
+    return _verdict(_new_clones(cwd, found, diff_lines), versions)
+
+
+def _tooling() -> tuple[dict[str, str], _Dry | None]:
+    if node_missing_message() is not None:
+        return {}, _skipped("Node ausente: instale Node.js para rodar o jscpd")
+    try:
+        version = installed_npm_version(npm_prefix(), "jscpd")
     except ToolError:
-        return _skipped(
+        return {}, _skipped(
             "dependências npm do plugin ausentes: rode npm ci na raiz "
             "(jscpd fixado no package.json)"
         )
-    versions = {"jscpd": version}
-    try:
-        raw = _run_jscpd(cwd, config, prefix)
-        found = parse_jscpd_json(raw)
-    except ToolError as exc:
-        return _skipped(str(exc), versions)
-    except JscpdParseError as exc:
-        return _skipped(str(exc), versions)
-    located = []
-    for clone in found:
-        relative = _relativize(cwd, clone)
-        if _inside_repo(cwd, relative):
-            located.append(relative)
-    fresh = clones_touching_diff(located, diff_lines)
+    return {"jscpd": version}, None
+
+
+def _verdict(fresh: list[Clone], versions: dict[str, str]) -> _Dry:
     if not fresh:
         return GateResult("dry", "passed", None), [], PASSED, versions
     count = len(fresh)
@@ -58,57 +59,94 @@ def run_dry_gate(
     return GateResult("dry", "warn", f"{count} {noun} no diff"), fresh, PASSED, versions
 
 
-def _skipped(
-    reason: str,
-    versions: dict[str, str] | None = None,
-) -> tuple[GateResult, list[Clone], int, dict[str, str]]:
-    return GateResult("dry", "not_run", reason), [], CONFIG_OR_TOOL, versions or {}
+def _skipped(reason: str, versions: dict[str, str] | None = None) -> _Dry:
+    return GateResult("dry", "not_run", reason), [], PASSED, versions or {}
+
+
+def _new_clones(
+    cwd: Path,
+    found: list[Clone],
+    diff_lines: dict[str, set[int]],
+) -> list[Clone]:
+    fresh: list[Clone] = []
+    for clone in found:
+        relative = _relativize(cwd, clone)
+        if _inside_repo(cwd, relative) and _touches(relative, diff_lines):
+            fresh.append(relative)
+    return fresh
+
+
+def _touches(clone: Clone, diff_lines: dict[str, set[int]]) -> bool:
+    sides = (
+        (clone.first_file, clone.first_start, clone.first_end),
+        (clone.second_file, clone.second_start, clone.second_end),
+    )
+    return any(
+        function_is_changed(file, start, end, diff_lines) for file, start, end in sides
+    )
 
 
 def _run_jscpd(cwd: Path, config: Config, prefix: Path) -> str:
+    roots = _roots(cwd, config)
+    with tempfile.TemporaryDirectory(prefix="bob-jscpd-") as tmp:
+        out = Path(tmp)
+        completed = _spawn(cwd, prefix, _args(config, prefix, roots, out))
+        return _read_report(out, completed)
+
+
+def _roots(cwd: Path, config: Config) -> list[Path]:
     roots = [(cwd / path).resolve() for path in (config.include or ["src"])]
     missing = [str(path) for path in roots if not path.is_dir()]
     if missing:
         raise ToolError("jscpd: caminho de include ausente: " + ", ".join(missing))
-    with tempfile.TemporaryDirectory(prefix="bob-jscpd-") as tmp:
-        out = Path(tmp)
-        args = [
-            "npx",
-            "--no-install",
-            "--prefix",
-            str(prefix),
-            "jscpd",
-            "--min-tokens",
-            str(config.min_tokens),
-            "--reporters",
-            "json",
-            "--output",
-            str(out),
-            "--absolute",
-            "--silent",
-            "--ignore",
-            _ignore(config),
-        ]
-        formats = _formats(config.languages)
-        if formats:
-            args.extend(["--format", ",".join(formats)])
-        args.extend(str(path) for path in roots)
-        env = {key: value for key, value in os.environ.items() if not key.startswith("PYTEST_")}
-        bindir = prefix / "node_modules" / ".bin"
-        env["PATH"] = str(bindir) + os.pathsep + env.get("PATH", "")
-        completed = subprocess.run(
-            args,
-            cwd=cwd,
-            capture_output=True,
-            text=True,
-            stdin=subprocess.DEVNULL,
-            env=env,
-        )
-        report = out / "jscpd-report.json"
-        if not report.is_file():
-            detail = (completed.stderr or completed.stdout or "jscpd não gravou o JSON").strip()
-            raise ToolError(detail)
+    return roots
+
+
+def _args(config: Config, prefix: Path, roots: list[Path], out: Path) -> list[str]:
+    args = [
+        "npx",
+        "--no-install",
+        "--prefix",
+        str(prefix),
+        "jscpd",
+        "--min-tokens",
+        str(config.min_tokens),
+        "--reporters",
+        "json",
+        "--output",
+        str(out),
+        "--absolute",
+        "--silent",
+        "--ignore",
+        _ignore(config),
+    ]
+    formats = _formats(config.languages)
+    if formats:
+        args.extend(["--format", ",".join(formats)])
+    args.extend(str(path) for path in roots)
+    return args
+
+
+def _spawn(cwd: Path, prefix: Path, args: list[str]) -> subprocess.CompletedProcess[str]:
+    env = {key: value for key, value in os.environ.items() if not key.startswith("PYTEST_")}
+    bindir = prefix / "node_modules" / ".bin"
+    env["PATH"] = str(bindir) + os.pathsep + env.get("PATH", "")
+    return subprocess.run(
+        args,
+        cwd=cwd,
+        capture_output=True,
+        text=True,
+        stdin=subprocess.DEVNULL,
+        env=env,
+    )
+
+
+def _read_report(out: Path, completed: subprocess.CompletedProcess[str]) -> str:
+    report = out / "jscpd-report.json"
+    if report.is_file():
         return report.read_text()
+    detail = (completed.stderr or completed.stdout or "jscpd não gravou o JSON").strip()
+    raise ToolError(detail)
 
 
 def _formats(languages: list[str]) -> list[str]:
@@ -125,8 +163,7 @@ def _ignore(config: Config) -> str:
     for name in [*config.exclude, *_ALWAYS_IGNORE]:
         if name not in names:
             names.append(name)
-    globs = [f"**/{name}/**" for name in names]
-    return ",".join(globs)
+    return ",".join(f"**/{name}/**" for name in names)
 
 
 def _relativize(cwd: Path, clone: Clone) -> Clone:
@@ -146,12 +183,15 @@ def _relativize(cwd: Path, clone: Clone) -> Clone:
 
 def _relative(cwd: Path, name: str) -> str:
     path = Path(name)
-    if path.is_absolute():
-        try:
-            path = path.relative_to(cwd.resolve())
-        except ValueError:
-            return path.as_posix()
-    text = path.as_posix()
+    if not path.is_absolute():
+        return _strip_dot(path.as_posix())
+    try:
+        return path.relative_to(cwd.resolve()).as_posix()
+    except ValueError:
+        return path.as_posix()
+
+
+def _strip_dot(text: str) -> str:
     if text.startswith("./"):
         return text[2:]
     return text
@@ -166,9 +206,8 @@ def _stays_inside(root: Path, relative: str) -> bool:
     path = Path(relative)
     if path.is_absolute():
         return False
-    resolved = (root / path).resolve()
     try:
-        resolved.relative_to(root)
+        (root / path).resolve().relative_to(root)
     except ValueError:
         return False
     return True
