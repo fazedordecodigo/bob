@@ -5,8 +5,13 @@ from __future__ import annotations
 from pathlib import Path
 
 import bob_quality.mutate as mutate_module
+from bob_quality.adapters.mutmut import MutmutParseError, mutants_from_raw
 from bob_quality.models import CyclomaticFunction
 from bob_quality.mutate import _run_and_parse
+from bob_quality.tools import ToolError
+
+VERSIONS = {"mutmut": "3.8.0"}
+WAIVERS = [{"id": "keep-me", "reason": "porque"}]
 
 RESULTS = """\
     app.weak.x_classify__mutmut_1: survived
@@ -24,28 +29,46 @@ SHOW = """\
 """
 
 
-def test_show_runs_only_for_survivors_and_timeouts(monkeypatch) -> None:
-    shown: list[str] = []
-
-    def fake_show(_cwd, mutant_id: str) -> str:
-        shown.append(mutant_id)
-        return SHOW
-
-    monkeypatch.setattr(mutate_module, "run_mutmut", lambda *_args, **_kwargs: None)
-    monkeypatch.setattr(mutate_module, "mutmut_results", lambda _cwd: RESULTS)
-    monkeypatch.setattr(mutate_module, "mutmut_show", fake_show)
-    remutate = [
+def _changed() -> list[CyclomaticFunction]:
+    return [
         CyclomaticFunction(
             file="src/app/weak.py", name="classify", start_line=1, end_line=4, cc=1
-        )
+        ),
+        CyclomaticFunction(file="src/app/safe.py", name="add", start_line=1, end_line=3, cc=1),
     ]
 
-    parsed, failed = _run_and_parse(Path("."), remutate, None, {}, [])
+
+def test_show_runs_only_for_survivors_and_timeouts(monkeypatch, tmp_path: Path) -> None:
+    shown: list[tuple[Path, str]] = []
+    calls: dict[str, object] = {}
+
+    def fake_run(cwd: Path, patterns: list[str], max_workers: int | None) -> None:
+        calls["run"] = (cwd, list(patterns), max_workers)
+
+    def fake_results(cwd: Path) -> str:
+        calls["results"] = cwd
+        return RESULTS
+
+    def fake_show(cwd: Path, mutant_id: str) -> str:
+        shown.append((cwd, mutant_id))
+        return SHOW
+
+    monkeypatch.setattr(mutate_module, "run_mutmut", fake_run)
+    monkeypatch.setattr(mutate_module, "mutmut_results", fake_results)
+    monkeypatch.setattr(mutate_module, "mutmut_show", fake_show)
+
+    parsed, failed = _run_and_parse(tmp_path, _changed(), 2, VERSIONS, WAIVERS)
 
     assert failed is None
+    assert calls["run"] == (
+        tmp_path,
+        ["app.weak.x_classify__mutmut*", "app.safe.x_add__mutmut*"],
+        2,
+    )
+    assert calls["results"] == tmp_path
     assert shown == [
-        "app.weak.x_classify__mutmut_1",
-        "app.weak.x_classify__mutmut_3",
+        (tmp_path, "app.weak.x_classify__mutmut_1"),
+        (tmp_path, "app.weak.x_classify__mutmut_3"),
     ]
     by_id = {item.id: item for item in parsed}
     assert by_id["app.weak.x_classify__mutmut_1"].status == "survived"
@@ -56,3 +79,43 @@ def test_show_runs_only_for_survivors_and_timeouts(monkeypatch) -> None:
     assert by_id["app.weak.x_classify__mutmut_3"].operator == "old -> new"
     assert by_id["app.weak.x_classify__mutmut_4"].status == "no_coverage"
     assert by_id["app.weak.x_classify__mutmut_4"].operator == ""
+
+
+def test_a_tool_failure_keeps_the_message_and_the_waivers(monkeypatch, tmp_path: Path) -> None:
+    def boom(_cwd: Path, _patterns: list[str], _max_workers: int | None) -> None:
+        raise ToolError("tool broke")
+
+    monkeypatch.setattr(mutate_module, "run_mutmut", boom)
+
+    parsed, failed = _run_and_parse(tmp_path, _changed(), 2, VERSIONS, WAIVERS)
+
+    assert parsed == []
+    assert failed is not None
+    assert failed.result.reason == "tool broke"
+    assert failed.exit_code == 4
+    assert failed.versions == VERSIONS
+    assert failed.waivers == WAIVERS
+
+
+def test_a_bad_diff_keeps_the_message_and_the_waivers(monkeypatch, tmp_path: Path) -> None:
+    seen = {"n": 0}
+
+    def fake_parse(raw: str, shows: dict[str, str]):
+        seen["n"] += 1
+        if seen["n"] == 2:
+            raise MutmutParseError("diff ilegível")
+        return mutants_from_raw(raw, shows)
+
+    monkeypatch.setattr(mutate_module, "run_mutmut", lambda *_args: None)
+    monkeypatch.setattr(mutate_module, "mutmut_results", lambda _cwd: RESULTS)
+    monkeypatch.setattr(mutate_module, "mutmut_show", lambda _cwd, _mutant_id: SHOW)
+    monkeypatch.setattr(mutate_module, "mutants_from_raw", fake_parse)
+
+    parsed, failed = _run_and_parse(tmp_path, _changed(), 2, VERSIONS, WAIVERS)
+
+    assert parsed == []
+    assert failed is not None
+    assert failed.result.reason == "diff ilegível"
+    assert failed.exit_code == 4
+    assert failed.versions == VERSIONS
+    assert failed.waivers == WAIVERS
