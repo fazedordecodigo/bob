@@ -7,23 +7,46 @@ description: "Resumir `.bob/report.md` no corpo do PR. Use ao escrever ou atuali
 
 Companheira da `pr` (`skills/vendor/mattpocock/engineering/pr/SKILL.md`). Mantenha o molde Summary / Evidence / Merge Danger. O relatório do bob entra em Evidence.
 
-Fonte do formato: `docs/SPEC.md`. Rode `bob-check` antes, para existirem `.bob/report.md` e `.bob/report.json` (`schema_version: 1`).
+Fonte do formato: `docs/SPEC.md`. Rode `bob check` (skill `bob-check`) antes, para existirem `.bob/report.md` e `.bob/report.json` (`schema_version: 1`).
 
 ## Quando
 
 - Escrever o corpo do PR com `pr`
 - Atualizar um PR depois de um novo `bob check`
 
+## Interface da CLI
+
+A mesma superfície de `docs/SPEC.md`, citada à risca:
+
+```
+bob check   [--base REF] [--gates crap,dry,deps,mutate] [--config bob.yaml] [--format md|json|both] [--out .bob/]
+bob crap    [--base REF] [--threshold N] [--coverage-file PATH]
+bob dry     [--base REF]
+bob deps
+bob mutate  [--base REF] [--since-last-run] [--max-workers N]
+bob report  [--in .bob/] [--out .bob/report.md]
+bob waive   <mutant-id|function> --reason "texto de uma linha"
+bob doctor  # verifica ferramentas e versões instaladas
+```
+
+- `0` passou
+- `1` algum gate falhou (limite violado)
+- `2` baseline quebrado (testes falham antes de medir)
+- `3` mutante sobrevivente sem waiver
+- `4` erro de configuração ou ferramenta ausente
+
 ## Passos
 
-1. Confirmar `.bob/report.md`. Se faltar, `bob check --format both` ou `bob report  [--in .bob/] [--out .bob/report.md]`.
-2. Ler o relatório na ordem da spec (abaixo).
+1. Confirmar `.bob/report.md`. Se faltar, gerar com `bob check --format both` (ou `bob report --in .bob/ --out .bob/report.md` se `.bob/` já tiver o JSON). Feito quando `.bob/report.md` existe.
+2. Ler o relatório na ordem da spec (abaixo). Feito quando as oito seções foram lidas.
 3. Colocar os vereditos e **Onde focar o review** em Evidence (antes/depois: último `bob check` que falhou vs a corrida que passou).
 4. Apontar o caminho `.bob/report.md` para a página completa. O corpo do PR fica o resumo de uma página.
 
-Conclusão: o PR tem vereditos, a lista de foco e o caminho para `.bob/report.md`.
+Conclusão da skill: o PR tem vereditos, a lista de foco e o caminho para `.bob/report.md`.
 
 ## Formato do relatório
+
+Lista de `docs/SPEC.md` (fonte):
 
 1. Cabeçalho: commit, base, data, versões das ferramentas.
 2. Veredito por gate: ✅ passou / ⚠️ aviso / ❌ falhou / ⏭️ não executado (com motivo).

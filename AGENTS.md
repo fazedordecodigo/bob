@@ -4,10 +4,10 @@ Plugin de qualidade: fluxo de spec do Pocock + gates `bob check`.
 
 ## Skills
 
-- **bob-check** (`skills/bob-check/SKILL.md`): run `bob check`, read the JSON, iterate until exit 0.
-- **review-report** (`skills/review-report/SKILL.md`): fold `.bob/report.md` into the PR body; companion to `pr`.
-- **Pocock** (`skills/vendor/mattpocock/`): MIT. `grill-me` → `to-spec` → `to-tickets` → `implement-spec` / `tdd` → `code-review`. Source and license: `NOTICE`.
+- **bob-check** (`skills/bob-check/SKILL.md`): ao verificar um diff ou quando um gate falhar.
+- **review-report** (`skills/review-report/SKILL.md`): ao escrever o PR depois de `bob check`.
+- **Pocock** (`skills/vendor/mattpocock/`): `grill-me` → `to-spec` → `to-tickets` → `implement-spec` / `tdd` → `code-review`. MIT: `NOTICE`.
 
 ## Check
 
-`bob check` is the gate. Local hook: `crap,dry,deps`. CI: all gates. Exit 0 is the only pass. CLI surface: `docs/SPEC.md`.
+`bob check`. Superfície e exit codes: `docs/SPEC.md`.

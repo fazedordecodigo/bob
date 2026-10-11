@@ -1,6 +1,6 @@
 ---
 name: bob-check
-description: "Rodar `bob check`, ler o JSON e iterar até exit 0. Use ao verificar um diff, antes de abrir ou atualizar um PR, depois de mudar código ou testes, ou quando um gate falhar."
+description: "Rodar `bob check`, ler o JSON e iterar até exit 0. Use ao verificar um diff, antes de abrir ou atualizar um PR, ou quando um gate falhar."
 ---
 
 # bob-check
@@ -32,6 +32,9 @@ bob doctor  # verifica ferramentas e versões instaladas
 
 Por padrão, `check` no hook local executa `crap,dry,deps`; no CI executa todos.
 
+- Hook local: `bob check --gates crap,dry,deps`
+- CI: `bob check` (todos os gates, inclusive `mutate`)
+
 ## Exit codes
 
 - `0` passou
@@ -44,21 +47,16 @@ Por padrão, `check` no hook local executa `crap,dry,deps`; no CI executa todos.
 
 `.bob/report.json` (`schema_version: 1`) espelha `.bob/report.md`.
 
-Veredito por gate: ✅ passou / ⚠️ aviso / ❌ falhou / ⏭️ não executado (com motivo). Só ✅ conta como passou. ⏭️ leva o motivo. Clones novos são ⚠️. Violação de dependência é ❌.
+Veredito por gate: ✅ passou / ⚠️ aviso / ❌ falhou / ⏭️ não executado (com motivo). Exit `0` é o passe do check. ⚠️ (clones novos) não falha. ⏭️ fica ⏭️ com motivo. Violação de dependência é ❌.
 
 Cada linha acionável traz função, arquivo:linha, métrica e limite.
 
 ## Iterar
 
-Conclusão: `bob check` sai com `0`.
+Conclusão da skill: `bob check` sai com `0`.
 
-1. Rodar `bob check --format both` com o `--base` do PR.
-2. Exit `1`: ajustar a função ou arquivo:linha até a métrica caber no limite. Repetir.
-3. Exit `2`: fazer os testes passarem (baseline). A medição começa depois disso. Repetir.
-4. Exit `3`: matar o mutante com teste mais forte, ou `bob waive <mutant-id|function> --reason "texto de uma linha"`. Waiver vale só com motivo de uma linha. Repetir.
-5. Exit `4`: `bob doctor` e corrigir ferramenta ou config. Repetir.
-
-## Local e CI
-
-- Hook local: `bob check --gates crap,dry,deps`
-- CI: `bob check` (todos os gates, inclusive `mutate`)
+1. Rodar `bob check --format both` com o `--base` do PR. Feito quando o processo devolve um exit code e `.bob/report.json` existe.
+2. Exit `1`: ajustar a função ou arquivo:linha até a métrica caber no limite. Feito quando o check é reexecutado.
+3. Exit `2`: fazer os testes passarem (baseline). A medição começa depois disso. Feito quando o check é reexecutado.
+4. Exit `3`: matar o mutante com teste mais forte, ou `bob waive <mutant-id|function> --reason "texto de uma linha"`. Waiver vale só com motivo de uma linha. Feito quando o check é reexecutado.
+5. Exit `4`: `bob doctor` e corrigir ferramenta ou config. Feito quando o check é reexecutado.
