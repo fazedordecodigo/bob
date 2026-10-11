@@ -64,6 +64,7 @@ def test_ci_runs_pytest_on_pull_requests_and_pushes_to_main() -> None:
     _assert_only_pinned_actions(doc)
     dumped = CI.read_text(encoding="utf-8")
     assert "pytest" in dumped
+    assert "npm ci" in dumped
     assert "3.10" in dumped
     assert "3.12" in dumped
     assert "pull-requests:" not in dumped
