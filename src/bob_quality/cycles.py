@@ -45,16 +45,11 @@ def _walk(
 
 
 def _inbound(nodes: set[str], edges: dict[str, list[str]]) -> dict[str, list[str]]:
-    inbound = {node: [] for node in nodes}
+    inbound: dict[str, list[str]] = {node: [] for node in nodes}
     for origin, destinations in edges.items():
-        _link(inbound, origin, destinations)
-    return inbound
-
-
-def _link(inbound: dict[str, list[str]], origin: str, destinations: list[str]) -> None:
-    for destination in destinations:
-        if destination in inbound and origin in inbound:
+        for destination in destinations:
             inbound[destination].append(origin)
+    return inbound
 
 
 def _assign(order: list[str], inbound: dict[str, list[str]]) -> list[frozenset[str]]:
@@ -84,6 +79,6 @@ def _collect(
             continue
         seen.add(current)
         component.add(current)
-        for nxt in inbound.get(current, ()):
+        for nxt in inbound[current]:
             if nxt not in seen:
                 stack.append(nxt)

@@ -389,9 +389,10 @@ def _ini_roots(path: Path) -> list[str]:
     parser.read(path, encoding=sys.getdefaultencoding())
     if not parser.has_section("importlinter"):
         return []
-    raw = parser.get("importlinter", "root_packages", fallback="")
+    options = dict(parser.items("importlinter"))
+    raw = options.get("root_packages", "")
     if not raw.strip():
-        raw = parser.get("importlinter", "root_package", fallback="")
+        raw = options.get("root_package", "")
     return [part.strip() for part in raw.replace(",", "\n").splitlines() if part.strip()]
 
 

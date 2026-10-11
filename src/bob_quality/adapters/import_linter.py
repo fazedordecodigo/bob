@@ -19,6 +19,7 @@ _SKIP_HEADINGS = {"Contracts", "Broken contracts"}
 class _ParseState:
     rule: str = "import-linter"
     package: str = ""
+    previous: str = ""
     found: list[DepViolation] = field(default_factory=list)
 
 
@@ -33,17 +34,16 @@ def broken_contract_name(raw: str) -> str | None:
 
 
 def parse_import_linter(raw: str) -> list[DepViolation]:
-    lines = _ANSI.sub("", raw).splitlines()
     state = _ParseState()
-    for index, line in enumerate(lines):
-        _consume(state, lines, index, line)
+    for line in _ANSI.sub("", raw).splitlines():
+        _consume(state, line.strip())
     return unique_violations(state.found)
 
 
-def _consume(state: _ParseState, lines: list[str], index: int, line: str) -> None:
-    stripped = line.strip()
-    if _is_heading(lines, index) and stripped not in _SKIP_HEADINGS:
-        state.rule = stripped
+def _consume(state: _ParseState, stripped: str) -> None:
+    if _is_underline(stripped) and state.previous and state.previous not in _SKIP_HEADINGS:
+        state.rule = state.previous
+    state.previous = stripped
     package = _cycle_package(stripped)
     if package:
         state.package = package
@@ -52,11 +52,8 @@ def _consume(state: _ParseState, lines: list[str], index: int, line: str) -> Non
         state.found.append(DepViolation(edge[0], edge[1], state.rule, False))
 
 
-def _is_heading(lines: list[str], index: int) -> bool:
-    if index + 1 >= len(lines):
-        return False
-    underline = lines[index + 1].strip()
-    return bool(underline) and set(underline) == {"-"}
+def _is_underline(line: str) -> bool:
+    return bool(line) and set(line) == {"-"}
 
 
 def _cycle_package(line: str) -> str:
