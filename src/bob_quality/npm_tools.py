@@ -96,7 +96,7 @@ def _cache_ready(cached: Path, source: Path) -> bool:
 
 
 def install_npm_dependencies() -> int:
-    """Roda `npm ci --prefix` no pacote instalado; se o sistema de arquivos negar, no cache do usuário."""
+    """Roda `npm ci --prefix` no pacote; se o sistema de arquivos negar, no cache do usuário."""
     source = _install_source()
     if source is None:
         return 4
