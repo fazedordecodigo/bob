@@ -9,7 +9,7 @@ from pathlib import Path
 
 from jsonschema import Draft202012Validator
 
-from helpers import SAFE_CHANGE, TS_SAFE_CHANGE, commit_on_branch, init_mixed_repo, run_bob
+from helpers import RISKY_SOURCE, SAFE_CHANGE, TS_SAFE_CHANGE, commit_on_branch, init_mixed_repo, run_bob
 
 SCHEMA = json.loads(
     (Path(__file__).resolve().parents[1] / "src/bob_quality/schemas/report_v1.json").read_text()
@@ -79,3 +79,43 @@ def test_mixed_repo_without_node_measures_python_and_skips_typescript(
     assert "⚠️ `crap`: aviso (TypeScript pulado:" in markdown
     assert "src/app/safe.py" in markdown
     assert "src/safe.ts" not in markdown
+
+
+def test_mixed_repo_without_node_keeps_the_skip_when_python_crap_fails(
+    tmp_path: Path,
+) -> None:
+    """O TypeScript pulado continua no relatório quando o CRAP medido falha.
+
+    O exit code é 1, o dos gates que rodaram. O motivo cita o pulo.
+    """
+    repo = init_mixed_repo(tmp_path / "repo")
+    commit_on_branch(repo, "both", "src/app/risky.py", RISKY_SOURCE, "add untested messy")
+    bindir = tmp_path / "bin"
+    bindir.mkdir()
+    os.symlink(shutil.which("git"), bindir / "git")
+    env = {**os.environ, "PATH": str(bindir)}
+
+    result = subprocess.run(
+        [sys.executable, "-m", "bob_quality", "check", "--base", "main", "--gates", "crap"],
+        cwd=repo,
+        capture_output=True,
+        text=True,
+        env=env,
+    )
+    payload = json.loads((repo / ".bob" / "report.json").read_text())
+    markdown = (repo / ".bob" / "report.md").read_text()
+    crap = next(gate for gate in payload["gates"] if gate["name"] == "crap")
+    messy = next(item for item in payload["top_crap"] if item["name"] == "messy")
+
+    assert result.returncode == 1, result.stderr
+    assert payload["exit_code"] == 1
+    assert crap["status"] == "failed"
+    assert crap["reason"] == (
+        "CRAP >= 10.0: messy@src/app/risky.py:1; "
+        "TypeScript pulado: Node ausente: instale Node.js para medir TypeScript (c8 e vitest via npx)"
+    )
+    assert messy["lang"] == "python"
+    assert messy["cc"] == 4
+    assert messy["coverage"] == 0.0
+    assert messy["crap"] == 20.0
+    assert "❌ `crap`: falhou (CRAP >= 10.0: messy@src/app/risky.py:1; TypeScript pulado:" in markdown

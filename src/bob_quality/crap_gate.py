@@ -40,8 +40,12 @@ def run_crap_gate(
             if failure is not None:
                 return failure
     verdict, code = crap_verdict(metrics, max_crap, config.crap_scope)
-    if typescript_skip and verdict.status == "passed":
-        verdict = GateResult("crap", "warn", f"TypeScript pulado: {typescript_skip}")
+    if typescript_skip:
+        note = f"TypeScript pulado: {typescript_skip}"
+        if verdict.status == "passed":
+            verdict = GateResult("crap", "warn", note)
+        else:
+            verdict = GateResult("crap", verdict.status, f"{verdict.reason}; {note}")
     return verdict, metrics, code, versions
 
 
