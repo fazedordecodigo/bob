@@ -10,7 +10,14 @@ from pathlib import Path
 
 from bob_quality.cli import main
 
-from helpers import SAFE_CHANGE, commit_on_branch, init_python_repo, init_ts_repo
+from helpers import (
+    SAFE_CHANGE,
+    TS_SAFE_CHANGE,
+    commit_on_branch,
+    commit_on_main,
+    init_python_repo,
+    init_ts_repo,
+)
 
 LEFT = (Path(__file__).parent / "fixtures" / "python_app" / "cases" / "cycle_left.py").read_text()
 RIGHT = (Path(__file__).parent / "fixtures" / "python_app" / "cases" / "cycle_right.py").read_text()
@@ -78,6 +85,33 @@ def test_python_cycle_fails_without_import_linter_config(tmp_path: Path) -> None
     assert deps["status"] == "failed"
     assert "## Violações e ciclos de dependência" in markdown
     assert "`app.right → app.left` (Proibido ciclo de dependência)" in markdown
+
+
+def test_python_cycle_already_on_main_is_information_and_does_not_fail(
+    tmp_path: Path,
+) -> None:
+    repo = init_python_repo(tmp_path / "repo")
+    commit_on_main(repo, "src/app/left.py", LEFT, "old left")
+    commit_on_main(repo, "src/app/right.py", RIGHT, "old right")
+    commit_on_branch(repo, "safe-change", "src/app/safe.py", SAFE_CHANGE, "touch add")
+
+    code = _invoke(repo, "deps", "--base", "main")
+    payload, markdown = _deps(repo)
+    deps = next(gate for gate in payload["gates"] if gate["name"] == "deps")
+
+    assert code == 0, markdown
+    assert deps["status"] == "passed"
+    assert payload["dependencies"] == []
+    assert payload["old_dependencies"] == [
+        {
+            "origin": "app.right",
+            "destination": "app.left",
+            "rule": "Proibido ciclo de dependência",
+        }
+    ]
+    assert "`app.right → app.left` (Proibido ciclo de dependência)" in markdown
+    assert "fora do diff; não bloqueia" in markdown
+    assert "❌ `deps`" not in markdown
 
 
 def test_check_gates_deps_reports_the_same_python_cycle(tmp_path: Path) -> None:
@@ -151,6 +185,31 @@ def test_typescript_cycle_fails_without_cruiser_config(tmp_path: Path) -> None:
     assert "`src/left.ts → src/right.ts`" in markdown
     assert "`src/right.ts → src/left.ts`" in markdown
     assert payload["tool_versions"]["dependency-cruiser"] == "18.5.0"
+
+
+def test_typescript_cycle_already_on_main_is_information_and_does_not_fail(
+    tmp_path: Path,
+) -> None:
+    repo = init_ts_repo(tmp_path / "repo")
+    commit_on_main(repo, "src/left.ts", LEFT_TS, "old left")
+    commit_on_main(repo, "src/right.ts", RIGHT_TS, "old right")
+    commit_on_branch(repo, "safe-change", "src/safe.ts", TS_SAFE_CHANGE, "touch add")
+
+    code = _invoke(repo, "deps", "--base", "main")
+    payload, markdown = _deps(repo)
+    deps = next(gate for gate in payload["gates"] if gate["name"] == "deps")
+    old = {
+        (item["origin"], item["destination"])
+        for item in payload["old_dependencies"]
+    }
+
+    assert code == 0, markdown
+    assert deps["status"] == "passed"
+    assert payload["dependencies"] == []
+    assert ("src/left.ts", "src/right.ts") in old
+    assert ("src/right.ts", "src/left.ts") in old
+    assert "fora do diff; não bloqueia" in markdown
+    assert "❌ `deps`" not in markdown
 
 
 def test_declared_cruiser_rule_fails_when_broken(tmp_path: Path) -> None:

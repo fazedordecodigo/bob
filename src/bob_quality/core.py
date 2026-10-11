@@ -102,10 +102,11 @@ def files_by_risk(metrics: list[FunctionMetric]) -> list[dict[str, object]]:
 
 
 def deps_verdict(violations: list[DepViolation]) -> tuple[GateResult, int]:
-    """Qualquer violação de dependência falha o gate."""
-    if not violations:
+    """Só a aresta com origem ou destino no diff bloqueia."""
+    blocking = [item for item in violations if item.in_diff]
+    if not blocking:
         return GateResult("deps", "passed"), PASSED
-    first = violations[0]
+    first = blocking[0]
     return (
         GateResult("deps", "failed", f"{first.origin} → {first.destination}"),
         GATE_FAILED,

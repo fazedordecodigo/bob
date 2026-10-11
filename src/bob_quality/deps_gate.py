@@ -16,6 +16,7 @@ from bob_quality.adapters.dependency_cruiser import parse_dependency_cruiser
 from bob_quality.adapters.import_linter import broken_contract_name, parse_import_linter
 from bob_quality.config import Config
 from bob_quality.core import deps_verdict, unique_violations
+from bob_quality.deps_typescript_skip import collect_typescript_deps, note_typescript_skipped
 from bob_quality.exit_codes import CONFIG_OR_TOOL, GATE_FAILED
 from bob_quality.models import DepViolation, GateResult
 from bob_quality.npm_tools import node_missing_message, npm_prefix
@@ -46,20 +47,61 @@ class _Package:
 def run_deps_gate(
     cwd: Path,
     config: Config,
+    changed_files: set[str] | None = None,
 ) -> tuple[GateResult, int, dict[str, str], list[DepViolation]]:
     violations: list[DepViolation] = []
     versions: dict[str, str] = {}
+    python_measured = "python" in config.languages
     try:
-        if "python" in config.languages:
+        if python_measured:
             violations.extend(_python_violations(cwd, config, versions))
-        if "typescript" in config.languages:
-            violations.extend(_typescript_violations(cwd, config, versions))
+        skip = collect_typescript_deps(
+            enabled="typescript" in config.languages,
+            python_measured=python_measured,
+            measure=lambda: _typescript_violations(cwd, config, versions),
+            sink=violations,
+        )
     except ToolError as exc:
         return GateResult("deps", "not_run", str(exc)), CONFIG_OR_TOOL, versions, []
     except UnparsedBreak as exc:
         return GateResult("deps", "failed", exc.reason), GATE_FAILED, versions, []
-    verdict, code = deps_verdict(violations)
-    return verdict, code, versions, violations
+    marked = _mark_diff(violations, changed_files or set())
+    verdict, code = deps_verdict(marked)
+    verdict, code = note_typescript_skipped(verdict, code, skip)
+    return verdict, code, versions, marked
+
+
+def _mark_diff(violations: list[DepViolation], changed_files: set[str]) -> list[DepViolation]:
+    return [
+        DepViolation(item.origin, item.destination, item.rule, _edge_in_diff(item, changed_files))
+        for item in violations
+    ]
+
+
+def _edge_in_diff(item: DepViolation, changed_files: set[str]) -> bool:
+    return _endpoint_in_diff(item.origin, changed_files) or _endpoint_in_diff(
+        item.destination, changed_files
+    )
+
+
+def _endpoint_in_diff(endpoint: str, changed_files: set[str]) -> bool:
+    path = endpoint.replace("\\", "/")
+    if _path_in_diff(path, changed_files):
+        return True
+    return _module_in_diff(path, changed_files)
+
+
+def _path_in_diff(path: str, changed_files: set[str]) -> bool:
+    return any(changed == path or changed.endswith("/" + path) for changed in changed_files)
+
+
+def _module_in_diff(module: str, changed_files: set[str]) -> bool:
+    if "/" in module:
+        return False
+    as_path = module.replace(".", "/")
+    return _path_in_diff(f"{as_path}.py", changed_files) or _path_in_diff(
+        f"{as_path}/__init__.py", changed_files
+    )
 
 
 def _python_violations(

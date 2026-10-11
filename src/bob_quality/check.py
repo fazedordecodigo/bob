@@ -13,7 +13,7 @@ from bob_quality.deps_gate import run_deps_gate
 from bob_quality.diff import GitError, changed_lines, current_commit
 from bob_quality.exit_codes import CONFIG_OR_TOOL, PASSED
 from bob_quality.models import DepViolation, FunctionMetric, GateResult, Report
-from bob_quality.report import metric_row, violation_row, write_report
+from bob_quality.report import metric_row, violation_rows, write_report
 
 DEFAULT_GATES = ("crap", "dry", "deps")
 
@@ -140,7 +140,8 @@ def _report(context: _Context, applied: _Applied) -> Report:
         focus=files_by_risk(metrics),
         top_crap=[metric_row(item) for item in top_changed_crap(metrics)],
         old_debt=[metric_row(item) for item in informational_debt(metrics, applied.max_crap)],
-        dependencies=[violation_row(item) for item in applied.violations],
+        dependencies=violation_rows(applied.violations, in_diff=True),
+        old_dependencies=violation_rows(applied.violations, in_diff=False),
         reproduce=context.command,
         exit_code=applied.exit_code,
     )
@@ -237,7 +238,9 @@ def _apply_deps(
     versions: dict[str, str],
     exit_code: int,
 ) -> int:
-    result, code, gate_versions, found = run_deps_gate(call.cwd, call.config)
+    result, code, gate_versions, found = run_deps_gate(
+        call.cwd, call.config, set(call.diff_lines)
+    )
     gate_results.append(result)
     violations.extend(found)
     versions.update(gate_versions)

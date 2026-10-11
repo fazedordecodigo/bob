@@ -38,6 +38,7 @@ def to_json(report: Report) -> dict[str, object]:
         "top_crap": report.top_crap,
         "old_debt": report.old_debt,
         "dependencies": report.dependencies,
+        "old_dependencies": report.old_dependencies,
         "reproduce": report.reproduce,
         "exit_code": report.exit_code,
     }
@@ -110,6 +111,7 @@ def _old_debt_lines(report: Report) -> list[str]:
 def _dependency_lines(report: Report) -> list[str]:
     lines = ["", "## Violações e ciclos de dependência", ""]
     lines.extend(_dependency_items(report))
+    lines.extend(_old_dependency_lines(report))
     return lines
 
 
@@ -133,6 +135,19 @@ def _gate_named(report: Report, name: str) -> GateResult | None:
         if gate.name == name:
             return gate
     return None
+
+
+def _old_dependency_lines(report: Report) -> list[str]:
+    if not report.old_dependencies:
+        return []
+    lines = ["", "## Informação (dependências fora do diff)", ""]
+    for item in report.old_dependencies:
+        lines.append(f"{_dependency_item(item)} (fora do diff; não bloqueia)")
+    return lines
+
+
+def violation_rows(items: list[DepViolation], *, in_diff: bool) -> list[dict[str, object]]:
+    return [violation_row(item) for item in items if item.in_diff is in_diff]
 
 
 def violation_row(item: DepViolation) -> dict[str, object]:
