@@ -316,10 +316,11 @@ def _enable_strip_types(env: dict[str, str], user_config: Path) -> None:
 
 
 def _needs_strip_types(user_config: Path, env: dict[str, str]) -> bool:
-    options = env.get("NODE_OPTIONS") or ""
+    raw = env.get("NODE_OPTIONS")
+    options = raw.split() if isinstance(raw, str) else []
     return (
         user_config.suffix in _TYPESCRIPT_CONFIG_SUFFIXES
-        and _STRIP_TYPES_FLAG not in options.split()
+        and _STRIP_TYPES_FLAG not in options
     )
 
 
