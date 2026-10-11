@@ -50,6 +50,13 @@ def npm_ci_command(prefix: Path) -> str:
     return f"npm ci --prefix {prefix}"
 
 
+def npm_setup_hint(prefix: Path) -> str:
+    """Comando para instalar as deps npm. Diretório travado: `bob doctor --install`."""
+    if _can_write(prefix):
+        return npm_ci_command(prefix)
+    return "bob doctor --install"
+
+
 def npm_prefix() -> Path:
     """Raiz do package.json fixado do plugin (não o repo alvo).
 
@@ -156,7 +163,7 @@ def installed_npm_version(prefix: Path, package: str) -> str:
     pkg = prefix / "node_modules" / package / "package.json"
     if not pkg.is_file():
         raise ToolError(
-            "dependências npm do plugin ausentes: " + npm_ci_command(prefix)
+            "dependências npm do plugin ausentes: " + npm_setup_hint(prefix)
         )
     try:
         return str(json.loads(pkg.read_text())["version"])

@@ -11,7 +11,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from bob_quality.exit_codes import CONFIG_OR_TOOL, PASSED
-from bob_quality.npm_tools import install_npm_dependencies, npm_ci_command, npm_prefix
+from bob_quality.npm_tools import install_npm_dependencies, npm_prefix, npm_setup_hint
 from bob_quality.tools import ToolError
 
 _VERSION = re.compile(r"\d+\.\d+(?:\.\d+)?")
@@ -85,7 +85,7 @@ def run_doctor(install: bool = False) -> int:
 
 def _npm_ci_hint() -> str:
     try:
-        return npm_ci_command(npm_prefix())
+        return npm_setup_hint(npm_prefix())
     except ToolError as exc:
         return str(exc)
 

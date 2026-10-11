@@ -96,7 +96,14 @@ def test_doctor_install_uses_user_cache_when_package_dir_is_not_writable(tmp_pat
     env["HOME"] = str(tmp_path / "home")
     env["XDG_CACHE_HOME"] = str(tmp_path / "cache")
     env.pop("PYTHONPATH", None)
+    failing = init_ts_repo(tmp_path / "failing")
+    commit_on_branch(failing, "risky", "src/messy.ts", TS_RISKY_SOURCE, "add untested messy")
     try:
+        before = _bob(bob, env, failing, "check", "--base", "main", "--gates", "crap")
+        report = (failing / ".bob" / "report.md").read_text() if (failing / ".bob" / "report.md").is_file() else ""
+        shown = before.stdout + before.stderr + report
+        assert before.returncode == 4, shown
+        assert "bob doctor --install" in shown
         result = _bob(bob, env, tmp_path, "doctor", "--install")
         assert result.returncode == 0, result.stdout + result.stderr
         cache = Path(env["XDG_CACHE_HOME"]) / "bob-quality"
