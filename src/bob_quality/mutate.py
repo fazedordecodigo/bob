@@ -160,10 +160,11 @@ def _plan_functions(
     waivers: list[Waiver],
 ) -> _Plan:
     remutate, reuse = _split_functions(measured, diff_lines, cached, cwd, waivers)
+    by_key = {f"{item.file}::{item.name}": item for item in measured}
     return _Plan(
         remutate=remutate,
         reuse=reuse,
-        reused_mutants=apply_waivers(_mutants_from_cache(reuse), waivers),
+        reused_mutants=apply_waivers(_mutants_from_cache(reuse, by_key), waivers),
         remutated_labels=[f"{item.file}::{item.name}" for item in remutate],
         reused_labels=[key for key, _entry in reuse],
     )
@@ -336,17 +337,31 @@ def _read_cache(path: Path) -> dict[str, dict[str, object]]:
     return {str(key): value for key, value in functions.items() if isinstance(value, dict)}
 
 
-def _mutants_from_cache(reuse: list[tuple[str, dict[str, object]]]) -> list[Mutant]:
+def _mutants_from_cache(
+    reuse: list[tuple[str, dict[str, object]]],
+    functions: dict[str, CyclomaticFunction] | None = None,
+) -> list[Mutant]:
     mutants: list[Mutant] = []
-    for _key, entry in reuse:
+    for key, entry in reuse:
         rows = entry.get("mutants")
         if not isinstance(rows, list):
             continue
-        start = _cached_start(entry)
+        start = _reuse_start(key, entry, functions or {})
         for row in rows:
             if isinstance(row, dict) and isinstance(row.get("id"), str):
                 mutants.append(_mutant_from_row(row, start))
     return mutants
+
+
+def _reuse_start(
+    key: str, entry: dict[str, object], functions: dict[str, CyclomaticFunction]
+) -> int | None:
+    if entry.get("line_base") == "file":
+        return None
+    current = functions.get(key)
+    if current is not None and current.start_line > 0:
+        return current.start_line
+    return _cached_start(entry)
 
 
 def _cached_start(entry: dict[str, object]) -> int | None:

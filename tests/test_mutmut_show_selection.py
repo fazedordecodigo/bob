@@ -231,19 +231,27 @@ def test_a_cached_function_relative_line_becomes_the_file_line() -> None:
         "operator": "a -> b",
         "status": "killed",
     }
+    place = CyclomaticFunction(
+        file="src/bob_quality/mutate.py",
+        name="prepare_mutmut_workspace",
+        start_line=474,
+        end_line=484,
+        cc=2,
+    )
     mutants = _mutants_from_cache(
         [
-            ("noise", {"start_line": 474, "mutants": "não é lista"}),
+            ("noise", {"start_line": 10, "mutants": "não é lista"}),
             (
                 "src/bob_quality/mutate.py::prepare_mutmut_workspace",
                 {
-                    "start_line": 474,
+                    "start_line": 10,
                     "mutants": [kept, skipped_noise, blank_line, first_line, missing_fields],
                 },
             ),
             ("zero", {"start_line": 0, "mutants": [zero_start]}),
             ("text", {"start_line": "474", "mutants": [text_start]}),
-        ]
+        ],
+        {"src/bob_quality/mutate.py::prepare_mutmut_workspace": place},
     )
 
     assert [(item.id, item.line) for item in mutants] == [
