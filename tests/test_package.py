@@ -3,15 +3,24 @@
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 import sys
 import zipfile
 from pathlib import Path
 
+import pytest
+
 ROOT = Path(__file__).resolve().parents[1]
 
 
+def _skip_under_mutmut() -> None:
+    if os.environ.get("MUTANT_UNDER_TEST") or os.environ.get("BOB_SKIP_MUTMUT_DOGFOOD"):
+        pytest.skip("o build do wheel não participa da execução do mutmut")
+
+
 def test_sdist_and_wheel_pass_twine_check(tmp_path: Path) -> None:
+    _skip_under_mutmut()
     dist = tmp_path / "dist"
     build = subprocess.run(
         [sys.executable, "-m", "build", "--outdir", str(dist)],
@@ -36,6 +45,7 @@ def test_sdist_and_wheel_pass_twine_check(tmp_path: Path) -> None:
 
 def test_wheel_ships_npm_manifest_and_install_can_find_it(tmp_path: Path) -> None:
     """Uma instalação pip comum carrega o package.json das ferramentas npm."""
+    _skip_under_mutmut()
     dist = tmp_path / "dist"
     build = subprocess.run(
         [sys.executable, "-m", "build", "--wheel", "--outdir", str(dist)],

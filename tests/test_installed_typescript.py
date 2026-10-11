@@ -9,13 +9,21 @@ import sys
 import zipfile
 from pathlib import Path
 
+import pytest
+
 from helpers import TS_RISKY_SOURCE, TS_SAFE_CHANGE, commit_on_branch, init_ts_repo
 
 ROOT = Path(__file__).resolve().parents[1]
 _NPM_CI = re.compile(r"npm ci --prefix ([^)\s]+)")
 
 
+def _skip_under_mutmut() -> None:
+    if os.environ.get("MUTANT_UNDER_TEST") or os.environ.get("BOB_SKIP_MUTMUT_DOGFOOD"):
+        pytest.skip("o build do wheel não participa da execução do mutmut")
+
+
 def test_installed_wheel_checks_typescript_after_doctor_install(tmp_path: Path) -> None:
+    _skip_under_mutmut()
     dist = tmp_path / "dist"
     build = subprocess.run(
         [sys.executable, "-m", "build", "--wheel", "--outdir", str(dist)],
@@ -43,6 +51,7 @@ def test_installed_wheel_checks_typescript_after_doctor_install(tmp_path: Path) 
     env["HOME"] = str(tmp_path / "home")
     env["XDG_CACHE_HOME"] = str(tmp_path / "cache")
     env.pop("PYTHONPATH", None)
+    env["MUTANT_UNDER_TEST"] = ""
 
     failing = init_ts_repo(tmp_path / "failing")
     commit_on_branch(failing, "risky", "src/messy.ts", TS_RISKY_SOURCE, "add untested messy")
@@ -67,6 +76,7 @@ def test_installed_wheel_checks_typescript_after_doctor_install(tmp_path: Path) 
 
 
 def test_doctor_install_uses_user_cache_when_package_dir_is_not_writable(tmp_path: Path) -> None:
+    _skip_under_mutmut()
     dist = tmp_path / "dist"
     build = subprocess.run(
         [sys.executable, "-m", "build", "--wheel", "--outdir", str(dist)],
@@ -96,6 +106,7 @@ def test_doctor_install_uses_user_cache_when_package_dir_is_not_writable(tmp_pat
     env["HOME"] = str(tmp_path / "home")
     env["XDG_CACHE_HOME"] = str(tmp_path / "cache")
     env.pop("PYTHONPATH", None)
+    env["MUTANT_UNDER_TEST"] = ""
     failing = init_ts_repo(tmp_path / "failing")
     commit_on_branch(failing, "risky", "src/messy.ts", TS_RISKY_SOURCE, "add untested messy")
     try:
@@ -123,10 +134,13 @@ def test_doctor_install_uses_user_cache_when_package_dir_is_not_writable(tmp_pat
 
 
 def _bob(bob: Path, env: dict[str, str], repo: Path, *args: str) -> subprocess.CompletedProcess[str]:
+    child = dict(env)
+    # O trampoline do mutmut não acha source_paths fora do repo do plugin.
+    child["MUTANT_UNDER_TEST"] = ""
     return subprocess.run(
         [str(bob), *args],
         cwd=repo,
-        env=env,
+        env=child,
         capture_output=True,
         text=True,
     )

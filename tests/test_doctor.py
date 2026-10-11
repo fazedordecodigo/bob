@@ -72,6 +72,9 @@ def _run_doctor(cwd: Path, bin_dir: Path) -> subprocess.CompletedProcess[str]:
     env = os.environ.copy()
     env["PATH"] = str(bin_dir)
     env["PYTHONPATH"] = str(ROOT / "src")
+    # O trampoline do mutmut procura source_paths no cwd do subprocesso.
+    # O doctor roda num repo vazio; sem isto a coleta de stats morre.
+    env["MUTANT_UNDER_TEST"] = ""
     return subprocess.run(
         [sys.executable, "-m", "bob_quality", "doctor"],
         cwd=cwd,
