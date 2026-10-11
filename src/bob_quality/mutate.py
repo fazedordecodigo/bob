@@ -409,10 +409,11 @@ def _finish(
     visible = [item for item in mutants if item.status == "survived"]
     unwaived = [item for item in visible if not item.waiver]
     rows = [_mutant_row(item) for item in visible]
-    summary = {"remutated": remutated, "reused": reused}
+    uncovered = no_coverage_summary(mutants, [*remutated, *reused])
+    summary = {"remutated": remutated, "reused": reused, "no_coverage": uncovered}
     if not unwaived:
         return _outcome(
-            GateResult("mutate", "passed", None),
+            _passing_result(int(uncovered["total"])),
             PASSED,
             versions,
             waivers=waiver_rows,
@@ -430,6 +431,29 @@ def _finish(
         survivors=rows,
         summary=summary,
     )
+
+
+def no_coverage_summary(mutants: list[Mutant], labels: list[str]) -> dict[str, object]:
+    """`Mutant.file` vem vazio sem `mutmut show`. O arquivo sai do rótulo `arquivo::função`."""
+    counts: list[tuple[int, str, str]] = []
+    for label in labels:
+        file, function = label.split("::")
+        prefix = mutmut_id_prefix(file, function)
+        count = sum(
+            1 for item in mutants if item.status == "no_coverage" and item.id.startswith(prefix)
+        )
+        if count:
+            counts.append((count, file, function))
+    counts.sort(key=lambda row: (-row[0], row[1], row[2]))
+    rows = [{"file": file, "function": function, "count": count} for count, file, function in counts]
+    return {"total": sum(row[0] for row in counts), "functions": rows}
+
+
+def _passing_result(uncovered: int) -> GateResult:
+    if not uncovered:
+        return GateResult("mutate", "passed", None)
+    noun = "mutante sem teste" if uncovered == 1 else "mutantes sem teste"
+    return GateResult("mutate", "warn", f"{uncovered} {noun}")
 
 
 def focus_with_survivors(
