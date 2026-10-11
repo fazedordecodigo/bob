@@ -1,0 +1,6 @@
+#!/bin/sh
+# Hook local (pre-push): só o gate rápido CRAP desta fatia.
+set -e
+unset PYTEST_ADDOPTS
+unset PYTEST_PLUGINS
+exec bob check --gates crap </dev/null

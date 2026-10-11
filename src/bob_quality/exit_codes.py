@@ -1,0 +1,7 @@
+"""Exit codes da CLI, conforme a SPEC."""
+
+PASSED = 0
+GATE_FAILED = 1
+BASELINE_BROKEN = 2
+UNWAIVED_SURVIVOR = 3
+CONFIG_OR_TOOL = 4
