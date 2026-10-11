@@ -1,0 +1,8 @@
+base: main
+languages: [python]
+paths:
+  include: [src]
+  exclude: [tests]
+crap:
+  max_per_function: 10
+  scope: changed
