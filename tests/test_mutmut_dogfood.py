@@ -45,8 +45,11 @@ def test_prepare_mutmut_workspace_symlinks_node_modules(tmp_path: Path) -> None:
     assert not (dest / "pkg").is_symlink()
 
 
-def test_gate_subprocesses_skip_the_dogfood_reentry() -> None:
-    assert mutmut_tool._clean_env()["BOB_SKIP_MUTMUT_DOGFOOD"] == "1"
+def test_gate_subprocesses_skip_the_dogfood_reentry(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("BOB_SKIP_MUTMUT_DOGFOOD", "stale")
+    env = mutmut_tool._clean_env()
+    assert env["BOB_SKIP_MUTMUT_DOGFOOD"] == "1"
+    assert "bob_skip_mutmut_dogfood" not in env
 
 
 def test_baseline_timeout_is_a_tool_error(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -54,8 +57,70 @@ def test_baseline_timeout_is_a_tool_error(tmp_path: Path, monkeypatch: pytest.Mo
         raise subprocess.TimeoutExpired(cmd="pytest", timeout=900)
 
     monkeypatch.setattr(mutmut_tool.subprocess, "run", expired)
-    with pytest.raises(ToolError, match="pytest da baseline excedeu o tempo limite"):
+    with pytest.raises(ToolError) as caught:
         mutmut_tool.pytest_exit_code(tmp_path)
+    assert str(caught.value) == "pytest da baseline excedeu o tempo limite"
+
+
+def test_baseline_pytest_receives_the_repo_command_and_a_clean_env(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # MUTANT_UNDER_TEST fica como o mutmut deixou. Sobrescrever aqui impede
+    # o trampolim de associar este teste à função, e o mutante sobrevive.
+    monkeypatch.setenv("PYTEST_CURRENT_TEST", "leak")
+    monkeypatch.setenv("KEEP_ME", "yes")
+    monkeypatch.setenv("BOB_SKIP_MUTMUT_DOGFOOD", "stale")
+    seen: dict[str, object] = {}
+
+    def fake_run(args: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
+        seen["args"] = args
+        seen["kwargs"] = kwargs
+        return subprocess.CompletedProcess(args, 0)
+
+    monkeypatch.setattr(mutmut_tool.subprocess, "run", fake_run)
+
+    assert mutmut_tool.pytest_exit_code(tmp_path) == 0
+
+    kwargs = seen["kwargs"]
+    assert isinstance(kwargs, dict)
+    assert seen["args"] == [sys.executable, "-m", "pytest", "-q"]
+    assert kwargs["cwd"] == tmp_path
+    assert kwargs["capture_output"] is True
+    assert kwargs["text"] is True
+    assert kwargs["stdin"] is subprocess.DEVNULL
+    assert kwargs["check"] is False
+    assert kwargs["timeout"] >= 900
+    env = kwargs["env"]
+    assert isinstance(env, dict)
+    assert env["KEEP_ME"] == "yes"
+    assert env["BOB_SKIP_MUTMUT_DOGFOOD"] == "1"
+    assert "MUTANT_UNDER_TEST" not in env
+    assert not any(key.startswith("PYTEST_") for key in env)
+
+
+def test_prepare_replaces_nothing_when_mutants_already_exists(tmp_path: Path) -> None:
+    (tmp_path / "node_modules").mkdir()
+    dest = tmp_path / "mutants" / "node_modules"
+    dest.mkdir(parents=True)
+    (dest / "marker").write_text("keep")
+
+    prepare_mutmut_workspace(tmp_path)
+
+    assert not dest.is_symlink()
+    assert (dest / "marker").read_text() == "keep"
+
+
+def test_prepare_is_idempotent_when_the_mutants_directory_exists(tmp_path: Path) -> None:
+    source = tmp_path / "node_modules"
+    source.mkdir()
+    (tmp_path / "mutants").mkdir()
+
+    prepare_mutmut_workspace(tmp_path)
+    prepare_mutmut_workspace(tmp_path)
+
+    dest = tmp_path / "mutants" / "node_modules"
+    assert dest.is_symlink()
+    assert dest.resolve() == source.resolve()
 
 
 def test_mutmut_stats_collection_does_not_die_on_this_repo() -> None:
