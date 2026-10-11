@@ -1,0 +1,25 @@
+{
+  "modules": [],
+  "summary": {
+    "violations": [
+      {
+        "type": "cycle",
+        "from": "src/left.ts",
+        "to": "src/right.ts",
+        "rule": { "severity": "error", "name": "bob-no-circular" },
+        "cycle": [
+          { "name": "src/right.ts", "dependencyTypes": ["local", "import"] },
+          { "name": "src/left.ts", "dependencyTypes": ["local", "import"] }
+        ]
+      },
+      {
+        "type": "dependency",
+        "from": "src/note.ts",
+        "to": "src/note.ts",
+        "rule": { "severity": "info", "name": "no-orphans" }
+      }
+    ],
+    "error": 1,
+    "info": 1
+  }
+}

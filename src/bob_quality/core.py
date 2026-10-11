@@ -9,6 +9,7 @@ from bob_quality.exit_codes import GATE_FAILED, PASSED
 from bob_quality.models import (
     Clone,
     CyclomaticFunction,
+    DepViolation,
     FileCoverage,
     FunctionMetric,
     GateResult,
@@ -121,6 +122,30 @@ def _focus_row(file: str, risk: float, cloned: bool) -> dict[str, object]:
     if cloned:
         row["clone"] = True
     return row
+
+
+def deps_verdict(violations: list[DepViolation]) -> tuple[GateResult, int]:
+    """Só a aresta com origem ou destino no diff bloqueia."""
+    blocking = [item for item in violations if item.in_diff]
+    if not blocking:
+        return GateResult("deps", "passed"), PASSED
+    first = blocking[0]
+    return (
+        GateResult("deps", "failed", f"{first.origin} → {first.destination}"),
+        GATE_FAILED,
+    )
+
+
+def unique_violations(items: list[DepViolation]) -> list[DepViolation]:
+    seen: set[tuple[str, str, str]] = set()
+    unique: list[DepViolation] = []
+    for item in items:
+        key = (item.origin, item.destination, item.rule)
+        if key in seen:
+            continue
+        seen.add(key)
+        unique.append(item)
+    return unique
 
 
 def coverage_for(coverage_by_file: dict[str, FileCoverage], rel: str) -> FileCoverage | None:

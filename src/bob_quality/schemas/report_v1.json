@@ -39,6 +39,30 @@
     "focus": { "type": "array" },
     "top_crap": { "type": "array" },
     "old_debt": { "type": "array" },
+    "old_dependencies": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["origin", "destination", "rule"],
+        "properties": {
+          "origin": { "type": "string" },
+          "destination": { "type": "string" },
+          "rule": { "type": "string" }
+        }
+      }
+    },
+    "dependencies": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["origin", "destination", "rule"],
+        "properties": {
+          "origin": { "type": "string" },
+          "destination": { "type": "string" },
+          "rule": { "type": "string" }
+        }
+      }
+    },
     "clones": {
       "type": "array",
       "items": {

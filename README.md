@@ -27,7 +27,7 @@ pip install -e ".[dev]"
 npm ci
 ```
 
-Isso instala o comando `bob`, as dependências pinadas em `pyproject.toml` (`lizard`, `coverage`, `mutmut`) e as ferramentas npm pinadas em `package.json` (`c8`, `vitest`, `jscpd`). `bob doctor` mostra a versão esperada e a encontrada de cada uma.
+Isso instala o comando `bob`, as dependências pinadas em `pyproject.toml` (`lizard`, `coverage`, `mutmut`, `import-linter`) e as ferramentas npm pinadas em `package.json` (`c8`, `vitest`, `jscpd`, `dependency-cruiser`). `bob doctor` mostra a versão esperada e a encontrada de cada uma.
 
 ## Uso
 
@@ -71,6 +71,6 @@ O CI (`.github/workflows/ci.yml`) roda essa suíte em pull requests e em pushes 
 
 ## GitHub Action
 
-A action composta em `.github/actions/bob` instala o `bob`, roda `bob check` com `crap,dry,deps,mutate` (`deps` ainda não existe no CLI e aparece como ⏭️), restaura e publica o artefato `bob-mutation-cache` (`.bob/mutation-cache.json`) e cria ou atualiza um único comentário no PR com `.bob/report.md`. O exit code do job é o do `bob`.
+A action composta em `.github/actions/bob` instala o `bob`, roda `bob check` com `crap,dry,deps,mutate`, restaura e publica o artefato `bob-mutation-cache` (`.bob/mutation-cache.json`) e cria ou atualiza um único comentário no PR com `.bob/report.md`. O exit code do job é o do `bob`.
 
 Este repositório a usa em `.github/workflows/bob.yml`. `bob-quality` ainda não está no PyPI: no checkout deste repo a action faz `pip install .[dev]`; em outro repo, instala o git da action. Publicação no Marketplace não faz parte desta fatia.

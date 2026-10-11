@@ -36,6 +36,8 @@ PINS = (
     ("vitest", "5.0.3", "vitest", "5.0.3"),
     ("jscpd", "5.4.1", "jscpd", "jscpd 5.4.1"),
     ("mutmut", "3.8.0", "mutmut", "mutmut, version 3.8.0"),
+    ("import-linter", "2.15", "lint-imports", "2.15"),
+    ("dependency-cruiser", "18.5.0", "dependency-cruiser", "18.5.0"),
 )
 
 INSTALL = {
@@ -46,6 +48,8 @@ INSTALL = {
     "vitest": "npm install vitest@5.0.3",
     "jscpd": "npm install jscpd@5.4.1",
     "mutmut": "pip install 'mutmut==3.8.0'",
+    "import-linter": "pip install 'import-linter==2.15'",
+    "dependency-cruiser": "npm install dependency-cruiser@18.5.0",
 }
 
 
@@ -82,6 +86,21 @@ def _run_doctor(cwd: Path, bin_dir: Path) -> subprocess.CompletedProcess[str]:
         capture_output=True,
         text=True,
     )
+
+
+def test_doctor_lists_import_linter_and_dependency_cruiser(tmp_path: Path) -> None:
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    for _name, _expected, executable, banner in PINS:
+        _stub(bin_dir, executable, banner)
+
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    result = _run_doctor(repo, bin_dir)
+
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert "import-linter esperada 2.15 encontrada 2.15" in result.stdout
+    assert "dependency-cruiser esperada 18.5.0 encontrada 18.5.0" in result.stdout
 
 
 def test_doctor_exits_0_and_lists_pinned_versions_when_tools_match(tmp_path: Path) -> None:
@@ -258,6 +277,7 @@ def test_doctor_expected_versions_match_pip_and_npm_pins(tmp_path: Path) -> None
     assert requirements["lizard"] == expected["lizard"]
     assert requirements["coverage"] == expected["coverage.py"]
     assert requirements["mutmut"] == expected["mutmut"]
+    assert requirements["import-linter"] == expected["import-linter"]
 
     package = json.loads((ROOT / "package.json").read_text())
     assert package["private"] is True
@@ -265,7 +285,8 @@ def test_doctor_expected_versions_match_pip_and_npm_pins(tmp_path: Path) -> None
     assert npm["c8"] == expected["c8"]
     assert npm["vitest"] == expected["vitest"]
     assert npm["jscpd"] == expected["jscpd"]
-    assert set(npm) == {"c8", "vitest", "jscpd"}
+    assert npm["dependency-cruiser"] == expected["dependency-cruiser"]
+    assert set(npm) == {"c8", "dependency-cruiser", "jscpd", "vitest"}
 
 
 def _expected_versions(stdout: str) -> dict[str, str]:
