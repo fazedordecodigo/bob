@@ -22,6 +22,19 @@ class ProbeResult:
     gate: GateResult | None = None
     exit_code: int | None = None
 
+    @classmethod
+    def not_run(
+        cls,
+        versions: dict[str, str],
+        reason: str,
+        exit_code: int,
+    ) -> ProbeResult:
+        return cls(
+            versions=versions,
+            gate=GateResult("crap", "not_run", reason),
+            exit_code=exit_code,
+        )
+
 
 def relative_path(cwd: Path, path: str) -> str:
     resolved = Path(path)

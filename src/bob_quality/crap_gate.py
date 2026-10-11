@@ -6,13 +6,10 @@ from pathlib import Path
 
 from bob_quality.config import Config
 from bob_quality.core import crap_verdict
-from bob_quality.exit_codes import CONFIG_OR_TOOL
 from bob_quality.models import FunctionMetric, GateResult
 from bob_quality.probe import ProbeResult
 from bob_quality.python_probe import measure_python
 from bob_quality.typescript_probe import measure_typescript
-
-_SUPPORTED = ("python", "typescript")
 
 
 def run_crap_gate(
@@ -22,15 +19,6 @@ def run_crap_gate(
     max_crap: float,
     coverage_file: Path | None,
 ) -> tuple[GateResult, list[FunctionMetric], int, dict[str, str]]:
-    unknown = [lang for lang in config.languages if lang not in _SUPPORTED]
-    if unknown:
-        return (
-            GateResult("crap", "not_run", f"linguagem não suportada: {', '.join(unknown)}"),
-            [],
-            CONFIG_OR_TOOL,
-            {},
-        )
-
     metrics: list[FunctionMetric] = []
     versions: dict[str, str] = {}
     if "python" in config.languages:
@@ -54,6 +42,6 @@ def _absorb(
 ) -> tuple[GateResult, list[FunctionMetric], int, dict[str, str]] | None:
     versions.update(probed.versions)
     if probed.gate is not None and probed.exit_code is not None:
-        return probed.gate, metrics, probed.exit_code, versions
+        return probed.gate, [], probed.exit_code, versions
     metrics.extend(probed.metrics)
     return None

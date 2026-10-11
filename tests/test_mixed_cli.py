@@ -1,6 +1,10 @@
 """Um `bob check` num monorepo Py+TS grava um único relatório."""
 
 import json
+import os
+import shutil
+import subprocess
+import sys
 from pathlib import Path
 
 from jsonschema import Draft202012Validator
@@ -29,3 +33,30 @@ def test_mixed_python_and_typescript_share_one_report(tmp_path: Path) -> None:
     assert langs == {"python", "typescript"}
     assert "src/app/safe.py" in markdown
     assert "src/safe.ts" in markdown
+
+
+def test_mixed_report_omits_scores_when_typescript_cannot_run(tmp_path: Path) -> None:
+    """Gate não executado não publica métricas parciais de outra linguagem."""
+    repo = init_mixed_repo(tmp_path / "repo")
+    commit_on_branch(repo, "both", "src/app/safe.py", SAFE_CHANGE, "touch python add")
+    commit_on_branch(repo, "both", "src/safe.ts", TS_SAFE_CHANGE, "touch typescript add")
+    bindir = tmp_path / "bin"
+    bindir.mkdir()
+    os.symlink(shutil.which("git"), bindir / "git")
+    env = {**os.environ, "PATH": str(bindir)}
+
+    result = subprocess.run(
+        [sys.executable, "-m", "bob_quality", "check", "--base", "main", "--gates", "crap"],
+        cwd=repo,
+        capture_output=True,
+        text=True,
+        env=env,
+    )
+    payload = json.loads((repo / ".bob" / "report.json").read_text())
+    crap = next(gate for gate in payload["gates"] if gate["name"] == "crap")
+
+    assert result.returncode == 4, result.stderr
+    assert crap["status"] == "not_run"
+    assert "Node ausente" in crap["reason"]
+    assert payload["top_crap"] == []
+    assert payload["focus"] == []

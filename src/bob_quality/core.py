@@ -54,7 +54,7 @@ def to_metric(
 def _module_name(file: str) -> str:
     path = Path(file)
     name = path.name
-    for suffix in (".tsx", ".ts", ".jsx", ".js", ".py"):
+    for suffix in (".ts", ".py"):
         if name.endswith(suffix):
             path = path.with_name(name[: -len(suffix)])
             break
