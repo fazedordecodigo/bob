@@ -35,7 +35,12 @@ def build_parser() -> argparse.ArgumentParser:
     crap.add_argument("--threshold", type=float, default=None)
     crap.add_argument("--coverage-file", default=None)
 
-    sub.add_parser("doctor", help="Verifica as ferramentas pinadas e as versões instaladas")
+    doctor = sub.add_parser("doctor", help="Verifica as ferramentas pinadas e as versões instaladas")
+    doctor.add_argument(
+        "--install",
+        action="store_true",
+        help="Instala c8 e vitest com npm ci no pacote (ou num cache do usuário)",
+    )
 
     return parser
 
@@ -49,7 +54,7 @@ def _add_shared(parser: argparse.ArgumentParser) -> None:
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     if args.command == "doctor":
-        return run_doctor()
+        return run_doctor(install=args.install)
     cwd = Path.cwd()
     out_dir = Path(args.out)
     if not out_dir.is_absolute():

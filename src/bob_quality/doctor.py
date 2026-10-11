@@ -11,7 +11,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from bob_quality.exit_codes import CONFIG_OR_TOOL, PASSED
-from bob_quality.npm_tools import npm_prefix
+from bob_quality.npm_tools import install_npm_dependencies, npm_ci_command, npm_prefix
 from bob_quality.tools import ToolError
 
 _VERSION = re.compile(r"\d+\.\d+(?:\.\d+)?")
@@ -56,21 +56,38 @@ PINS: tuple[ToolPin, ...] = (
 )
 
 
-def run_doctor() -> int:
+def run_doctor(install: bool = False) -> int:
+    if install:
+        code = install_npm_dependencies()
+        if code != 0:
+            return code
     lines: list[str] = []
     installs: list[str] = []
+    npm_missing = False
     ok = True
     for pin in PINS:
         found = _found_version(pin)
         if found != pin.expected:
             ok = False
-            installs.append(pin.install)
+            if pin.npm_package is not None:
+                npm_missing = True
+            else:
+                installs.append(pin.install)
         shown = found if found is not None else "ausente"
         lines.append(f"{pin.name} esperada {pin.expected} encontrada {shown}")
+    if npm_missing:
+        installs.append(_npm_ci_hint())
     if installs:
         lines.extend(installs)
     print("\n".join(lines))
     return PASSED if ok else CONFIG_OR_TOOL
+
+
+def _npm_ci_hint() -> str:
+    try:
+        return npm_ci_command(npm_prefix())
+    except ToolError as exc:
+        return str(exc)
 
 
 def _found_version(pin: ToolPin) -> str | None:

@@ -46,23 +46,18 @@ export default { ...user, test };
 """
 
 
+def npm_ci_command(prefix: Path) -> str:
+    return f"npm ci --prefix {prefix}"
+
+
 def npm_prefix() -> Path:
     """Raiz do package.json fixado do plugin (não o repo alvo).
 
-    O wheel também carrega esse arquivo ao lado do módulo. Se houver mais de
-    um, vale o que já tem node_modules (a raiz do repo no desenvolvimento).
+    Prefere quem já tem node_modules: a raiz do repo no desenvolvimento, o
+    pacote instalado depois de `bob doctor --install`, ou o cache do usuário
+    quando o diretório do pacote não é gravável.
     """
-    matches: list[Path] = []
-    for parent in Path(__file__).resolve().parents:
-        pkg = parent / "package.json"
-        if not pkg.is_file():
-            continue
-        try:
-            data = json.loads(pkg.read_text())
-        except json.JSONDecodeError:
-            continue
-        if data.get("name") == _NPM_PACKAGE:
-            matches.append(parent)
+    matches = _plugin_packages()
     if not matches:
         raise ToolError(
             "package.json do plugin (bob-quality-tools) não encontrado; "
@@ -71,7 +66,84 @@ def npm_prefix() -> Path:
     for parent in matches:
         if (parent / "node_modules").is_dir():
             return parent
+    cached = user_npm_cache()
+    if (cached / "node_modules").is_dir() and _is_plugin_manifest(cached / "package.json"):
+        return cached
     return matches[0]
+
+
+def install_npm_dependencies() -> int:
+    """Roda `npm ci --prefix` no pacote instalado, ou num cache se ele não for gravável."""
+    matches = _plugin_packages()
+    if not matches:
+        print(
+            "package.json do plugin (bob-quality-tools) não encontrado; "
+            "c8 e vitest ficam fixados nele"
+        )
+        return 4
+    source = matches[0]
+    target = source if _can_write(source) else _materialize_cache(source)
+    command = npm_ci_command(target)
+    completed = subprocess.run(
+        ["npm", "ci", "--prefix", str(target)],
+        capture_output=True,
+        text=True,
+    )
+    if completed.returncode != 0:
+        detail = (completed.stderr or completed.stdout or "").strip()
+        print(command if not detail else f"{command}\n{detail}")
+        return 4
+    return 0
+
+
+def user_npm_cache() -> Path:
+    base = os.environ.get("XDG_CACHE_HOME")
+    root = Path(base) if base else Path.home() / ".cache"
+    return root / "bob-quality"
+
+
+def _plugin_packages() -> list[Path]:
+    matches: list[Path] = []
+    for parent in Path(__file__).resolve().parents:
+        if _is_plugin_manifest(parent / "package.json"):
+            matches.append(parent)
+    return matches
+
+
+def _is_plugin_manifest(path: Path) -> bool:
+    if not path.is_file():
+        return False
+    try:
+        data = json.loads(path.read_text())
+    except json.JSONDecodeError:
+        return False
+    return data.get("name") == _NPM_PACKAGE
+
+
+def _can_write(directory: Path) -> bool:
+    try:
+        probe = directory / ".bob-write-probe"
+        probe.write_text("")
+        probe.unlink()
+    except OSError:
+        return False
+    return True
+
+
+def _materialize_cache(source: Path) -> Path:
+    cache = user_npm_cache()
+    cache.mkdir(parents=True, exist_ok=True)
+    shutil.copy2(source / "package.json", cache / "package.json")
+    lock = source / "package-lock.json"
+    if lock.is_file():
+        shutil.copy2(lock, cache / "package-lock.json")
+    js_src = source / "js"
+    js_dst = cache / "js"
+    if js_dst.exists():
+        shutil.rmtree(js_dst)
+    if js_src.is_dir():
+        shutil.copytree(js_src, js_dst)
+    return cache
 
 
 def node_missing_message() -> str | None:
@@ -84,8 +156,7 @@ def installed_npm_version(prefix: Path, package: str) -> str:
     pkg = prefix / "node_modules" / package / "package.json"
     if not pkg.is_file():
         raise ToolError(
-            "dependências npm do plugin ausentes: rode npm ci na raiz "
-            "(c8 e vitest fixados no package.json)"
+            "dependências npm do plugin ausentes: " + npm_ci_command(prefix)
         )
     try:
         return str(json.loads(pkg.read_text())["version"])
