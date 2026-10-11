@@ -7,6 +7,13 @@ Quality gates (CRAP, DRY, mutação, dependências) + skills para agentes de cod
 - Nome nos marketplaces: `bob` (ainda não publicado)
 - Configuração: `bob.yaml`
 
-> ⏸️ Status: aguardando spec. Nada implementado ainda.
+Skills (issue #7):
+
+- Fluxo de spec do Pocock (MIT, atribuído): `skills/vendor/mattpocock/`
+- `skills/bob-check/` — quando e como rodar `bob check`
+- `skills/review-report/` — resumir `.bob/report.md` no PR
+- Índice para agentes: `AGENTS.md`
+
+A CLI `bob` ainda não está neste branch (issue #1).
 
 Licença: MIT.
