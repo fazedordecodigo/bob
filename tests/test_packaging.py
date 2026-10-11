@@ -342,8 +342,8 @@ def test_invalid_json_exits_4_and_shows_where_it_broke(
 
 @pytest.mark.parametrize(
     "content",
-    ['{"skills": "./skills/"}', '{"skills": [1]}'],
-    ids=["skills-texto", "pasta-nao-texto"],
+    ['["./skills/bob-check"]', '{"skills": "./skills/"}', '{"skills": [1]}'],
+    ids=["raiz-nao-objeto", "skills-texto", "pasta-nao-texto"],
 )
 def test_malformed_manifest_exits_4_and_names_it(
     tmp_path: Path, capsys: pytest.CaptureFixture[str], content: str
