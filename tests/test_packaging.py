@@ -313,9 +313,37 @@ def test_source_without_manifest_exits_4_and_suggests_source(
 
 
 @pytest.mark.parametrize(
+    ("content", "detail"),
+    [
+        (b"{", "Expecting property name enclosed in double quotes: line 1 column 2 (char 1)"),
+        (b"\xff", "'utf-8' codec can't decode byte 0xff in position 0: invalid start byte"),
+    ],
+    ids=["json-quebrado", "bytes-fora-do-utf8"],
+)
+def test_invalid_json_exits_4_and_shows_where_it_broke(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str], content: bytes, detail: str
+) -> None:
+    manifest = tmp_path / "plugin" / ".claude-plugin" / "plugin.json"
+    manifest.parent.mkdir(parents=True)
+    manifest.write_bytes(content)
+    project = tmp_path / "projeto"
+
+    result = _install(
+        capsys, "--project", str(project), "--source", str(tmp_path / "plugin"), "copilot"
+    )
+
+    assert result == (
+        4,
+        "",
+        f"JSON inválido em {manifest}: {detail}. Passe --source com a raiz do plugin bob.\n",
+    )
+    assert not project.exists()
+
+
+@pytest.mark.parametrize(
     "content",
-    ["{", '{"skills": "./skills/"}', '{"skills": [1]}'],
-    ids=["json-quebrado", "skills-texto", "pasta-nao-texto"],
+    ['{"skills": "./skills/"}', '{"skills": [1]}'],
+    ids=["skills-texto", "pasta-nao-texto"],
 )
 def test_malformed_manifest_exits_4_and_names_it(
     tmp_path: Path, capsys: pytest.CaptureFixture[str], content: str

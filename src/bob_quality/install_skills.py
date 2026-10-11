@@ -97,8 +97,8 @@ def _read_manifest(manifest: Path) -> object:
         raise SourceError(f"manifesto não encontrado: {manifest}") from None
     try:
         return json.loads(raw)
-    except ValueError:
-        return None
+    except ValueError as exc:
+        raise SourceError(f"JSON inválido em {manifest}: {exc}") from None
 
 
 def _install(skills: dict[Path, list[Path]], dest: Path) -> None:
