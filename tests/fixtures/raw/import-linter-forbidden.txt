@@ -1,0 +1,25 @@
+
+---------
+Contracts
+---------
+
+Analyzed 3 files, 1 dependencies.
+---------------------------------
+
+API não importa domínio BROKEN
+
+Contracts: 0 kept, 1 broken.
+
+
+----------------
+Broken contracts
+----------------
+
+API não importa domínio
+-----------------------
+
+app.api is not allowed to import app.domain:
+
+-   app.api -> app.domain (l.1)
+
+

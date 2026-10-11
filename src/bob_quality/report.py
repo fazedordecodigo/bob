@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from bob_quality.models import FunctionMetric, GateStatus, Report
+from bob_quality.models import DepViolation, FunctionMetric, GateResult, GateStatus, Report
 
 GATE_MARK: dict[GateStatus, str] = {
     "passed": "✅",
@@ -37,6 +37,7 @@ def to_json(report: Report) -> dict[str, object]:
         "focus": report.focus,
         "top_crap": report.top_crap,
         "old_debt": report.old_debt,
+        "dependencies": report.dependencies,
         "reproduce": report.reproduce,
         "exit_code": report.exit_code,
     }
@@ -78,13 +79,8 @@ def to_markdown(report: Report) -> str:
             )
     else:
         lines.append("Nenhuma função alterada medida.")
-    if report.old_debt:
-        lines.extend(["", "## Informação (dívida antiga)", ""])
-        for fn in report.old_debt:
-            loc = f"{fn['file']}:{fn['start_line']}"
-            lines.append(
-                f"- `{fn['name']}` em `{loc}` CRAP {fn['crap']} (fora do diff; não bloqueia)"
-            )
+    lines.extend(_old_debt_lines(report))
+    lines.extend(_dependency_lines(report))
     lines.extend(
         [
             "",
@@ -97,6 +93,48 @@ def to_markdown(report: Report) -> str:
         ]
     )
     return "\n".join(lines)
+
+
+def _old_debt_lines(report: Report) -> list[str]:
+    if not report.old_debt:
+        return []
+    lines = ["", "## Informação (dívida antiga)", ""]
+    for fn in report.old_debt:
+        loc = f"{fn['file']}:{fn['start_line']}"
+        lines.append(
+            f"- `{fn['name']}` em `{loc}` CRAP {fn['crap']} (fora do diff; não bloqueia)"
+        )
+    return lines
+
+
+def _dependency_lines(report: Report) -> list[str]:
+    lines = ["", "## Violações e ciclos de dependência", ""]
+    lines.extend(_dependency_items(report))
+    return lines
+
+
+def _dependency_items(report: Report) -> list[str]:
+    gate = _gate_named(report, "deps")
+    if gate is None or gate.status == "not_run":
+        return ["- Gate não executado."]
+    if not report.dependencies:
+        return ["- Nenhuma violação de dependência."]
+    return [_dependency_item(item) for item in report.dependencies]
+
+
+def _dependency_item(item: dict[str, object]) -> str:
+    return f"- `{item['origin']} → {item['destination']}` ({item['rule']})"
+
+
+def _gate_named(report: Report, name: str) -> GateResult | None:
+    for gate in report.gates:
+        if gate.name == name:
+            return gate
+    return None
+
+
+def violation_row(item: DepViolation) -> dict[str, object]:
+    return {"origin": item.origin, "destination": item.destination, "rule": item.rule}
 
 
 def metric_row(metric: FunctionMetric) -> dict[str, object]:

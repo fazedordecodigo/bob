@@ -8,6 +8,7 @@ from bob_quality.crap import calculate_crap
 from bob_quality.exit_codes import GATE_FAILED, PASSED
 from bob_quality.models import (
     CyclomaticFunction,
+    DepViolation,
     FileCoverage,
     FunctionMetric,
     GateResult,
@@ -98,6 +99,29 @@ def files_by_risk(metrics: list[FunctionMetric]) -> list[dict[str, object]]:
         by_file[item.file] = max(by_file.get(item.file, 0.0), item.crap)
     ordered = sorted(by_file.items(), key=lambda pair: pair[1], reverse=True)
     return [{"file": file, "risk": risk} for file, risk in ordered]
+
+
+def deps_verdict(violations: list[DepViolation]) -> tuple[GateResult, int]:
+    """Qualquer violação de dependência falha o gate."""
+    if not violations:
+        return GateResult("deps", "passed"), PASSED
+    first = violations[0]
+    return (
+        GateResult("deps", "failed", f"{first.origin} → {first.destination}"),
+        GATE_FAILED,
+    )
+
+
+def unique_violations(items: list[DepViolation]) -> list[DepViolation]:
+    seen: set[tuple[str, str, str]] = set()
+    unique: list[DepViolation] = []
+    for item in items:
+        key = (item.origin, item.destination, item.rule)
+        if key in seen:
+            continue
+        seen.add(key)
+        unique.append(item)
+    return unique
 
 
 def coverage_for(coverage_by_file: dict[str, FileCoverage], rel: str) -> FileCoverage | None:
