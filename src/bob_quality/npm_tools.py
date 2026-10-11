@@ -108,8 +108,13 @@ def install_npm_dependencies() -> int:
 
 
 def _install_in_cache(source: Path, code: str) -> int:
-    cache = _materialize_cache(source)
+    cache = user_npm_cache()
     print(f"{npm_ci_command(source)} falhou com {code}; instalando no cache do usuário {cache}")
+    try:
+        _materialize_cache(source, cache)
+    except OSError as exc:
+        print(f"não foi possível preparar o cache do usuário {cache}: {exc.strerror}")
+        return 4
     return _npm_verdict(cache, _run_npm_ci(cache))
 
 
@@ -194,12 +199,10 @@ def _can_write(directory: Path) -> bool:
     return os.access(directory, os.W_OK)
 
 
-def _materialize_cache(source: Path) -> Path:
-    cache = user_npm_cache()
+def _materialize_cache(source: Path, cache: Path) -> None:
     cache.mkdir(parents=True, exist_ok=True)
     _copy_manifests(source, cache)
     _copy_js(source / "js", cache / "js")
-    return cache
 
 
 def _copy_manifests(source: Path, cache: Path) -> None:
