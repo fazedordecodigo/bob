@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import fnmatch
 import subprocess
 import sys
 from pathlib import Path
@@ -11,11 +12,28 @@ import pytest
 
 import bob_quality.mutate as mutate_module
 from bob_quality import mutmut_tool, tools
-from bob_quality.adapters.mutmut import baseline_failed
+from bob_quality.adapters.mutmut import baseline_failed, mutmut_run_patterns
 from bob_quality.models import CyclomaticFunction, GateResult
 from bob_quality.mutate import _run_and_parse
 from bob_quality.mutmut_tool import BaselineFailed
 from bob_quality.tools import ToolError, run_coverage
+
+from helpers import FIXTURE_PYTHON, commit_on_branch, commit_on_main, init_python_repo, run_bob
+
+ADD_AND_SCALE = (FIXTURE_PYTHON / "cases" / "add_and_scale.py").read_text()
+ADD_TOUCHED = (FIXTURE_PYTHON / "cases" / "add_touched.py").read_text()
+SCALE_TEST_THAT_LOGS = """\
+import os
+from pathlib import Path
+
+from app.safe import scale
+
+
+def test_scale() -> None:
+    with Path({log!r}).open("a") as runs:
+        runs.write(os.environ.get("MUTANT_UNDER_TEST", "unset") + "\\n")
+    assert scale(3) == 6
+"""
 
 # Trechos literais da saída de `mutmut run` 3.8, como o subprocess em modo texto devolve.
 STATS_FAILED = (
@@ -248,3 +266,72 @@ def test_a_broken_baseline_stops_the_gate_with_exit_2_and_keeps_the_waivers(
     assert failed.exit_code == 2
     assert failed.versions == versions
     assert failed.waivers == waivers
+
+
+def _mutants_run(patterns: list[str], mutant_ids: list[str]) -> list[str]:
+    """Filtro de mutantes do `mutmut run` 3.8."""
+    return [
+        key
+        for key in mutant_ids
+        if key in patterns or any(fnmatch.fnmatch(key, pattern) for pattern in patterns)
+    ]
+
+
+def _clean_run_tests(patterns: list[str], stats: dict[str, set[str]]) -> set[str]:
+    """Testes da execução limpa do `mutmut run` 3.8. Padrão sem `*` quebra o mutmut."""
+    selected: set[str] = set()
+    for pattern in patterns:
+        assert "*" in pattern
+        for key, tests in stats.items():
+            if fnmatch.fnmatch(key, pattern):
+                selected |= tests
+    return selected
+
+
+STATS = {
+    "bob_quality.crap.x_calculate_crap": {"tests/test_crap.py::test_crap_formula"},
+    "bob_quality.crap.x_calculate_crap_delta": {"tests/test_crap.py::test_delta"},
+    "bob_quality.cli.x_main": {"tests/test_cli.py::test_main"},
+}
+
+
+def test_the_clean_run_picks_only_the_tests_of_the_function() -> None:
+    patterns = mutmut_run_patterns("src/bob_quality/crap.py", "calculate_crap")
+
+    assert patterns == [
+        "bob_quality.crap.x_calculate_crap__mutmut*",
+        "*bob_quality.crap.x_calculate_crap",
+    ]
+    assert _clean_run_tests(patterns, STATS) == {"tests/test_crap.py::test_crap_formula"}
+    assert _clean_run_tests(patterns[:1], STATS) == set()
+
+
+def test_the_run_patterns_select_only_the_mutants_of_the_function() -> None:
+    own = [
+        "bob_quality.crap.x_calculate_crap__mutmut_1",
+        "bob_quality.crap.x_calculate_crap__mutmut_12",
+    ]
+    siblings = [
+        "bob_quality.crap.x_calculate_crap_delta__mutmut_1",
+        "bob_quality.cli.x_main__mutmut_3",
+    ]
+
+    patterns = mutmut_run_patterns("src/bob_quality/crap.py", "calculate_crap")
+
+    assert _mutants_run(patterns, own + siblings) == own
+
+
+def test_the_gate_runs_tests_of_other_functions_only_to_collect_stats(tmp_path: Path) -> None:
+    log = tmp_path / "runs.log"
+    repo = init_python_repo(tmp_path / "repo")
+    commit_on_main(repo, "src/app/safe.py", ADD_AND_SCALE, "add and scale")
+    commit_on_main(
+        repo, "tests/test_unrelated.py", SCALE_TEST_THAT_LOGS.format(log=str(log)), "test scale"
+    )
+    commit_on_branch(repo, "touch-add", "src/app/safe.py", ADD_TOUCHED, "comment inside add")
+
+    result = run_bob(repo, "mutate", "--base", "main")
+
+    assert result.returncode == 0
+    runs = log.read_text().splitlines()
+    assert [mode for mode in runs if mode != "fail"] == ["stats"]

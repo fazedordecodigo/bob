@@ -15,6 +15,7 @@ from bob_quality.adapters.mutmut import (
     ids_for_show,
     mutants_from_raw,
     mutmut_id_prefix,
+    mutmut_run_patterns,
     mutmut_stats_key,
 )
 from bob_quality.config import Config
@@ -209,7 +210,9 @@ def _run_and_parse(
     versions: dict[str, str],
     waiver_rows: list[dict[str, object]],
 ) -> tuple[list[Mutant], MutationOutcome | None]:
-    patterns = [f"{mutmut_id_prefix(item.file, item.name)}*" for item in remutate]
+    patterns = [
+        pattern for item in remutate for pattern in mutmut_run_patterns(item.file, item.name)
+    ]
     try:
         run_mutmut(cwd, patterns, max_workers)
         raw_results = mutmut_results(cwd)

@@ -87,6 +87,16 @@ def mutmut_stats_key(file: str, name: str) -> str:
     return mutmut_id_prefix(file, name).removesuffix("__mutmut")
 
 
+def mutmut_run_patterns(file: str, name: str) -> list[str]:
+    """Padrões do `mutmut run`: os mutantes da função e a chave dela no stats.
+
+    O mutmut 3.8 escolhe os testes da execução limpa casando cada padrão com `*`
+    contra as chaves do stats, por fnmatch. Sem o segundo padrão nada casa, e a
+    execução limpa roda a suíte inteira.
+    """
+    return [f"{mutmut_id_prefix(file, name)}*", f"*{mutmut_stats_key(file, name)}"]
+
+
 def covering_test_files(stats_raw: str) -> dict[str, set[str]]:
     """Arquivos de teste que cobrem cada função, pela chave de `mutmut_stats_key`."""
     try:
