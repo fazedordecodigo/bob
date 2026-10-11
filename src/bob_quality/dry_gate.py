@@ -45,8 +45,8 @@ def _tooling() -> tuple[dict[str, str], _Dry | None]:
         version = installed_npm_version(npm_prefix(), "jscpd")
     except ToolError:
         return {}, _skipped(
-            "dependências npm do plugin ausentes: rode npm ci na raiz "
-            "(jscpd fixado no package.json)"
+            "dependências npm do plugin ausentes: bob doctor --install "
+            "(#19; jscpd fixado no package.json)"
         )
     return {"jscpd": version}, None
 
