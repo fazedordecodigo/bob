@@ -1,4 +1,4 @@
-"""CLI `bob`: orquestra check/crap nesta fatia."""
+"""CLI `bob`: orquestra check, crap e dry."""
 
 from __future__ import annotations
 
@@ -12,7 +12,7 @@ from bob_quality.check import run_check
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="bob",
-        description="Gates de qualidade para agentes (CRAP nesta fatia).",
+        description="Gates de qualidade para agentes.",
     )
     sub = parser.add_subparsers(dest="command", required=True)
 
@@ -34,6 +34,9 @@ def build_parser() -> argparse.ArgumentParser:
     crap.add_argument("--threshold", type=float, default=None)
     crap.add_argument("--coverage-file", default=None)
 
+    dry = sub.add_parser("dry", help="Reporta clones novos no diff, sem bloquear")
+    _add_shared(dry)
+
     return parser
 
 
@@ -46,40 +49,93 @@ def _add_shared(parser: argparse.ArgumentParser) -> None:
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     cwd = Path.cwd()
-    out_dir = Path(args.out)
-    if not out_dir.is_absolute():
-        out_dir = cwd / out_dir
-    config_path = Path(args.config) if args.config else None
-    if config_path is not None and not config_path.is_absolute():
-        config_path = cwd / config_path
+    return _dispatch(args, cwd, _resolve_out(cwd, args.out), _resolve_config(cwd, args.config))
 
+
+def _resolve_out(cwd: Path, raw: str) -> Path:
+    out_dir = Path(raw)
+    if out_dir.is_absolute():
+        return out_dir
+    return cwd / out_dir
+
+
+def _resolve_config(cwd: Path, raw: str | None) -> Path | None:
+    if raw is None:
+        return None
+    path = Path(raw)
+    if path.is_absolute():
+        return path
+    return cwd / path
+
+
+def _dispatch(
+    args: argparse.Namespace,
+    cwd: Path,
+    out_dir: Path,
+    config_path: Path | None,
+) -> int:
     if args.command == "check":
-        gates = [part.strip() for part in args.gates.split(",")] if args.gates else None
-        reproduce = _reproduce("check", args)
-        return run_check(
-            cwd=cwd,
-            base=args.base,
-            gates=gates,
-            config_path=config_path,
-            out_dir=out_dir,
-            fmt=args.format,
-            reproduce=reproduce,
-        )
+        return _run_check(args, cwd, out_dir, config_path)
     if args.command == "crap":
-        coverage = Path(args.coverage_file) if args.coverage_file else None
-        reproduce = _reproduce("crap", args)
-        return run_check(
-            cwd=cwd,
-            base=args.base,
-            gates=["crap"],
-            config_path=config_path,
-            out_dir=out_dir,
-            fmt="both",
-            threshold=args.threshold,
-            coverage_file=coverage,
-            reproduce=reproduce,
-        )
+        return _run_crap(args, cwd, out_dir, config_path)
+    if args.command == "dry":
+        return _run_dry(args, cwd, out_dir, config_path)
     raise AssertionError("comando não tratado")
+
+
+def _run_check(
+    args: argparse.Namespace,
+    cwd: Path,
+    out_dir: Path,
+    config_path: Path | None,
+) -> int:
+    gates = [part.strip() for part in args.gates.split(",")] if args.gates else None
+    return run_check(
+        cwd=cwd,
+        base=args.base,
+        gates=gates,
+        config_path=config_path,
+        out_dir=out_dir,
+        fmt=args.format,
+        reproduce=_reproduce("check", args),
+    )
+
+
+def _run_crap(
+    args: argparse.Namespace,
+    cwd: Path,
+    out_dir: Path,
+    config_path: Path | None,
+) -> int:
+    coverage = Path(args.coverage_file) if args.coverage_file else None
+    return run_check(
+        cwd=cwd,
+        base=args.base,
+        gates=["crap"],
+        config_path=config_path,
+        out_dir=out_dir,
+        fmt="both",
+        threshold=args.threshold,
+        coverage_file=coverage,
+        reproduce=_reproduce("crap", args),
+    )
+
+
+def _run_dry(
+    args: argparse.Namespace,
+    cwd: Path,
+    out_dir: Path,
+    config_path: Path | None,
+) -> int:
+    return run_check(
+        cwd=cwd,
+        base=args.base,
+        gates=["dry"],
+        config_path=config_path,
+        out_dir=out_dir,
+        fmt="both",
+        reproduce=_reproduce("dry", args),
+    )
 
 
 def _reproduce(command: str, args: argparse.Namespace) -> str:
