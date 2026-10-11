@@ -6,6 +6,7 @@ como root. O teste com `npm` real e `node_modules` 555 só roda sem root.
 
 from __future__ import annotations
 
+import errno
 import json
 import os
 import shutil
@@ -112,6 +113,24 @@ def test_exit_4_shows_the_cache_command_when_the_fallback_also_fails(
         f"npm ci --prefix {cache}\n"
         f"npm error code ENOSPC\n"
         f"npm error path {cache}\n"
+    )
+
+
+def test_exit_4_names_the_cache_path_when_the_cache_cannot_be_created(
+    package: Path,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    (tmp_path / "xdg").write_text("não é diretório")
+    cache = tmp_path / "xdg" / "bob-quality"
+    _fake_npm(tmp_path, monkeypatch, {package: "EACCES"})
+
+    assert install_npm_dependencies() == 4
+
+    assert capsys.readouterr().out == (
+        f"npm ci --prefix {package} falhou com EACCES; instalando no cache do usuário {cache}\n"
+        f"não foi possível preparar o cache do usuário {cache}: {os.strerror(errno.ENOTDIR)}\n"
     )
 
 
