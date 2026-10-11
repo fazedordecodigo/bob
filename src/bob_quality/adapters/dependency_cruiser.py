@@ -43,7 +43,7 @@ def _violations_for(item: object) -> list[DepViolation]:
     origin = str(item.get("from") or "")
     destination = str(item.get("to") or "")
     if origin and destination:
-        return [DepViolation(origin, destination, rule_name)]
+        return [DepViolation(origin, destination, rule_name, False)]
     return []
 
 
@@ -60,7 +60,7 @@ def _cycle_edges(cycle: object, rule: str) -> list[DepViolation]:
         return []
     ring = [*names, names[0]]
     return [
-        DepViolation(origin, destination, rule)
+        DepViolation(origin, destination, rule, False)
         for origin, destination in zip(names, ring[1:])
     ]
 

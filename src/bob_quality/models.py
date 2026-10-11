@@ -49,7 +49,7 @@ class DepViolation:
     origin: str
     destination: str
     rule: str
-    in_diff: bool = True
+    in_diff: bool
 
 
 @dataclass(frozen=True)

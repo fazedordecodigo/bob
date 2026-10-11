@@ -17,6 +17,7 @@ from bob_quality.adapters.dependency_cruiser import parse_dependency_cruiser
 from bob_quality.adapters.import_linter import broken_contract_name, parse_import_linter
 from bob_quality.config import Config
 from bob_quality.core import deps_verdict, unique_violations
+from bob_quality.cycles import strongly_connected
 from bob_quality.exit_codes import CONFIG_OR_TOOL, GATE_FAILED, PASSED
 from bob_quality.models import DepViolation, GateResult
 from bob_quality.npm_tools import node_missing_message, npm_prefix
@@ -36,6 +37,23 @@ _NODE_MISSING = (
 )
 _CRUISER_MISSING = "ferramenta ausente: dependency-cruiser"
 _CYCLE_RULE = "Proibido ciclo de dependência"
+_GRAPH_RUNNER = """\
+import json, os, sys, grimp
+for entry in sys.argv[1].split(os.pathsep):
+    if entry and entry not in sys.path:
+        sys.path.insert(0, entry)
+roots = json.loads(sys.argv[2])
+graph = grimp.build_graph(*roots, cache_dir=None)
+edges = {}
+for module in graph.modules:
+    imported = [
+        name
+        for name in graph.find_modules_directly_imported_by(module)
+        if name in graph.modules
+    ]
+    edges[module] = imported
+sys.stdout.write(json.dumps(edges))
+"""
 
 
 @dataclass(frozen=True)
@@ -65,7 +83,12 @@ def run_deps_gate(
         return GateResult("deps", "not_run", str(exc)), CONFIG_OR_TOOL, versions, []
     except UnparsedBreak as exc:
         return GateResult("deps", "failed", exc.reason), GATE_FAILED, versions, []
-    marked = _mark_diff(violations, changed_files or set())
+    marked = _mark_diff(
+        violations,
+        changed_files or set(),
+        _cycle_components(cwd, config) if python_measured else [],
+        _source_roots(cwd, config),
+    )
     verdict, code = deps_verdict(marked)
     verdict, code = _note_typescript_skipped(verdict, code, skip)
     return verdict, code, versions, marked
@@ -83,8 +106,8 @@ def _collect_typescript(
         return None
     try:
         sink.extend(measure())
-    except ToolError as exc:
-        if not python_measured or not str(exc).startswith("Node ausente"):
+    except NodeMissing as exc:
+        if not python_measured:
             raise
         return str(exc)
     return None
@@ -107,37 +130,128 @@ def _note_typescript_skipped(
     return GateResult("deps", "warn", note), code
 
 
-def _mark_diff(violations: list[DepViolation], changed_files: set[str]) -> list[DepViolation]:
+def _mark_diff(
+    violations: list[DepViolation],
+    changed_files: set[str],
+    components: list[frozenset[str]],
+    source_roots: list[str],
+) -> list[DepViolation]:
+    by_module = _components_by_module(components)
     return [
-        DepViolation(item.origin, item.destination, item.rule, _edge_in_diff(item, changed_files))
+        DepViolation(
+            item.origin,
+            item.destination,
+            item.rule,
+            _edge_in_diff(item, changed_files, by_module, source_roots),
+        )
         for item in violations
     ]
 
 
-def _edge_in_diff(item: DepViolation, changed_files: set[str]) -> bool:
-    return _endpoint_in_diff(item.origin, changed_files) or _endpoint_in_diff(
-        item.destination, changed_files
-    )
+def _components_by_module(components: list[frozenset[str]]) -> dict[str, frozenset[str]]:
+    indexed: dict[str, frozenset[str]] = {}
+    for component in components:
+        for module in component:
+            indexed[module] = component
+    return indexed
 
 
-def _endpoint_in_diff(endpoint: str, changed_files: set[str]) -> bool:
-    path = endpoint.replace("\\", "/")
-    if _path_in_diff(path, changed_files):
+def _edge_in_diff(
+    item: DepViolation,
+    changed_files: set[str],
+    components: dict[str, frozenset[str]],
+    source_roots: list[str],
+) -> bool:
+    if _endpoint_in_diff(item.origin, changed_files, source_roots) or _endpoint_in_diff(
+        item.destination, changed_files, source_roots
+    ):
         return True
-    return _module_in_diff(path, changed_files)
+    return _component_in_diff(item, changed_files, components, source_roots)
 
 
-def _path_in_diff(path: str, changed_files: set[str]) -> bool:
-    return any(changed == path or changed.endswith("/" + path) for changed in changed_files)
-
-
-def _module_in_diff(module: str, changed_files: set[str]) -> bool:
-    if "/" in module:
+def _component_in_diff(
+    item: DepViolation,
+    changed_files: set[str],
+    components: dict[str, frozenset[str]],
+    source_roots: list[str],
+) -> bool:
+    component = components.get(item.origin)
+    if component is None or item.destination not in component:
         return False
-    as_path = module.replace(".", "/")
-    return _path_in_diff(f"{as_path}.py", changed_files) or _path_in_diff(
-        f"{as_path}/__init__.py", changed_files
+    return any(
+        _endpoint_in_diff(module, changed_files, source_roots) for module in component
     )
+
+
+def _cycle_components(cwd: Path, config: Config) -> list[frozenset[str]]:
+    roots = _python_roots(cwd, config)
+    return strongly_connected(_import_edges(cwd, config, roots))
+
+
+def _import_edges(cwd: Path, config: Config, roots: list[str]) -> dict[str, list[str]]:
+    if not roots:
+        return {}
+    env = _python_env(cwd, config)
+    completed = subprocess.run(
+        [sys.executable, "-c", _GRAPH_RUNNER, env.get("PYTHONPATH", ""), json.dumps(roots)],
+        cwd=cwd,
+        capture_output=True,
+        text=True,
+        stdin=subprocess.DEVNULL,
+        env=env,
+    )
+    return _parse_edges(completed.stdout if completed.returncode == 0 else "")
+
+
+def _parse_edges(raw: str) -> dict[str, list[str]]:
+    try:
+        data = json.loads(raw) if raw.strip() else {}
+    except json.JSONDecodeError:
+        return {}
+    if not isinstance(data, dict):
+        return {}
+    edges: dict[str, list[str]] = {}
+    for origin, destinations in data.items():
+        if isinstance(destinations, list):
+            edges[str(origin)] = [str(item) for item in destinations]
+    return edges
+
+
+def _endpoint_in_diff(endpoint: str, changed_files: set[str], source_roots: list[str]) -> bool:
+    path = endpoint.replace("\\", "/")
+    if path in changed_files:
+        return True
+    if "/" in path:
+        return False
+    return any(candidate in changed_files for candidate in _module_paths(path, source_roots))
+
+
+def _module_paths(module: str, source_roots: list[str]) -> list[str]:
+    relative = module.replace(".", "/")
+    names = (f"{relative}.py", f"{relative}/__init__.py")
+    paths: list[str] = []
+    for root in source_roots:
+        prefix = root.strip("/")
+        for name in names:
+            paths.append(f"{prefix}/{name}" if prefix else name)
+    return paths
+
+
+def _source_roots(cwd: Path, config: Config) -> list[str]:
+    found: list[str] = []
+    for package in _discover_packages(cwd, config.include):
+        relative = _relative_root(cwd, package.source_root)
+        if relative not in found:
+            found.append(relative)
+    return found or [""]
+
+
+def _relative_root(cwd: Path, source_root: Path) -> str:
+    try:
+        relative = source_root.resolve().relative_to(cwd.resolve()).as_posix()
+    except ValueError:
+        return source_root.as_posix()
+    return "" if relative == "." else relative
 
 
 def _python_violations(
@@ -162,7 +276,7 @@ def _typescript_violations(
     versions: dict[str, str],
 ) -> list[DepViolation]:
     if node_missing_message() is not None:
-        raise ToolError(_NODE_MISSING)
+        raise NodeMissing(_NODE_MISSING)
     prefix = npm_prefix()
     versions["dependency-cruiser"] = _cruiser_version(prefix)
     patterns = _cruise_patterns(cwd, config.include)
@@ -208,6 +322,10 @@ def _run_linter(cwd: Path, config: Config, config_path: Path) -> subprocess.Comp
         stdin=subprocess.DEVNULL,
         env=_python_env(cwd, config),
     )
+
+
+class NodeMissing(ToolError):
+    """Node não está disponível; o TypeScript deste gate não pode ser medido."""
 
 
 class UnparsedBreak(Exception):

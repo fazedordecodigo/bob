@@ -89,6 +89,56 @@ def test_python_cycle_fails_without_import_linter_config(tmp_path: Path) -> None
     assert "`app.right → app.left` (Proibido ciclo de dependência)" in markdown
 
 
+A_PY = "from app.b import VALUE as B\n\nVALUE = B\n"
+B_PY = "from app.c import VALUE as C\n\nVALUE = C\n"
+C_PY = "from app.a import VALUE as A\n\nVALUE = A\n"
+B_TOUCHED = "from app.c import VALUE as C\n\nVALUE = C\nTOUCHED = 1\n"
+
+
+Y_A = "from y.b import VALUE as B\n\nVALUE = B\n"
+Y_B = "from y.a import VALUE as A\n\nVALUE = A\n"
+X_B = "VALUE = 1\n"
+
+
+def test_changing_x_b_does_not_mark_y_b_in_the_diff(tmp_path: Path) -> None:
+    """`src/x/b.py` e `src/x/y/b.py` não são o módulo `y.b` em `src/y/b.py`."""
+    repo = init_python_repo(tmp_path / "repo")
+    commit_on_main(repo, "src/y/__init__.py", "", "package y")
+    commit_on_main(repo, "src/y/a.py", Y_A, "add y.a")
+    commit_on_main(repo, "src/y/b.py", Y_B, "add y.b")
+    commit_on_branch(repo, "lookalike", "src/x/b.py", X_B, "touch x/b.py")
+    commit_on_branch(repo, "lookalike", "src/x/y/b.py", X_B, "touch x/y/b.py")
+
+    code = _invoke(repo, "deps", "--base", "main")
+    payload, markdown = _deps(repo)
+    deps = next(gate for gate in payload["gates"] if gate["name"] == "deps")
+
+    assert code == 0, markdown
+    assert deps["status"] == "passed"
+    assert payload["dependencies"] == []
+    assert "fora do diff; não bloqueia" in markdown
+
+
+def test_python_three_cycle_blocks_when_only_the_middle_module_changes(
+    tmp_path: Path,
+) -> None:
+    """a→b→c→a: mudar só b.py bloqueia, mesmo que o import-linter cite só c→a."""
+    repo = init_python_repo(tmp_path / "repo")
+    commit_on_main(repo, "src/app/a.py", A_PY, "add a")
+    commit_on_main(repo, "src/app/b.py", B_PY, "add b")
+    commit_on_main(repo, "src/app/c.py", C_PY, "add c")
+    commit_on_branch(repo, "touch-b", "src/app/b.py", B_TOUCHED, "touch middle module")
+
+    code = _invoke(repo, "deps", "--base", "main")
+    payload, markdown = _deps(repo)
+    deps = next(gate for gate in payload["gates"] if gate["name"] == "deps")
+
+    assert code == 1, markdown
+    assert deps["status"] == "failed"
+    assert payload["dependencies"]
+    assert "❌ `deps`" in markdown
+
+
 def test_python_cycle_already_on_main_is_information_and_does_not_fail(
     tmp_path: Path,
 ) -> None:
@@ -187,6 +237,31 @@ def test_typescript_cycle_fails_without_cruiser_config(tmp_path: Path) -> None:
     assert "`src/left.ts → src/right.ts`" in markdown
     assert "`src/right.ts → src/left.ts`" in markdown
     assert payload["tool_versions"]["dependency-cruiser"] == "18.5.0"
+
+
+A_TS = 'import { b } from "./b";\nexport const a = b;\n'
+B_TS = 'import { c } from "./c";\nexport const b = c;\n'
+C_TS = 'import { a } from "./a";\nexport const c = a;\n'
+B_TS_TOUCHED = 'import { c } from "./c";\nexport const b = c;\nexport const touched = 1;\n'
+
+
+def test_typescript_three_cycle_blocks_when_only_the_middle_module_changes(
+    tmp_path: Path,
+) -> None:
+    repo = init_ts_repo(tmp_path / "repo")
+    commit_on_main(repo, "src/a.ts", A_TS, "add a")
+    commit_on_main(repo, "src/b.ts", B_TS, "add b")
+    commit_on_main(repo, "src/c.ts", C_TS, "add c")
+    commit_on_branch(repo, "touch-b", "src/b.ts", B_TS_TOUCHED, "touch middle module")
+
+    code = _invoke(repo, "deps", "--base", "main")
+    payload, markdown = _deps(repo)
+    deps = next(gate for gate in payload["gates"] if gate["name"] == "deps")
+
+    assert code == 1, markdown
+    assert deps["status"] == "failed"
+    assert payload["dependencies"]
+    assert "❌ `deps`" in markdown
 
 
 def test_typescript_cycle_already_on_main_is_information_and_does_not_fail(

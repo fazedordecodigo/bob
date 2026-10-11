@@ -49,7 +49,7 @@ def _consume(state: _ParseState, lines: list[str], index: int, line: str) -> Non
         state.package = package
     edge = _edge(stripped, state.package)
     if edge is not None:
-        state.found.append(DepViolation(edge[0], edge[1], state.rule))
+        state.found.append(DepViolation(edge[0], edge[1], state.rule, False))
 
 
 def _is_heading(lines: list[str], index: int) -> bool:
