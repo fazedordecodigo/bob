@@ -1,0 +1,11 @@
+Matt Pocock agent skills, vendored for the bob plugin.
+
+Source:  https://github.com/mattpocock/skills
+Commit:  49dd158d1076134a641b33efb035946536778336
+Date:    2026-10-09
+License: MIT (see LICENSE in this directory)
+Copyright (c) 2026 Matt Pocock
+
+This tree is a verbatim copy of the upstream `skills/` directory at that
+commit, plus the upstream LICENSE. Do not edit the vendored files; re-copy
+from the pin above.
