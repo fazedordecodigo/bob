@@ -93,7 +93,30 @@
     },
     "waivers": { "type": "array" },
     "survivors": { "type": "array" },
-    "mutation": { "type": ["object", "null"] },
+    "mutation": {
+      "type": ["object", "null"],
+      "properties": {
+        "no_coverage": {
+          "type": "object",
+          "required": ["total", "functions"],
+          "properties": {
+            "total": { "type": "integer" },
+            "functions": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": ["file", "function", "count"],
+                "properties": {
+                  "file": { "type": "string" },
+                  "function": { "type": "string" },
+                  "count": { "type": "integer" }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "reproduce": { "type": "string" },
     "exit_code": { "type": "integer" }
   }

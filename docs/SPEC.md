@@ -88,7 +88,7 @@ dependencies: { python: .importlinter, typescript: .dependency-cruiser.cjs, viol
 2. Veredito por gate: ✅ passou / ⚠️ aviso / ❌ falhou / ⏭️ não executado (com motivo).
 3. **Onde focar o review**: arquivos alterados ordenados por risco (maior CRAP + sobreviventes + clones).
 4. Top 5 funções de maior CRAP no diff (função, arquivo:linha, CC, cobertura, CRAP, delta).
-5. Mutantes sobreviventes (sem waiver = falha) e tabela de waivers com justificativa.
+5. Mutantes sobreviventes (sem waiver = falha), mutantes sem teste (`no_coverage`) como ⚠️ agrupados por função e arquivo, e tabela de waivers com justificativa.
 6. Clones novos (pares, similaridade, linhas).
 7. Violações e ciclos de dependência.
 8. Rodapé: como reproduzir localmente (comando exato).
@@ -139,7 +139,7 @@ O JSON segue um schema versionado (`schema_version: 1`).
 2. Nos repos-fixture Py e TS, `bob check --base main` produz `report.md` e `report.json` válidos (schema v1) e o exit code correto em cada caso de falha.
 3. CRAP é calculado por função alterada, com limite 10 configurável, e o top 5 aparece no relatório.
 4. Clones novos geram ⚠️ e não falham. Uma violação de dependência gera ❌.
-5. A mutação roda só no CI e só nas funções alteradas. Um sobrevivente sem waiver dá exit 3. Os waivers sem motivo são rejeitados.
+5. A mutação roda só no CI e só nas funções alteradas. Um sobrevivente sem waiver dá exit 3. Mutantes sem teste (`no_coverage`) aparecem como aviso (⚠️) e não mudam o exit code. Os waivers sem motivo são rejeitados.
 6. Um gate não executado aparece como ⏭️ com motivo, nunca como ✅.
 7. O hook local roda `crap,dry,deps` em menos de 60 s no repo-fixture.
 8. A Action comenta e atualiza um único comentário com o relatório num PR de teste.
@@ -168,3 +168,4 @@ O JSON segue um schema versionado (`schema_version: 1`).
 8. **Sequência**: tracer bullet primeiro (scaffold + CRAP + relatório + hook, em Python e depois TS). Depois vêm mutação, duplicação/dependências e empacotamento.
 9. **Pasta de saída**: `.bob/` (relatórios, `waivers.yaml`, `mutation-cache.json`).
 10. **Monorepo sem Node** (aprovada pelo Emerson em 11/10/2026): num repositório com Python e TypeScript, a ausência do Node não é exit 4. O Python continua medido. O TypeScript aparece no relatório como pulado, com aviso (⚠️). O exit code é o do que foi medido: 0 com aviso quando não há falha bloqueante, 1 quando há. Exit 4 continua quando a ferramenta ausente impede a medição pedida (repositório só TypeScript sem Node, ou configuração inválida).
+11. **Mutantes sem teste** (Emerson, 11/10/2026): `no_coverage` aparece como aviso no `report.md` e no `report.json` (total e contagem por função e arquivo). O gate mutate fica ⚠️ quando não há sobrevivente sem waiver, e o exit code não muda. A fase 2 (testes de CLI no mesmo processo e `no_coverage` nas funções do diff falhando com exit 3) fica para depois (#31).

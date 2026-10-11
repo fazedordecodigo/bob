@@ -13,7 +13,13 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+from jsonschema import Draft202012Validator
+
 from helpers import commit_on_branch, commit_on_main, init_python_repo, run_bob
+
+SCHEMA = json.loads(
+    (Path(__file__).resolve().parents[1] / "src/bob_quality/schemas/report_v1.json").read_text()
+)
 
 FIXTURE = Path(__file__).parent / "fixtures" / "python_app"
 CLASSIFY = (FIXTURE / "cases" / "survive_classify.py").read_text()
@@ -22,6 +28,7 @@ ADD_AND_SCALE = (FIXTURE / "cases" / "add_and_scale.py").read_text()
 ADD_TOUCHED = (FIXTURE / "cases" / "add_touched.py").read_text()
 ADD_AND_SCALE_TEST = (FIXTURE / "cases" / "test_add_and_scale.py").read_text()
 STRONG_TEST = (FIXTURE / "cases" / "test_classify_strong.py").read_text()
+ORPHAN = (FIXTURE / "cases" / "orphan.py").read_text()
 
 
 def _repo_with_surviving_mutant(tmp_path: Path) -> Path:
@@ -43,6 +50,31 @@ def test_mutate_exits_3_when_changed_function_has_unwaived_survivor(tmp_path: Pa
     assert mutate["status"] == "failed"
     assert "classify" in markdown
     assert "src/app/weak.py" in markdown
+
+
+def test_uncovered_mutants_warn_without_changing_the_exit_code(tmp_path: Path) -> None:
+    repo = init_python_repo(tmp_path / "repo")
+    commit_on_branch(repo, "orphan", "src/app/orphan.py", ORPHAN, "add orphan")
+
+    result = run_bob(repo, "mutate", "--base", "main")
+    payload = json.loads((repo / ".bob" / "report.json").read_text())
+    markdown = (repo / ".bob" / "report.md").read_text()
+    mutate = next(gate for gate in payload["gates"] if gate["name"] == "mutate")
+
+    assert result.returncode == 0
+    assert mutate == {
+        "name": "mutate",
+        "status": "warn",
+        "reason": "2 mutantes sem teste",
+    }
+    assert payload["mutation"]["no_coverage"] == {
+        "total": 2,
+        "functions": [{"file": "src/app/orphan.py", "function": "orphan", "count": 2}],
+    }
+    assert "## Mutantes sem teste" in markdown
+    assert "⚠️ Total: 2. Não bloqueia." in markdown
+    assert "| orphan | src/app/orphan.py | 2 |" in markdown
+    Draft202012Validator(SCHEMA).validate(payload)
 
 
 def test_mutate_exits_2_when_baseline_tests_fail(tmp_path: Path) -> None:
@@ -142,7 +174,14 @@ def test_only_changed_functions_are_mutated_and_clean_ones_are_not_remutated(
     payload = json.loads((repo / ".bob" / "report.json").read_text())
     functions = cache["functions"]
 
+    markdown = (repo / ".bob" / "report.md").read_text()
+    mutate = next(gate for gate in payload["gates"] if gate["name"] == "mutate")
+
     assert first.returncode == 0
+    assert mutate["status"] == "passed"
+    assert mutate["reason"] is None
+    assert payload["mutation"]["no_coverage"] == {"total": 0, "functions": []}
+    assert "## Mutantes sem teste\n\nNenhum mutante sem teste." in markdown
     assert "src/app/safe.py::add" in payload["mutation"]["remutated"]
     assert "src/app/safe.py::scale" not in payload["mutation"]["remutated"]
     assert "src/app/safe.py::scale" not in functions

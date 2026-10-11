@@ -68,6 +68,7 @@ def to_markdown(report: Report) -> str:
     lines.extend(["", "## Clones novos", ""])
     lines.extend(_clone_lines(report))
     lines.extend(_survivor_lines(report))
+    lines.extend(_no_coverage_lines(report))
     lines.extend(_footer(report))
     return "\n".join(lines)
 
@@ -143,6 +144,21 @@ def _survivor_lines(report: Report) -> list[str]:
     lines.append("|---|---|---|---|---|")
     for item in report.survivors:
         lines.append(_survivor_row(item))
+    return lines
+
+
+def _no_coverage_lines(report: Report) -> list[str]:
+    uncovered = (report.mutation or {}).get("no_coverage")
+    if not isinstance(uncovered, dict):
+        return []
+    lines = ["", "## Mutantes sem teste", ""]
+    if not uncovered["functions"]:
+        lines.append("Nenhum mutante sem teste.")
+        return lines
+    lines.extend([f"⚠️ Total: {uncovered['total']}. Não bloqueia.", ""])
+    lines.extend(["| Função | Arquivo | Mutantes |", "|---|---|---:|"])
+    for row in uncovered["functions"]:
+        lines.append(f"| {row['function']} | {row['file']} | {row['count']} |")
     return lines
 
 
