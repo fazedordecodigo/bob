@@ -21,8 +21,8 @@ class GitHubApi:
         self._next_id = 1
         self.redirect_downloads = False
 
-    def add_comment(self, body: str) -> dict[str, object]:
-        comment = {"id": self._next_id, "body": body}
+    def add_comment(self, body: str, login: str = "github-actions[bot]") -> dict[str, object]:
+        comment = {"id": self._next_id, "body": body, "user": {"login": login}}
         self._next_id += 1
         self.comments.append(comment)
         return comment

@@ -7,12 +7,12 @@ import json
 import os
 import sys
 import urllib.error
-import urllib.request
 from pathlib import Path
 
-from github_links import next_link
+from github_http import GitHubStatus, next_link, raise_for_status, request
 
 MARKER = "<!-- bob-report -->"
+ACTIONS_BOT = "github-actions[bot]"
 GITHUB_BODY_LIMIT = 65536
 _TRUNCATION_NOTE = "\n\n_…relatório truncado para caber no comentário do GitHub._\n"
 
@@ -27,10 +27,21 @@ def build_body(report_text: str) -> str:
 
 
 def comment_to_update(comments: list[dict[str, object]]) -> int | None:
-    marked = [item for item in comments if MARKER in str(item.get("body") or "")]
+    marked = [
+        item
+        for item in comments
+        if _is_actions_bot(item) and MARKER in str(item.get("body") or "")
+    ]
     if not marked:
         return None
     return int(marked[-1]["id"])
+
+
+def _is_actions_bot(comment: dict[str, object]) -> bool:
+    user = comment.get("user")
+    if not isinstance(user, dict):
+        return False
+    return user.get("login") == ACTIONS_BOT
 
 
 def upsert_comment(
@@ -45,29 +56,29 @@ def upsert_comment(
     body = build_body(report_text)
     target = comment_to_update(comments)
     if target is None:
-        status, payload, _headers = _request(
+        status, payload, _headers = request(
             "POST",
             f"{api_base}/repos/{repo}/issues/{pr}/comments",
             token,
             {"body": body},
         )
-        _raise_for_status(status, payload)
+        raise_for_status(status, payload)
         return
-    status, payload, _headers = _request(
+    status, payload, _headers = request(
         "PATCH",
         f"{api_base}/repos/{repo}/issues/comments/{target}",
         token,
         {"body": body},
     )
-    _raise_for_status(status, payload)
+    raise_for_status(status, payload)
 
 
 def _list_comments(api_base: str, repo: str, pr: str, token: str) -> list[dict[str, object]]:
     url: str | None = f"{api_base}/repos/{repo}/issues/{pr}/comments?per_page=100"
     collected: list[dict[str, object]] = []
     while url is not None:
-        status, payload, headers = _request("GET", url, token, None)
-        _raise_for_status(status, payload)
+        status, payload, headers = request("GET", url, token, None)
+        raise_for_status(status, payload)
         page = json.loads(payload.decode())
         if not isinstance(page, list):
             raise RuntimeError("lista de comentários inválida")
@@ -76,30 +87,14 @@ def _list_comments(api_base: str, repo: str, pr: str, token: str) -> list[dict[s
     return collected
 
 
-def _raise_for_status(status: int, payload: bytes) -> None:
-    if status >= 400:
-        raise RuntimeError(f"GitHub API {status}: {payload.decode()[:300]}")
-
-
-def _request(
-    method: str,
-    url: str,
-    token: str,
-    payload: dict[str, object] | None,
-) -> tuple[int, bytes, dict[str, str]]:
-    data = None if payload is None else json.dumps(payload).encode()
-    request = urllib.request.Request(url, data=data, method=method)
-    request.add_header("Authorization", f"Bearer {token}")
-    request.add_header("Accept", "application/vnd.github+json")
-    request.add_header("X-GitHub-Api-Version", "2026-03-10")
-    if data is not None:
-        request.add_header("Content-Type", "application/json")
-    try:
-        with urllib.request.urlopen(request) as response:
-            raw_headers = {key.lower(): value for key, value in response.headers.items()}
-            return response.status, response.read(), raw_headers
-    except urllib.error.HTTPError as exc:
-        return exc.code, exc.read(), {}
+def _write_step_summary(text: str) -> None:
+    raw = os.environ.get("GITHUB_STEP_SUMMARY", "")
+    if not raw:
+        return
+    path = Path(raw)
+    existing = path.read_text(encoding="utf-8") if path.is_file() else ""
+    body = text if text.endswith("\n") else f"{text}\n"
+    path.write_text(existing + body, encoding="utf-8")
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -127,6 +122,12 @@ def main(argv: list[str] | None = None) -> int:
             api_base=args.api_base.rstrip("/"),
             token=args.token,
         )
+    except GitHubStatus as exc:
+        if exc.status == 403:
+            _write_step_summary(text)
+            return 0
+        print(str(exc), file=sys.stderr)
+        return 1
     except (OSError, RuntimeError, urllib.error.URLError, json.JSONDecodeError) as exc:
         print(str(exc), file=sys.stderr)
         return 1

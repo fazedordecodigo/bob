@@ -87,6 +87,23 @@ def test_pull_request_workflow_dogfoods_the_local_action() -> None:
     assert "fetch-depth: 0" in text
     assert "github.event.pull_request.head.sha" in text
     assert "github.base_ref" in text
+    concurrency = doc["concurrency"]
+    assert isinstance(concurrency, dict)
+    assert concurrency["group"] == "bob-${{ github.event.pull_request.number }}"
+    assert concurrency["cancel-in-progress"] is True
+    jobs = doc["jobs"]
+    assert isinstance(jobs, dict)
+    check = jobs["check"]
+    assert isinstance(check, dict)
+    steps = check["steps"]
+    assert isinstance(steps, list)
+    fetch = next(step for step in steps if "git fetch" in str(step.get("run", "")))
+    assert isinstance(fetch, dict)
+    assert "${{" not in str(fetch["run"])
+    env = fetch["env"]
+    assert isinstance(env, dict)
+    assert env["BASE_REF"] == "${{ github.base_ref }}"
+    assert "$BASE_REF" in str(fetch["run"])
 
 
 def test_composite_action_comments_uploads_cache_and_keeps_bob_status() -> None:
@@ -110,6 +127,10 @@ def test_composite_action_comments_uploads_cache_and_keeps_bob_status() -> None:
     )
     restore = next(step for step in steps if "restore_cache.py" in str(step.get("run", "")))
     assert "||" in str(restore["run"])
+    restore_env = restore["env"]
+    assert isinstance(restore_env, dict)
+    assert restore_env["GITHUB_BASE_REF"] == "${{ github.base_ref }}"
+    assert restore_env["GITHUB_HEAD_REF"] == "${{ github.head_ref }}"
     assert text.index("restore_cache.py") < text.index("run_check.sh")
     assert text.index("run_check.sh") < text.index("upload-artifact")
     assert text.index("upload-artifact") < text.index("upsert_comment.py")
