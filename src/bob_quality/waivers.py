@@ -62,16 +62,20 @@ def load_waivers(cwd: Path) -> list[Waiver]:
             raise WaiverError("waiver inválido")
         reason = normalize_reason(entry.get("reason") if isinstance(entry.get("reason"), str) else None)
         target = entry.get("id")
-        if not isinstance(target, str) or not target.strip():
-            raise WaiverError("waiver sem alvo")
         author = entry.get("author")
         date = entry.get("date")
+        if not isinstance(target, str) or not target.strip():
+            raise WaiverError("waiver sem alvo")
+        if not isinstance(author, str) or not author.strip():
+            raise WaiverError("waiver sem autor")
+        if not isinstance(date, str) or not date.strip():
+            raise WaiverError("waiver sem data")
         loaded.append(
             Waiver(
                 id=target.strip(),
                 reason=reason,
-                author=author.strip() if isinstance(author, str) else "",
-                date=date.strip() if isinstance(date, str) else "",
+                author=author.strip(),
+                date=date.strip(),
             )
         )
     return loaded
@@ -101,7 +105,7 @@ def apply_waivers(mutants: list[Mutant], waivers: list[Waiver]) -> list[Mutant]:
     applied: list[Mutant] = []
     for mutant in mutants:
         reason = _matching_reason(mutant, waivers)
-        if reason is None:
+        if reason == mutant.waiver:
             applied.append(mutant)
             continue
         applied.append(

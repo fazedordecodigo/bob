@@ -41,12 +41,7 @@ def run_mutmut(cwd: Path, patterns: list[str], max_workers: int | None) -> None:
     args = [sys.executable, "-m", "mutmut", "run", *patterns]
     if max_workers is not None:
         args.extend(["--max-children", str(max_workers)])
-    try:
-        _invoke(args, cwd)
-    except ToolError as exc:
-        if "nothing matches" in str(exc):
-            return
-        raise
+    _invoke(args, cwd)
 
 
 def mutmut_results(cwd: Path) -> str:

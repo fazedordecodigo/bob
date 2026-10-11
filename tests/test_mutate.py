@@ -179,6 +179,62 @@ def test_functions_with_survivors_are_remutated_even_when_the_hash_matches(
     assert payload["survivors"] == []
 
 
+def test_hand_written_waiver_without_author_is_rejected(tmp_path: Path) -> None:
+    repo = init_python_repo(tmp_path / "repo")
+    bob = repo / ".bob"
+    bob.mkdir()
+    (bob / "waivers.yaml").write_text(
+        "waivers:\n  - id: classify\n    reason: falta o autor\n    date: '2026-10-11'\n",
+        encoding="utf-8",
+    )
+
+    result = run_bob(repo, "mutate", "--base", "main")
+    payload = json.loads((repo / ".bob" / "report.json").read_text())
+    mutate = next(gate for gate in payload["gates"] if gate["name"] == "mutate")
+
+    assert result.returncode == 4
+    assert mutate["status"] == "not_run"
+    assert mutate["reason"]
+
+
+def test_check_lists_an_existing_waiver_at_the_top(tmp_path: Path) -> None:
+    repo = init_python_repo(tmp_path / "repo")
+    bob = repo / ".bob"
+    bob.mkdir()
+    (bob / "waivers.yaml").write_text(
+        "waivers:\n"
+        "  - id: classify\n"
+        "    reason: o contrato exige estritamente maior que zero\n"
+        "    author: bob-test\n"
+        "    date: '2026-10-11'\n",
+        encoding="utf-8",
+    )
+
+    result = run_bob(repo, "check", "--base", "main", "--gates", "crap")
+    markdown = (repo / ".bob" / "report.md").read_text()
+    head = markdown.split("## Veredito")[0]
+
+    assert result.returncode == 0
+    assert markdown.startswith("# Relatório bob\n\n## Waivers\n")
+    assert "o contrato exige estritamente maior que zero" in head
+
+
+def test_removed_waiver_fails_the_survivor_again(tmp_path: Path) -> None:
+    repo = _repo_with_surviving_mutant(tmp_path)
+    reason = "o contrato exige estritamente maior que zero"
+
+    assert run_bob(repo, "mutate", "--base", "main").returncode == 3
+    assert run_bob(repo, "waive", "classify", "--reason", reason).returncode == 0
+    assert run_bob(repo, "mutate", "--base", "main").returncode == 0
+
+    (repo / ".bob" / "waivers.yaml").unlink()
+    result = run_bob(repo, "mutate", "--base", "main")
+    markdown = (repo / ".bob" / "report.md").read_text()
+
+    assert result.returncode == 3
+    assert reason not in markdown.split("## Veredito")[0]
+
+
 def test_harden_skill_kills_mutants_without_weakening_production_code() -> None:
     text = (Path(__file__).resolve().parents[1] / "skills/harden/SKILL.md").read_text(
         encoding="utf-8"

@@ -22,7 +22,7 @@ from bob_quality.mutmut_tool import (
     run_mutmut,
 )
 from bob_quality.tools import ToolError, run_lizard_csv
-from bob_quality.waivers import WaiverError, apply_waivers, load_waivers
+from bob_quality.waivers import Waiver, WaiverError, apply_waivers, load_waivers
 
 CACHE_NAME = "mutation-cache.json"
 
@@ -79,7 +79,7 @@ def run_mutation_gate(
             versions,
             waivers=waiver_rows,
         )
-    remutate, reuse = _split_functions(measured, diff_lines, cached, cwd)
+    remutate, reuse = _split_functions(measured, diff_lines, cached, cwd, waivers)
     reused_mutants = apply_waivers(_mutants_from_cache(reuse), waivers)
     remutated_labels = [f"{item.file}::{item.name}" for item in remutate]
     reused_labels = [key for key, _entry in reuse]
@@ -150,6 +150,7 @@ def _split_functions(
     diff_lines: dict[str, set[int]],
     cache: dict[str, dict[str, object]],
     cwd: Path,
+    waivers: list[Waiver],
 ) -> tuple[list[CyclomaticFunction], list[tuple[str, dict[str, object]]]]:
     by_key = {f"{item.file}::{item.name}": item for item in measured}
     keys: set[str] = set()
@@ -157,7 +158,7 @@ def _split_functions(
         if function_is_changed(item.file, item.start_line, item.end_line, diff_lines):
             keys.add(f"{item.file}::{item.name}")
     for key, entry in cache.items():
-        if key in by_key and _has_unwaived_survivor(entry):
+        if key in by_key and _has_unwaived_survivor(entry, waivers):
             keys.add(key)
     remutate: list[CyclomaticFunction] = []
     reuse: list[tuple[str, dict[str, object]]] = []
@@ -165,21 +166,24 @@ def _split_functions(
         item = by_key[key]
         entry = cache.get(key)
         digest = _function_hash(cwd, item.file, item.start_line, item.end_line)
-        if not isinstance(entry, dict) or entry.get("hash") != digest or _has_unwaived_survivor(entry):
+        if (
+            not isinstance(entry, dict)
+            or entry.get("hash") != digest
+            or _has_unwaived_survivor(entry, waivers)
+        ):
             remutate.append(item)
             continue
         reuse.append((key, entry))
     return remutate, reuse
 
 
-def _has_unwaived_survivor(entry: dict[str, object]) -> bool:
+def _has_unwaived_survivor(entry: dict[str, object], waivers: list[Waiver]) -> bool:
     mutants = entry.get("mutants")
     if not isinstance(mutants, list):
         return False
-    return any(
-        isinstance(item, dict) and item.get("status") == "survived" and not item.get("waiver")
-        for item in mutants
-    )
+    rows = [item for item in mutants if isinstance(item, dict) and isinstance(item.get("id"), str)]
+    current = apply_waivers([_mutant_from_row(item) for item in rows], waivers)
+    return any(item.status == "survived" and not item.waiver for item in current)
 
 
 def _read_cache(path: Path) -> dict[str, dict[str, object]]:
@@ -236,7 +240,7 @@ def _finish(
 ) -> MutationOutcome:
     visible = [item for item in mutants if item.status == "survived"]
     unwaived = [item for item in visible if not item.waiver]
-    rows = [_survivor_row(item) for item in visible]
+    rows = [_mutant_row(item) for item in visible]
     summary = {"remutated": remutated, "reused": reused}
     if not unwaived:
         return _outcome(
@@ -309,7 +313,7 @@ def _cache_body(
             "name": item.name,
             "start_line": item.start_line,
             "end_line": item.end_line,
-            "mutants": [_survivor_row(mutant) for mutant in own],
+            "mutants": [_mutant_row(mutant) for mutant in own],
         }
     return body
 
@@ -326,7 +330,7 @@ def _write_cache(path: Path, functions: dict[str, object]) -> None:
     path.write_text(json.dumps(payload, indent=2) + "\n")
 
 
-def _survivor_row(mutant: Mutant) -> dict[str, object]:
+def _mutant_row(mutant: Mutant) -> dict[str, object]:
     return {
         "id": mutant.id,
         "function": mutant.function,

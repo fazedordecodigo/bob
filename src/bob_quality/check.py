@@ -13,6 +13,7 @@ from bob_quality.exit_codes import CONFIG_OR_TOOL, PASSED
 from bob_quality.models import FunctionMetric, GateResult, Report
 from bob_quality.mutate import focus_with_survivors, run_mutation_gate
 from bob_quality.report import metric_row, write_report
+from bob_quality.waivers import WaiverError, load_waivers
 
 DEFAULT_GATES = ("crap", "dry", "deps")
 
@@ -92,13 +93,19 @@ def run_check(
 
     focus = files_by_risk(metrics)
     survivors: list[dict[str, object]] = []
-    waivers: list[dict[str, object]] = []
     mutation_summary = None
     if mutation is not None:
         survivors = mutation.survivors
         waivers = mutation.waivers
         mutation_summary = mutation.summary
         focus = focus_with_survivors(focus, survivors)
+    else:
+        try:
+            waivers = [item.as_dict() for item in load_waivers(cwd)]
+        except WaiverError as exc:
+            return _fail_early(
+                chosen_out, fmt, CONFIG_OR_TOOL, str(exc), chosen_base, command, chosen_gates
+            )
 
     report = Report(
         schema_version=1,

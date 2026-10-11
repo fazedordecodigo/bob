@@ -47,7 +47,7 @@ def to_json(report: Report) -> dict[str, object]:
 
 def to_markdown(report: Report) -> str:
     lines = ["# Relatório bob", ""]
-    if report.mutation is not None:
+    if report.waivers or report.mutation is not None:
         lines.extend(_waiver_section(report.waivers))
     lines.extend(
         [

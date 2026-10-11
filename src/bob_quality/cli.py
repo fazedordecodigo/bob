@@ -38,7 +38,11 @@ def build_parser() -> argparse.ArgumentParser:
 
     mutate = sub.add_parser("mutate", help="Muta funções alteradas com mutmut")
     _add_shared(mutate)
-    mutate.add_argument("--since-last-run", action="store_true")
+    mutate.add_argument(
+        "--since-last-run",
+        action="store_true",
+        help="Reusa o cache; já é o comportamento padrão",
+    )
     mutate.add_argument("--max-workers", type=int, default=None)
 
     waive = sub.add_parser("waive", help="Registra um waiver com motivo de uma linha")
