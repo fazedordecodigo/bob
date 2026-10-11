@@ -11,9 +11,11 @@ from pathlib import Path
 from bob_quality.adapters.lizard import LizardParseError, parse_lizard_csv
 from bob_quality.adapters.mutmut import (
     MutmutParseError,
+    covering_test_files,
     ids_for_show,
     mutants_from_raw,
     mutmut_id_prefix,
+    mutmut_stats_key,
 )
 from bob_quality.config import Config
 from bob_quality.diff import function_is_changed
@@ -22,6 +24,7 @@ from bob_quality.models import CyclomaticFunction, GateResult, Mutant, MutantSta
 from bob_quality.mutmut_tool import (
     mutmut_results,
     mutmut_show,
+    mutmut_stats,
     mutmut_version,
     pytest_exit_code,
     run_mutmut,
@@ -55,7 +58,7 @@ def run_mutation_gate(
         return prepared
     versions, waivers, waiver_rows, cache_path, plan = prepared
     if not plan.remutate:
-        _write_cache(cache_path, dict(plan.reuse))
+        _write_cache(cache_path, versions["mutmut"], dict(plan.reuse))
         return _finish(
             plan.reused_mutants, plan.remutated_labels, plan.reused_labels, versions, waiver_rows
         )
@@ -65,9 +68,12 @@ def run_mutation_gate(
     fresh = _collect_fresh(cwd, config, plan.remutate, max_workers, versions, waiver_rows, waivers)
     if isinstance(fresh, MutationOutcome):
         return fresh
+    tests, unreadable = _safe_stats(cwd, versions, waiver_rows)
+    if unreadable is not None:
+        return unreadable
     body = dict(plan.reuse)
-    body.update(_cache_body(cwd, plan.remutate, fresh))
-    _write_cache(cache_path, body)
+    body.update(_cache_body(cwd, plan.remutate, fresh, tests))
+    _write_cache(cache_path, versions["mutmut"], body)
     return _finish(
         fresh + plan.reused_mutants, plan.remutated_labels, plan.reused_labels, versions, waiver_rows
     )
@@ -147,9 +153,18 @@ def _safe_cache(
     waiver_rows: list[dict[str, object]],
 ) -> tuple[dict[str, dict[str, object]], MutationOutcome | None]:
     try:
-        return _read_cache(cache_path), None
+        return _read_cache(cache_path, versions["mutmut"]), None
     except (OSError, json.JSONDecodeError) as exc:
         return {}, _tool_outcome(f"cache de mutação inválido: {exc}", versions, waiver_rows)
+
+
+def _safe_stats(
+    cwd: Path, versions: dict[str, str], waiver_rows: list[dict[str, object]]
+) -> tuple[dict[str, set[str]], MutationOutcome | None]:
+    try:
+        return covering_test_files(mutmut_stats(cwd)), None
+    except (ToolError, MutmutParseError) as exc:
+        return {}, _tool_outcome(str(exc), versions, waiver_rows)
 
 
 def _plan_functions(
@@ -287,7 +302,7 @@ def _split_functions(
         item = by_key[key]
         entry = cache.get(key)
         digest = _function_hash(cwd, item.file, item.start_line, item.end_line)
-        if isinstance(entry, dict) and not _needs_remutation(entry, digest, waivers):
+        if isinstance(entry, dict) and not _needs_remutation(entry, digest, cwd, waivers):
             reuse.append((key, entry))
         else:
             remutate.append(item)
@@ -312,10 +327,18 @@ def _candidate_keys(
     return keys
 
 
-def _needs_remutation(entry: dict[str, object], digest: str, waivers: list[Waiver]) -> bool:
-    if entry.get("hash") != digest:
+def _needs_remutation(
+    entry: dict[str, object], digest: str, cwd: Path, waivers: list[Waiver]
+) -> bool:
+    if entry.get("hash") != digest or not _tests_unchanged(cwd, entry.get("tests")):
         return True
     return _has_unwaived_survivor(entry, waivers)
+
+
+def _tests_unchanged(cwd: Path, tests: object) -> bool:
+    if not isinstance(tests, dict):
+        return False
+    return all(_file_hash(cwd / str(file)) == digest for file, digest in tests.items())
 
 
 def _has_unwaived_survivor(entry: dict[str, object], waivers: list[Waiver]) -> bool:
@@ -327,11 +350,14 @@ def _has_unwaived_survivor(entry: dict[str, object], waivers: list[Waiver]) -> b
     return any(item.status == "survived" and not item.waiver for item in current)
 
 
-def _read_cache(path: Path) -> dict[str, dict[str, object]]:
+def _read_cache(path: Path, mutmut: str) -> dict[str, dict[str, object]]:
+    """Um cache de outra versão do mutmut vale como vazio."""
     if not path.is_file():
         return {}
     raw = json.loads(path.read_text())
-    functions = raw.get("functions") if isinstance(raw, dict) else None
+    if not isinstance(raw, dict) or raw.get("mutmut") != mutmut:
+        return {}
+    functions = raw.get("functions")
     if not isinstance(functions, dict):
         return {}
     return {str(key): value for key, value in functions.items() if isinstance(value, dict)}
@@ -500,15 +526,20 @@ def _belongs(mutant: Mutant, functions: list[CyclomaticFunction]) -> bool:
 
 
 def _cache_body(
-    cwd: Path, functions: list[CyclomaticFunction], mutants: list[Mutant]
+    cwd: Path,
+    functions: list[CyclomaticFunction],
+    mutants: list[Mutant],
+    tests: dict[str, set[str]],
 ) -> dict[str, object]:
     body: dict[str, object] = {}
     for item in functions:
         prefix = mutmut_id_prefix(item.file, item.name)
         own = [mutant for mutant in mutants if mutant.id.startswith(prefix)]
         key = f"{item.file}::{item.name}"
+        covering = tests.get(mutmut_stats_key(item.file, item.name), set())
         body[key] = {
             "hash": _function_hash(cwd, item.file, item.start_line, item.end_line),
+            "tests": _test_hashes(cwd, covering),
             "file": item.file,
             "name": item.name,
             "start_line": item.start_line,
@@ -525,9 +556,24 @@ def _function_hash(cwd: Path, file: str, start: int, end: int) -> str:
     return hashlib.sha256(text.encode()).hexdigest()
 
 
-def _write_cache(path: Path, functions: dict[str, object]) -> None:
+def _test_hashes(cwd: Path, files: set[str]) -> dict[str, str]:
+    hashes: dict[str, str] = {}
+    for file in sorted(files):
+        digest = _file_hash(cwd / file)
+        if digest is not None:
+            hashes[file] = digest
+    return hashes
+
+
+def _file_hash(path: Path) -> str | None:
+    if not path.is_file():
+        return None
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def _write_cache(path: Path, mutmut: str, functions: dict[str, object]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    payload = {"functions": functions}
+    payload = {"mutmut": mutmut, "functions": functions}
     path.write_text(json.dumps(payload, indent=2) + "\n")
 
 
