@@ -186,13 +186,7 @@ def _parse_manifest(path: Path) -> dict[str, object] | None:
 
 
 def _can_write(directory: Path) -> bool:
-    try:
-        probe = directory / ".bob-write-probe"
-        probe.write_text("")
-        probe.unlink()
-    except OSError:
-        return False
-    return True
+    return os.access(directory, os.W_OK)
 
 
 def _materialize_cache(source: Path) -> Path:
