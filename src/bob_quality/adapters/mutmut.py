@@ -34,6 +34,11 @@ class MutmutParseError(Exception):
     """Saída do mutmut fora do contrato da versão pinada."""
 
 
+def ids_for_show(mutants: list[Mutant]) -> list[str]:
+    """Diff só de sobrevivente e timeout. O status já veio do results."""
+    return [item.id for item in mutants if item.status in {"survived", "timeout"}]
+
+
 def mutants_from_raw(results_raw: str, shows: dict[str, str]) -> list[Mutant]:
     """Junta `results` com os `show` correspondentes e devolve o modelo."""
     mutants: list[Mutant] = []

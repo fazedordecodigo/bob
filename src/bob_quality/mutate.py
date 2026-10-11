@@ -9,7 +9,12 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from bob_quality.adapters.lizard import LizardParseError, parse_lizard_csv
-from bob_quality.adapters.mutmut import MutmutParseError, mutants_from_raw, mutmut_id_prefix
+from bob_quality.adapters.mutmut import (
+    MutmutParseError,
+    ids_for_show,
+    mutants_from_raw,
+    mutmut_id_prefix,
+)
 from bob_quality.config import Config
 from bob_quality.diff import function_is_changed
 from bob_quality.exit_codes import BASELINE_BROKEN, CONFIG_OR_TOOL, PASSED, UNWAIVED_SURVIVOR
@@ -215,7 +220,8 @@ def _run_and_parse(
         parsed = mutants_from_raw(raw_results, {})
     except (ToolError, MutmutParseError) as exc:
         return [], _tool_outcome(str(exc), versions, waiver_rows)
-    shows = _shows_for(cwd, [item.id for item in parsed if _belongs(item, remutate)])
+    belonging = [item for item in parsed if _belongs(item, remutate)]
+    shows = _shows_for(cwd, ids_for_show(belonging))
     try:
         return mutants_from_raw(raw_results, shows), None
     except MutmutParseError as exc:
