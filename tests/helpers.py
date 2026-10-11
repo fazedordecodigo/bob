@@ -8,17 +8,8 @@ import sys
 from pathlib import Path
 
 FIXTURE_PYTHON = Path(__file__).parent / "fixtures" / "python_app"
-
-RISKY_SOURCE = """\
-def messy(a, b, c):
-    if a:
-        if b:
-            return 1
-        return 2
-    if c:
-        return 3
-    return 0
-"""
+RISKY_SOURCE = (FIXTURE_PYTHON / "cases" / "fail_crap.py").read_text()
+SAFE_CHANGE = (FIXTURE_PYTHON / "cases" / "pass_safe.py").read_text()
 
 
 def run_bob(repo: Path, *args: str) -> subprocess.CompletedProcess[str]:

@@ -2,8 +2,9 @@
 
 from pathlib import Path
 
-from bob_quality.adapters.coverage import function_coverage, parse_coverage_json
+from bob_quality.adapters.coverage import parse_coverage_json
 from bob_quality.adapters.lizard import parse_lizard_csv
+from bob_quality.core import coverage_for, line_coverage, to_metric
 from bob_quality.crap import calculate_crap
 from bob_quality.tools import run_lizard_csv
 
@@ -22,16 +23,19 @@ def test_lizard_adapter_reads_pinned_csv_fixture() -> None:
 
 def test_coverage_adapter_reads_pinned_json_fixture() -> None:
     files = parse_coverage_json((RAW / "coverage.json").read_text())
-    assert function_coverage(files["src/app/safe.py"], 1, 2) == 1.0
-    assert function_coverage(files["src/app/risky.py"], 1, 8) == 0.0
+    assert line_coverage(files["src/app/safe.py"], 1, 2) == 1.0
+    assert line_coverage(files["src/app/risky.py"], 1, 8) == 0.0
 
 
 def test_adapters_feed_crap_formula_with_known_literals() -> None:
     functions = parse_lizard_csv((RAW / "lizard.csv").read_text())
     files = parse_coverage_json((RAW / "coverage.json").read_text())
     messy = next(item for item in functions if item.name == "messy")
-    coverage = function_coverage(files["src/app/risky.py"], messy.start_line, messy.end_line)
+    coverage = line_coverage(files["src/app/risky.py"], messy.start_line, messy.end_line)
     assert calculate_crap(messy.cc, coverage) == 20.0
+    metric = to_metric(messy, "src/app/risky.py", coverage_for(files, "src/app/risky.py"), True)
+    assert metric.crap == 20.0
+    assert metric.changed is True
 
 
 def test_pinned_lizard_csv_contract_on_python_fixture() -> None:

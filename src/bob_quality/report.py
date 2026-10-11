@@ -5,7 +5,14 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from bob_quality.models import GATE_MARK, FunctionMetric, Report
+from bob_quality.models import FunctionMetric, GateStatus, Report
+
+GATE_MARK: dict[GateStatus, str] = {
+    "passed": "✅",
+    "warn": "⚠️",
+    "failed": "❌",
+    "not_run": "⏭️",
+}
 
 
 def write_report(report: Report, out_dir: Path, fmt: str) -> None:
