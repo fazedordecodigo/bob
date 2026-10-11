@@ -1,11 +1,12 @@
 """Adaptador mutmut: saída bruta da versão pinada → Mutant.
 
-Não importa mutmut. O contrato é o texto de `mutmut results --all true`
-e de `mutmut show <id>` (mutmut==3.8.0).
+Não importa mutmut. O contrato é o texto de `mutmut results --all true`,
+de `mutmut show <id>` e de `mutants/mutmut-stats.json` (mutmut==3.8.0).
 """
 
 from __future__ import annotations
 
+import json
 import re
 
 from bob_quality.models import Mutant, MutantStatus
@@ -69,6 +70,29 @@ def mutmut_id_prefix(file: str, name: str) -> str:
     if module.startswith("src."):
         module = module[len("src.") :]
     return f"{module}.x_{name}__mutmut"
+
+
+def mutmut_stats_key(file: str, name: str) -> str:
+    """Chave da função em `tests_by_mangled_function_name`: o prefixo do id sem `__mutmut`."""
+    return mutmut_id_prefix(file, name).removesuffix("__mutmut")
+
+
+def covering_test_files(stats_raw: str) -> dict[str, set[str]]:
+    """Arquivos de teste que cobrem cada função, pela chave de `mutmut_stats_key`."""
+    try:
+        stats = json.loads(stats_raw)
+    except json.JSONDecodeError as exc:
+        raise MutmutParseError(f"stats do mutmut ilegível: {exc}") from exc
+    tests = stats.get("tests_by_mangled_function_name") if isinstance(stats, dict) else None
+    if not isinstance(tests, dict):
+        raise MutmutParseError("stats do mutmut sem tests_by_mangled_function_name")
+    return {str(key): _test_files(node_ids) for key, node_ids in tests.items()}
+
+
+def _test_files(node_ids: object) -> set[str]:
+    if not isinstance(node_ids, list) or not all(isinstance(item, str) for item in node_ids):
+        raise MutmutParseError(f"testes fora do contrato no stats do mutmut: {node_ids!r}")
+    return {item.split("::", 1)[0] for item in node_ids}
 
 
 def _parse_results(raw: str) -> list[tuple[str, MutantStatus]]:
