@@ -56,4 +56,6 @@ also_copy = [
     "package.json",
     "package-lock.json",
     "AGENTS.md",
+    ".claude-plugin",
+    ".cursor-plugin",
 ]

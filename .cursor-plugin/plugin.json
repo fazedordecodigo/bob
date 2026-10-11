@@ -1,0 +1,16 @@
+{
+  "name": "bob",
+  "displayName": "bob",
+  "version": "0.1.0",
+  "description": "Gates de qualidade (CRAP, duplicação, mutação, dependências) e o fluxo de spec para agentes de código. Inclui as skills de Matt Pocock (MIT, https://github.com/mattpocock/skills).",
+  "author": { "name": "Emerson Delatorre" },
+  "homepage": "https://github.com/fazedordecodigo/bob",
+  "repository": "https://github.com/fazedordecodigo/bob",
+  "license": "MIT",
+  "keywords": ["quality", "crap", "mutation-testing", "code-review", "tdd", "spec", "skills"],
+  "skills": [
+    "./skills/",
+    "./skills/vendor/mattpocock/engineering/",
+    "./skills/vendor/mattpocock/productivity/"
+  ]
+}

@@ -1,0 +1,14 @@
+{
+  "name": "bob",
+  "owner": { "name": "Emerson Delatorre" },
+  "description": "Marketplace local do bob, para instalar a partir de um clone. Ainda não publicado.",
+  "plugins": [
+    {
+      "name": "bob",
+      "source": "./",
+      "description": "Gates de qualidade (CRAP, duplicação, mutação, dependências) e o fluxo de spec. Inclui as skills de Matt Pocock (MIT).",
+      "category": "development",
+      "keywords": ["quality", "crap", "mutation-testing", "code-review", "tdd", "spec", "skills"]
+    }
+  ]
+}
