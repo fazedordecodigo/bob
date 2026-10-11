@@ -127,6 +127,61 @@ def test_show_line_is_the_file_line_when_the_function_is_not_at_the_top(
     assert parsed[0].line == 480
 
 
+def test_a_function_relative_line_of_one_lands_on_the_function_start(
+    monkeypatch, tmp_path: Path
+) -> None:
+    show = "\n".join(
+        [
+            "--- src/app/far.py",
+            "+++ src/app/far.py",
+            "@@ -1 +1 @@",
+            "-old",
+            "+new",
+        ]
+    )
+    monkeypatch.setattr(mutate_module, "run_mutmut", lambda *_args: None)
+    monkeypatch.setattr(
+        mutate_module,
+        "mutmut_results",
+        lambda _cwd: "    app.far.x_place__mutmut_1: survived\n",
+    )
+    monkeypatch.setattr(mutate_module, "mutmut_show", lambda _cwd, _mutant_id: show)
+    remutate = [
+        CyclomaticFunction(file="src/app/far.py", name="place", start_line=474, end_line=480, cc=1)
+    ]
+
+    parsed, failed = _run_and_parse(tmp_path, remutate, 1, VERSIONS, WAIVERS)
+
+    assert failed is None
+    assert parsed[0].line == 474
+
+
+def test_a_show_without_an_added_line_keeps_line_zero(monkeypatch, tmp_path: Path) -> None:
+    show = "\n".join(
+        [
+            "--- src/app/far.py",
+            "+++ src/app/far.py",
+            "@@ -5 +4,0 @@",
+            "-only",
+        ]
+    )
+    monkeypatch.setattr(mutate_module, "run_mutmut", lambda *_args: None)
+    monkeypatch.setattr(
+        mutate_module,
+        "mutmut_results",
+        lambda _cwd: "    app.far.x_place__mutmut_1: survived\n",
+    )
+    monkeypatch.setattr(mutate_module, "mutmut_show", lambda _cwd, _mutant_id: show)
+    remutate = [
+        CyclomaticFunction(file="src/app/far.py", name="place", start_line=474, end_line=480, cc=1)
+    ]
+
+    parsed, failed = _run_and_parse(tmp_path, remutate, 1, VERSIONS, WAIVERS)
+
+    assert failed is None
+    assert parsed[0].line == 0
+
+
 def test_a_tool_failure_keeps_the_message_and_the_waivers(monkeypatch, tmp_path: Path) -> None:
     def boom(_cwd: Path, _patterns: list[str], _max_workers: int | None) -> None:
         raise ToolError("tool broke")
