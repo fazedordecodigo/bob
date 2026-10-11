@@ -3,6 +3,7 @@
 from pathlib import Path
 
 from bob_quality.adapters.coverage import parse_coverage_json
+from bob_quality.adapters.jscpd import parse_jscpd_json
 from bob_quality.adapters.lizard import parse_lizard_csv
 from bob_quality.core import coverage_for, line_coverage, to_metric
 from bob_quality.crap import calculate_crap
@@ -36,6 +37,22 @@ def test_adapters_feed_crap_formula_with_known_literals() -> None:
     metric = to_metric(messy, "src/app/risky.py", coverage_for(files, "src/app/risky.py"), True)
     assert metric.crap == 20.0
     assert metric.changed is True
+
+
+def test_jscpd_adapter_reads_pinned_json_fixture() -> None:
+    clones = parse_jscpd_json((RAW / "jscpd-report.json").read_text())
+    assert len(clones) == 1
+    clone = clones[0]
+    assert clone.first_file == "src/receipt_a.py"
+    assert clone.second_file == "src/receipt_b.py"
+    assert clone.first_start == 1
+    assert clone.first_end == 11
+    assert clone.second_start == 1
+    assert clone.second_end == 11
+    assert clone.lines == 11
+    assert clone.tokens == 88
+    assert clone.kind == "exact"
+    assert clone.similarity is None
 
 
 def test_pinned_lizard_csv_contract_on_python_fixture() -> None:

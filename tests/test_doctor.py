@@ -34,8 +34,8 @@ PINS = (
     ("node", "22.14.0", "node", "v22.14.0"),
     ("c8", "12.0.0", "c8", "12.0.0"),
     ("vitest", "5.0.3", "vitest", "5.0.3"),
+    ("jscpd", "5.4.1", "jscpd", "jscpd 5.4.1"),
     ("mutmut", "3.8.0", "mutmut", "mutmut, version 3.8.0"),
-    ("import-linter", "2.15", "lint-imports", "import-linter 2.15"),
 )
 
 INSTALL = {
@@ -44,8 +44,8 @@ INSTALL = {
     "node": "Instale Node.js 22.14.0 (https://nodejs.org/dist/v22.14.0/)",
     "c8": "npm install c8@12.0.0",
     "vitest": "npm install vitest@5.0.3",
+    "jscpd": "npm install jscpd@5.4.1",
     "mutmut": "pip install 'mutmut==3.8.0'",
-    "import-linter": "pip install 'import-linter==2.15'",
 }
 
 
@@ -255,14 +255,14 @@ def test_doctor_expected_versions_match_pip_and_npm_pins(tmp_path: Path) -> None
     assert requirements["lizard"] == expected["lizard"]
     assert requirements["coverage"] == expected["coverage.py"]
     assert requirements["mutmut"] == expected["mutmut"]
-    assert requirements["import-linter"] == expected["import-linter"]
 
     package = json.loads((ROOT / "package.json").read_text())
     assert package["private"] is True
     npm = package["dependencies"]
     assert npm["c8"] == expected["c8"]
     assert npm["vitest"] == expected["vitest"]
-    assert set(npm) == {"c8", "vitest"}
+    assert npm["jscpd"] == expected["jscpd"]
+    assert set(npm) == {"c8", "vitest", "jscpd"}
 
 
 def _expected_versions(stdout: str) -> dict[str, str]:

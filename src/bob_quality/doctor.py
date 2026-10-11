@@ -45,14 +45,8 @@ PINS: tuple[ToolPin, ...] = (
     ),
     ToolPin("c8", "12.0.0", "c8", "npm install c8@12.0.0", npm_package="c8"),
     ToolPin("vitest", "5.0.3", "vitest", "npm install vitest@5.0.3", npm_package="vitest"),
+    ToolPin("jscpd", "5.4.1", "jscpd", "npm install jscpd@5.4.1", npm_package="jscpd"),
     ToolPin("mutmut", "3.8.0", "mutmut", "pip install 'mutmut==3.8.0'", distribution="mutmut"),
-    ToolPin(
-        "import-linter",
-        "2.15",
-        "lint-imports",
-        "pip install 'import-linter==2.15'",
-        distribution="import-linter",
-    ),
 )
 
 

@@ -2,18 +2,19 @@
 
 Quality gates (CRAP, DRY, mutação, dependências) + skills para agentes de codificação (Cursor, Claude Code, GitHub Copilot, Devin), inspirados no fluxo do Uncle Bob e nas skills do Matt Pocock.
 
-- CLI: `bob` (`bob check | crap | doctor`; os demais comandos da spec entram nas fatias seguintes)
+- CLI: `bob` (`bob check | crap | dry | mutate | waive | doctor`; os demais comandos da spec entram nas fatias seguintes)
 - Pacote PyPI: `bob-quality` (sdist/wheel prontos; ainda não publicado)
 - Nome nos marketplaces: `bob` (ainda não publicado)
 - Configuração: `bob.yaml`
 - Relatórios: `.bob/report.md` e `.bob/report.json` (schema v1)
 
-> Status: fatia fina Python (issue #1), TypeScript (issue #2), GitHub Action (issue #5) e `bob doctor` com o pacote pronto para distribuir (issue #11). Mutação e publicação ficam para os tickets seguintes. Nada foi enviado ao PyPI.
+> Status: CRAP em Python e TypeScript, duplicação (jscpd), mutação diferencial em Python (issue #3), GitHub Action (issue #5) e `bob doctor` com o pacote pronto para distribuir (issue #11). Publicação fica para os tickets seguintes. Nada foi enviado ao PyPI.
 
 Skills (issue #7):
 
 - Fluxo de spec do Pocock (MIT, atribuído): `skills/vendor/mattpocock/`
 - `skills/bob-check/` — quando e como rodar `bob check`
+- `skills/harden/` — matar mutante sobrevivente ou registrar waiver
 - `skills/review-report/` — resumir `.bob/report.md` no PR
 - Índice para agentes: `AGENTS.md`
 
@@ -23,10 +24,10 @@ Licença: MIT.
 
 ```bash
 pip install -e ".[dev]"
-npm install
+npm ci
 ```
 
-Isso instala o comando `bob`, as dependências Python pinadas em `pyproject.toml` e as ferramentas npm pinadas em `package.json` (`private`, sem publicação no npm). `bob doctor` mostra a versão esperada e a encontrada de cada uma.
+Isso instala o comando `bob`, as dependências pinadas em `pyproject.toml` (`lizard`, `coverage`, `mutmut`) e as ferramentas npm pinadas em `package.json` (`c8`, `vitest`, `jscpd`). `bob doctor` mostra a versão esperada e a encontrada de cada uma.
 
 ## Uso
 
@@ -35,14 +36,19 @@ Num repositório Python com `bob.yaml` e pytest:
 ```bash
 bob check --base main
 bob crap --base main
+bob dry --base main
+bob mutate --base main
+bob waive <mutant-id|função> --reason "uma linha"
 bob doctor
 ```
 
-`bob doctor` lista cada ferramenta com a versão pinada e a encontrada. Sai com `0` quando todas coincidem e com `4` quando alguma falta ou diverge, junto com o comando de instalação.
+`bob doctor` lista cada ferramenta com a versão pinada e a encontrada. Sai com `0` quando todas coincidem e com `4` quando alguma falta ou diverge, junto com o comando de instalação. Se o diretório do pacote não for gravável, a mensagem pede `bob doctor --install`.
 
-Os dois gravem `.bob/report.md` e `.bob/report.json`. Exit codes desta fatia: `0` passou, `1` CRAP acima do limite numa função alterada, `2` testes da baseline falharam, `4` config/ferramenta.
+Os comandos gravam `.bob/report.md` e `.bob/report.json`. Exit codes: `0` passou, `1` CRAP acima do limite numa função alterada, `2` testes da baseline falharam, `3` mutante sobrevivente sem waiver, `4` config/ferramenta.
 
-Gate não executado (ex.: `dry`, `deps` no `check` padrão) aparece como ⏭️ com motivo, nunca como ✅. Só funções do diff bloqueiam; a dívida antiga vai para a seção informativa.
+`bob check` local não roda mutação. `bob check --gates mutate` e `bob mutate` rodam, só nas funções alteradas ou com sobreviventes.
+
+`bob dry` lista clones novos (aviso) e não muda o exit code. Gate não executado (ex.: `deps` no `check` padrão) aparece como ⏭️ com motivo, nunca como ✅. Só funções do diff bloqueiam; a dívida antiga vai para a seção informativa.
 
 ## Hook pre-push
 
@@ -65,6 +71,6 @@ O CI (`.github/workflows/ci.yml`) roda essa suíte em pull requests e em pushes 
 
 ## GitHub Action
 
-A action composta em `.github/actions/bob` instala o `bob`, roda `bob check` com `crap,dry,deps,mutate` (o que ainda não existe no CLI aparece como ⏭️), restaura e publica o artefato `bob-mutation-cache` (`.bob/mutation-cache.json`) e cria ou atualiza um único comentário no PR com `.bob/report.md`. O exit code do job é o do `bob`.
+A action composta em `.github/actions/bob` instala o `bob`, roda `bob check` com `crap,dry,deps,mutate` (`deps` ainda não existe no CLI e aparece como ⏭️), restaura e publica o artefato `bob-mutation-cache` (`.bob/mutation-cache.json`) e cria ou atualiza um único comentário no PR com `.bob/report.md`. O exit code do job é o do `bob`.
 
 Este repositório a usa em `.github/workflows/bob.yml`. `bob-quality` ainda não está no PyPI: no checkout deste repo a action faz `pip install .[dev]`; em outro repo, instala o git da action. Publicação no Marketplace não faz parte desta fatia.

@@ -1,0 +1,9 @@
+# app.weak.x_classify__mutmut_1: survived
+--- src/app/weak.py
++++ src/app/weak.py
+@@ -1,4 +1,4 @@
+ def classify(n: int) -> str:
+-    if n > 0:
++    if n >= 0:
+         return "pos"
+     return "nonpos"

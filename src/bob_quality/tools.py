@@ -51,14 +51,17 @@ def run_coverage(
             extra_env={"COVERAGE_FILE": str(coverage_file)},
         )
         return 0
-    source = ",".join(include) if include else "."
+    rc = _coverage_rc(json_path, include, cwd)
     env = {
         key: value
         for key, value in os.environ.items()
         if not key.startswith("PYTEST_")
     }
+    # coverage apaga COVERAGE_PROCESS_START no processo medido. O conftest
+    # do repo copia BOB_COVERAGE_RC para os subprocessos (a CLI sob teste).
+    env["BOB_COVERAGE_RC"] = str(rc)
     pytest_run = subprocess.run(
-        [sys.executable, "-m", "coverage", "run", f"--source={source}", "-m", "pytest"],
+        [sys.executable, "-m", "coverage", "run", "--rcfile", str(rc), "-m", "pytest"],
         cwd=cwd,
         capture_output=True,
         text=True,
@@ -66,8 +69,29 @@ def run_coverage(
         env=env,
     )
     if pytest_run.returncode in {0, 5}:
-        _run([sys.executable, "-m", "coverage", "json", "-o", str(json_path)], cwd)
+        _export_coverage_json(cwd, rc, json_path)
     return pytest_run.returncode
+
+
+def _coverage_rc(json_path: Path, include: list[str], cwd: Path) -> Path:
+    data_file = json_path.parent / "coverage.data"
+    rc = json_path.parent / "coverage.rc"
+    lines = ["[run]", "parallel = true", f"data_file = {data_file}", "source ="]
+    for item in include or ["."]:
+        path = Path(item)
+        if not path.is_absolute():
+            path = cwd / path
+        lines.append(f"    {path.resolve()}")
+    rc.write_text("\n".join(lines) + "\n")
+    return rc
+
+
+def _export_coverage_json(cwd: Path, rc: Path, json_path: Path) -> None:
+    _run([sys.executable, "-m", "coverage", "combine", "--rcfile", str(rc)], cwd)
+    _run(
+        [sys.executable, "-m", "coverage", "json", "--rcfile", str(rc), "-o", str(json_path)],
+        cwd,
+    )
 
 
 def _run(
