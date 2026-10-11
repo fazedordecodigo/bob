@@ -37,23 +37,29 @@ def to_json(report: Report) -> dict[str, object]:
         "focus": report.focus,
         "top_crap": report.top_crap,
         "old_debt": report.old_debt,
+        "waivers": report.waivers,
+        "survivors": report.survivors,
+        "mutation": report.mutation,
         "reproduce": report.reproduce,
         "exit_code": report.exit_code,
     }
 
 
 def to_markdown(report: Report) -> str:
-    lines = [
-        "# Relatório bob",
-        "",
-        f"- Commit: `{report.commit}`",
-        f"- Base: `{report.base}`",
-        f"- Data: {report.generated_at}",
-        f"- Ferramentas: {_tools(report.tool_versions)}",
-        "",
-        "## Veredito",
-        "",
-    ]
+    lines = ["# Relatório bob", ""]
+    if report.mutation is not None:
+        lines.extend(_waiver_section(report.waivers))
+    lines.extend(
+        [
+            f"- Commit: `{report.commit}`",
+            f"- Base: `{report.base}`",
+            f"- Data: {report.generated_at}",
+            f"- Ferramentas: {_tools(report.tool_versions)}",
+            "",
+            "## Veredito",
+            "",
+        ]
+    )
     for gate in report.gates:
         mark = GATE_MARK[gate.status]
         label = _status_label(gate.status)
@@ -85,6 +91,19 @@ def to_markdown(report: Report) -> str:
             lines.append(
                 f"- `{fn['name']}` em `{loc}` CRAP {fn['crap']} (fora do diff; não bloqueia)"
             )
+    if report.mutation is not None:
+        lines.extend(["", "## Mutantes sobreviventes", ""])
+        if report.survivors:
+            lines.append("| Id | Função | Local | Operador | Waiver |")
+            lines.append("|---|---|---|---|---|")
+            for item in report.survivors:
+                waiver = item.get("waiver") or "—"
+                operator = str(item.get("operator") or "—").replace("|", "\\|")
+                lines.append(
+                    f"| `{item['id']}` | {item['function']} | {item['file']}:{item['line']} | {operator} | {waiver} |"
+                )
+        else:
+            lines.append("Nenhum mutante sobrevivente.")
     lines.extend(
         [
             "",
@@ -113,6 +132,23 @@ def metric_row(metric: FunctionMetric) -> dict[str, object]:
         "changed": metric.changed,
         "delta": metric.delta,
     }
+
+
+def _waiver_section(waivers: list[dict[str, object]]) -> list[str]:
+    lines = ["## Waivers", ""]
+    if not waivers:
+        lines.append("Nenhum waiver.")
+        lines.append("")
+        return lines
+    lines.append("| Alvo | Motivo | Autor | Data |")
+    lines.append("|---|---|---|---|")
+    for item in waivers:
+        reason = str(item.get("reason") or "").replace("|", "\\|")
+        lines.append(
+            f"| `{item.get('id', '')}` | {reason} | {item.get('author', '')} | {item.get('date', '')} |"
+        )
+    lines.append("")
+    return lines
 
 
 def _tools(versions: dict[str, str]) -> str:

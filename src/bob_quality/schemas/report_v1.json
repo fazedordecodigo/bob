@@ -39,6 +39,9 @@
     "focus": { "type": "array" },
     "top_crap": { "type": "array" },
     "old_debt": { "type": "array" },
+    "waivers": { "type": "array" },
+    "survivors": { "type": "array" },
+    "mutation": { "type": ["object", "null"] },
     "reproduce": { "type": "string" },
     "exit_code": { "type": "integer" }
   }

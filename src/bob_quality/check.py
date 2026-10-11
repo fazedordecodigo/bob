@@ -11,6 +11,7 @@ from bob_quality.crap_gate import run_crap_gate
 from bob_quality.diff import GitError, changed_lines, current_commit
 from bob_quality.exit_codes import CONFIG_OR_TOOL, PASSED
 from bob_quality.models import FunctionMetric, GateResult, Report
+from bob_quality.mutate import focus_with_survivors, run_mutation_gate
 from bob_quality.report import metric_row, write_report
 
 DEFAULT_GATES = ("crap", "dry", "deps")
@@ -26,6 +27,7 @@ def run_check(
     threshold: float | None = None,
     coverage_file: Path | None = None,
     reproduce: str | None = None,
+    max_workers: int | None = None,
 ) -> int:
     chosen_gates = gates or list(DEFAULT_GATES)
     chosen_out = out_dir or (cwd / ".bob")
@@ -52,8 +54,21 @@ def run_check(
     gate_results: list[GateResult] = []
     metrics: list[FunctionMetric] = []
     exit_code = PASSED
+    mutation = None
 
     for gate in chosen_gates:
+        if gate == "mutate":
+            mutation = run_mutation_gate(
+                cwd=cwd,
+                config=config,
+                diff_lines=diff_lines,
+                out_dir=chosen_out,
+                max_workers=max_workers,
+            )
+            gate_results.append(mutation.result)
+            versions.update(mutation.versions)
+            exit_code = _worse(exit_code, mutation.exit_code)
+            continue
         if gate != "crap":
             gate_results.append(
                 GateResult(
@@ -63,7 +78,7 @@ def run_check(
                 )
             )
             continue
-        result, measured, code, versions = run_crap_gate(
+        result, measured, code, crap_versions = run_crap_gate(
             cwd=cwd,
             config=config,
             diff_lines=diff_lines,
@@ -72,7 +87,18 @@ def run_check(
         )
         gate_results.append(result)
         metrics = measured
+        versions.update(crap_versions)
         exit_code = _worse(exit_code, code)
+
+    focus = files_by_risk(metrics)
+    survivors: list[dict[str, object]] = []
+    waivers: list[dict[str, object]] = []
+    mutation_summary = None
+    if mutation is not None:
+        survivors = mutation.survivors
+        waivers = mutation.waivers
+        mutation_summary = mutation.summary
+        focus = focus_with_survivors(focus, survivors)
 
     report = Report(
         schema_version=1,
@@ -81,11 +107,14 @@ def run_check(
         generated_at=datetime.now(timezone.utc).isoformat(),
         tool_versions=versions,
         gates=gate_results,
-        focus=files_by_risk(metrics),
+        focus=focus,
         top_crap=[metric_row(item) for item in top_changed_crap(metrics)],
         old_debt=[metric_row(item) for item in informational_debt(metrics, max_crap)],
         reproduce=command,
         exit_code=exit_code,
+        waivers=waivers,
+        survivors=survivors,
+        mutation=mutation_summary,
     )
     write_report(report, chosen_out, fmt)
     return exit_code
