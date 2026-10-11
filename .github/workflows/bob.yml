@@ -24,4 +24,6 @@ jobs:
         env:
           BASE_REF: ${{ github.base_ref }}
         run: git fetch --no-tags origin "$BASE_REF"
+      - name: Ferramentas npm
+        run: npm ci
       - uses: ./.github/actions/bob

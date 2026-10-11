@@ -105,6 +105,7 @@ def test_pull_request_workflow_dogfoods_the_local_action() -> None:
     assert isinstance(env, dict)
     assert env["BASE_REF"] == "${{ github.base_ref }}"
     assert "$BASE_REF" in str(fetch["run"])
+    assert any("npm ci" in str(step.get("run", "")) for step in steps)
 
 
 def test_composite_action_comments_uploads_cache_and_keeps_bob_status() -> None:
