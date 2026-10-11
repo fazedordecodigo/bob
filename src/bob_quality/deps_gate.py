@@ -386,7 +386,7 @@ def _python_roots(cwd: Path, config: Config) -> list[str]:
 
 def _ini_roots(path: Path) -> list[str]:
     parser = configparser.ConfigParser(interpolation=None)
-    parser.read(path, encoding="utf-8")
+    parser.read(path, encoding=sys.getdefaultencoding())
     if not parser.has_section("importlinter"):
         return []
     raw = parser.get("importlinter", "root_packages", fallback="")

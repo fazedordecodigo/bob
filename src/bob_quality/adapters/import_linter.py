@@ -28,7 +28,7 @@ def broken_contract_name(raw: str) -> str | None:
         stripped = line.strip()
         if stripped.endswith(" BROKEN"):
             name = stripped[: -len(" BROKEN")].strip()
-            return name or "import-linter"
+            return name
     return None
 
 
