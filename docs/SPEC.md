@@ -97,7 +97,7 @@ O JSON segue um schema versionado (`schema_version: 1`).
 
 **Waivers**: arquivo `.bob/waivers.yaml` versionado no repo. Cada entrada tem id do mutante ou função, motivo de uma linha, autor e data. Um waiver sem motivo é inválido. Todo waiver aparece no relatório.
 
-**Mutação diferencial**: um cache (`.bob/mutation-cache.json`, artefato do CI) guarda o hash do texto de cada função. Só remuta funções alteradas ou com sobreviventes. Para TS usa o `--incremental` nativo do Stryker. Para Python, filtra os mutantes do mutmut pelas funções do diff.
+**Mutação diferencial**: um cache (`.bob/mutation-cache.json`, artefato do CI) guarda o hash do texto de cada função, o hash de cada arquivo de teste que a cobre (segundo o stats do mutmut) e a versão do mutmut. Só remuta funções alteradas, com sobreviventes, com teste alterado ou de um cache de outra versão do mutmut. Para TS usa o `--incremental` nativo do Stryker. Para Python, filtra os mutantes do mutmut pelas funções do diff.
 
 **Skills**:
 - `bob`: quando rodar o check e como interpretar o JSON e iterar.
