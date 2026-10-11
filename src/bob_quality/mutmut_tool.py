@@ -42,7 +42,8 @@ def mutmut_version() -> str:
     return match.group(1)
 
 
-_RUN_TIMEOUT_SECONDS = 10800
+# A coleta de stats neste repo sozinha passa de 180s. O limite continua existindo.
+_RUN_TIMEOUT_SECONDS = 1800
 
 
 def run_mutmut(cwd: Path, patterns: list[str], max_workers: int | None) -> None:
