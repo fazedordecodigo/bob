@@ -22,6 +22,16 @@ class _ParseState:
     found: list[DepViolation] = field(default_factory=list)
 
 
+def broken_contract_name(raw: str) -> str | None:
+    """Nome do contrato quando o relatório diz BROKEN e não há aresta `->`."""
+    for line in _ANSI.sub("", raw).splitlines():
+        stripped = line.strip()
+        if stripped.endswith(" BROKEN"):
+            name = stripped[: -len(" BROKEN")].strip()
+            return name or "import-linter"
+    return None
+
+
 def parse_import_linter(raw: str) -> list[DepViolation]:
     lines = _ANSI.sub("", raw).splitlines()
     state = _ParseState()

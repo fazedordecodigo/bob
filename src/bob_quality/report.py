@@ -117,6 +117,8 @@ def _dependency_items(report: Report) -> list[str]:
     gate = _gate_named(report, "deps")
     if gate is None or gate.status == "not_run":
         return ["- Gate não executado."]
+    if gate.status == "failed" and not report.dependencies:
+        return [f"- {gate.reason}"]
     if not report.dependencies:
         return ["- Nenhuma violação de dependência."]
     return [_dependency_item(item) for item in report.dependencies]

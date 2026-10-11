@@ -15,7 +15,7 @@ def parse_dependency_cruiser(raw: str) -> list[DepViolation]:
     data = json.loads(raw)
     found: list[DepViolation] = []
     for item in _violation_items(data):
-        found.extend(_one(item))
+        found.extend(_violations_for(item))
     return unique_violations(found)
 
 
@@ -31,7 +31,7 @@ def _violation_items(data: object) -> list[object]:
     return []
 
 
-def _one(item: object) -> list[DepViolation]:
+def _violations_for(item: object) -> list[DepViolation]:
     if not isinstance(item, dict):
         return []
     rule_name, severity = _rule(item)

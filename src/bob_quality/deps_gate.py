@@ -13,12 +13,12 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from bob_quality.adapters.dependency_cruiser import parse_dependency_cruiser
-from bob_quality.adapters.import_linter import parse_import_linter
+from bob_quality.adapters.import_linter import broken_contract_name, parse_import_linter
 from bob_quality.config import Config
 from bob_quality.core import deps_verdict, unique_violations
-from bob_quality.exit_codes import CONFIG_OR_TOOL
+from bob_quality.exit_codes import CONFIG_OR_TOOL, GATE_FAILED
 from bob_quality.models import DepViolation, GateResult
-from bob_quality.npm_tools import installed_npm_version, node_missing_message, npm_prefix
+from bob_quality.npm_tools import node_missing_message, npm_prefix
 from bob_quality.tools import ToolError
 
 _LINT_RUNNER = """\
@@ -28,7 +28,12 @@ raise SystemExit(
     lint_imports(config_filename=sys.argv[1], no_cache=True, no_logo=True)
 )
 """
-_TS_EXTENSIONS = ("ts", "tsx", "js", "jsx", "mjs", "cjs")
+_TS_EXTENSIONS = (".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs")
+_NODE_MISSING = (
+    "Node ausente: instale Node.js para o gate de dependências "
+    "(dependency-cruiser via npx)"
+)
+_CRUISER_MISSING = "ferramenta ausente: dependency-cruiser"
 _CYCLE_RULE = "Proibido ciclo de dependência"
 
 
@@ -51,6 +56,8 @@ def run_deps_gate(
             violations.extend(_typescript_violations(cwd, config, versions))
     except ToolError as exc:
         return GateResult("deps", "not_run", str(exc)), CONFIG_OR_TOOL, versions, []
+    except UnparsedBreak as exc:
+        return GateResult("deps", "failed", exc.reason), GATE_FAILED, versions, []
     verdict, code = deps_verdict(violations)
     return verdict, code, versions, violations
 
@@ -76,11 +83,10 @@ def _typescript_violations(
     config: Config,
     versions: dict[str, str],
 ) -> list[DepViolation]:
-    missing = node_missing_message()
-    if missing:
-        raise ToolError(missing)
+    if node_missing_message() is not None:
+        raise ToolError(_NODE_MISSING)
     prefix = npm_prefix()
-    versions["dependency-cruiser"] = installed_npm_version(prefix, "dependency-cruiser")
+    versions["dependency-cruiser"] = _cruiser_version(prefix)
     patterns = _cruise_patterns(cwd, config.include)
     if not patterns:
         return []
@@ -126,11 +132,33 @@ def _run_linter(cwd: Path, config: Config, config_path: Path) -> subprocess.Comp
     )
 
 
+class UnparsedBreak(Exception):
+    """import-linter saiu quebrado e o texto não trouxe aresta origem → destino."""
+
+    def __init__(self, reason: str) -> None:
+        self.reason = reason
+        super().__init__(reason)
+
+
 def _import_linter_violations(completed: subprocess.CompletedProcess[str]) -> list[DepViolation]:
     text = f"{completed.stdout}\n{completed.stderr}"
     if _linter_failed(text, completed.returncode):
         raise ToolError(_short(completed.stderr or completed.stdout))
-    return parse_import_linter(completed.stdout)
+    parsed = parse_import_linter(completed.stdout)
+    if completed.returncode == 1 and not parsed:
+        name = broken_contract_name(completed.stdout) or "import-linter"
+        raise UnparsedBreak(f"contrato quebrado: {name}")
+    return parsed
+
+
+def _cruiser_version(prefix: Path) -> str:
+    pkg = prefix / "node_modules" / "dependency-cruiser" / "package.json"
+    if not pkg.is_file():
+        raise ToolError(_CRUISER_MISSING)
+    try:
+        return str(json.loads(pkg.read_text())["version"])
+    except (json.JSONDecodeError, KeyError) as exc:
+        raise ToolError(_CRUISER_MISSING) from exc
 
 
 def _linter_failed(text: str, code: int) -> bool:
@@ -257,23 +285,25 @@ def _cruiser_config(user: Path) -> str:
 
 
 def _cruiser_base() -> str:
-    return """\
-module.exports = {
+    extensions = ", ".join(json.dumps(ext) for ext in _TS_EXTENSIONS)
+    return f"""\
+module.exports = {{
   forbidden: [
-    { name: "bob-no-circular", severity: "error", from: {}, to: { circular: true } },
+    {{ name: "bob-no-circular", severity: "error", from: {{}}, to: {{ circular: true }} }},
   ],
-  options: {
-    doNotFollow: { path: "node_modules" },
-    enhancedResolveOptions: {
-      extensions: [".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs"],
-    },
-  },
-};
+  options: {{
+    doNotFollow: {{ path: "node_modules" }},
+    enhancedResolveOptions: {{
+      extensions: [{extensions}],
+    }},
+  }},
+}};
 """
 
 
 def _cruiser_wrapper(user: Path) -> str:
     quoted = json.dumps(str(user.resolve()))
+    extensions = ", ".join(json.dumps(ext) for ext in _TS_EXTENSIONS)
     return f"""\
 const user = require({quoted});
 const cycle = {{
@@ -286,7 +316,7 @@ const forbidden = Array.isArray(user.forbidden) ? user.forbidden.concat([cycle])
 const options = {{ ...(user.options || {{}}) }};
 const resolve = {{ ...(options.enhancedResolveOptions || {{}}) }};
 const extensions = new Set(resolve.extensions || []);
-for (const ext of [".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs"]) extensions.add(ext);
+for (const ext of [{extensions}]) extensions.add(ext);
 resolve.extensions = Array.from(extensions);
 options.enhancedResolveOptions = resolve;
 if (!options.doNotFollow) options.doNotFollow = {{ path: "node_modules" }};
@@ -298,7 +328,7 @@ def _cruise_patterns(cwd: Path, include: list[str]) -> list[str]:
     patterns: list[str] = []
     for raw in include:
         if (cwd / raw).is_dir():
-            patterns.extend(f"{raw}/**/*.{ext}" for ext in _TS_EXTENSIONS)
+            patterns.extend(f"{raw}/**/*{ext}" for ext in _TS_EXTENSIONS)
     return patterns
 
 
