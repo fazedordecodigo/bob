@@ -1,0 +1,13 @@
+{
+  "summary": {
+    "violations": [
+      {
+        "type": "dependency",
+        "from": "src/api.ts",
+        "to": "src/domain.ts",
+        "rule": { "severity": "error", "name": "api-not-domain" }
+      }
+    ],
+    "error": 1
+  }
+}

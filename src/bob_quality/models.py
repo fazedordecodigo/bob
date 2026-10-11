@@ -75,6 +75,16 @@ class Clone:
 
 
 @dataclass(frozen=True)
+class DepViolation:
+    """Aresta proibida ou de ciclo. `origin → destination`."""
+
+    origin: str
+    destination: str
+    rule: str
+    in_diff: bool
+
+
+@dataclass(frozen=True)
 class GateResult:
     name: str
     status: GateStatus
@@ -92,6 +102,8 @@ class Report:
     focus: list[dict[str, object]]
     top_crap: list[dict[str, object]]
     old_debt: list[dict[str, object]] = field(default_factory=list)
+    dependencies: list[dict[str, object]] = field(default_factory=list)
+    old_dependencies: list[dict[str, object]] = field(default_factory=list)
     clones: list[Clone] = field(default_factory=list)
     reproduce: str = ""
     exit_code: int = 0

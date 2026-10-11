@@ -1,4 +1,4 @@
-"""CLI `bob`: orquestra check, crap, dry, mutate, waive e doctor."""
+"""CLI `bob`: orquestra check, crap, dry, deps, mutate, waive e doctor."""
 
 from __future__ import annotations
 
@@ -39,6 +39,9 @@ def build_parser() -> argparse.ArgumentParser:
 
     dry = sub.add_parser("dry", help="Reporta clones novos no diff, sem bloquear")
     _add_shared(dry)
+
+    deps = sub.add_parser("deps", help="Verifica ciclos e regras de dependência")
+    _add_shared(deps)
 
     mutate = sub.add_parser("mutate", help="Muta funções alteradas com mutmut")
     _add_shared(mutate)
@@ -116,6 +119,8 @@ def _dispatch(
         return _run_crap(args, cwd, out_dir, config_path)
     if args.command == "dry":
         return _run_dry(args, cwd, out_dir, config_path)
+    if args.command == "deps":
+        return _run_deps(args, cwd, out_dir, config_path)
     if args.command == "mutate":
         return _run_mutate(args, cwd, out_dir, config_path)
     raise AssertionError("comando não tratado")
@@ -173,6 +178,23 @@ def _run_dry(
         out_dir=out_dir,
         fmt="both",
         reproduce=_reproduce("dry", args),
+    )
+
+
+def _run_deps(
+    args: argparse.Namespace,
+    cwd: Path,
+    out_dir: Path,
+    config_path: Path | None,
+) -> int:
+    return run_check(
+        cwd=cwd,
+        base=args.base,
+        gates=["deps"],
+        config_path=config_path,
+        out_dir=out_dir,
+        fmt="both",
+        reproduce=_reproduce("deps", args),
     )
 
 

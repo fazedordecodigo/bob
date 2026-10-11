@@ -20,6 +20,8 @@ class Config:
     exclude: list[str] = field(default_factory=lambda: list(DEFAULT_EXCLUDE))
     max_crap: float = 10.0
     crap_scope: str = "changed"
+    python_deps_config: str = ".importlinter"
+    typescript_deps_config: str = ".dependency-cruiser.cjs"
     min_tokens: int = 50
 
 
@@ -44,6 +46,7 @@ def _from_dict(raw: dict[str, Any]) -> Config:
     crap = raw.get("crap") or {}
     include = paths.get("include") or ["src"]
     exclude = paths.get("exclude") or list(DEFAULT_EXCLUDE)
+    python_deps, typescript_deps = _dependency_paths(raw)
     return Config(
         base=str(raw.get("base") or "origin/main"),
         languages=list(raw.get("languages") or ["python"]),
@@ -51,8 +54,17 @@ def _from_dict(raw: dict[str, Any]) -> Config:
         exclude=list(exclude),
         max_crap=float(crap.get("max_per_function", 10)),
         crap_scope=str(crap.get("scope") or "changed"),
+        python_deps_config=python_deps,
+        typescript_deps_config=typescript_deps,
         min_tokens=_min_tokens(raw.get("duplication")),
     )
+
+
+def _dependency_paths(raw: dict[str, Any]) -> tuple[str, str]:
+    dependencies = raw.get("dependencies") or {}
+    python = str(dependencies.get("python") or ".importlinter")
+    typescript = str(dependencies.get("typescript") or ".dependency-cruiser.cjs")
+    return python, typescript
 
 
 def _min_tokens(duplication: Any) -> int:

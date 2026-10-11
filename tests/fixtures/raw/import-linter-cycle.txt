@@ -1,0 +1,26 @@
+
+---------
+Contracts
+---------
+
+Analyzed 3 files, 2 dependencies.
+---------------------------------
+
+Proibido ciclo de dependência BROKEN
+
+Contracts: 0 kept, 1 broken.
+
+
+----------------
+Broken contracts
+----------------
+
+Proibido ciclo de dependência
+-----------------------------
+
+No cycles are allowed in app.
+It could be made acyclic by removing 1 dependency:
+
+- .right -> .left (1 import)
+
+

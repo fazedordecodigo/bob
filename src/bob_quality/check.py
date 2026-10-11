@@ -9,12 +9,13 @@ from pathlib import Path
 from bob_quality.config import Config, ConfigError, load_config
 from bob_quality.core import files_by_risk, informational_debt, top_changed_crap
 from bob_quality.crap_gate import run_crap_gate
+from bob_quality.deps_gate import run_deps_gate
 from bob_quality.diff import GitError, changed_lines, current_commit
 from bob_quality.dry_gate import run_dry_gate
 from bob_quality.exit_codes import CONFIG_OR_TOOL, PASSED
-from bob_quality.models import Clone, FunctionMetric, GateResult, Report
+from bob_quality.models import Clone, DepViolation, FunctionMetric, GateResult, Report
 from bob_quality.mutate import MutationOutcome, focus_with_survivors, run_mutation_gate
-from bob_quality.report import metric_row, write_report
+from bob_quality.report import metric_row, violation_rows, write_report
 from bob_quality.waivers import WaiverError, load_waivers
 
 DEFAULT_GATES = ("crap", "dry", "deps")
@@ -89,6 +90,7 @@ class _Measured:
     gates: list[GateResult] = field(default_factory=list)
     metrics: list[FunctionMetric] = field(default_factory=list)
     clones: list[Clone] = field(default_factory=list)
+    violations: list[DepViolation] = field(default_factory=list)
     exit_code: int = PASSED
     mutation: MutationOutcome | None = None
     loaded_waivers: list[dict[str, object]] = field(default_factory=list)
@@ -141,6 +143,9 @@ def _absorb(
         state.clones = found
         _record(state, result, code, versions)
         return
+    if gate == "deps":
+        _absorb_deps(state, cwd, config, diff_lines)
+        return
     if gate == "mutate":
         mutation = run_mutation_gate(
             cwd=cwd,
@@ -158,6 +163,17 @@ def _absorb(
         PASSED,
         {},
     )
+
+
+def _absorb_deps(
+    state: _Measured,
+    cwd: Path,
+    config: Config,
+    diff_lines: dict[str, set[int]],
+) -> None:
+    result, code, versions, found = run_deps_gate(cwd, config, set(diff_lines))
+    state.violations = found
+    _record(state, result, code, versions)
 
 
 def _record(
@@ -198,6 +214,8 @@ def _assemble(
         focus=focus,
         top_crap=[metric_row(item) for item in top_changed_crap(measured.metrics)],
         old_debt=[metric_row(item) for item in informational_debt(measured.metrics, max_crap)],
+        dependencies=violation_rows(measured.violations, in_diff=True),
+        old_dependencies=violation_rows(measured.violations, in_diff=False),
         clones=measured.clones,
         reproduce=command,
         exit_code=measured.exit_code,
