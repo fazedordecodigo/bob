@@ -1,0 +1,62 @@
+waivers:
+- id: bob_quality.mutmut_tool.x_pytest_exit_code__mutmut_27
+  reason: timeout=900 vira 901; um segundo a mais no teto da baseline não muda o veredito.
+  author: Emerson (aprovado 11/10)
+  date: '2026-10-11'
+- id: bob_quality.mutmut_tool.x_failure_text__mutmut_7
+  reason: replace deixa de ver \r, e splitlines já quebra nessa marca.
+  author: Emerson (aprovado 11/10)
+  date: '2026-10-11'
+- id: bob_quality.mutmut_tool.x_failure_text__mutmut_8
+  reason: o substituto de \r muda, e splitlines continua quebrando o spinner.
+  author: Emerson (aprovado 11/10)
+  date: '2026-10-11'
+- id: bob_quality.mutate.x_prepare_mutmut_workspace__mutmut_10
+  reason: parents=None no mkdir; o cwd existe, então parents não entra.
+  author: Emerson (aprovado 11/10)
+  date: '2026-10-11'
+- id: bob_quality.mutate.x_prepare_mutmut_workspace__mutmut_12
+  reason: parents some; o pai do diretório mutants é o cwd.
+  author: Emerson (aprovado 11/10)
+  date: '2026-10-11'
+- id: bob_quality.mutate.x_prepare_mutmut_workspace__mutmut_14
+  reason: parents=False; o mesmo cwd já existe.
+  author: Emerson (aprovado 11/10)
+  date: '2026-10-11'
+- id: bob_quality.mutate.x_prepare_mutmut_workspace__mutmut_22
+  reason: target_is_directory=None; no POSIX o flag não muda o symlink.
+  author: Emerson (aprovado 11/10)
+  date: '2026-10-11'
+- id: bob_quality.mutate.x_prepare_mutmut_workspace__mutmut_24
+  reason: target_is_directory some; no POSIX o default é o mesmo efeito.
+  author: Emerson (aprovado 11/10)
+  date: '2026-10-11'
+- id: bob_quality.mutate.x_prepare_mutmut_workspace__mutmut_25
+  reason: target_is_directory=False; no POSIX o flag é ignorado.
+  author: Emerson (aprovado 11/10)
+  date: '2026-10-11'
+- id: bob_quality.adapters.mutmut.x__consume_show_header__mutmut_5
+  reason: removeprefix("a/") vira removesuffix; o diff do mutmut 3.8 não traz prefixo
+    a/.
+  author: Emerson (aprovado 11/10)
+  date: '2026-10-11'
+- id: bob_quality.adapters.mutmut.x__consume_show_header__mutmut_7
+  reason: o prefixo procurado vira XXa/XX; o caminho real não começa assim.
+  author: Emerson (aprovado 11/10)
+  date: '2026-10-11'
+- id: bob_quality.adapters.mutmut.x__consume_show_header__mutmut_8
+  reason: o prefixo vira A/; o diff pinado também não começa assim.
+  author: Emerson (aprovado 11/10)
+  date: '2026-10-11'
+- id: bob_quality.adapters.mutmut.x__consume_hunk_line__mutmut_8
+  reason: new_line = 1 depois de gravar a linha da mudança; o resultado já foi fechado.
+  author: Emerson (aprovado 11/10)
+  date: '2026-10-11'
+- id: bob_quality.adapters.mutmut.x__consume_hunk_line__mutmut_9
+  reason: new_line -= 1 no mesmo ponto; não entra em arquivo, linha nem operador.
+  author: Emerson (aprovado 11/10)
+  date: '2026-10-11'
+- id: bob_quality.adapters.mutmut.x__consume_hunk_line__mutmut_10
+  reason: new_line += 2 no mesmo ponto; o valor devolvido não muda.
+  author: Emerson (aprovado 11/10)
+  date: '2026-10-11'

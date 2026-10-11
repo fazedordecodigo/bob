@@ -74,8 +74,8 @@ def installed_npm_version(prefix: Path, package: str) -> str:
     pkg = prefix / "node_modules" / package / "package.json"
     if not pkg.is_file():
         raise ToolError(
-            "dependências npm do plugin ausentes: rode npm ci na raiz "
-            "(c8 e vitest fixados no package.json)"
+            "dependências npm do plugin ausentes: bob doctor --install "
+            "(#19; c8 e vitest fixados no package.json)"
         )
     try:
         return str(json.loads(pkg.read_text())["version"])
