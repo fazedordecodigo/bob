@@ -261,7 +261,17 @@ def _split_functions(
 ) -> tuple[list[CyclomaticFunction], list[tuple[str, dict[str, object]]]]:
     by_key = {f"{item.file}::{item.name}": item for item in measured}
     keys = _candidate_keys(measured, diff_lines, cache, by_key, waivers)
-    return _classify(keys, by_key, cache, cwd, waivers)
+    remutate: list[CyclomaticFunction] = []
+    reuse: list[tuple[str, dict[str, object]]] = []
+    for key in sorted(keys):
+        item = by_key[key]
+        entry = cache.get(key)
+        digest = _function_hash(cwd, item.file, item.start_line, item.end_line)
+        if isinstance(entry, dict) and not _needs_remutation(entry, digest, waivers):
+            reuse.append((key, entry))
+        else:
+            remutate.append(item)
+    return remutate, reuse
 
 
 def _candidate_keys(
@@ -280,26 +290,6 @@ def _candidate_keys(
         if key in by_key and _has_unwaived_survivor(entry, waivers):
             keys.add(key)
     return keys
-
-
-def _classify(
-    keys: set[str],
-    by_key: dict[str, CyclomaticFunction],
-    cache: dict[str, dict[str, object]],
-    cwd: Path,
-    waivers: list[Waiver],
-) -> tuple[list[CyclomaticFunction], list[tuple[str, dict[str, object]]]]:
-    remutate: list[CyclomaticFunction] = []
-    reuse: list[tuple[str, dict[str, object]]] = []
-    for key in sorted(keys):
-        item = by_key[key]
-        entry = cache.get(key)
-        digest = _function_hash(cwd, item.file, item.start_line, item.end_line)
-        if isinstance(entry, dict) and not _needs_remutation(entry, digest, waivers):
-            reuse.append((key, entry))
-        else:
-            remutate.append(item)
-    return remutate, reuse
 
 
 def _needs_remutation(entry: dict[str, object], digest: str, waivers: list[Waiver]) -> bool:
