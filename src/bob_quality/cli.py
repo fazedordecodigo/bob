@@ -1,4 +1,4 @@
-"""CLI `bob`: orquestra check, crap, dry, mutate e waive."""
+"""CLI `bob`: orquestra check, crap, dry, mutate, waive e doctor."""
 
 from __future__ import annotations
 
@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 
 from bob_quality.check import run_check
+from bob_quality.doctor import run_doctor
 from bob_quality.exit_codes import CONFIG_OR_TOOL
 from bob_quality.waivers import WaiverError, add_waiver
 
@@ -52,6 +53,13 @@ def build_parser() -> argparse.ArgumentParser:
     waive.add_argument("target", help="id do mutante ou nome da função")
     waive.add_argument("--reason", default=None)
 
+    doctor = sub.add_parser("doctor", help="Verifica as ferramentas pinadas e as versões instaladas")
+    doctor.add_argument(
+        "--install",
+        action="store_true",
+        help="Instala as ferramentas npm com npm ci no pacote (ou num cache do usuário)",
+    )
+
     return parser
 
 
@@ -63,6 +71,8 @@ def _add_shared(parser: argparse.ArgumentParser) -> None:
 
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
+    if args.command == "doctor":
+        return run_doctor(install=args.install)
     cwd = Path.cwd()
     if args.command == "waive":
         return _waive_command(cwd, args)
