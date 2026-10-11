@@ -7,6 +7,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 RESOLVE = ROOT / ".github" / "actions" / "bob" / "resolve_install.py"
+INSTALL = ROOT / ".github" / "actions" / "bob" / "install.sh"
 
 
 def _resolve(cwd: Path, **env: str) -> subprocess.CompletedProcess[str]:
@@ -22,6 +23,50 @@ def _resolve(cwd: Path, **env: str) -> subprocess.CompletedProcess[str]:
         text=True,
         check=False,
     )
+
+
+def _install_with_fake_python(tmp_path: Path, spec: str) -> str:
+    bindir = tmp_path / "bin"
+    bindir.mkdir()
+    log = tmp_path / "pip-args"
+    fake = bindir / "python"
+    fake.write_text(
+        "#!/bin/sh\n"
+        "printf '%s\\n' \"$*\" >> \"$INSTALL_LOG\"\n"
+        "case \"$*\" in\n"
+        "  *resolve_install*) printf '%s\\n' \"$FAKE_SPEC\" ;;\n"
+        "esac\n"
+        "exit 0\n"
+    )
+    fake.chmod(0o755)
+    env = os.environ.copy()
+    env["PATH"] = f"{bindir}{os.pathsep}{env.get('PATH', '')}"
+    env["INSTALL_LOG"] = str(log)
+    env["FAKE_SPEC"] = spec
+    result = subprocess.run(
+        ["bash", str(INSTALL)],
+        cwd=tmp_path,
+        env=env,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert result.returncode == 0, result.stderr
+    return log.read_text()
+
+
+def test_local_checkout_is_installed_editable(tmp_path: Path) -> None:
+    recorded = _install_with_fake_python(tmp_path, ".[dev]")
+
+    assert "-m pip install --disable-pip-version-check -e .[dev]" in recorded
+
+
+def test_git_install_is_not_editable(tmp_path: Path) -> None:
+    spec = "bob-quality[dev] @ git+https://github.com/fazedordecodigo/bob.git@abc123"
+    recorded = _install_with_fake_python(tmp_path, spec)
+
+    assert f"-m pip install --disable-pip-version-check {spec}" in recorded
+    assert " -e " not in recorded
 
 
 def test_bob_checkout_installs_the_local_project_with_dev_extras(tmp_path: Path) -> None:

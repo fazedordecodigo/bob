@@ -10,4 +10,8 @@ else
 fi
 
 spec=$("$py" "$script_dir/resolve_install.py")
-"$py" -m pip install --disable-pip-version-check "$spec"
+if [[ "$spec" == ".[dev]" ]]; then
+  "$py" -m pip install --disable-pip-version-check -e "$spec"
+else
+  "$py" -m pip install --disable-pip-version-check "$spec"
+fi
