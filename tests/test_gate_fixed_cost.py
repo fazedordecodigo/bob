@@ -1,4 +1,4 @@
-"""Custo fixo do gate: quais subprocessos rodam a suíte, e com qual ambiente."""
+"""Custo fixo do gate: quais subprocessos rodam a suíte, com qual ambiente, e como a falha deles vira exit."""
 
 from __future__ import annotations
 
@@ -59,14 +59,26 @@ NO_TESTS = (
 )
 
 
+NOTHING_MATCHES = (
+    '  File "/tmp/venv/lib/python3.12/site-packages/mutmut/__main__.py", line 815,'
+    " in collect_source_file_mutation_data\n"
+    "AssertionError: Filtered for specific mutants, but nothing matches\n\n"
+    "Filter: ('app.safe.x_add__mutmut*',)\n"
+)
+
+
 def _record_runs(
-    monkeypatch: pytest.MonkeyPatch, module: ModuleType, returncode: int, stdout: str = ""
+    monkeypatch: pytest.MonkeyPatch,
+    module: ModuleType,
+    returncode: int,
+    stdout: str = "",
+    stderr: str = "",
 ) -> list[tuple[list[str], dict[str, object]]]:
     calls: list[tuple[list[str], dict[str, object]]] = []
 
     def fake_run(args: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
         calls.append((args, kwargs))
-        return subprocess.CompletedProcess(args, returncode, stdout=stdout, stderr="")
+        return subprocess.CompletedProcess(args, returncode, stdout=stdout, stderr=stderr)
 
     monkeypatch.setattr(module.subprocess, "run", fake_run)
     return calls
@@ -95,6 +107,11 @@ def test_the_crap_coverage_run_skips_the_mutmut_dogfood(
     assert env["BOB_COVERAGE_RC"] == str(rc)
     assert env["KEEP_ME"] == "yes"
     assert not any(key.startswith("PYTEST_") for key in env)
+    assert rc.read_text() == (
+        "[run]\nparallel = true\n"
+        f"data_file = {tmp_path / 'coverage.data'}\n"
+        f"source =\n    {(tmp_path / 'src').resolve()}\n"
+    )
 
 
 @pytest.mark.parametrize("code", [0, 5])
@@ -241,6 +258,18 @@ def test_no_tests_collected_stays_a_tool_error(
     assert str(caught.value) == (
         "no tests ran in 0.00s failed to collect stats. runner returned 5"
     )
+
+
+def test_a_filter_that_matches_no_mutant_is_reported_as_nothing_matches(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _record_runs(monkeypatch, mutmut_tool, 1, stdout="    done\n", stderr=NOTHING_MATCHES)
+
+    with pytest.raises(ToolError) as caught:
+        mutmut_tool.run_mutmut(tmp_path, ["app.safe.x_add__mutmut*"], None)
+
+    assert type(caught.value) is ToolError
+    assert str(caught.value) == "nothing matches"
 
 
 def test_a_broken_baseline_stops_the_gate_with_exit_2_and_keeps_the_waivers(
