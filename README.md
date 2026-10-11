@@ -8,7 +8,7 @@ Quality gates (CRAP, DRY, mutação, dependências) + skills para agentes de cod
 - Configuração: `bob.yaml`
 - Relatórios: `.bob/report.md` e `.bob/report.json` (schema v1)
 
-> Status: fatia fina Python (issue #1) e mutação diferencial em Python (issue #3). TypeScript, Action e publicação ficam para os tickets seguintes.
+> Status: CRAP em Python e TypeScript, e mutação diferencial em Python (issue #3). Action e publicação ficam para os tickets seguintes.
 
 Skills (issue #7):
 

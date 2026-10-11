@@ -21,6 +21,7 @@ from bob_quality.mutmut_tool import (
     pytest_exit_code,
     run_mutmut,
 )
+from bob_quality.probe import relative_path
 from bob_quality.tools import ToolError, run_lizard_csv
 from bob_quality.waivers import Waiver, WaiverError, apply_waivers, load_waivers
 
@@ -285,7 +286,7 @@ def _measured_functions(cwd: Path, config: Config) -> list[CyclomaticFunction]:
     for item in functions:
         measured.append(
             CyclomaticFunction(
-                file=_relative(cwd, item.file),
+                file=relative_path(cwd, item.file),
                 name=item.name,
                 start_line=item.start_line,
                 end_line=item.end_line,
@@ -373,14 +374,6 @@ def _has_mutmut_config(cwd: Path) -> bool:
         return True
     setup = cwd / "setup.cfg"
     return setup.is_file() and "[mutmut]" in setup.read_text()
-
-
-def _relative(cwd: Path, path: str) -> str:
-    resolved = Path(path)
-    try:
-        return resolved.resolve().relative_to(cwd.resolve()).as_posix()
-    except ValueError:
-        return Path(path).as_posix()
 
 
 def _outcome(
