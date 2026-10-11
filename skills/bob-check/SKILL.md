@@ -47,7 +47,7 @@ Por padrão, `check` no hook local executa `crap,dry,deps`; no CI executa todos.
 
 `.bob/report.json` (`schema_version: 1`) espelha `.bob/report.md`.
 
-Veredito por gate: ✅ passou / ⚠️ aviso / ❌ falhou / ⏭️ não executado (com motivo). Exit `0` é o passe do check. ⚠️ (clones novos) não falha. ⏭️ fica ⏭️ com motivo. Violação de dependência é ❌.
+Veredito por gate: ✅ passou / ⚠️ aviso / ❌ falhou / ⏭️ não executado (com motivo). Exit `0` é o passe do check. ⚠️ (clones novos e mutantes sem teste) não falha. ⏭️ fica ⏭️ com motivo. Violação de dependência é ❌.
 
 Cada linha acionável traz função, arquivo:linha, métrica e limite.
 
