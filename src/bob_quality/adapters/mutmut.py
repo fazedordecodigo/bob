@@ -92,7 +92,7 @@ def covering_test_files(stats_raw: str) -> dict[str, set[str]]:
 def _test_files(node_ids: object) -> set[str]:
     if not isinstance(node_ids, list) or not all(isinstance(item, str) for item in node_ids):
         raise MutmutParseError(f"testes fora do contrato no stats do mutmut: {node_ids!r}")
-    return {item.split("::", 1)[0] for item in node_ids}
+    return {item.partition("::")[0] for item in node_ids}
 
 
 def _parse_results(raw: str) -> list[tuple[str, MutantStatus]]:
