@@ -47,20 +47,48 @@ def test_mutmut_failure_reports_the_error_after_the_spinner() -> None:
         "failed to collect stats. runner returned 1\n"
     )
 
-    assert failure_text(stdout, "") == "AssertionError: filtered mutants"
+    text = failure_text(stdout, "")
+
+    assert "failed to collect stats. runner returned 1" in text
+    assert "AssertionError: filtered mutants" in text
+    assert "⠋" not in text
+    assert "Generating mutants" not in text
 
 
-def test_a_mutmut_crash_reports_only_the_final_exception_line() -> None:
-    assert failure_text(BAD_ADDOPTS_STDOUT, BAD_ADDOPTS_STDERR) == (
+def _failing_mutmut(monkeypatch: pytest.MonkeyPatch, stdout: str, stderr: str) -> None:
+    def failed(args: list[str], **_kwargs: object) -> subprocess.CompletedProcess[str]:
+        return subprocess.CompletedProcess(args, 1, stdout=stdout, stderr=stderr)
+
+    monkeypatch.setattr(mutmut_tool.subprocess, "run", failed)
+
+
+def test_a_mutmut_crash_reports_only_the_final_exception_line(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    _failing_mutmut(monkeypatch, BAD_ADDOPTS_STDOUT, BAD_ADDOPTS_STDERR)
+
+    with pytest.raises(ToolError) as caught:
+        mutmut_tool.run_mutmut(tmp_path, ["app.safe.x_add__mutmut*"], None)
+
+    assert str(caught.value) == (
         "mutmut.runners.harness.BadTestExecutionCommandsException: Failed to run pytest with args:"
         " ['--no-such-flag', '--rootdir=.']. If your config sets debug=true, the original pytest"
         " error should be above."
     )
 
 
-def test_a_chained_traceback_glued_to_the_spinner_reports_the_last_exception() -> None:
-    assert failure_text(CHAINED, "") == (
-        "FileNotFoundError: [Errno 2] No such file or directory: 'expected.txt'"
+def test_a_chained_traceback_glued_to_the_spinner_reports_the_last_exception(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    _failing_mutmut(monkeypatch, CHAINED, "")
+
+    with pytest.raises(ToolError) as caught:
+        mutmut_tool.run_mutmut(tmp_path, ["app.safe.x_add__mutmut*"], None)
+
+    assert str(caught.value) == (
+        "a suíte passa no repositório e falha dentro de mutants/;"
+        " confira also_copy e a configuração [mutmut]:"
+        " FileNotFoundError: [Errno 2] No such file or directory: 'expected.txt'"
     )
 
 

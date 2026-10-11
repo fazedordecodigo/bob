@@ -100,7 +100,7 @@ def _invoke(args: list[str], cwd: Path | None, timeout: int = 180) -> str:
         raise ToolError("mutmut excedeu o tempo limite") from exc
     if completed.returncode != 0:
         output = f"{completed.stdout}\n{completed.stderr}"
-        detail = failure_text(completed.stdout, completed.stderr)
+        detail = _final_exception(output) or failure_text(completed.stdout, completed.stderr)
         if suite_failed(output):
             raise ToolError(f"{_SUITE_FAILS_IN_MUTANTS}: {detail}")
         if "nothing matches" in output:
@@ -110,15 +110,9 @@ def _invoke(args: list[str], cwd: Path | None, timeout: int = 180) -> str:
 
 
 def failure_text(stdout: str, stderr: str) -> str:
-    """Tira o spinner do mutmut e devolve o erro, que vem no fim da saída.
-
-    Com traceback do Python, o erro é só a linha final da exceção.
-    """
+    """Tira o spinner do mutmut e devolve o erro, que vem no fim da saída."""
     kept: list[str] = []
     blob = f"{stdout}\n{stderr}".replace("\r", "\n")
-    exception = _final_exception(blob)
-    if exception is not None:
-        return exception
     for raw in blob.splitlines():
         text = raw.strip()
         if not text or _SPINNER_LINE.match(text) or "Generating mutants" in text:
@@ -133,7 +127,7 @@ def failure_text(stdout: str, stderr: str) -> str:
 
 
 def _final_exception(blob: str) -> str | None:
-    """Primeira linha sem recuo depois do último cabeçalho de traceback."""
+    """Com traceback do Python, o erro é a primeira linha sem recuo depois do último cabeçalho."""
     _before, header, after = blob.rpartition(_TRACEBACK)
     line = _EXCEPTION_LINE.search(after)
     if not header or line is None:
