@@ -7,7 +7,7 @@ from pathlib import Path
 import bob_quality.mutate as mutate_module
 from bob_quality.adapters.mutmut import MutmutParseError, mutants_from_raw
 from bob_quality.models import CyclomaticFunction
-from bob_quality.mutate import _mutants_from_cache, _run_and_parse
+from bob_quality.mutate import _cached_start, _mutants_from_cache, _run_and_parse
 from bob_quality.tools import ToolError
 
 VERSIONS = {"mutmut": "3.8.0"}
@@ -210,6 +210,11 @@ def test_a_cached_function_relative_line_becomes_the_file_line() -> None:
         "operator": "old -> new",
         "status": "timeout",
     }
+    missing_fields = {
+        "id": "bob_quality.mutate.x_prepare_mutmut_workspace__mutmut_15",
+        "line": 3,
+        "status": "killed",
+    }
     zero_start = {
         "id": "bob_quality.mutate.x_prepare_mutmut_workspace__mutmut_13",
         "function": "prepare_mutmut_workspace",
@@ -231,7 +236,10 @@ def test_a_cached_function_relative_line_becomes_the_file_line() -> None:
             ("noise", {"start_line": 474, "mutants": "não é lista"}),
             (
                 "src/bob_quality/mutate.py::prepare_mutmut_workspace",
-                {"start_line": 474, "mutants": [kept, skipped_noise, blank_line, first_line]},
+                {
+                    "start_line": 474,
+                    "mutants": [kept, skipped_noise, blank_line, first_line, missing_fields],
+                },
             ),
             ("zero", {"start_line": 0, "mutants": [zero_start]}),
             ("text", {"start_line": "474", "mutants": [text_start]}),
@@ -242,9 +250,16 @@ def test_a_cached_function_relative_line_becomes_the_file_line() -> None:
         (kept["id"], 480),
         (blank_line["id"], 0),
         (first_line["id"], 474),
+        (missing_fields["id"], 476),
         (zero_start["id"], 7),
         (text_start["id"], 7),
     ]
+    assert mutants[3].function == ""
+    assert mutants[3].file == ""
+    assert mutants[3].operator == ""
+    assert mutants[3].status == "killed"
+    assert mutants[1].status == "killed"
+    assert mutants[2].status == "timeout"
     shifted = mutants[0]
     assert shifted.function == "prepare_mutmut_workspace"
     assert shifted.file == "src/bob_quality/mutate.py"
@@ -273,6 +288,9 @@ def test_a_cached_file_line_is_not_shifted_again() -> None:
 
     mutants = _mutants_from_cache([("src/bob_quality/mutate.py::prepare_mutmut_workspace", entry)])
 
+    assert _cached_start({"start_line": 1}) == 1
+    assert _cached_start({"start_line": 0}) is None
+    assert _cached_start({"line_base": "file", "start_line": 474}) is None
     assert mutants[0].line == 480
     assert mutants[0].waiver == "porque"
     assert mutants[0].operator == "a -> b"
