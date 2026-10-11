@@ -22,11 +22,11 @@ from bob_quality.diff import function_is_changed
 from bob_quality.exit_codes import BASELINE_BROKEN, CONFIG_OR_TOOL, PASSED, UNWAIVED_SURVIVOR
 from bob_quality.models import CyclomaticFunction, GateResult, Mutant, MutantStatus
 from bob_quality.mutmut_tool import (
+    BaselineFailed,
     mutmut_results,
     mutmut_show,
     mutmut_stats,
     mutmut_version,
-    pytest_exit_code,
     run_mutmut,
 )
 from bob_quality.probe import relative_path
@@ -62,9 +62,6 @@ def run_mutation_gate(
         return _finish(
             plan.reused_mutants, plan.remutated_labels, plan.reused_labels, versions, waiver_rows
         )
-    blocked = _baseline_outcome(cwd, versions, waiver_rows)
-    if blocked is not None:
-        return blocked
     fresh = _collect_fresh(cwd, config, plan.remutate, max_workers, versions, waiver_rows, waivers)
     if isinstance(fresh, MutationOutcome):
         return fresh
@@ -185,23 +182,6 @@ def _plan_functions(
     )
 
 
-def _baseline_outcome(
-    cwd: Path, versions: dict[str, str], waiver_rows: list[dict[str, object]]
-) -> MutationOutcome | None:
-    try:
-        code = pytest_exit_code(cwd)
-    except ToolError as exc:
-        return _tool_outcome(str(exc), versions, waiver_rows)
-    if code in {0, 5}:
-        return None
-    return _outcome(
-        GateResult("mutate", "not_run", "testes da baseline falharam antes de medir"),
-        BASELINE_BROKEN,
-        versions,
-        waivers=waiver_rows,
-    )
-
-
 def _collect_fresh(
     cwd: Path,
     config: Config,
@@ -234,6 +214,9 @@ def _run_and_parse(
         run_mutmut(cwd, patterns, max_workers)
         raw_results = mutmut_results(cwd)
         parsed = mutants_from_raw(raw_results, {})
+    except BaselineFailed:
+        broken = GateResult("mutate", "not_run", "testes da baseline falharam antes de medir")
+        return [], _outcome(broken, BASELINE_BROKEN, versions, waivers=waiver_rows)
     except (ToolError, MutmutParseError) as exc:
         return [], _tool_outcome(str(exc), versions, waiver_rows)
     belonging = [item for item in parsed if _belongs(item, remutate)]

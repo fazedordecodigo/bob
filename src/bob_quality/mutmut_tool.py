@@ -8,6 +8,7 @@ import subprocess
 import sys
 from pathlib import Path
 
+from bob_quality.adapters.mutmut import baseline_failed
 from bob_quality.tools import ToolError
 
 _VERSION_RE = re.compile(r"(\d+\.\d+\.\d+)")
@@ -16,23 +17,8 @@ _SPINNER_LINE = re.compile(rf"^[{_SPINNER_CHAR}]\s")
 _STATS_PATH = "mutants/mutmut-stats.json"
 
 
-def pytest_exit_code(cwd: Path) -> int:
-    """Roda a suíte uma vez. Devolve o exit code do pytest, sem transformar falha em erro de ferramenta."""
-    env = _clean_env()
-    try:
-        completed = subprocess.run(
-            [sys.executable, "-m", "pytest", "-q"],
-            cwd=cwd,
-            capture_output=True,
-            text=True,
-            stdin=subprocess.DEVNULL,
-            env=env,
-            timeout=900,
-            check=False,
-        )
-    except subprocess.TimeoutExpired as exc:
-        raise ToolError("pytest da baseline excedeu o tempo limite") from exc
-    return completed.returncode
+class BaselineFailed(ToolError):
+    """A suíte falhou dentro do `mutmut run`, antes de medir."""
 
 
 def mutmut_version() -> str:
@@ -99,8 +85,11 @@ def _invoke(args: list[str], cwd: Path | None, timeout: int = 180) -> str:
     except subprocess.TimeoutExpired as exc:
         raise ToolError("mutmut excedeu o tempo limite") from exc
     if completed.returncode != 0:
+        output = f"{completed.stdout}\n{completed.stderr}"
         detail = failure_text(completed.stdout, completed.stderr)
-        if "nothing matches" in f"{completed.stdout}\n{completed.stderr}":
+        if baseline_failed(output):
+            raise BaselineFailed(detail)
+        if "nothing matches" in output:
             raise ToolError("nothing matches")
         raise ToolError(detail or f"exit {completed.returncode}")
     return completed.stdout + completed.stderr

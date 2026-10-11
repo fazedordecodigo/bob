@@ -1,8 +1,4 @@
 waivers:
-- id: bob_quality.mutmut_tool.x_pytest_exit_code__mutmut_27
-  reason: timeout=900 vira 901; um segundo a mais no teto da baseline não muda o veredito.
-  author: Emerson (aprovado 11/10)
-  date: '2026-10-11'
 - id: bob_quality.mutmut_tool.x_failure_text__mutmut_7
   reason: replace deixa de ver \r, e splitlines já quebra nessa marca.
   author: Emerson (aprovado 11/10)

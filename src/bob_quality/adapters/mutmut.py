@@ -15,6 +15,9 @@ _RESULT_RE = re.compile(r"^\s+(\S+):\s+(.+?)\s*$")
 _FUNCTION_RE = re.compile(r"(?:^|\.)x_(?P<name>.+?)__mutmut_\d+$")
 _METHOD_RE = re.compile(r"(?:^|\.)xǁ(?P<class_name>.+)ǁ(?P<name>.+?)__mutmut_\d+$")
 _HUNK_RE = re.compile(r"^@@ -\d+(?:,\d+)? \+(\d+)")
+# Linhas que `mutmut run` 3.8 imprime antes de sair 1 quando a suíte falha.
+_STATS_FAILED_RE = re.compile(r"failed to collect stats\. runner returned (\d+)")
+_CLEAN_FAILED = "Failed to run clean test"
 
 # Status impressos por mutmut 3.8 (`status_by_exit_code`). O mapa é nosso.
 _STATUS: dict[str, MutantStatus] = {
@@ -33,6 +36,13 @@ _STATUS: dict[str, MutantStatus] = {
 
 class MutmutParseError(Exception):
     """Saída do mutmut fora do contrato da versão pinada."""
+
+
+def baseline_failed(output: str) -> bool:
+    """A suíte falhou no `mutmut run` antes de medir. Exit 5 do pytest (nada coletado) não conta."""
+    if _CLEAN_FAILED in output:
+        return True
+    return any(int(code) not in {0, 5} for code in _STATS_FAILED_RE.findall(output))
 
 
 def ids_for_show(mutants: list[Mutant]) -> list[str]:

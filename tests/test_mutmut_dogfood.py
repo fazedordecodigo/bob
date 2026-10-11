@@ -11,7 +11,6 @@ import pytest
 
 from bob_quality import mutmut_tool
 from bob_quality.mutate import prepare_mutmut_workspace
-from bob_quality.tools import ToolError
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -50,52 +49,6 @@ def test_gate_subprocesses_skip_the_dogfood_reentry(monkeypatch: pytest.MonkeyPa
     env = mutmut_tool._clean_env()
     assert env["BOB_SKIP_MUTMUT_DOGFOOD"] == "1"
     assert "bob_skip_mutmut_dogfood" not in env
-
-
-def test_baseline_timeout_is_a_tool_error(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    def expired(*_args: object, **_kwargs: object) -> subprocess.CompletedProcess[str]:
-        raise subprocess.TimeoutExpired(cmd="pytest", timeout=900)
-
-    monkeypatch.setattr(mutmut_tool.subprocess, "run", expired)
-    with pytest.raises(ToolError) as caught:
-        mutmut_tool.pytest_exit_code(tmp_path)
-    assert str(caught.value) == "pytest da baseline excedeu o tempo limite"
-
-
-def test_baseline_pytest_receives_the_repo_command_and_a_clean_env(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    # MUTANT_UNDER_TEST fica como o mutmut deixou. Sobrescrever aqui impede
-    # o trampolim de associar este teste à função, e o mutante sobrevive.
-    monkeypatch.setenv("PYTEST_CURRENT_TEST", "leak")
-    monkeypatch.setenv("KEEP_ME", "yes")
-    monkeypatch.setenv("BOB_SKIP_MUTMUT_DOGFOOD", "stale")
-    seen: dict[str, object] = {}
-
-    def fake_run(args: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
-        seen["args"] = args
-        seen["kwargs"] = kwargs
-        return subprocess.CompletedProcess(args, 0)
-
-    monkeypatch.setattr(mutmut_tool.subprocess, "run", fake_run)
-
-    assert mutmut_tool.pytest_exit_code(tmp_path) == 0
-
-    kwargs = seen["kwargs"]
-    assert isinstance(kwargs, dict)
-    assert seen["args"] == [sys.executable, "-m", "pytest", "-q"]
-    assert kwargs["cwd"] == tmp_path
-    assert kwargs["capture_output"] is True
-    assert kwargs["text"] is True
-    assert kwargs["stdin"] is subprocess.DEVNULL
-    assert kwargs["check"] is False
-    assert kwargs["timeout"] >= 900
-    env = kwargs["env"]
-    assert isinstance(env, dict)
-    assert env["KEEP_ME"] == "yes"
-    assert env["BOB_SKIP_MUTMUT_DOGFOOD"] == "1"
-    assert "MUTANT_UNDER_TEST" not in env
-    assert not any(key.startswith("PYTEST_") for key in env)
 
 
 def test_prepare_replaces_nothing_when_mutants_already_exists(tmp_path: Path) -> None:
