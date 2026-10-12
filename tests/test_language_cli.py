@@ -155,7 +155,9 @@ def test_report_json_is_byte_identical_across_languages(tmp_path: Path) -> None:
     ("args", "env", "shown"),
     [
         (("--lang", "fr"), None, "fr"),
+        (("--lang", "5"), None, "5"),
         ((), "pt-br", "pt-br"),
+        ((), "5", "5"),
     ],
 )
 def test_invalid_flag_or_env_exits_4_before_running(
@@ -186,19 +188,25 @@ _COMMANDS = (
 @pytest.mark.parametrize(
     ("text", "stderr"),
     [
-        ("language: fr\n", "invalid language: fr (use en or pt-BR)\n"),
-        ("language: 1\n", "invalid language: 1 (use en or pt-BR)\n"),
+        ("language: fr\n", "bob.yaml: language must be en or pt-BR\n"),
+        ("language: 5\n", "bob.yaml: language must be a string\n"),
         ("- base\n", "bob.yaml must be a mapping\n"),
         (":\n  - [\n", "invalid YAML in bob.yaml: while parsing a block mapping\n"),
     ],
 )
+@pytest.mark.parametrize("lang", [None, "pt-BR"])
 def test_bad_bob_yaml_exits_4_on_stderr_and_writes_nothing(
-    tmp_path: Path, command: tuple[str, ...], text: str, stderr: str
+    tmp_path: Path,
+    command: tuple[str, ...],
+    text: str,
+    stderr: str,
+    lang: str | None,
 ) -> None:
     repo = _repo(tmp_path)
     (repo / "bob.yaml").write_text(text)
+    args = ("--lang", lang, *command) if lang is not None else command
 
-    result = run_bob(repo, *command)
+    result = run_bob(repo, *args)
 
     assert result.returncode == 4
     assert result.stderr == stderr
@@ -215,7 +223,7 @@ def test_valid_flag_does_not_hide_an_invalid_yaml_language(tmp_path: Path) -> No
     result = run_bob(repo, "check", "--lang", EN, "--gates", "nope", "--base", "main")
 
     assert result.returncode == 4
-    assert result.stderr == "invalid language: fr (use en or pt-BR)\n"
+    assert result.stderr == "bob.yaml: language must be en or pt-BR\n"
     assert result.stdout == ""
     assert not (repo / ".bob" / "report.json").exists()
 
