@@ -574,3 +574,81 @@ def test_script_mode_runs_from_the_clone_without_site_packages(tmp_path: Path) -
 
     assert (result.returncode, result.stdout, result.stderr) == (0, "30 skills em .agents/skills\n", "")
     assert sorted(path.name for path in (tmp_path / ".agents/skills").iterdir()) == EXPECTED_SKILLS
+
+
+def test_symlink_at_a_current_skill_stays_and_the_install_finishes(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    dest = tmp_path / ".github" / "skills"
+    dest.mkdir(parents=True)
+    outside = tmp_path / "fora"
+    bob_target = outside / "bob-check"
+    bob_target.mkdir(parents=True)
+    (bob_target / "KEEP").write_text("bob\n")
+    (dest / "bob-check").symlink_to(bob_target, target_is_directory=True)
+    harden_target = outside / "sumiu"
+    (dest / "harden").symlink_to(harden_target)
+    report_file = outside / "review-report"
+    report_file.write_text("relatorio\n")
+    (dest / "review-report").symlink_to(report_file)
+
+    result = _install(capsys, "--project", str(tmp_path), "copilot")
+
+    assert result == (
+        0,
+        "30 skills em .github/skills\n",
+        f"aviso: {dest / 'bob-check'} ficou, porque é um link simbólico.\n"
+        f"aviso: {dest / 'harden'} ficou, porque é um link simbólico.\n"
+        f"aviso: {dest / 'review-report'} ficou, porque é um link simbólico.\n",
+    )
+    assert (dest / "bob-check").readlink() == bob_target
+    assert (bob_target / "KEEP").read_text() == "bob\n"
+    assert list(bob_target.iterdir()) == [bob_target / "KEEP"]
+    assert (dest / "harden").readlink() == harden_target
+    assert not harden_target.exists()
+    assert (dest / "review-report").readlink() == report_file
+    assert report_file.read_text() == "relatorio\n"
+    assert (dest / "tdd" / "SKILL.md").read_bytes() == TDD_SKILL.read_bytes()
+    assert sorted(path.name for path in dest.iterdir()) == EXPECTED_SKILLS
+
+
+def test_unreadable_notice_stays_out_and_the_install_finishes(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    source = tmp_path / "plugin"
+    _write(source / "LICENSE", "raiz\n")
+    _write(source / "skills" / "bob-check" / "SKILL.md", "bob\n")
+    _write(source / "skills" / "vendor" / "LICENSE", "mit\n")
+    notice = source / "skills" / "vendor" / "NOTICE"
+    _write(notice, "aviso\n")
+    _write(source / "skills" / "vendor" / "ask-matt" / "SKILL.md", "matt\n")
+    _write(source / "skills" / "vendor" / "depois" / "SKILL.md", "depois\n")
+    skills = ["./skills/bob-check", "./skills/vendor/ask-matt", "./skills/vendor/depois"]
+    _write(source / ".claude-plugin" / "plugin.json", json.dumps({"skills": skills}))
+    notice.chmod(0)
+    project = tmp_path / "projeto"
+    try:
+        result = _install(capsys, "--project", str(project), "--source", str(source), "copilot")
+    finally:
+        notice.chmod(0o644)
+
+    dest = project / ".github" / "skills"
+    ask = dest / "ask-matt"
+    later = dest / "depois"
+    denied = f"[Errno 13] Permission denied: '{notice}'"
+    assert result == (
+        0,
+        "3 skills em .github/skills\n",
+        f"aviso: {ask} ficou, porque {denied}.\n"
+        f"aviso: {later} ficou, porque {denied}.\n",
+    )
+    assert (dest / "bob-check" / "SKILL.md").read_text() == "bob\n"
+    assert (dest / "bob-check" / "LICENSE").read_text() == "raiz\n"
+    assert not (dest / "bob-check" / "NOTICE").exists()
+    assert (ask / "SKILL.md").read_text() == "matt\n"
+    assert (ask / "LICENSE").read_text() == "mit\n"
+    assert not (ask / "NOTICE").exists()
+    assert (later / "SKILL.md").read_text() == "depois\n"
+    assert (later / "LICENSE").read_text() == "mit\n"
+    assert not (later / "NOTICE").exists()
+    assert notice.read_text() == "aviso\n"
