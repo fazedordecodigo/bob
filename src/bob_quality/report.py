@@ -41,7 +41,7 @@ def write_report(report: Report, out_dir: Path, fmt: str, lang: Language) -> Non
 
 
 def to_json(report: Report) -> dict[str, object]:
-    return {
+    payload: dict[str, object] = {
         "schema_version": report.schema_version,
         "commit": report.commit,
         "base": report.base,
@@ -63,6 +63,9 @@ def to_json(report: Report) -> dict[str, object]:
         "reproduce": report.reproduce,
         "exit_code": report.exit_code,
     }
+    if report.typing is not None:
+        payload["typing"] = report.typing
+    return payload
 
 
 def _json_reason(reason: Text | None) -> str | None:
@@ -97,6 +100,7 @@ def to_markdown(report: Report, lang: Language) -> str:
     lines.extend(_clone_lines(report))
     lines.extend(_survivor_lines(report))
     lines.extend(_no_coverage_lines(report))
+    lines.extend(_types_lines(report))
     lines.extend(_footer(report, lang))
     return "\n".join(render(line, lang) for line in lines)
 
@@ -219,6 +223,39 @@ def _waiver_section(waivers: list[dict[str, object]]) -> list[Text]:
         )
     lines.append("")
     return lines
+
+
+def _types_lines(report: Report) -> list[Text]:
+    found = report.typing
+    if not isinstance(found, dict):
+        return []
+    lines: list[Text] = ["", msg("report.types"), ""]
+    gate = _gate_named(report, "typing")
+    if gate is not None and gate.status == "not_run" and gate.reason is not None:
+        lines.append(msg("report.types_line", reason=gate.reason))
+        return lines
+    findings = found.get("findings")
+    if not isinstance(findings, list) or not findings:
+        lines.append(msg("report.types_none"))
+        return lines
+    lines.append(msg("report.types_header"))
+    lines.append("|---|---:|---|---|---|")
+    for item in findings:
+        if isinstance(item, dict):
+            lines.append(_finding_row(item))
+    return lines
+
+
+def _finding_row(item: dict[str, object]) -> str:
+    file = _cell(item.get("file"))
+    code = _cell(item.get("code"))
+    waiver = _cell(item.get("waiver_id"))
+    disposition = _cell(item.get("disposition"))
+    return f"| `{file}` | {item.get('line')} | `{code}` | {disposition} | `{waiver}` |"
+
+
+def _cell(value: object) -> str:
+    return str(value).replace("|", "\\|")
 
 
 def _footer(report: Report, lang: Language) -> list[Text]:
