@@ -303,103 +303,101 @@ def _apply(child: _Node, value: object, label: str, dotted: str) -> object:
 
 def _reject(child: _Node, value: object, label: str, dotted: str) -> None:
     for rule in child.checks:
-        failure = _failure_for(rule, value, dotted)
+        failure = _failure_for(rule, value)
         if failure is None:
             continue
-        catalog, field, params = failure
-        raise ConfigError(msg(catalog, path=label, key=field, **params))
+        catalog, suffix, params = failure
+        raise ConfigError(msg(catalog, path=label, key=f"{dotted}{suffix}", **params))
 
 
-def _failure_for(rule: _Rule, value: object, field: str) -> _Failure | None:
+def _failure_for(rule: _Rule, value: object) -> _Failure | None:
     if isinstance(rule, _Bound):
-        return _bound_failure(rule, value, field)
-    return _UNBOUND[rule.kind](rule, value, field)
+        return _bound_failure(rule, value)
+    return _UNBOUND[rule.kind](rule, value)
 
 
-def _bound_failure(rule: _Bound, value: object, field: str) -> _Failure | None:
+def _bound_failure(rule: _Bound, value: object) -> _Failure | None:
     if rule.kind == "gt":
-        return _greater(value, rule.bound, field)
-    return _at_least(value, rule.bound, field)
+        return _greater(value, rule.bound)
+    return _at_least(value, rule.bound)
 
 
-def _greater(value: object, bound: int | float, field: str) -> _Failure | None:
+def _greater(value: object, bound: int | float) -> _Failure | None:
     if value > bound:
         return None
-    return ("config.key_greater_than", field, {"bound": bound})
+    return ("config.key_greater_than", "", {"bound": bound})
 
 
-def _at_least(value: object, bound: int | float, field: str) -> _Failure | None:
+def _at_least(value: object, bound: int | float) -> _Failure | None:
     if value >= bound:
         return None
-    return ("config.key_at_least", field, {"bound": bound})
+    return ("config.key_at_least", "", {"bound": bound})
 
 
-def _text(check: _Check, value: object, field: str) -> _Failure | None:
+def _text(check: _Check, value: object) -> _Failure | None:
     if isinstance(value, str):
         return None
-    return ("config.key_string", field, {})
+    return ("config.key_string", "", {})
 
 
-def _texts(check: _Check, value: object, field: str) -> _Failure | None:
+def _texts(check: _Check, value: object) -> _Failure | None:
     if _string_items(value):
         return None
-    return ("config.key_string_list", field, {})
+    return ("config.key_string_list", "", {})
 
 
-def _number(check: _Check, value: object, field: str) -> _Failure | None:
+def _number(check: _Check, value: object) -> _Failure | None:
     if isinstance(value, (int, float)) and not isinstance(value, bool):
         return None
-    return ("config.key_number", field, {})
+    return ("config.key_number", "", {})
 
 
-def _finite(check: _Check, value: object, field: str) -> _Failure | None:
+def _finite(check: _Check, value: object) -> _Failure | None:
     if math.isfinite(value):
         return None
-    return ("config.key_finite", field, {})
+    return ("config.key_finite", "", {})
 
 
-def _integer(check: _Check, value: object, field: str) -> _Failure | None:
+def _integer(check: _Check, value: object) -> _Failure | None:
     if isinstance(value, int) and not isinstance(value, bool):
         return None
-    return ("config.key_integer", field, {})
+    return ("config.key_integer", "", {})
 
 
-def _one_of(check: _Check, value: object, field: str) -> _Failure | None:
+def _one_of(check: _Check, value: object) -> _Failure | None:
     if value in check.choices:
         return None
     return (
         "config.key_one_of",
-        field,
+        "",
         {"left": check.choices[0], "right": check.choices[1]},
     )
 
 
-def _members(check: _Check, value: object, field: str) -> _Failure | None:
+def _members(check: _Check, value: object) -> _Failure | None:
     if not _string_items(value):
-        return ("config.key_string_list", field, {})
-    return _member_at(check, value, field)
+        return ("config.key_string_list", "", {})
+    return _member_at(check, value)
 
 
-def _member_at(
-    check: _Check, value: list[str] | tuple[str, ...], field: str
-) -> _Failure | None:
+def _member_at(check: _Check, value: list[str] | tuple[str, ...]) -> _Failure | None:
     for index, item in enumerate(value):
         if item not in check.choices:
             return (
                 "config.key_one_of",
-                f"{field}[{index}]",
+                f"[{index}]",
                 {"left": check.choices[0], "right": check.choices[1]},
             )
     return None
 
 
-def _language(check: _Check, value: object, field: str) -> _Failure | None:
+def _language(check: _Check, value: object) -> _Failure | None:
     if value is None or value == "" or value in LANGUAGES:
         return None
-    return ("config.invalid_language", field, {"value": value})
+    return ("config.invalid_language", "", {"value": value})
 
 
-_FailFn = Callable[[_Check, object, str], _Failure | None]
+_FailFn = Callable[[_Check, object], _Failure | None]
 
 _UNBOUND: dict[_CheckKind, _FailFn] = {
     "string": _text,
@@ -420,7 +418,7 @@ def _guard(config: Config) -> None:
 
 def _guard_value(node: _Node, value: object, attr: str) -> None:
     for rule in node.checks:
-        if _failure_for(rule, value, attr) is not None:
+        if _failure_for(rule, value) is not None:
             raise ValueError(attr)
 
 
