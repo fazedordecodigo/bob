@@ -52,9 +52,9 @@ As ferramentas de mercado (lizard, coverage.py, c8, mutmut, StrykerJS, jscpd, im
 
 **Interfaces da CLI** (Python ≥ 3.10, distribuída via pip como `bob-quality`; adaptadores TS chamam ferramentas npm fixadas via `npx`; complexidade via lizard nas duas linguagens)
 ```
-bob check   [--base REF] [--gates crap,dry,deps,mutate] [--config bob.yaml] [--format md|json|both] [--out .bob/]
+bob check   [--base REF] [--gates crap,dry,deps,mutate] [--config bob.yaml] [--format md|json|both] [--out .bob/] [--dry-fail] [--max-new-clones N]
 bob crap    [--base REF] [--threshold N] [--coverage-file PATH]
-bob dry     [--base REF]
+bob dry     [--base REF] [--dry-fail] [--max-new-clones N]
 bob deps
 bob mutate  [--base REF] [--since-last-run] [--max-workers N]
 bob report  [--in .bob/] [--out .bob/report.md]

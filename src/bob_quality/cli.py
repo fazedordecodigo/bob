@@ -72,6 +72,7 @@ def build_parser(lang: Language = DEFAULT_LANGUAGE) -> _Parser:
         default="both",
         choices=("md", "json", "both"),
     )
+    _add_dry_limits(check)
 
     crap = sub.add_parser("crap", help=t(lang, "cli.crap"))
     _add_shared(crap, lang)
@@ -80,6 +81,7 @@ def build_parser(lang: Language = DEFAULT_LANGUAGE) -> _Parser:
 
     dry = sub.add_parser("dry", help=t(lang, "cli.dry"))
     _add_shared(dry, lang)
+    _add_dry_limits(dry)
 
     deps = sub.add_parser("deps", help=t(lang, "cli.deps"))
     _add_shared(deps, lang)
@@ -120,6 +122,11 @@ def _add_lang(parser: argparse.ArgumentParser, lang: Language) -> None:
     parser.add_argument("--lang", default=None, help=t(lang, "cli.lang"))
 
 
+def _add_dry_limits(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument("--dry-fail", action="store_true")
+    parser.add_argument("--max-new-clones", type=int, default=None)
+
+
 def _parse(argv: list[str] | None) -> _Invocation:
     try:
         lang = _language(argv)
@@ -131,7 +138,15 @@ def _parse(argv: list[str] | None) -> _Invocation:
         return _Rejected()
     except _Parser.Help:
         return _HelpShown()
+    if _negative_ceiling(args):
+        print(t(DEFAULT_LANGUAGE, "cli.max_new_clones_negative"), file=sys.stderr)
+        return _Rejected()
     return _Ready(lang, args)
+
+
+def _negative_ceiling(args: argparse.Namespace) -> bool:
+    ceiling = getattr(args, "max_new_clones", None)
+    return ceiling is not None and ceiling < 0
 
 
 def _stop_code(seen: _HelpShown | _Rejected) -> int:
@@ -255,6 +270,8 @@ def _run_check(
         fmt=args.format,
         reproduce=_reproduce("check", args),
         lang=lang,
+        dry_fail=args.dry_fail,
+        max_new_clones=args.max_new_clones,
     )
 
 
@@ -296,6 +313,8 @@ def _run_dry(
         fmt="both",
         reproduce=_reproduce("dry", args),
         lang=lang,
+        dry_fail=args.dry_fail,
+        max_new_clones=args.max_new_clones,
     )
 
 
@@ -350,6 +369,9 @@ def _reproduce(command: str, args: argparse.Namespace) -> str:
     _append_flag(parts, "--max-workers", getattr(args, "max_workers", None))
     if getattr(args, "since_last_run", False):
         parts.append("--since-last-run")
+    if getattr(args, "dry_fail", False):
+        parts.append("--dry-fail")
+    _append_flag(parts, "--max-new-clones", getattr(args, "max_new_clones", None))
     return " ".join(parts)
 
 
