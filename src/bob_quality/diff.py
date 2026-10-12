@@ -63,6 +63,22 @@ def line_is_changed(file: str, line: int, changed: Mapping[str, Set[int]]) -> bo
     return line in changed.get(file, ())
 
 
+def as_diff_path(cwd: Path, raw: str) -> str | None:
+    if raw == "":
+        return None
+    text = raw[2:] if raw.startswith("./") else raw
+    path = Path(text)
+    root = cwd.resolve()
+    candidate = path if path.is_absolute() else root / path
+    try:
+        relative = candidate.resolve().relative_to(root)
+    except ValueError:
+        return None
+    if ".." in relative.parts:
+        return None
+    return relative.as_posix()
+
+
 def _git(cwd: Path, *args: str) -> str:
     try:
         completed = subprocess.run(
