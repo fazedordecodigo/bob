@@ -1,5 +1,3 @@
-"""Config inválida sai 4, em inglês no stderr, sem gravar nada."""
-
 from __future__ import annotations
 
 from pathlib import Path
