@@ -216,7 +216,6 @@ def _install(capsys: pytest.CaptureFixture[str], *argv: str) -> tuple[int, str, 
 
 
 def _installed(*dests: str) -> str:
-    """Stdout do instalador com o manifesto real, um destino por linha."""
     return "".join(f"{len(BOB_SKILLS)} skills em {d}\n" for d in dests)
 
 
