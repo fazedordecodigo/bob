@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import os
+import shlex
 import sys
 from dataclasses import dataclass
 from pathlib import Path
@@ -56,6 +57,8 @@ class _Ready:
 
 _Invocation = _HelpShown | _Rejected | _Ready
 
+_MISPLACED_CONFIG = "misplaced_config"
+
 
 def build_parser(lang: Language = DEFAULT_LANGUAGE) -> _Parser:
     parser = _Parser(
@@ -63,6 +66,12 @@ def build_parser(lang: Language = DEFAULT_LANGUAGE) -> _Parser:
         description=t(lang, "cli.description"),
     )
     _add_lang(parser, lang)
+    parser.add_argument(
+        "--config",
+        dest=_MISPLACED_CONFIG,
+        default=argparse.SUPPRESS,
+        help=argparse.SUPPRESS,
+    )
     sub = parser.add_subparsers(dest="command", required=True)
 
     check = sub.add_parser("check", help=t(lang, "cli.check"))
@@ -150,7 +159,16 @@ def _add_lang(parser: argparse.ArgumentParser, lang: Language) -> None:
 def _parse(argv: list[str] | None) -> _Invocation:
     try:
         lang = _language(argv)
-        args = build_parser(lang).parse_args(argv)
+        parser = build_parser(lang)
+        args = parser.parse_args(argv)
+        if hasattr(args, _MISPLACED_CONFIG):
+            value = getattr(args, _MISPLACED_CONFIG)
+            if hasattr(args, "config"):
+                parser.error(
+                    "--config goes after the command: "
+                    + shlex.join(["bob", args.command, "--config", value])
+                )
+            parser.error(f"{args.command} does not accept --config")
     except ConfigError as exc:
         print(render(reason(exc), DEFAULT_LANGUAGE), file=sys.stderr)
         return _Rejected()
