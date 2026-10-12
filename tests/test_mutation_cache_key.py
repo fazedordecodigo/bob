@@ -44,6 +44,25 @@ def check_sum():
 WEAK_CONFTEST = CONFTEST.replace("assert value == 3", "assert value is not None")
 ADD = "src/app/safe.py::add"
 SCALE = "src/app/safe.py::scale"
+OFFSET = "src/app/safe.py::offset"
+CLAMP = "src/app/safe.py::clamp"
+REMOVED = "src/app/safe.py::removed"
+OUTSIDE = """
+def offset(value: int) -> int:
+    return value + 1
+
+
+def clamp(value: int) -> int:
+    return value if value < 10 else 10
+"""
+EXTRA_TEST = "def test_extra() -> None:\n    assert True\n"
+CLAMP_WAIVER = """\
+waivers:
+  - id: src/app/safe.py::clamp
+    reason: o limite já está coberto
+    author: ada
+    date: '2026-10-11'
+"""
 
 
 def test_stats_key_is_the_mutant_prefix_without_the_mutmut_suffix() -> None:
@@ -132,6 +151,62 @@ def test_a_change_to_what_the_suite_reads_remutates_the_unchanged_function(
     assert report["mutation"]["remutated"] == [ADD]
     assert report["mutation"]["reused"] == []
     assert _operators(cache, ADD) == [""]
+
+
+def _cached_row(name: str, status: str) -> dict:
+    return {
+        "file": "src/app/safe.py",
+        "name": name,
+        "mutants": [
+            {
+                "id": f"{name}-planted",
+                "function": name,
+                "file": "src/app/safe.py",
+                "line": 1,
+                "operator": "SENTINEL",
+                "status": status,
+            }
+        ],
+    }
+
+
+def test_a_new_suite_file_remutates_an_unwaived_survivor_outside_the_diff(
+    tmp_path: Path,
+) -> None:
+    repo = init_python_repo(tmp_path / "repo")
+    commit_on_main(repo, "src/app/safe.py", ADD_AND_SCALE + OUTSIDE, "functions outside the diff")
+    commit_on_main(repo, "tests/test_scale.py", SCALE_TEST, "test scale")
+    commit_on_branch(repo, "touch", "src/app/safe.py", ADD_TOUCHED + OUTSIDE, "touch add")
+    first_code, _first, first_cache = _mutate(repo)
+
+    def plant(cache: dict) -> None:
+        cache["functions"][ADD]["mutants"][0]["operator"] = "SENTINEL"
+        cache["functions"][SCALE] = _cached_row("scale", "survived")
+        cache["functions"][OFFSET] = _cached_row("offset", "killed")
+        cache["functions"][CLAMP] = _cached_row("clamp", "survived")
+        cache["functions"][REMOVED] = _cached_row("removed", "survived")
+
+    _edit_cache(repo, plant)
+    (repo / ".bob" / "waivers.yaml").write_text(CLAMP_WAIVER, encoding="utf-8")
+    _write(repo, {"tests/test_extra.py": EXTRA_TEST})
+    code, report, cache = _mutate(repo)
+
+    assert first_code == 0
+    assert sorted(first_cache["functions"]) == [ADD]
+    assert code == 0
+    assert report["mutation"]["remutated"] == [ADD, SCALE]
+    assert report["mutation"]["reused"] == []
+    assert sorted(cache["functions"]) == [ADD, SCALE]
+    assert _operators(cache, ADD) == [""]
+    assert "SENTINEL" not in _operators(cache, SCALE)
+    assert cache["suite"] == suite_fingerprint(repo)
+    assert cache["mutmut"] == first_cache["mutmut"]
+    assert OFFSET not in report["mutation"]["remutated"]
+    assert CLAMP not in report["mutation"]["remutated"]
+    assert REMOVED not in report["mutation"]["remutated"]
+    assert OFFSET not in cache["functions"]
+    assert CLAMP not in cache["functions"]
+    assert REMOVED not in cache["functions"]
 
 
 def test_an_unrelated_source_change_keeps_the_cached_function(tmp_path: Path) -> None:

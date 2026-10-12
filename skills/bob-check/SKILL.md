@@ -31,10 +31,10 @@ bob <comando> [--lang en|pt-BR]  # idioma da saída (padrão: en)
 
 `--format both` grava `.bob/report.json` e `.bob/report.md`.
 
-Por padrão, `check` no hook local executa `crap,dry,deps`; no CI executa todos.
+Por padrão, o hook local roda `bob check --gates crap,dry,deps`. O CI roda `bob check --gates crap,dry,deps,mutate`. Um `bob check` sem `--gates` roda `crap,dry,deps` e não roda `mutate`.
 
 - Hook local: `bob check --gates crap,dry,deps`
-- CI: `bob check` (todos os gates, inclusive `mutate`)
+- CI: `bob check --gates crap,dry,deps,mutate`
 
 ## Exit codes
 

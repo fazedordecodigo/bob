@@ -25,6 +25,8 @@ _ALSO_COPY = (
     "package.json",
     "package-lock.json",
     "AGENTS.md",
+    "README.md",
+    "README.pt-BR.md",
     "LICENSE",
     ".claude-plugin",
     ".cursor-plugin",

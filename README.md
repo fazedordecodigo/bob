@@ -10,6 +10,7 @@ bob gives coding agents (Cursor, Claude Code, GitHub Copilot, Devin) determinist
 - Configuration: `bob.yaml`
 - Reports: `.bob/report.md` and `.bob/report.json` (schema v1)
 - Output language: English (`en`, the default) or Brazilian Portuguese (`pt-BR`)
+- Docs: [docs/README.md](docs/README.md) (guides in Portuguese; the spec stays in [docs/SPEC.md](docs/SPEC.md))
 
 License: MIT.
 
@@ -39,7 +40,7 @@ The agent changes the code. The pre-push hook runs the fast gates on the develop
 ```mermaid
 flowchart TD
     agent["Agent changes the code"]
-    agent --> hook["pre-push hook<br/>bob check --gates crap,deps"]
+    agent --> hook["pre-push hook<br/>bob check --gates crap,dry,deps"]
     agent --> pr["Pull request"]
     pr --> action["GitHub Action<br/>bob check --gates crap,dry,deps,mutate"]
     hook --> diff["Gates measure only the functions in the diff"]
@@ -194,7 +195,7 @@ dependencies:
   typescript: .dependency-cruiser.cjs
 ```
 
-With `crap.scope: changed`, only changed functions block. Any other string makes every measured function count. If `--config` points to a file that does not exist, the YAML is not a mapping, the YAML has a syntax error, or a key has the wrong type, the run exits with `4`. The message goes to stderr in English and names the file. A wrong type also names the key, as in `bob.yaml: crap must be a mapping` or `bob.yaml: crap.max_per_function must be a number`. `check`, `doctor`, `waive`, and the other commands do this the same way. None of them writes a file.
+With `crap.scope: changed`, only changed functions block. `all` counts every measured function. The value is `changed` or `all`. If `--config` points to a file that does not exist, the YAML is not a mapping, the YAML has a syntax error, or a key has the wrong type, the run exits with `4`. The message goes to stderr in English and names the file. A wrong type also names the key, as in `bob.yaml: crap must be a mapping` or `bob.yaml: crap.max_per_function must be a number`. `check`, `doctor`, `waive`, and the other commands do this the same way. None of them writes a file.
 
 ### Output language
 
@@ -207,7 +208,7 @@ bob writes its text for humans in English (`en`) or Brazilian Portuguese (`pt-BR
 
 The case matters (`pt-br` is invalid). An empty `--lang` or `BOB_LANG` is invalid. The run exits with `4`, prints `invalid language: "" (use en or pt-BR)` to stderr, and writes nothing. An empty `language` key in `bob.yaml` still counts as unset.
 
-An invalid `language` value, a numeric `language`, a `bob.yaml` that is not a mapping, YAML with a syntax error, or a key with the wrong type exits with `4`. The message goes to stderr in English, even when `--lang` or `language` is `pt-BR`. The run writes no report and no `waivers.yaml`. `check`, `doctor`, `waive`, and the other commands do this the same way. A valid `language` still applies when `duplication` is invalid, and that error's report uses it.
+An invalid `language` value, a numeric `language`, a `bob.yaml` that is not a mapping, YAML with a syntax error, or a key with the wrong type exits with `4`. The message goes to stderr in English, even when `--lang` or `language` is `pt-BR`. The run writes no report and no `waivers.yaml`. `check`, `doctor`, `waive`, and the other commands do this the same way. An invalid `duplication`, an unknown key, a `crap.scope` other than `changed` or `all`, a `languages` member other than `python` or `typescript`, a `crap.max_per_function` that is not a finite number greater than 0 (an integer too large to convert to float counts as not finite), a negative `duplication.min_tokens`, `waivers` set to `0`, `false`, or `""`, and an empty `reason` also exit with `4` on `check`, `doctor`, and `waive`. The English stderr names the path and the field, and the run writes nothing.
 
 `.bob/report.json` is the same bytes in both languages. Every gate `reason`, the cycle rule name, and `reproduce` stay English, so a tool can match them without knowing the output language. `reproduce` in the JSON omits `--lang`. English calls the cycle rule `Forbidden dependency cycle`. `pt-BR` calls it `Proibido ciclo de dependência` in `report.md` and in the pull request comment. A dependency-cruiser rule with no name is `dependency` in the JSON and `dependência` in the Markdown. The reproduce line in `report.md` includes the `--lang` that produced it.
 
@@ -283,7 +284,7 @@ Coverage shows that a line ran. It does not show that a test checks the result. 
 
 For example, a mutant changes `if total > limit:` to `if total >= limit:`. If no test uses `total == limit`, the mutant survives. Write that test, or run `bob waive` with a reason.
 
-bob mutates Python with mutmut. It runs the baseline tests first and exits with `2` if they fail. It mutates the changed functions, plus the functions that still have survivors without a waiver. The cache `.bob/mutation-cache.json` stores a hash of each function's text, so bob reuses the results of functions that did not change. The GitHub Action restores and publishes the cache as the `bob-mutation-cache` artifact.
+bob mutates Python with mutmut. It runs the baseline tests first and exits with `2` if they fail. It mutates the changed functions, plus the functions that still have survivors without a waiver. The cache `.bob/mutation-cache.json` stores a hash of each function's text. Reuse also requires the mutmut version and the suite fingerprint to match. A mismatch still remutates an unwaived survivor outside the diff. The GitHub Action restores and publishes the cache as the `bob-mutation-cache` artifact.
 
 The limit is zero survivors without a waiver. Any such survivor fails the gate with exit `3`. The report lists only survivors. Mutants with `killed`, `timeout`, and `no_coverage` do not block. A warning for `no_coverage` mutants is planned ([#31](https://github.com/fazedordecodigo/bob/issues/31)), and so is TypeScript mutation ([#8](https://github.com/fazedordecodigo/bob/issues/8)).
 
@@ -297,7 +298,7 @@ The limit is zero violations in the diff. A violation blocks only when its origi
 
 ## Pre-push hook
 
-The script `src/bob_quality/hooks/pre-push` runs `bob check --gates crap,deps`, the fast gates. It follows `BOB_LANG` and `language` in `bob.yaml`. `tests/test_hook.py` checks that it finishes in under 60 s on the fixture.
+The script `src/bob_quality/hooks/pre-push` runs `bob check --gates crap,dry,deps`, the fast gates. It follows `BOB_LANG` and `language` in `bob.yaml`. `tests/test_hook.py` checks that it finishes in under 60 s on the fixture.
 
 ```bash
 cp src/bob_quality/hooks/pre-push .git/hooks/pre-push
