@@ -61,6 +61,16 @@ class Mutant:
 
 
 @dataclass(frozen=True)
+class TestSmell:
+    """Cheiro num teste alterado. `test_smell` é quem constrói a linha."""
+
+    file: str
+    line: int
+    rule: str
+    waiver: str | None = None
+
+
+@dataclass(frozen=True)
 class Clone:
     """Par duplicado. Produzido pelo adaptador jscpd a partir do JSON."""
 

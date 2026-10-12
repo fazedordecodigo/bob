@@ -104,6 +104,10 @@ _EN: dict[str, str] = {
     "dry.clones": "{count} new clones in the diff",
     "dry.include_missing": "jscpd: include path missing: {paths}",
     "dry.no_report": "jscpd did not write the JSON",
+    "test_smells.one": "{count} test smell in the diff",
+    "test_smells.many": "{count} test smells in the diff",
+    "test_smells.nothing_measured": "no language measured test smells",
+    "test_smells.with_detail": "{head} {detail}",
     "deps.node_missing": (
         "Node missing: install Node.js for the dependency gate (dependency-cruiser via npx)"
     ),
@@ -266,6 +270,10 @@ _PT_BR: dict[str, str] = {
     "dry.clones": "{count} clones novos no diff",
     "dry.include_missing": "jscpd: caminho de include ausente: {paths}",
     "dry.no_report": "jscpd não gravou o JSON",
+    "test_smells.one": "{count} cheiro de teste no diff",
+    "test_smells.many": "{count} cheiros de teste no diff",
+    "test_smells.nothing_measured": "nenhuma linguagem mediu os testes",
+    "test_smells.with_detail": "{head} {detail}",
     "deps.node_missing": (
         "Node ausente: instale Node.js para o gate de dependências (dependency-cruiser via npx)"
     ),

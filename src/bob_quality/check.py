@@ -12,6 +12,7 @@ from bob_quality.crap_gate import run_crap_gate
 from bob_quality.deps_gate import run_deps_gate
 from bob_quality.diff import GitError, changed_lines, current_commit
 from bob_quality.dry_gate import run_dry_gate
+from bob_quality.test_smells import run_test_smells_gate
 from bob_quality.exit_codes import CONFIG_OR_TOOL, PASSED
 from bob_quality.messages import DEFAULT_LANGUAGE, Language, Text, msg, reason
 from bob_quality.models import Clone, DepViolation, FunctionMetric, GateResult, Report
@@ -42,16 +43,24 @@ def run_check(
     if isinstance(opened, Report):
         return _written(opened, chosen_out, fmt, lang)
     config, chosen_base, max_crap, commit, diff_lines = opened
-    measured = _measure(
-        cwd,
-        config,
-        diff_lines,
-        max_crap,
-        coverage_file,
-        chosen_gates,
-        chosen_out,
-        max_workers,
-    )
+    try:
+        measured = _measure(
+            cwd,
+            config,
+            diff_lines,
+            max_crap,
+            coverage_file,
+            chosen_gates,
+            chosen_out,
+            max_workers,
+        )
+    except WaiverError as exc:
+        return _written(
+            _fail_early(CONFIG_OR_TOOL, reason(exc), chosen_base, command, chosen_gates),
+            chosen_out,
+            fmt,
+            lang,
+        )
     if measured.mutation is None:
         loaded = _load_idle_waivers(cwd, chosen_base, command, chosen_gates)
         if isinstance(loaded, Report):
@@ -159,6 +168,10 @@ def _absorb(
             cwd=cwd, config=config, diff_lines=diff_lines
         )
         state.clones = found
+        _record(state, result, code, versions)
+        return
+    if gate == "test_smells":
+        result, _smells, code, versions = run_test_smells_gate(cwd, config, diff_lines)
         _record(state, result, code, versions)
         return
     if gate == "deps":
