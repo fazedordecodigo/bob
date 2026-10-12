@@ -277,10 +277,12 @@ def test_each_skill_bundles_the_nearest_license_inside_the_plugin(
     source_before = _files(source)
     project = tmp_path / "projeto"
 
-    result = _install(capsys, "--project", str(project), "--source", str(source), "copilot")
+    result = _install(
+        capsys, "--project", str(project), "--source", str(source), "copilot", "devin"
+    )
 
-    assert result == (0, "3 skills em .github/skills\n", "")
-    assert _files(project / ".github" / "skills") == {
+    solta = source / "skills" / "solta"
+    installed = {
         "solta/SKILL.md": b"solta\n",
         "propria/SKILL.md": b"propria\n",
         "propria/LICENSE": b"da propria\n",
@@ -288,7 +290,18 @@ def test_each_skill_bundles_the_nearest_license_inside_the_plugin(
         "herdada/LICENSE": b"do vendor\n",
         "herdada/NOTICE": b"aviso do vendor\n",
     }
+    assert result == (
+        0,
+        "3 skills em .github/skills\n3 skills em .agents/skills\n",
+        "aviso: a skill solta não tem LICENSE até a raiz do plugin "
+        f"({solta}); instalada sem licença.\n",
+    )
+    for dest in (project / ".github" / "skills", project / ".agents" / "skills"):
+        assert _files(dest) == installed
     assert _files(source) == source_before
+
+    real = _install(capsys, "--project", str(tmp_path / "repo"), "copilot")
+    assert real == (0, "30 skills em .github/skills\n", "")
 
 
 def test_project_defaults_to_the_current_directory(

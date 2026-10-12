@@ -104,7 +104,7 @@ python3 <caminho do clone>/src/bob_quality/install_skills.py --project <projeto>
 | `devin` | `.agents/skills` | Devin (a pasta recomendada por ele) |
 | `copilot` | `.github/skills` | Copilot, Devin |
 
-O Devin lê as duas pastas. Se um projeto receber `copilot` e `devin`, o Devin carrega cada skill duas vezes, então escolha um. Rodar o instalador de novo substitui as skills do bob e não mexe nas outras skills da pasta. Como o instalador achata as pastas, cada skill instalada leva o seu `LICENSE`, e as do Pocock levam também o `NOTICE`. Ele também roda como `python -m bob_quality.install_skills`. O `bob-quality` instalado pelo pip não traz as skills, então passe `--source <caminho do clone>`. Sem manifesto, o instalador diz o caminho que leu e sai com `4`.
+O Devin lê as duas pastas. Se um projeto receber `copilot` e `devin`, o Devin carrega cada skill duas vezes, então escolha um. Rodar o instalador de novo substitui as skills do bob e não mexe nas outras skills da pasta. Como o instalador achata as pastas, cada skill instalada leva o seu `LICENSE`, e as do Pocock levam também o `NOTICE`. Ele também roda como `python -m bob_quality.install_skills`. O `bob-quality` instalado pelo pip não traz as skills, então passe `--source <caminho do clone>`. Sem manifesto, o instalador diz o caminho que leu e sai com `4`. Quando uma skill não tem `LICENSE` da pasta dela até a raiz do plugin, o instalador avisa no stderr e ainda assim a instala.
 
 ## Uso
 

@@ -40,6 +40,14 @@ def main(argv: list[str] | None = None) -> int:
     except SourceError as exc:
         print(str(exc), file=sys.stderr)
         return CONFIG_ERROR
+    for skill, attribution in skills.items():
+        if attribution:
+            continue
+        print(
+            f"aviso: a skill {skill.name} não tem LICENSE até a raiz do plugin"
+            f" ({skill}); instalada sem licença.",
+            file=sys.stderr,
+        )
     for dest in dict.fromkeys(TARGETS[name] for name in args.targets):
         _install(skills, args.project / dest)
         print(f"{len(skills)} skills em {dest}")
