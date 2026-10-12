@@ -1,5 +1,3 @@
-"""Adaptador do dependency-cruiser: JSON da CLI → `DepViolation`."""
-
 from __future__ import annotations
 
 import json
