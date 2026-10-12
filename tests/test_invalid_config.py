@@ -221,6 +221,8 @@ _BAD_WAIVER_SHAPE = (
     ),
 )
 
+_HUGE_THRESHOLD = "1" + "0" * 400
+
 _SEMANTIC_YAML = (
     ("mutation: {}\n", "bob.yaml: unknown key mutation\n"),
     ("duplication:\n  tool: jscpd\n", "bob.yaml: unknown key duplication.tool\n"),
@@ -235,6 +237,10 @@ _SEMANTIC_YAML = (
     ),
     ("languages: ['']\n", "bob.yaml: languages[0] must be python or typescript\n"),
     ("crap:\n  max_per_function: true\n", "bob.yaml: crap.max_per_function must be a number\n"),
+    (
+        f"crap:\n  max_per_function: {_HUGE_THRESHOLD}\n",
+        "bob.yaml: crap.max_per_function must be finite\n",
+    ),
     ("crap:\n  max_per_function: .nan\n", "bob.yaml: crap.max_per_function must be finite\n"),
     ("crap:\n  max_per_function: .inf\n", "bob.yaml: crap.max_per_function must be finite\n"),
     ("crap:\n  max_per_function: -.inf\n", "bob.yaml: crap.max_per_function must be finite\n"),

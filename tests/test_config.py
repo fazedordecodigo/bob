@@ -507,6 +507,11 @@ def test_resolve_language_rejects_an_empty_string(flag: str | None, env: str | N
             "bob.yaml: crap.max_per_function deve ser maior que 0",
         ),
         (
+            "crap:\n  max_per_function: " + "1" + "0" * 400 + "\n",
+            "bob.yaml: crap.max_per_function must be finite",
+            "bob.yaml: crap.max_per_function deve ser finito",
+        ),
+        (
             "crap:\n  max_per_function: .nan\n",
             "bob.yaml: crap.max_per_function must be finite",
             "bob.yaml: crap.max_per_function deve ser finito",
@@ -548,6 +553,7 @@ def test_load_config_rejects_an_illegal_semantic_value(
         ({"max_crap": 0}, "max_crap"),
         ({"max_crap": float("nan")}, "max_crap"),
         ({"max_crap": float("inf")}, "max_crap"),
+        ({"max_crap": 10**400}, "max_crap"),
         ({"min_tokens": -1}, "min_tokens"),
         ({"min_tokens": True}, "min_tokens"),
         ({"languages": ("python", "ruby")}, "languages"),
