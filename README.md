@@ -146,7 +146,7 @@ The commands write `.bob/report.md` and `.bob/report.json`. The exit codes are:
 | `1` | A gate failed. A changed function has CRAP at or above the limit, or the diff has a dependency violation. |
 | `2` | The baseline tests failed before bob could measure. The `crap` gate runs them in the default `bob check` too. |
 | `3` | A surviving mutant has no waiver. |
-| `4` | Missing or different tool, or a configuration error that bob catches. A YAML syntax error or a key with the wrong type still gives a traceback and exit `1` ([#39](https://github.com/fazedordecodigo/bob/issues/39)). |
+| `4` | Missing or different tool, or invalid configuration. The message goes to stderr in English, and the run writes nothing. |
 
 When more than one gate fails, `bob check` exits with the highest code.
 
@@ -192,7 +192,7 @@ dependencies:
   typescript: .dependency-cruiser.cjs
 ```
 
-With `crap.scope: changed`, only changed functions block. Any other value makes every measured function count. If `--config` points to a file that does not exist, the YAML is not a mapping, or the YAML has a syntax error, the run exits with `4` and a message on stderr. A key with the wrong type, such as `crap: 5` or `max_per_function: abc`, gives a traceback and exit `1` without a report ([#39](https://github.com/fazedordecodigo/bob/issues/39)).
+With `crap.scope: changed`, only changed functions block. Any other string makes every measured function count. If `--config` points to a file that does not exist, the YAML is not a mapping, the YAML has a syntax error, or a key has the wrong type, the run exits with `4`. The message goes to stderr in English and names the file. A wrong type also names the key, as in `bob.yaml: crap must be a mapping` or `bob.yaml: crap.max_per_function must be a number`. `check`, `doctor`, `waive`, and the other commands do this the same way. None of them writes a file.
 
 ### Output language
 
@@ -205,7 +205,7 @@ bob writes its text for humans in English (`en`) or Brazilian Portuguese (`pt-BR
 
 The case matters (`pt-br` is invalid). An empty `--lang` or `BOB_LANG` is invalid. The run exits with `4`, prints `invalid language: "" (use en or pt-BR)` to stderr, and writes nothing. An empty `language` key in `bob.yaml` still counts as unset.
 
-An invalid `language` value, a numeric `language`, a `bob.yaml` that is not a mapping, or YAML with a syntax error exits with `4`. The message goes to stderr. The run writes no report and no `waivers.yaml`. `check`, `doctor`, `waive`, and the other commands do this the same way. A valid `language` still applies when another key in the file is invalid, and that error's report uses it.
+An invalid `language` value, a numeric `language`, a `bob.yaml` that is not a mapping, YAML with a syntax error, or a key with the wrong type exits with `4`. The message goes to stderr in English, even when `--lang` or `language` is `pt-BR`. The run writes no report and no `waivers.yaml`. `check`, `doctor`, `waive`, and the other commands do this the same way. A valid `language` still applies when `duplication` is invalid, and that error's report uses it.
 
 `.bob/report.json` is the same bytes in both languages. Every gate `reason`, the cycle rule name, and `reproduce` stay English, so a tool can match them without knowing the output language. `reproduce` in the JSON omits `--lang`. English calls the cycle rule `Forbidden dependency cycle`. `pt-BR` calls it `Proibido ciclo de dependência` in `report.md` and in the pull request comment. A dependency-cruiser rule with no name is `dependency` in the JSON and `dependência` in the Markdown. The reproduce line in `report.md` includes the `--lang` that produced it.
 
@@ -226,7 +226,7 @@ Waivers live in `.bob/waivers.yaml`, which you commit with the code. `bob waive`
 - `author`, from `git config user.name`, or `$USER`.
 - `date`, the UTC date.
 
-A waiver without a one-line reason is rejected with exit `4`. A new waiver with the same `id` replaces the old one. A waiver matches a mutant by the mutant id, the function name, `file:function`, or `file::function`. A `waivers.yaml` with the wrong structure makes the run exit with `4`. A YAML syntax error in it gives a traceback and exit `1`. The agent writes the waiver, and the human approves it in the pull request review. Every waiver appears at the top of the report.
+A waiver without a one-line reason is rejected with exit `4`. A new waiver with the same `id` replaces the old one. A waiver matches a mutant by the mutant id, the function name, `file:function`, or `file::function`. A `waivers.yaml` with the wrong structure makes the run exit with `4`. A YAML syntax error in it also exits with `4`. The message names `.bob/waivers.yaml` and the parser error, in English on stderr. The broken file stays as it is, and the run writes no report. `check`, `doctor`, and `waive` do this the same way. The agent writes the waiver, and the human approves it in the pull request review. Every waiver appears at the top of the report.
 
 ### The report
 

@@ -146,7 +146,7 @@ Os comandos gravam `.bob/report.md` e `.bob/report.json`. Os exit codes são:
 | `1` | Um gate falhou. Uma função alterada tem CRAP no limite ou acima, ou o diff tem uma violação de dependência. |
 | `2` | Os testes da baseline falharam antes de o bob medir. O gate `crap` também os roda no `bob check` padrão. |
 | `3` | Um mutante sobrevivente não tem waiver. |
-| `4` | Ferramenta ausente ou divergente, ou um erro de configuração que o bob captura. Um YAML com erro de sintaxe ou uma chave com tipo errado ainda dá traceback e exit `1` ([#39](https://github.com/fazedordecodigo/bob/issues/39)). |
+| `4` | Ferramenta ausente ou divergente, ou configuração inválida. A mensagem vai para o stderr em inglês, e a execução não grava nada. |
 
 Quando mais de um gate falha, `bob check` sai com o código mais alto.
 
@@ -192,7 +192,7 @@ dependencies:
   typescript: .dependency-cruiser.cjs
 ```
 
-Com `crap.scope: changed`, só funções alteradas bloqueiam. Qualquer outro valor faz toda função medida contar. Se `--config` aponta para um arquivo que não existe, se o YAML não é um mapeamento, ou se o YAML tem erro de sintaxe, a execução sai com `4` e uma mensagem no stderr. Uma chave com tipo errado, como `crap: 5` ou `max_per_function: abc`, dá traceback e exit `1` sem relatório ([#39](https://github.com/fazedordecodigo/bob/issues/39)).
+Com `crap.scope: changed`, só funções alteradas bloqueiam. Qualquer outro texto faz toda função medida contar. Se `--config` aponta para um arquivo que não existe, se o YAML não é um mapeamento, se o YAML tem erro de sintaxe, ou se uma chave tem o tipo errado, a execução sai com `4`. A mensagem vai para o stderr em inglês e cita o arquivo. Um tipo errado também cita a chave, como em `bob.yaml: crap must be a mapping` ou `bob.yaml: crap.max_per_function must be a number`. `check`, `doctor`, `waive` e os outros comandos fazem isso do mesmo jeito. Nenhum deles grava um arquivo.
 
 ### Idioma da saída
 
@@ -205,7 +205,7 @@ O bob escreve o texto para humanos em inglês (`en`) ou em português do Brasil 
 
 A caixa importa (`pt-br` é inválido). Um `--lang` ou `BOB_LANG` vazio é inválido. A execução sai com `4`, imprime `invalid language: "" (use en or pt-BR)` no stderr e não grava nada. Uma chave `language` vazia no `bob.yaml` continua contando como ausente.
 
-Um valor de `language` inválido, um `language` numérico, um `bob.yaml` que não é um mapeamento, ou um YAML com erro de sintaxe, sai com `4`. A mensagem vai para o stderr. A execução não grava relatório nem `waivers.yaml`. `check`, `doctor`, `waive` e os outros comandos fazem isso do mesmo jeito. Um `language` válido continua valendo quando outra chave do arquivo é inválida, e o relatório desse erro usa esse idioma.
+Um valor de `language` inválido, um `language` numérico, um `bob.yaml` que não é um mapeamento, um YAML com erro de sintaxe, ou uma chave com o tipo errado, sai com `4`. A mensagem vai para o stderr em inglês, mesmo quando `--lang` ou `language` é `pt-BR`. A execução não grava relatório nem `waivers.yaml`. `check`, `doctor`, `waive` e os outros comandos fazem isso do mesmo jeito. Um `language` válido continua valendo quando `duplication` é inválido, e o relatório desse erro usa esse idioma.
 
 O `.bob/report.json` tem os mesmos bytes nos dois idiomas. Todo `reason` de gate, o nome da regra de ciclo e o `reproduce` ficam em inglês, então uma ferramenta pode casar esse texto sem saber o idioma da saída. O `reproduce` do JSON não leva `--lang`. Em inglês a regra de ciclo se chama `Forbidden dependency cycle`. Em `pt-BR` ela se chama `Proibido ciclo de dependência` no `report.md` e no comentário do pull request. Uma regra do dependency-cruiser sem nome é `dependency` no JSON e `dependência` no Markdown. A linha de reprodução do `report.md` inclui o `--lang` que produziu o relatório.
 
@@ -226,7 +226,7 @@ Os waivers ficam em `.bob/waivers.yaml`, versionado junto com o código. `bob wa
 - `author`, de `git config user.name`, ou `$USER`.
 - `date`, a data em UTC.
 
-Um waiver sem motivo de uma linha é rejeitado com exit `4`. Um waiver novo com o mesmo `id` substitui o antigo. Um waiver casa com um mutante pelo id do mutante, pelo nome da função, por `file:function` ou por `file::function`. Um `waivers.yaml` com a estrutura errada faz a execução sair com `4`. Um erro de sintaxe YAML nele dá traceback e exit `1`. O agente grava o waiver, e o humano o aprova no review do pull request. Todo waiver aparece no topo do relatório.
+Um waiver sem motivo de uma linha é rejeitado com exit `4`. Um waiver novo com o mesmo `id` substitui o antigo. Um waiver casa com um mutante pelo id do mutante, pelo nome da função, por `file:function` ou por `file::function`. Um `waivers.yaml` com a estrutura errada faz a execução sair com `4`. Um erro de sintaxe YAML nele também sai com `4`. A mensagem cita `.bob/waivers.yaml` e o erro do parser, em inglês no stderr. O arquivo quebrado permanece como está, e a execução não grava relatório. `check`, `doctor` e `waive` fazem isso do mesmo jeito. O agente grava o waiver, e o humano o aprova no review do pull request. Todo waiver aparece no topo do relatório.
 
 ### O relatório
 

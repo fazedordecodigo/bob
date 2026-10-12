@@ -8,11 +8,16 @@ import sys
 from pathlib import Path
 
 from bob_quality.check import run_check
-from bob_quality.config import ConfigError, configured_language, resolve_language
+from bob_quality.config import (
+    ConfigError,
+    configured_language,
+    reject_config_types,
+    resolve_language,
+)
 from bob_quality.doctor import run_doctor
 from bob_quality.exit_codes import CONFIG_OR_TOOL
 from bob_quality.messages import DEFAULT_LANGUAGE, Language, reason, render, t
-from bob_quality.waivers import WaiverError, add_waiver
+from bob_quality.waivers import WaiverError, add_waiver, reject_waiver_syntax
 
 
 def build_parser(lang: Language = DEFAULT_LANGUAGE) -> argparse.ArgumentParser:
@@ -90,9 +95,12 @@ def main(argv: list[str] | None = None) -> int:
         print(render(reason(exc), DEFAULT_LANGUAGE), file=sys.stderr)
         return CONFIG_OR_TOOL
     args = build_parser(lang).parse_args(argv)
+    cwd = Path.cwd()
+    blocked = _blocked_config(cwd, getattr(args, "config", None))
+    if blocked is not None:
+        return blocked
     if args.command == "doctor":
         return run_doctor(install=args.install, lang=lang)
-    cwd = Path.cwd()
     if args.command == "waive":
         return _waive_command(cwd, args, lang)
     return _dispatch(
@@ -118,6 +126,16 @@ def _language(argv: list[str] | None) -> Language:
     if configured is None:
         return DEFAULT_LANGUAGE
     return configured
+
+
+def _blocked_config(cwd: Path, config: str | None) -> int | None:
+    try:
+        reject_config_types(_resolve_config(cwd, config), cwd)
+        reject_waiver_syntax(cwd)
+    except (ConfigError, WaiverError) as exc:
+        print(render(reason(exc), DEFAULT_LANGUAGE), file=sys.stderr)
+        return CONFIG_OR_TOOL
+    return None
 
 
 def _waive_command(cwd: Path, args: argparse.Namespace, lang: Language) -> int:

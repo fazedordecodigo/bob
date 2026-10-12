@@ -54,14 +54,30 @@ def load_waivers(cwd: Path) -> list[Waiver]:
     return [_waiver_from_entry(entry) for entry in _waiver_entries(path)]
 
 
+def reject_waiver_syntax(cwd: Path) -> None:
+    path = waivers_path(cwd)
+    if path.is_file():
+        _load_yaml(path)
+
+
 def _waiver_entries(path: Path) -> list[object]:
-    raw = yaml.safe_load(path.read_text()) or {}
+    raw = _load_yaml(path) or {}
     if not isinstance(raw, dict):
         raise WaiverError(msg("waiver.file_not_mapping"))
     entries = raw.get("waivers") or []
     if not isinstance(entries, list):
         raise WaiverError(msg("waiver.list_required"))
     return entries
+
+
+def _load_yaml(path: Path) -> object:
+    try:
+        return yaml.safe_load(path.read_text())
+    except yaml.YAMLError as exc:
+        detail = str(exc).strip().splitlines()[0].strip()
+        raise WaiverError(
+            msg("waiver.invalid_yaml", path=".bob/waivers.yaml", detail=detail)
+        ) from exc
 
 
 def _waiver_from_entry(entry: object) -> Waiver:

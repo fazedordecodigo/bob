@@ -213,6 +213,24 @@ def test_load_config_names_an_explicit_file_on_a_wrong_type(tmp_path: Path) -> N
     )
 
 
+def test_load_config_treats_null_and_empty_collections_as_defaults(tmp_path: Path) -> None:
+    (tmp_path / "bob.yaml").write_text(
+        "base:\n"
+        "languages: []\n"
+        "paths:\n"
+        "  include:\n"
+        "  exclude: []\n"
+        "crap:\n"
+        "  max_per_function:\n"
+        "  scope: \"\"\n"
+        "dependencies:\n"
+        "  python:\n"
+        "  typescript: \"\"\n"
+    )
+
+    assert load_config(None, tmp_path) == Config()
+
+
 def test_load_config_keeps_numeric_thresholds_and_string_lists(tmp_path: Path) -> None:
     (tmp_path / "bob.yaml").write_text(
         "base: trunk\n"
