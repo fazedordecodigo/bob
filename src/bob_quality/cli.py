@@ -3,20 +3,13 @@
 from __future__ import annotations
 
 import argparse
-import os
 import sys
 from dataclasses import dataclass
 from pathlib import Path
 from typing import NoReturn
 
 from bob_quality.check import run_check
-from bob_quality.config import (
-    Config,
-    ConfigError,
-    configured_language,
-    reject_config_types,
-    resolve_language,
-)
+from bob_quality.config import Config, ConfigError, reject_config_types, resolve_language
 from bob_quality.doctor import run_doctor
 from bob_quality.exit_codes import CONFIG_OR_TOOL, PASSED
 from bob_quality.messages import DEFAULT_LANGUAGE, Language, reason, render, t
@@ -197,17 +190,7 @@ def _language(argv: list[str] | None) -> Language:
     early.add_argument("--config")
     known, _rest = early.parse_known_args(argv)
     cwd = Path.cwd()
-    flag = known.lang
-    env = os.environ.get("BOB_LANG")
-    selected = (
-        resolve_language(flag, env, None) if flag is not None or env is not None else None
-    )
-    configured = configured_language(_resolve_config(cwd, known.config), cwd)
-    if selected is not None:
-        return selected
-    if configured is None:
-        return DEFAULT_LANGUAGE
-    return configured
+    return resolve_language(known.lang, _resolve_config(cwd, known.config), cwd)
 
 
 def _blocked_config(cwd: Path, config: str | None) -> int | None:

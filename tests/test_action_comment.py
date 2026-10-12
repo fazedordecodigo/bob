@@ -106,6 +106,7 @@ def _required(
 def _required_on_api(
     cwd: Path, *args: str, env: dict[str, str]
 ) -> tuple[subprocess.CompletedProcess[str], GitHubApi]:
+    """Roda `_required` na API falsa, para o teste ver se o script postou."""
     api = GitHubApi()
     server, base = serve(api)
     try:

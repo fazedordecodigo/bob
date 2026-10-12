@@ -27,7 +27,7 @@ dependencies:
   typescript: .dependency-cruiser.cjs
 ```
 
-`language: en` no bloco acima é o resultado da resolução, não uma chave que o arquivo vazio precise ter. Sem chave, `configured_language` devolve `None` e a CLI usa `en`.
+`language: en` no bloco acima é o resultado da resolução, não uma chave que o arquivo vazio precise ter. Sem chave, `resolve_language` devolve `en`.
 
 O `bob.yaml` deste repositório é mais curto: `base`, `languages: [python]`, `paths.include: [src]`, `paths.exclude: [tests]`, `crap.max_per_function: 10`, `crap.scope: changed`. O que falta continua no padrão do código.
 

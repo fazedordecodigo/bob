@@ -76,7 +76,7 @@ Um `.bob/waivers.yaml` que já está inválido é recusado antes, em inglês no 
 
 ## Idioma (`--lang`)
 
-Vale a primeira fonte definida (`resolve_language` em `src/bob_quality/config.py`, chamada a partir de `cli.py`):
+Vale a primeira fonte definida (`resolve_language` em `src/bob_quality/config.py`, chamada pela CLI e pelo comentário da Action):
 
 1. `--lang en` ou `--lang pt-BR`, antes ou depois do comando.
 2. A variável `BOB_LANG`.
@@ -91,7 +91,7 @@ Idioma inválido, `language` que não é string, YAML que não é mapeamento, er
 
 Uma chave `duplication` inválida também sai com `4`, em inglês no stderr, sem gravar relatório. `reject_config_types` percorre o schema inteiro, inclusive `duplication`. O [CHANGELOG.md](../CHANGELOG.md) descreve esse caso. Uma chave desconhecida segue o mesmo caminho. Ver [Exit codes](exit-codes.md#exit-4).
 
-O que muda com o idioma: mensagens da CLI, texto do `--help`, `bob doctor`, o hook (porque ele chama a CLI), `.bob/report.md` e a nota de truncamento do comentário da Action. O `.bob/report.json` é o mesmo arquivo nos dois idiomas (`JSON_LANGUAGE = "en"` em `report.py`). Detalhe em [Relatórios](relatorios.md#o-que-não-muda-com-o-idioma).
+O que muda com o idioma: mensagens da CLI, texto do `--help`, `bob doctor`, o hook (porque ele chama a CLI), `.bob/report.md`, a nota de truncamento do comentário da Action e os erros desse comentário (repo, pr ou token ausente, relatório ausente, lista de comentários inválida). O `.bob/report.json` é o mesmo arquivo nos dois idiomas (`JSON_LANGUAGE = "en"` em `report.py`). Detalhe em [Relatórios](relatorios.md#o-que-não-muda-com-o-idioma).
 
 No CI, `language: pt-BR` no `bob.yaml` ou `BOB_LANG: pt-BR` no `env` do job. O input `language` da Action repassa a escolha ao `bob check` e ao comentário. Input vazio deixa `BOB_LANG` e o `bob.yaml`.
 
