@@ -2,9 +2,15 @@
 
 from __future__ import annotations
 
+from bob_quality.messages import Language, render
 from bob_quality.models import GateResult, Mutant, Report
 from bob_quality.mutate import _finish, no_coverage_summary
 from bob_quality.report import to_markdown
+
+
+def _verdict(result: GateResult, lang: Language) -> tuple[str, str, str | None]:
+    shown = render(result.reason, lang) if result.reason is not None else None
+    return result.name, result.status, shown
 
 _LABELS = [
     "src/app/b.py::a",
@@ -62,7 +68,8 @@ def test_finish_warns_for_one_uncovered_mutant_and_passes_when_there_are_none() 
     )
 
     assert warned.exit_code == 0
-    assert warned.result == GateResult("mutate", "warn", "1 mutante sem teste")
+    assert _verdict(warned.result, "pt-BR") == ("mutate", "warn", "1 mutante sem teste")
+    assert _verdict(warned.result, "en") == ("mutate", "warn", "1 mutant without a test")
     assert warned.summary["no_coverage"] == {
         "total": 1,
         "functions": [{"file": "src/app/orphan.py", "function": "orphan", "count": 1}],
@@ -88,10 +95,15 @@ def test_finish_stays_failed_when_an_unwaived_survivor_remains() -> None:
     )
 
     assert outcome.exit_code == 3
-    assert outcome.result == GateResult(
+    assert _verdict(outcome.result, "pt-BR") == (
         "mutate",
         "failed",
         "sobrevivente sem waiver: a@src/app/a.py:2, b@src/app/b.py:4",
+    )
+    assert _verdict(outcome.result, "en") == (
+        "mutate",
+        "failed",
+        "survivor without waiver: a@src/app/a.py:2, b@src/app/b.py:4",
     )
     assert outcome.versions == {"mutmut": "3.8.0"}
     assert outcome.waivers == waivers
@@ -142,7 +154,7 @@ def test_finish_keeps_a_waived_survivor_while_warning_about_uncovered_mutants() 
     )
 
     assert outcome.exit_code == 0
-    assert outcome.result == GateResult("mutate", "warn", "1 mutante sem teste")
+    assert _verdict(outcome.result, "pt-BR") == ("mutate", "warn", "1 mutante sem teste")
     assert outcome.versions == {"mutmut": "3.8.0"}
     assert outcome.waivers == waivers
     assert outcome.survivors == [
@@ -166,7 +178,8 @@ def test_finish_warns_with_the_uncovered_total() -> None:
     outcome = _finish(mutants, ["src/app/orphan.py::orphan"], [], {}, [])
 
     assert outcome.exit_code == 0
-    assert outcome.result == GateResult("mutate", "warn", "2 mutantes sem teste")
+    assert _verdict(outcome.result, "pt-BR") == ("mutate", "warn", "2 mutantes sem teste")
+    assert _verdict(outcome.result, "en") == ("mutate", "warn", "2 mutants without a test")
 
 
 def test_markdown_lists_uncovered_mutants_after_the_survivors() -> None:
@@ -185,7 +198,7 @@ def test_markdown_lists_uncovered_mutants_after_the_survivors() -> None:
         },
     )
 
-    assert to_markdown(report) == _MARKDOWN_WITH_ROWS
+    assert to_markdown(report, "pt-BR") == _MARKDOWN_WITH_ROWS
 
 
 def test_markdown_says_when_no_listed_mutant_lacks_a_test() -> None:
@@ -193,7 +206,7 @@ def test_markdown_says_when_no_listed_mutant_lacks_a_test() -> None:
         mutation={"remutated": [], "reused": [], "no_coverage": {"total": 0, "functions": []}},
     )
 
-    assert to_markdown(report) == _MARKDOWN_EMPTY
+    assert to_markdown(report, "pt-BR") == _MARKDOWN_EMPTY
 
 
 def _report(gates: list[GateResult] | None = None, **extra: object) -> Report:
@@ -237,7 +250,7 @@ _MARKDOWN_WITH_ROWS = (
     + "|---|---|---:|\n"
     + "| z | src/app/b.py | 2 |\n"
     + "| add | src/app/a.py | 1 |\n\n"
-    + "## Como reproduzir\n\n```\nbob mutate --base main\n```\n"
+    + "## Como reproduzir\n\n```\nbob mutate --base main --lang pt-BR\n```\n"
 )
 
 _MARKDOWN_EMPTY = (
@@ -245,5 +258,5 @@ _MARKDOWN_EMPTY = (
     + "- ✅ `mutate`: passou\n"
     + _BODY
     + "## Mutantes sem teste\n\nNenhum mutante sem teste.\n\n"
-    + "## Como reproduzir\n\n```\nbob mutate --base main\n```\n"
+    + "## Como reproduzir\n\n```\nbob mutate --base main --lang pt-BR\n```\n"
 )

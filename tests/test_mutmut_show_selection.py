@@ -6,7 +6,7 @@ from pathlib import Path
 
 import bob_quality.mutate as mutate_module
 from bob_quality.adapters.mutmut import MutmutParseError, mutants_from_raw
-from bob_quality.models import CyclomaticFunction
+from bob_quality.models import CyclomaticFunction, GateResult
 from bob_quality.mutate import _cached_start, _mutants_from_cache, _run_and_parse
 from bob_quality.tools import ToolError
 
@@ -383,7 +383,7 @@ def test_a_tool_failure_keeps_the_message_and_the_waivers(monkeypatch, tmp_path:
 
     assert parsed == []
     assert failed is not None
-    assert failed.result.reason == "tool broke"
+    assert failed.result == GateResult("mutate", "not_run", "tool broke")
     assert failed.exit_code == 4
     assert failed.versions == VERSIONS
     assert failed.waivers == WAIVERS
@@ -407,7 +407,7 @@ def test_a_bad_diff_keeps_the_message_and_the_waivers(monkeypatch, tmp_path: Pat
 
     assert parsed == []
     assert failed is not None
-    assert failed.result.reason == "diff ilegível"
+    assert failed.result == GateResult("mutate", "not_run", "diff ilegível")
     assert failed.exit_code == 4
     assert failed.versions == VERSIONS
     assert failed.waivers == WAIVERS

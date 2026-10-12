@@ -11,6 +11,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from bob_quality.exit_codes import CONFIG_OR_TOOL, PASSED
+from bob_quality.messages import DEFAULT_LANGUAGE, Language, Text, msg, reason, render
 from bob_quality.npm_tools import install_npm_dependencies, npm_prefix, npm_setup_hint
 from bob_quality.tools import ToolError
 
@@ -22,7 +23,7 @@ class ToolPin:
     name: str
     expected: str
     executable: str
-    install: str
+    install: Text
     distribution: str | None = None
     npm_package: str | None = None
 
@@ -41,7 +42,7 @@ PINS: tuple[ToolPin, ...] = (
         "node",
         "22.14.0",
         "node",
-        "Instale Node.js 22.14.0 (https://nodejs.org/dist/v22.14.0/)",
+        msg("doctor.install_node", version="22.14.0", url="https://nodejs.org/dist/v22.14.0/"),
     ),
     ToolPin("c8", "12.0.0", "c8", "npm install c8@12.0.0", npm_package="c8"),
     ToolPin("vitest", "5.0.3", "vitest", "npm install vitest@5.0.3", npm_package="vitest"),
@@ -66,28 +67,28 @@ PINS: tuple[ToolPin, ...] = (
 
 @dataclass(frozen=True)
 class _PinRow:
-    line: str
+    line: Text
     ok: bool
-    install: str | None
+    install: Text | None
     npm_missing: bool
 
 
-def run_doctor(install: bool = False) -> int:
+def run_doctor(install: bool = False, lang: Language = DEFAULT_LANGUAGE) -> int:
     if install:
-        return _install_then_report()
-    return _report_pins()
+        return _install_then_report(lang)
+    return _report_pins(lang)
 
 
-def _install_then_report() -> int:
-    code = install_npm_dependencies()
+def _install_then_report(lang: Language) -> int:
+    code = install_npm_dependencies(lang)
     if code != 0:
         return code
-    return _report_pins()
+    return _report_pins(lang)
 
 
-def _report_pins() -> int:
+def _report_pins(lang: Language) -> int:
     rows = _rows()
-    print("\n".join(_lines(rows)))
+    print("\n".join(render(line, lang) for line in _lines(rows)))
     return _verdict(rows)
 
 
@@ -98,8 +99,8 @@ def _rows() -> list[_PinRow]:
     return rows
 
 
-def _lines(rows: list[_PinRow]) -> list[str]:
-    lines: list[str] = []
+def _lines(rows: list[_PinRow]) -> list[Text]:
+    lines: list[Text] = []
     for row in rows:
         lines.append(row.line)
     lines.extend(_install_lines(rows))
@@ -119,25 +120,25 @@ def _all_ok(rows: list[_PinRow]) -> bool:
     return True
 
 
-def _install_lines(rows: list[_PinRow]) -> list[str]:
+def _install_lines(rows: list[_PinRow]) -> list[Text]:
     installs = _explicit_installs(rows)
     _append_npm_hint(installs, rows)
     return installs
 
 
-def _explicit_installs(rows: list[_PinRow]) -> list[str]:
-    installs: list[str] = []
+def _explicit_installs(rows: list[_PinRow]) -> list[Text]:
+    installs: list[Text] = []
     for row in rows:
         _append_install(installs, row)
     return installs
 
 
-def _append_install(installs: list[str], row: _PinRow) -> None:
+def _append_install(installs: list[Text], row: _PinRow) -> None:
     if row.install:
         installs.append(row.install)
 
 
-def _append_npm_hint(installs: list[str], rows: list[_PinRow]) -> None:
+def _append_npm_hint(installs: list[Text], rows: list[_PinRow]) -> None:
     if _any_npm_missing(rows):
         installs.append(_npm_ci_hint())
 
@@ -151,29 +152,29 @@ def _any_npm_missing(rows: list[_PinRow]) -> bool:
 
 def _assess(pin: ToolPin) -> _PinRow:
     found = _found_version(pin)
-    line = f"{pin.name} esperada {pin.expected} encontrada {_shown(found)}"
+    line = msg("doctor.version", name=pin.name, expected=pin.expected, found=_shown(found))
     if found == pin.expected:
         return _PinRow(line, True, None, False)
     return _PinRow(line, False, _install_text(pin), pin.npm_package is not None)
 
 
-def _shown(found: str | None) -> str:
+def _shown(found: str | None) -> Text:
     if found is None:
-        return "ausente"
+        return msg("doctor.missing")
     return found
 
 
-def _install_text(pin: ToolPin) -> str | None:
+def _install_text(pin: ToolPin) -> Text | None:
     if pin.npm_package is not None:
         return None
     return pin.install
 
 
-def _npm_ci_hint() -> str:
+def _npm_ci_hint() -> Text:
     try:
         return npm_setup_hint(npm_prefix())
     except ToolError as exc:
-        return str(exc)
+        return reason(exc)
 
 
 def _found_version(pin: ToolPin) -> str | None:

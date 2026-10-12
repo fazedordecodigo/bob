@@ -37,6 +37,7 @@ SPEC_CLI_LINES = [
     "bob report  [--in .bob/] [--out .bob/report.md]",
     'bob waive   <mutant-id|function> --reason "texto de uma linha"',
     "bob doctor  # verifica ferramentas e versões instaladas",
+    "bob <comando> [--lang en|pt-BR]  # idioma da saída (padrão: en)",
 ]
 
 SPEC_EXIT_LINES = [

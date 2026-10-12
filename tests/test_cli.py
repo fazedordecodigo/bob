@@ -70,7 +70,7 @@ def test_check_does_not_fail_on_old_debt_outside_the_diff(tmp_path: Path) -> Non
     assert result.returncode == 0
     assert payload["old_debt"]
     assert any(item["name"] == "messy" for item in payload["old_debt"])
-    assert "dívida antiga" in markdown
+    assert "## Information (old debt)" in markdown
     assert not any(item["name"] == "messy" for item in payload["top_crap"])
 
 

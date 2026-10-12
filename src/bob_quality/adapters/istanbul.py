@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 
+from bob_quality.messages import msg
 from bob_quality.models import FileCoverage
 
 
@@ -20,13 +21,13 @@ def parse_coverage_final(raw: str) -> dict[str, FileCoverage]:
     try:
         payload = json.loads(raw)
     except json.JSONDecodeError as exc:
-        raise IstanbulParseError("coverage-final.json inválido") from exc
+        raise IstanbulParseError(msg("istanbul.invalid_json")) from exc
     if not isinstance(payload, dict):
-        raise IstanbulParseError("coverage-final.json deve ser um objeto de arquivos")
+        raise IstanbulParseError(msg("istanbul.not_object"))
     parsed: dict[str, FileCoverage] = {}
     for path, data in payload.items():
         if not isinstance(data, dict) or not isinstance(data.get("statementMap"), dict):
-            raise IstanbulParseError(f"entrada istanbul inválida para {path}")
+            raise IstanbulParseError(msg("istanbul.invalid_entry", path=path))
         parsed[path] = _file_coverage(data)
     return parsed
 
@@ -34,7 +35,7 @@ def parse_coverage_final(raw: str) -> dict[str, FileCoverage]:
 def _file_coverage(data: dict) -> FileCoverage:
     counts = data.get("s") or {}
     if not isinstance(counts, dict):
-        raise IstanbulParseError("mapa de statements `s` inválido")
+        raise IstanbulParseError(msg("istanbul.invalid_map"))
     executed: set[int] = set()
     missing: set[int] = set()
     for key, loc in data["statementMap"].items():
@@ -43,7 +44,7 @@ def _file_coverage(data: dict) -> FileCoverage:
             end = int(loc["end"]["line"])
             hits = int(counts.get(key, 0))
         except (KeyError, TypeError, ValueError) as exc:
-            raise IstanbulParseError(f"statement inválido: {key}") from exc
+            raise IstanbulParseError(msg("istanbul.invalid_statement", key=key)) from exc
         target = executed if hits > 0 else missing
         target.update(range(start, end + 1))
     missing -= executed

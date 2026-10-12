@@ -6,6 +6,7 @@ Não pega o formato cru das ferramentas (seam do adaptador).
 
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -94,8 +95,43 @@ def test_python_cycle_fails_without_import_linter_config(tmp_path: Path) -> None
 
     assert code == 1, markdown
     assert deps["status"] == "failed"
-    assert "## Violações e ciclos de dependência" in markdown
+    assert deps["reason"] == "app.right → app.left"
+    assert "## Dependency violations and cycles" in markdown
+    assert "`app.right → app.left` (Forbidden dependency cycle)" in markdown
+
+
+def test_deps_json_matches_across_languages(tmp_path: Path) -> None:
+    repo = init_python_repo(tmp_path / "repo")
+    commit_on_branch(repo, "cycle", "src/app/left.py", LEFT, "add left")
+    commit_on_branch(repo, "cycle", "src/app/right.py", RIGHT, "add right")
+    raw: dict[str, bytes] = {}
+
+    for lang in ("en", "pt-BR"):
+        code = _invoke(repo, "deps", "--base", "main", "--lang", lang)
+        assert code == 1
+        report = (repo / ".bob" / "report.json").read_bytes()
+        raw[lang] = re.sub(rb'"generated_at": "[^"]+"', b'"generated_at": ""', report)
+
+    assert raw["en"] == raw["pt-BR"]
+
+
+def test_python_cycle_rule_name_follows_pt_br(tmp_path: Path) -> None:
+    repo = init_python_repo(tmp_path / "repo")
+    commit_on_branch(repo, "cycle", "src/app/left.py", LEFT, "add left")
+    commit_on_branch(repo, "cycle", "src/app/right.py", RIGHT, "add right")
+
+    code = _invoke(repo, "deps", "--base", "main", "--lang", "pt-BR")
+    payload, markdown = _deps(repo)
+    deps = next(gate for gate in payload["gates"] if gate["name"] == "deps")
+    edge = next(item for item in payload["dependencies"] if item["origin"] == "app.right")
+
+    assert code == 1, markdown
+    assert deps["reason"] == "app.right → app.left"
+    assert edge["rule"] == "Forbidden dependency cycle"
     assert "`app.right → app.left` (Proibido ciclo de dependência)" in markdown
+    assert "## Violações e ciclos de dependência" in markdown
+    assert payload["reproduce"] == "bob deps --base main"
+    assert "--lang pt-BR" in markdown
 
 
 A_PY = "from app.b import VALUE as B\n\nVALUE = B\n"
@@ -125,7 +161,7 @@ def test_changing_x_b_does_not_mark_y_b_in_the_diff(tmp_path: Path) -> None:
     assert code == 0, markdown
     assert deps["status"] == "passed"
     assert payload["dependencies"] == []
-    assert "fora do diff; não bloqueia" in markdown
+    assert "outside the diff; does not block" in markdown
 
 
 def test_python_three_cycle_blocks_when_only_the_middle_module_changes(
@@ -167,11 +203,11 @@ def test_python_cycle_already_on_main_is_information_and_does_not_fail(
         {
             "origin": "app.right",
             "destination": "app.left",
-            "rule": "Proibido ciclo de dependência",
+            "rule": "Forbidden dependency cycle",
         }
     ]
-    assert "`app.right → app.left` (Proibido ciclo de dependência)" in markdown
-    assert "fora do diff; não bloqueia" in markdown
+    assert "`app.right → app.left` (Forbidden dependency cycle)" in markdown
+    assert "outside the diff; does not block" in markdown
     assert "❌ `deps`" not in markdown
 
 
@@ -186,7 +222,10 @@ def test_check_gates_deps_reports_the_same_python_cycle(tmp_path: Path) -> None:
     assert code == 1, markdown
     assert payload["exit_code"] == 1
     assert "`app.right → app.left`" in markdown
-    assert "bob check --base main --gates deps" in payload["reproduce"]
+    assert payload["reproduce"] == "bob check --base main --gates deps"
+    assert "--lang en" in markdown
+    deps = next(gate for gate in payload["gates"] if gate["name"] == "deps")
+    assert deps["reason"] == "app.right → app.left"
 
 
 def test_python_without_cycle_passes_deps(tmp_path: Path) -> None:
@@ -199,7 +238,7 @@ def test_python_without_cycle_passes_deps(tmp_path: Path) -> None:
 
     assert code == 0, markdown
     assert deps["status"] == "passed"
-    assert "Nenhuma violação de dependência." in markdown
+    assert "No dependency violations." in markdown
     assert payload["tool_versions"]["import-linter"] == "2.15"
 
 
@@ -294,7 +333,7 @@ def test_typescript_cycle_already_on_main_is_information_and_does_not_fail(
     assert payload["dependencies"] == []
     assert ("src/left.ts", "src/right.ts") in old
     assert ("src/right.ts", "src/left.ts") in old
-    assert "fora do diff; não bloqueia" in markdown
+    assert "outside the diff; does not block" in markdown
     assert "❌ `deps`" not in markdown
 
 
@@ -337,10 +376,10 @@ def test_mixed_repo_without_node_measures_python_deps_and_skips_typescript(
 
     assert code == 0, markdown
     assert deps["status"] == "warn"
-    assert deps["reason"].startswith("TypeScript pulado:")
-    assert "Node ausente" in deps["reason"]
+    assert deps["reason"].startswith("TypeScript skipped:")
+    assert "Node missing" in deps["reason"]
     assert "import-linter" in payload["tool_versions"]
-    assert "⚠️ `deps`: aviso (TypeScript pulado:" in markdown
+    assert "⚠️ `deps`: warning (TypeScript skipped:" in markdown
 
 
 def test_mixed_repo_without_node_still_fails_a_new_python_dependency_violation(
@@ -358,7 +397,7 @@ def test_mixed_repo_without_node_still_fails_a_new_python_dependency_violation(
     assert code == 1, markdown
     assert deps["status"] == "failed"
     assert "app.right → app.left" in deps["reason"]
-    assert "TypeScript pulado:" in deps["reason"]
+    assert "TypeScript skipped:" in deps["reason"]
     assert "❌ `deps`" in markdown
 
 
@@ -371,8 +410,8 @@ def test_typescript_repo_without_node_keeps_deps_exit_4(tmp_path: Path) -> None:
 
     assert code == 4, markdown
     assert deps["status"] == "not_run"
-    assert "Node ausente" in deps["reason"]
-    assert "TypeScript pulado" not in deps["reason"]
+    assert "Node missing" in deps["reason"]
+    assert "TypeScript skipped" not in deps["reason"]
 
 
 def _deps_without_node(repo: Path) -> tuple[int, dict[str, object], str]:

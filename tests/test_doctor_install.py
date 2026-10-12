@@ -17,6 +17,7 @@ from pathlib import Path
 
 import pytest
 
+from bob_quality.messages import Language
 from bob_quality.npm_tools import install_npm_dependencies, npm_prefix
 
 _MANIFEST = {"name": "bob-quality-tools", "private": True, "dependencies": {"c8": "12.0.0"}}
@@ -69,7 +70,7 @@ def test_denied_npm_ci_installs_in_the_user_cache_and_npm_prefix_finds_it(
     _fake_npm(tmp_path, monkeypatch, {package: code})
     cache = tmp_path / "xdg" / "bob-quality"
 
-    assert install_npm_dependencies() == 0
+    assert install_npm_dependencies("pt-BR") == 0
 
     assert capsys.readouterr().out == (
         f"npm ci --prefix {package} falhou com {code}; instalando no cache do usuário {cache}\n"
@@ -94,7 +95,7 @@ def test_rerun_refreshes_an_existing_cache_with_the_package_js(
     (cache / "js" / "stale.mjs").write_text("// antigo\n")
     _fake_npm(tmp_path, monkeypatch, {package: "EACCES"})
 
-    assert install_npm_dependencies() == 0
+    assert install_npm_dependencies("en") == 0
 
     assert sorted(path.name for path in (cache / "js").iterdir()) == ["flush-coverage.mjs"]
     assert (cache / "js" / "flush-coverage.mjs").read_text() == "// atual\n"
@@ -110,7 +111,7 @@ def test_cache_install_falls_back_to_home_cache_without_xdg(
     monkeypatch.setattr("bob_quality.npm_tools.Path.home", classmethod(lambda cls: home))
     _fake_npm(tmp_path, monkeypatch, {package: "EACCES"})
 
-    assert install_npm_dependencies() == 0
+    assert install_npm_dependencies("en") == 0
 
     assert npm_prefix() == home / ".cache" / "bob-quality"
 
@@ -124,17 +125,31 @@ def test_exit_4_shows_the_cache_command_when_the_fallback_also_fails(
     cache = tmp_path / "xdg" / "bob-quality"
     _fake_npm(tmp_path, monkeypatch, {package: "EACCES", cache: "ENOSPC"})
 
-    assert install_npm_dependencies() == 4
+    assert install_npm_dependencies("en") == 4
 
     assert capsys.readouterr().out == (
-        f"npm ci --prefix {package} falhou com EACCES; instalando no cache do usuário {cache}\n"
+        f"npm ci --prefix {package} failed with EACCES; installing in the user cache {cache}\n"
         f"npm ci --prefix {cache}\n"
         f"npm error code ENOSPC\n"
         f"npm error path {cache}\n"
     )
 
 
+@pytest.mark.parametrize(
+    ("lang", "fallback", "unavailable"),
+    [
+        ("en", "failed with EACCES; installing in the user cache", "could not prepare the user cache"),
+        (
+            "pt-BR",
+            "falhou com EACCES; instalando no cache do usuário",
+            "não foi possível preparar o cache do usuário",
+        ),
+    ],
+)
 def test_exit_4_names_the_cache_path_when_the_cache_cannot_be_created(
+    lang: Language,
+    fallback: str,
+    unavailable: str,
     package: Path,
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -144,11 +159,11 @@ def test_exit_4_names_the_cache_path_when_the_cache_cannot_be_created(
     cache = tmp_path / "xdg" / "bob-quality"
     _fake_npm(tmp_path, monkeypatch, {package: "EACCES"})
 
-    assert install_npm_dependencies() == 4
+    assert install_npm_dependencies(lang) == 4
 
     assert capsys.readouterr().out == (
-        f"npm ci --prefix {package} falhou com EACCES; instalando no cache do usuário {cache}\n"
-        f"não foi possível preparar o cache do usuário {cache}: {os.strerror(errno.ENOTDIR)}\n"
+        f"npm ci --prefix {package} {fallback} {cache}\n"
+        f"{unavailable} {cache}: {os.strerror(errno.ENOTDIR)}\n"
     )
 
 
@@ -160,7 +175,7 @@ def test_other_npm_errors_exit_4_on_the_package_without_touching_the_cache(
 ) -> None:
     _fake_npm(tmp_path, monkeypatch, {package: "ETARGET"})
 
-    assert install_npm_dependencies() == 4
+    assert install_npm_dependencies("en") == 4
 
     assert capsys.readouterr().out == (
         f"npm ci --prefix {package}\n"
@@ -176,10 +191,10 @@ def test_install_exits_4_naming_the_missing_plugin_manifest(
 ) -> None:
     monkeypatch.setattr("bob_quality.npm_tools._plugin_packages", lambda: [])
 
-    assert install_npm_dependencies() == 4
+    assert install_npm_dependencies("en") == 4
 
     assert capsys.readouterr().out == (
-        "package.json do plugin (bob-quality-tools) não encontrado; c8 e vitest ficam fixados nele\n"
+        "plugin package.json (bob-quality-tools) not found; c8 and vitest are pinned in it\n"
     )
 
 
@@ -219,7 +234,7 @@ def test_real_npm_ci_with_node_modules_555_installs_in_the_user_cache(
     modules = package / "node_modules"
     modules.chmod(0o555)
     try:
-        assert install_npm_dependencies() == 0
+        assert install_npm_dependencies("en") == 0
     finally:
         modules.chmod(0o755)
 

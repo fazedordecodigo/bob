@@ -6,6 +6,7 @@ import json
 from typing import Any
 
 from bob_quality.core import unique_violations
+from bob_quality.messages import Text, msg
 from bob_quality.models import DepViolation
 
 _BLOCKING = {"error", "warn"}
@@ -47,14 +48,16 @@ def _violations_for(item: object) -> list[DepViolation]:
     return []
 
 
-def _rule(item: dict[str, Any]) -> tuple[str, str]:
+def _rule(item: dict[str, Any]) -> tuple[Text, str]:
     rule = item.get("rule")
     if not isinstance(rule, dict):
-        return "dependência", "error"
-    return str(rule.get("name") or "dependência"), str(rule.get("severity") or "error")
+        return msg("deps.unnamed"), "error"
+    name = rule.get("name")
+    shown: Text = str(name) if name else msg("deps.unnamed")
+    return shown, str(rule.get("severity") or "error")
 
 
-def _cycle_edges(cycle: object, rule: str) -> list[DepViolation]:
+def _cycle_edges(cycle: object, rule: Text) -> list[DepViolation]:
     names = _cycle_names(cycle)
     if len(names) < 2:
         return []

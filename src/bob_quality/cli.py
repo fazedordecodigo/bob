@@ -3,28 +3,32 @@
 from __future__ import annotations
 
 import argparse
+import os
 import sys
 from pathlib import Path
 
 from bob_quality.check import run_check
+from bob_quality.config import ConfigError, configured_language, resolve_language
 from bob_quality.doctor import run_doctor
 from bob_quality.exit_codes import CONFIG_OR_TOOL
+from bob_quality.messages import DEFAULT_LANGUAGE, Language, reason, render, t
 from bob_quality.waivers import WaiverError, add_waiver
 
 
-def build_parser() -> argparse.ArgumentParser:
+def build_parser(lang: Language = DEFAULT_LANGUAGE) -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="bob",
-        description="Gates de qualidade para agentes.",
+        description=t(lang, "cli.description"),
     )
+    _add_lang(parser, lang)
     sub = parser.add_subparsers(dest="command", required=True)
 
-    check = sub.add_parser("check", help="Roda os gates pedidos e grava .bob/")
-    _add_shared(check)
+    check = sub.add_parser("check", help=t(lang, "cli.check"))
+    _add_shared(check, lang)
     check.add_argument(
         "--gates",
         default=None,
-        help="Lista separada por vírgula (padrão: crap,dry,deps)",
+        help=t(lang, "cli.gates"),
     )
     check.add_argument(
         "--format",
@@ -32,61 +36,95 @@ def build_parser() -> argparse.ArgumentParser:
         choices=("md", "json", "both"),
     )
 
-    crap = sub.add_parser("crap", help="Mede CRAP das funções alteradas")
-    _add_shared(crap)
+    crap = sub.add_parser("crap", help=t(lang, "cli.crap"))
+    _add_shared(crap, lang)
     crap.add_argument("--threshold", type=float, default=None)
     crap.add_argument("--coverage-file", default=None)
 
-    dry = sub.add_parser("dry", help="Reporta clones novos no diff, sem bloquear")
-    _add_shared(dry)
+    dry = sub.add_parser("dry", help=t(lang, "cli.dry"))
+    _add_shared(dry, lang)
 
-    deps = sub.add_parser("deps", help="Verifica ciclos e regras de dependência")
-    _add_shared(deps)
+    deps = sub.add_parser("deps", help=t(lang, "cli.deps"))
+    _add_shared(deps, lang)
 
-    mutate = sub.add_parser("mutate", help="Muta funções alteradas com mutmut")
-    _add_shared(mutate)
+    mutate = sub.add_parser("mutate", help=t(lang, "cli.mutate"))
+    _add_shared(mutate, lang)
     mutate.add_argument(
         "--since-last-run",
         action="store_true",
-        help="Reusa o cache; já é o comportamento padrão",
+        help=t(lang, "cli.since_last_run"),
     )
     mutate.add_argument("--max-workers", type=int, default=None)
 
-    waive = sub.add_parser("waive", help="Registra um waiver com motivo de uma linha")
-    waive.add_argument("target", help="id do mutante ou nome da função")
+    waive = sub.add_parser("waive", help=t(lang, "cli.waive"))
+    waive.add_argument("target", help=t(lang, "cli.waive_target"))
     waive.add_argument("--reason", default=None)
+    _add_lang(waive, lang)
 
-    doctor = sub.add_parser("doctor", help="Verifica as ferramentas pinadas e as versões instaladas")
+    doctor = sub.add_parser("doctor", help=t(lang, "cli.doctor"))
     doctor.add_argument(
         "--install",
         action="store_true",
-        help="Instala as ferramentas npm com npm ci no pacote (ou num cache do usuário)",
+        help=t(lang, "cli.install"),
     )
+    _add_lang(doctor, lang)
 
     return parser
 
 
-def _add_shared(parser: argparse.ArgumentParser) -> None:
+def _add_shared(parser: argparse.ArgumentParser, lang: Language) -> None:
     parser.add_argument("--base", default=None)
     parser.add_argument("--config", default=None)
     parser.add_argument("--out", default=".bob/")
+    _add_lang(parser, lang)
+
+
+def _add_lang(parser: argparse.ArgumentParser, lang: Language) -> None:
+    parser.add_argument("--lang", default=None, help=t(lang, "cli.lang"))
 
 
 def main(argv: list[str] | None = None) -> int:
-    args = build_parser().parse_args(argv)
+    try:
+        lang = _language(argv)
+    except ConfigError as exc:
+        print(render(reason(exc), DEFAULT_LANGUAGE), file=sys.stderr)
+        return CONFIG_OR_TOOL
+    args = build_parser(lang).parse_args(argv)
     if args.command == "doctor":
-        return run_doctor(install=args.install)
+        return run_doctor(install=args.install, lang=lang)
     cwd = Path.cwd()
     if args.command == "waive":
-        return _waive_command(cwd, args)
-    return _dispatch(args, cwd, _resolve_out(cwd, args.out), _resolve_config(cwd, args.config))
+        return _waive_command(cwd, args, lang)
+    return _dispatch(
+        args, cwd, _resolve_out(cwd, args.out), _resolve_config(cwd, args.config), lang
+    )
 
 
-def _waive_command(cwd: Path, args: argparse.Namespace) -> int:
+def _language(argv: list[str] | None) -> Language:
+    """Lido antes do parser completo, para a ajuda já sair no idioma escolhido."""
+    early = argparse.ArgumentParser(prog="bob", add_help=False)
+    early.add_argument("--lang", default=None)
+    early.add_argument("--config", default=None)
+    known, _rest = early.parse_known_args(argv)
+    cwd = Path.cwd()
+    flag = known.lang
+    env = os.environ.get("BOB_LANG")
+    selected = (
+        resolve_language(flag, env, None) if flag is not None or env is not None else None
+    )
+    configured = configured_language(_resolve_config(cwd, known.config), cwd)
+    if selected is not None:
+        return selected
+    if configured is None:
+        return DEFAULT_LANGUAGE
+    return configured
+
+
+def _waive_command(cwd: Path, args: argparse.Namespace, lang: Language) -> int:
     try:
         add_waiver(cwd, args.target, args.reason)
     except WaiverError as exc:
-        print(str(exc), file=sys.stderr)
+        print(render(reason(exc), lang), file=sys.stderr)
         return CONFIG_OR_TOOL
     return 0
 
@@ -112,17 +150,18 @@ def _dispatch(
     cwd: Path,
     out_dir: Path,
     config_path: Path | None,
+    lang: Language,
 ) -> int:
     if args.command == "check":
-        return _run_check(args, cwd, out_dir, config_path)
+        return _run_check(args, cwd, out_dir, config_path, lang)
     if args.command == "crap":
-        return _run_crap(args, cwd, out_dir, config_path)
+        return _run_crap(args, cwd, out_dir, config_path, lang)
     if args.command == "dry":
-        return _run_dry(args, cwd, out_dir, config_path)
+        return _run_dry(args, cwd, out_dir, config_path, lang)
     if args.command == "deps":
-        return _run_deps(args, cwd, out_dir, config_path)
+        return _run_deps(args, cwd, out_dir, config_path, lang)
     if args.command == "mutate":
-        return _run_mutate(args, cwd, out_dir, config_path)
+        return _run_mutate(args, cwd, out_dir, config_path, lang)
     raise AssertionError("comando não tratado")
 
 
@@ -131,6 +170,7 @@ def _run_check(
     cwd: Path,
     out_dir: Path,
     config_path: Path | None,
+    lang: Language,
 ) -> int:
     gates = [part.strip() for part in args.gates.split(",")] if args.gates else None
     return run_check(
@@ -141,6 +181,7 @@ def _run_check(
         out_dir=out_dir,
         fmt=args.format,
         reproduce=_reproduce("check", args),
+        lang=lang,
     )
 
 
@@ -149,6 +190,7 @@ def _run_crap(
     cwd: Path,
     out_dir: Path,
     config_path: Path | None,
+    lang: Language,
 ) -> int:
     coverage = Path(args.coverage_file) if args.coverage_file else None
     return run_check(
@@ -161,6 +203,7 @@ def _run_crap(
         threshold=args.threshold,
         coverage_file=coverage,
         reproduce=_reproduce("crap", args),
+        lang=lang,
     )
 
 
@@ -169,6 +212,7 @@ def _run_dry(
     cwd: Path,
     out_dir: Path,
     config_path: Path | None,
+    lang: Language,
 ) -> int:
     return run_check(
         cwd=cwd,
@@ -178,6 +222,7 @@ def _run_dry(
         out_dir=out_dir,
         fmt="both",
         reproduce=_reproduce("dry", args),
+        lang=lang,
     )
 
 
@@ -186,6 +231,7 @@ def _run_deps(
     cwd: Path,
     out_dir: Path,
     config_path: Path | None,
+    lang: Language,
 ) -> int:
     return run_check(
         cwd=cwd,
@@ -195,6 +241,7 @@ def _run_deps(
         out_dir=out_dir,
         fmt="both",
         reproduce=_reproduce("deps", args),
+        lang=lang,
     )
 
 
@@ -203,6 +250,7 @@ def _run_mutate(
     cwd: Path,
     out_dir: Path,
     config_path: Path | None,
+    lang: Language,
 ) -> int:
     return run_check(
         cwd=cwd,
@@ -213,6 +261,7 @@ def _run_mutate(
         fmt="both",
         max_workers=args.max_workers,
         reproduce=_reproduce("mutate", args),
+        lang=lang,
     )
 
 

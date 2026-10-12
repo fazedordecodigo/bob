@@ -29,7 +29,7 @@ def test_markdown_with_mutation_lists_waivers_dependencies_and_old_cycles() -> N
         mutation={"remutated": [], "reused": []},
     )
 
-    assert to_markdown(report) == (
+    assert to_markdown(report, "pt-BR") == (
         "# Relatório bob\n\n"
         "## Waivers\n\nNenhum waiver.\n\n"
         "- Commit: `abc`\n- Base: `main`\n- Data: 2026-10-11T00:00:00+00:00\n"
@@ -42,7 +42,7 @@ def test_markdown_with_mutation_lists_waivers_dependencies_and_old_cycles() -> N
         "- `app.b → app.a` (Ciclo) (fora do diff; não bloqueia)\n\n"
         "## Clones novos\n\nNão executado.\n\n"
         "## Mutantes sobreviventes\n\nNenhum mutante sobrevivente.\n\n"
-        "## Como reproduzir\n\n```\nbob deps\n```\n"
+        "## Como reproduzir\n\n```\nbob deps --lang pt-BR\n```\n"
     )
 
 
@@ -54,22 +54,22 @@ def test_markdown_with_mutation_puts_each_waiver_in_the_table() -> None:
         mutation={"remutated": [], "reused": []},
     )
 
-    assert to_markdown(report).startswith(
+    assert to_markdown(report, "pt-BR").startswith(
         "# Relatório bob\n\n## Waivers\n\n| Alvo | Motivo | Autor | Data |\n|---|---|---|---|\n"
         "| `m.x__mutmut_1` | equivalente | E | 2026-10-11 |\n\n"
     )
 
 
 def test_markdown_without_mutation_or_old_cycles_skips_those_sections() -> None:
-    markdown = to_markdown(_report([GateResult("deps", "passed", None)]))
+    markdown = to_markdown(_report([GateResult("deps", "passed", None)]), "pt-BR")
 
     assert "## Waivers" not in markdown
     assert "## Informação (dependências fora do diff)" not in markdown
 
 
 def test_deps_section_says_not_run_when_the_gate_is_absent_or_skipped() -> None:
-    absent = to_markdown(_report([]))
-    skipped = to_markdown(_report([GateResult("deps", "not_run", "Node ausente")]))
+    absent = to_markdown(_report([]), "pt-BR")
+    skipped = to_markdown(_report([GateResult("deps", "not_run", "Node ausente")]), "pt-BR")
 
     expected = "## Violações e ciclos de dependência\n\n- Gate não executado.\n"
     assert expected in absent
@@ -79,7 +79,7 @@ def test_deps_section_says_not_run_when_the_gate_is_absent_or_skipped() -> None:
 def test_failed_deps_gate_lists_each_edge_instead_of_the_reason() -> None:
     report = _report([GateResult("deps", "failed", "motivo")], dependencies=[NEW_EDGE])
 
-    markdown = to_markdown(report)
+    markdown = to_markdown(report, "pt-BR")
 
     assert (
         "## Violações e ciclos de dependência\n\n- `app.api → app.domain` (Camadas)\n"

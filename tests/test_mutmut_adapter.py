@@ -9,6 +9,7 @@ from pathlib import Path
 import pytest
 
 from bob_quality.adapters.mutmut import MutmutParseError, mutants_from_raw
+from helpers import in_both
 
 RAW = Path(__file__).parent / "fixtures" / "raw"
 
@@ -54,17 +55,25 @@ def test_results_keep_later_mutants_after_noise_and_non_mutant_rows() -> None:
 def test_unknown_status_names_the_label() -> None:
     raw = "    app.weak.x_classify__mutmut_1: exploded\n"
 
-    with pytest.raises(MutmutParseError, match=r"status desconhecido do mutmut: 'exploded'"):
+    with pytest.raises(MutmutParseError) as caught:
         mutants_from_raw(raw, {})
+
+    assert in_both(caught.value) == (
+        "unknown mutmut status: 'exploded'",
+        "status desconhecido do mutmut: 'exploded'",
+    )
 
 
 def test_mutant_id_without_the_pinned_shape_is_rejected() -> None:
     raw = "    not_a_mutant_id__mutmut_1: killed\n"
 
-    with pytest.raises(
-        MutmutParseError, match=r"id de mutante fora do contrato: not_a_mutant_id__mutmut_1"
-    ):
+    with pytest.raises(MutmutParseError) as caught:
         mutants_from_raw(raw, {})
+
+    assert in_both(caught.value) == (
+        "mutant id outside the contract: not_a_mutant_id__mutmut_1",
+        "id de mutante fora do contrato: not_a_mutant_id__mutmut_1",
+    )
 
 
 def test_method_mutant_id_uses_the_method_name() -> None:

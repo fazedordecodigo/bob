@@ -24,6 +24,7 @@ bob mutate  [--base REF] [--since-last-run] [--max-workers N]
 bob report  [--in .bob/] [--out .bob/report.md]
 bob waive   <mutant-id|function> --reason "texto de uma linha"
 bob doctor  # verifica ferramentas e versões instaladas
+bob <comando> [--lang en|pt-BR]  # idioma da saída (padrão: en)
 ```
 
 `--base` padrão vem de `bob.yaml` (`origin/main` se o repo não disser outro). Use a mesma base do PR.

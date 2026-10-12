@@ -1,10 +1,12 @@
 """Adaptador c8/istanbul e lizard em TypeScript: saída gravada → modelo."""
 
+import json
 from pathlib import Path
 
 from bob_quality.adapters.istanbul import parse_coverage_final
 from bob_quality.adapters.lizard import parse_lizard_csv
 from bob_quality.core import line_coverage
+from bob_quality.models import FileCoverage
 from bob_quality.npm_tools import run_vitest_under_c8
 from bob_quality.tools import run_lizard_csv
 
@@ -23,6 +25,19 @@ def test_istanbul_adapter_reads_recorded_c8_coverage_final() -> None:
     files = parse_coverage_final((RAW / "coverage-final.json").read_text())
     assert line_coverage(_by_suffix(files, "src/safe.ts"), 1, 3) == 1.0
     assert line_coverage(_by_suffix(files, "src/messy.ts"), 1, 12) == 0.0
+
+
+def test_istanbul_adapter_spans_statement_lines_and_counts_absent_hits_as_missing() -> None:
+    statements = {
+        "0": {"start": {"line": 2}, "end": {"line": 4}},
+        "1": {"start": {"line": 3}, "end": {"line": 3}},
+        "2": {"start": {"line": 6}, "end": {"line": 7}},
+    }
+    raw = json.dumps({"a.ts": {"statementMap": statements, "s": {"0": 1, "1": 0}}})
+
+    assert parse_coverage_final(raw) == {
+        "a.ts": FileCoverage(executed_lines=frozenset({2, 3, 4}), missing_lines=frozenset({6, 7}))
+    }
 
 
 def test_lizard_adapter_reads_recorded_typescript_csv() -> None:

@@ -16,6 +16,9 @@ args=(check --gates "$gates" --format both --out "${BOB_OUT:-.bob/}")
 if [[ -n "$base" ]]; then
   args+=(--base "$base")
 fi
+if [[ -n "${BOB_LANGUAGE:-}" ]]; then
+  args+=(--lang "$BOB_LANGUAGE")
+fi
 
 set +e
 bob "${args[@]}"

@@ -124,7 +124,7 @@ def test_pre_push_hook_allows_an_old_python_dependency_violation(tmp_path: Path)
 
     assert result.returncode == 0, result.stderr
     assert "`app.right → app.left`" in markdown
-    assert "fora do diff; não bloqueia" in markdown
+    assert "outside the diff; does not block" in markdown
 
 
 def test_pre_push_hook_blocks_a_new_typescript_dependency_violation(tmp_path: Path) -> None:
@@ -164,4 +164,4 @@ def test_pre_push_hook_allows_an_old_typescript_dependency_violation(tmp_path: P
 
     assert result.returncode == 0, result.stderr
     assert "src/left.ts → src/right.ts" in markdown
-    assert "fora do diff; não bloqueia" in markdown
+    assert "outside the diff; does not block" in markdown

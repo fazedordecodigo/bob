@@ -45,7 +45,7 @@ def test_new_python_clones_in_the_diff_warn_without_failing(tmp_path: Path) -> N
     result = run_bob(repo, "dry", "--base", "main")
     payload = json.loads((repo / ".bob" / "report.json").read_text())
     markdown = (repo / ".bob" / "report.md").read_text()
-    section = markdown.split("## Clones novos", 1)[1]
+    section = markdown.split("## New clones", 1)[1]
     dry = next(gate for gate in payload["gates"] if gate["name"] == "dry")
     pair = {payload["clones"][0]["first_file"], payload["clones"][0]["second_file"]}
 
@@ -59,7 +59,7 @@ def test_new_python_clones_in_the_diff_warn_without_failing(tmp_path: Path) -> N
     assert "src/app/receipt_b.py:1-11" in section
     assert "11" in section
     assert "88" in section
-    assert "similaridade exata" in section
+    assert "similarity exact" in section
     assert any(
         item["file"] == "src/app/receipt_a.py" and item.get("clone") is True
         for item in payload["focus"]
@@ -81,7 +81,7 @@ def test_old_python_clones_outside_the_diff_are_not_new(tmp_path: Path) -> None:
     assert dry["status"] == "passed"
     assert payload["clones"] == []
     assert "receipt_a.py" not in markdown
-    assert "Nenhum clone novo no diff." in markdown
+    assert "No new clones in the diff." in markdown
 
 
 def test_python_clone_kept_when_only_the_new_copy_is_in_the_diff(tmp_path: Path) -> None:
@@ -157,7 +157,7 @@ def test_new_typescript_clones_in_the_diff_warn_without_failing(tmp_path: Path) 
     result = run_bob(repo, "dry", "--base", "main")
     payload = json.loads((repo / ".bob" / "report.json").read_text())
     markdown = (repo / ".bob" / "report.md").read_text()
-    section = markdown.split("## Clones novos", 1)[1]
+    section = markdown.split("## New clones", 1)[1]
     dry = next(gate for gate in payload["gates"] if gate["name"] == "dry")
     pair = {payload["clones"][0]["first_file"], payload["clones"][0]["second_file"]}
 
@@ -210,7 +210,7 @@ def test_dry_is_not_run_when_node_is_missing(tmp_path: Path) -> None:
 
     assert result.returncode == 0, result.stderr
     assert dry["status"] == "not_run"
-    assert "Node ausente" in dry["reason"]
+    assert "Node missing" in dry["reason"]
     assert "⏭️" in markdown
     assert "⚠️" not in markdown
     assert "✅ `dry`" not in markdown

@@ -9,6 +9,7 @@ import sys
 from pathlib import Path
 
 from bob_quality.adapters.mutmut import suite_failed
+from bob_quality.messages import msg
 from bob_quality.tools import ToolError
 
 _VERSION_RE = re.compile(r"(\d+\.\d+\.\d+)")
@@ -16,11 +17,6 @@ _SPINNER_CHAR = "⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏"
 _SPINNER_LINE = re.compile(rf"^[{_SPINNER_CHAR}]\s")
 _TRACEBACK = "Traceback (most recent call last):\n"
 _EXCEPTION_LINE = re.compile(r"^\S.*", re.MULTILINE)
-# O gate só chama o mutmut depois que a baseline passou no repositório.
-_SUITE_FAILS_IN_MUTANTS = (
-    "a suíte passa no repositório e falha dentro de mutants/;"
-    " confira also_copy e a configuração [mutmut]"
-)
 
 
 def pytest_exit_code(cwd: Path) -> int:
@@ -38,7 +34,7 @@ def pytest_exit_code(cwd: Path) -> int:
             check=False,
         )
     except subprocess.TimeoutExpired as exc:
-        raise ToolError("pytest da baseline excedeu o tempo limite") from exc
+        raise ToolError(msg("mutmut.baseline_timeout")) from exc
     return completed.returncode
 
 
@@ -46,7 +42,7 @@ def mutmut_version() -> str:
     raw = _invoke([sys.executable, "-m", "mutmut", "--version"], cwd=None)
     match = _VERSION_RE.search(raw)
     if not match:
-        raise ToolError(f"versão do mutmut ilegível: {raw.strip()}")
+        raise ToolError(msg("mutmut.unreadable_version", raw=raw.strip()))
     return match.group(1)
 
 
@@ -95,14 +91,14 @@ def _invoke(args: list[str], cwd: Path | None, timeout: int = 180) -> str:
             check=False,
         )
     except FileNotFoundError as exc:
-        raise ToolError(f"ferramenta ausente: {args[0]}") from exc
+        raise ToolError(msg("tool.missing", tool=args[0])) from exc
     except subprocess.TimeoutExpired as exc:
-        raise ToolError("mutmut excedeu o tempo limite") from exc
+        raise ToolError(msg("mutmut.timeout")) from exc
     if completed.returncode != 0:
         output = f"{completed.stdout}\n{completed.stderr}"
         detail = _final_exception(output) or failure_text(completed.stdout, completed.stderr)
         if suite_failed(output):
-            raise ToolError(f"{_SUITE_FAILS_IN_MUTANTS}: {detail}")
+            raise ToolError(msg("mutmut.suite_fails_in_mutants", detail=detail))
         if "nothing matches" in output:
             raise ToolError("nothing matches")
         raise ToolError(detail or f"exit {completed.returncode}")

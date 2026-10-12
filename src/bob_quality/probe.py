@@ -7,6 +7,7 @@ from pathlib import Path
 
 from bob_quality.core import coverage_for, to_metric
 from bob_quality.diff import function_is_changed
+from bob_quality.messages import Text
 from bob_quality.models import (
     CyclomaticFunction,
     FileCoverage,
@@ -28,7 +29,7 @@ class ProbeResult:
     def not_run(
         cls,
         versions: dict[str, str],
-        reason: str,
+        reason: Text,
         exit_code: int,
         baseline: int | None = None,
     ) -> ProbeResult:

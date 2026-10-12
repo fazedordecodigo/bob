@@ -13,6 +13,7 @@ from bob_quality.deps_gate import run_deps_gate
 from bob_quality.diff import GitError, changed_lines, current_commit
 from bob_quality.dry_gate import run_dry_gate
 from bob_quality.exit_codes import CONFIG_OR_TOOL, PASSED
+from bob_quality.messages import DEFAULT_LANGUAGE, Language, Text, msg, reason
 from bob_quality.models import Clone, DepViolation, FunctionMetric, GateResult, Report
 from bob_quality.mutate import MutationOutcome, focus_with_survivors, run_mutation_gate
 from bob_quality.report import metric_row, violation_rows, write_report
@@ -32,30 +33,41 @@ def run_check(
     coverage_file: Path | None = None,
     reproduce: str | None = None,
     max_workers: int | None = None,
+    lang: Language = DEFAULT_LANGUAGE,
 ) -> int:
     chosen_gates = gates or list(DEFAULT_GATES)
     chosen_out = out_dir or (cwd / ".bob")
     command = reproduce or "bob check"
-    opened = _open(cwd, base, config_path, threshold, chosen_out, fmt, command, chosen_gates)
-    if isinstance(opened, int):
-        return opened
+    opened = _open(cwd, base, config_path, threshold, command, chosen_gates)
+    if isinstance(opened, Report):
+        return _written(opened, chosen_out, fmt, lang)
     config, chosen_base, max_crap, commit, diff_lines = opened
     measured = _measure(
-        cwd, config, diff_lines, max_crap, coverage_file, chosen_gates, chosen_out, max_workers
+        cwd,
+        config,
+        diff_lines,
+        max_crap,
+        coverage_file,
+        chosen_gates,
+        chosen_out,
+        max_workers,
     )
     if measured.mutation is None:
-        loaded = _load_idle_waivers(
-            cwd, chosen_out, fmt, chosen_base, command, chosen_gates
-        )
-        if isinstance(loaded, int):
-            return loaded
+        loaded = _load_idle_waivers(cwd, chosen_base, command, chosen_gates)
+        if isinstance(loaded, Report):
+            return _written(loaded, chosen_out, fmt, lang)
         measured.loaded_waivers = loaded
-    write_report(
+    return _written(
         _assemble(measured, commit, chosen_base, diff_lines, max_crap, command),
         chosen_out,
         fmt,
+        lang,
     )
-    return measured.exit_code
+
+
+def _written(report: Report, out_dir: Path, fmt: str, lang: Language) -> int:
+    write_report(report, out_dir, fmt, lang)
+    return report.exit_code
 
 
 def _open(
@@ -63,24 +75,20 @@ def _open(
     base: str | None,
     config_path: Path | None,
     threshold: float | None,
-    out_dir: Path,
-    fmt: str,
     command: str,
     gates: list[str],
-) -> tuple[Config, str, float, str, dict[str, set[int]]] | int:
+) -> tuple[Config, str, float, str, dict[str, set[int]]] | Report:
     try:
         config = load_config(config_path, cwd)
     except ConfigError as exc:
-        return _fail_early(out_dir, fmt, CONFIG_OR_TOOL, str(exc), base, command, gates)
+        return _fail_early(CONFIG_OR_TOOL, reason(exc), base, command, gates)
     chosen_base = base or config.base
     max_crap = config.max_crap if threshold is None else threshold
     try:
         commit = current_commit(cwd)
         diff_lines = changed_lines(cwd, chosen_base)
     except GitError as exc:
-        return _fail_early(
-            out_dir, fmt, CONFIG_OR_TOOL, str(exc), chosen_base, command, gates
-        )
+        return _fail_early(CONFIG_OR_TOOL, reason(exc), chosen_base, command, gates)
     return config, chosen_base, max_crap, commit, diff_lines
 
 
@@ -110,7 +118,15 @@ def _measure(
     state = _Measured()
     for gate in gates:
         _absorb(
-            state, gate, cwd, config, diff_lines, max_crap, coverage_file, out_dir, max_workers
+            state,
+            gate,
+            cwd,
+            config,
+            diff_lines,
+            max_crap,
+            coverage_file,
+            out_dir,
+            max_workers,
         )
     return state
 
@@ -162,7 +178,7 @@ def _absorb(
         return
     _record(
         state,
-        GateResult(gate, "not_run", "gate não implementado nesta fatia"),
+        GateResult(gate, "not_run", msg("check.gate_not_implemented")),
         PASSED,
         {},
     )
@@ -230,16 +246,14 @@ def _assemble(
 
 def _load_idle_waivers(
     cwd: Path,
-    out_dir: Path,
-    fmt: str,
     base: str,
     command: str,
     gates: list[str],
-) -> list[dict[str, object]] | int:
+) -> list[dict[str, object]] | Report:
     try:
         return [item.as_dict() for item in load_waivers(cwd)]
     except WaiverError as exc:
-        return _fail_early(out_dir, fmt, CONFIG_OR_TOOL, str(exc), base, command, gates)
+        return _fail_early(CONFIG_OR_TOOL, reason(exc), base, command, gates)
 
 
 def _worse(current: int, incoming: int) -> int:
@@ -247,26 +261,21 @@ def _worse(current: int, incoming: int) -> int:
 
 
 def _fail_early(
-    out_dir: Path,
-    fmt: str,
     exit_code: int,
-    reason: str,
+    why: Text,
     base: str | None,
     reproduce: str,
     gates: list[str],
-) -> int:
-    results = [GateResult(name, "not_run", reason) for name in gates]
-    report = Report(
+) -> Report:
+    return Report(
         schema_version=1,
         commit="",
         base=base or "",
         generated_at=datetime.now(timezone.utc).isoformat(),
         tool_versions={},
-        gates=results,
+        gates=[GateResult(name, "not_run", why) for name in gates],
         focus=[],
         top_crap=[],
         reproduce=reproduce,
         exit_code=exit_code,
     )
-    write_report(report, out_dir, fmt)
-    return exit_code

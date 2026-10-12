@@ -9,6 +9,7 @@ import sys
 from fnmatch import fnmatchcase
 from pathlib import Path, PurePosixPath
 
+from bob_quality.messages import msg
 from bob_quality.tools import ToolError
 
 if sys.version_info >= (3, 11):
@@ -55,9 +56,9 @@ def _listed_files(cwd: Path) -> list[str]:
             text=True,
         )
     except OSError as exc:
-        raise ToolError("ferramenta ausente: git") from exc
+        raise ToolError(msg("tool.missing", tool="git")) from exc
     if completed.returncode != 0:
-        raise ToolError(f"git ls-files falhou: {completed.stderr.strip()}")
+        raise ToolError(msg("git.ls_files_failed", detail=completed.stderr.strip()))
     return [name for name in completed.stdout.split("\0") if name]
 
 
@@ -89,7 +90,7 @@ def _pyproject_also_copy(path: Path) -> list[str] | None:
         with path.open("rb") as file:
             data = tomllib.load(file)
     except tomllib.TOMLDecodeError as exc:
-        raise ToolError(f"pyproject.toml ilegível: {exc}") from exc
+        raise ToolError(msg("suite.pyproject_unreadable", detail=exc)) from exc
     mutmut = data.get("tool", {}).get("mutmut")
     if mutmut is None:
         return None
@@ -104,5 +105,5 @@ def _setup_cfg_also_copy(path: Path) -> list[str]:
             return []
         raw = parser.get("mutmut", "also_copy")
     except configparser.Error as exc:
-        raise ToolError(f"setup.cfg ilegível: {exc}") from exc
+        raise ToolError(msg("suite.setup_cfg_unreadable", detail=exc)) from exc
     return [entry for entry in raw.split("\n") if entry]

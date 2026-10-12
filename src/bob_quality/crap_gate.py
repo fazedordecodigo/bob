@@ -7,6 +7,7 @@ from pathlib import Path
 from bob_quality.config import Config
 from bob_quality.core import crap_verdict
 from bob_quality.exit_codes import CONFIG_OR_TOOL
+from bob_quality.messages import Text, msg
 from bob_quality.models import FunctionMetric, GateResult
 from bob_quality.npm_tools import NODE_MISSING
 from bob_quality.probe import ProbeResult
@@ -24,7 +25,7 @@ def run_crap_gate(
     """O último item é o exit do pytest da medição Python, ou None sem pytest."""
     metrics: list[FunctionMetric] = []
     versions: dict[str, str] = {}
-    typescript_skip: str | None = None
+    typescript_skip: Text | None = None
     baseline: int | None = None
     if "python" in config.languages:
         python = measure_python(cwd, config, diff_lines, coverage_file)
@@ -45,13 +46,13 @@ def run_crap_gate(
     return _with_typescript_skip(verdict, typescript_skip), metrics, code, versions, baseline
 
 
-def _with_typescript_skip(verdict: GateResult, typescript_skip: str | None) -> GateResult:
+def _with_typescript_skip(verdict: GateResult, typescript_skip: Text | None) -> GateResult:
     if not typescript_skip:
         return verdict
-    note = f"TypeScript pulado: {typescript_skip}"
+    note = msg("probe.typescript_skipped", reason=typescript_skip)
     if verdict.status == "passed":
         return GateResult("crap", "warn", note)
-    return GateResult("crap", verdict.status, f"{verdict.reason}; {note}")
+    return GateResult("crap", verdict.status, msg("probe.joined", first=verdict.reason, second=note))
 
 
 def _node_is_missing(probed: ProbeResult) -> bool:

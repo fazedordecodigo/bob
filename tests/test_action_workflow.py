@@ -119,6 +119,10 @@ def test_composite_action_comments_uploads_cache_and_keeps_bob_status() -> None:
     gates = inputs["gates"]
     assert isinstance(gates, dict)
     assert gates["default"] == "crap,dry,deps,mutate"
+    language = inputs["language"]
+    assert isinstance(language, dict)
+    assert language["required"] is False
+    assert language["default"] == ""
     steps = runs["steps"]
     assert isinstance(steps, list)
     for step in steps:
@@ -146,7 +150,14 @@ def test_composite_action_comments_uploads_cache_and_keeps_bob_status() -> None:
     assert with_block["path"] == ".bob/mutation-cache.json"
     assert with_block["if-no-files-found"] == "ignore"
     assert with_block["include-hidden-files"] is True
+    check = next(step for step in steps if "run_check.sh" in str(step.get("run", "")))
+    check_env = check["env"]
+    assert isinstance(check_env, dict)
+    assert check_env["BOB_LANGUAGE"] == "${{ inputs.language }}"
     comment = next(step for step in steps if "upsert_comment.py" in str(step.get("run", "")))
+    comment_env = comment["env"]
+    assert isinstance(comment_env, dict)
+    assert comment_env["BOB_LANGUAGE"] == "${{ inputs.language }}"
     assert "always()" in str(comment["if"])
     assert "pull_request" in str(comment["if"])
     propagate = next(step for step in steps if "propagate_exit.sh" in str(step.get("run", "")))

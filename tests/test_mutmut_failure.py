@@ -1,6 +1,7 @@
 """O erro do mutmut no relatório não pode ser o spinner cortado."""
 
 import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -8,6 +9,7 @@ import pytest
 from bob_quality import mutmut_tool
 from bob_quality.mutmut_tool import failure_text
 from bob_quality.tools import ToolError
+from helpers import in_both
 
 SPINNER = "⠋ Generating mutants\r⠙ Generating mutants\r⠹ Generating mutants\r"
 # Fim da saída de `mutmut run` 3.8 quando o pytest recusa o addopts.
@@ -85,10 +87,13 @@ def test_a_chained_traceback_glued_to_the_spinner_reports_the_last_exception(
     with pytest.raises(ToolError) as caught:
         mutmut_tool.run_mutmut(tmp_path, ["app.safe.x_add__mutmut*"], None)
 
-    assert str(caught.value) == (
+    assert in_both(caught.value) == (
+        "the suite passes in the repository and fails inside mutants/;"
+        " check also_copy and the [mutmut] configuration:"
+        " FileNotFoundError: [Errno 2] No such file or directory: 'expected.txt'",
         "a suíte passa no repositório e falha dentro de mutants/;"
         " confira also_copy e a configuração [mutmut]:"
-        " FileNotFoundError: [Errno 2] No such file or directory: 'expected.txt'"
+        " FileNotFoundError: [Errno 2] No such file or directory: 'expected.txt'",
     )
 
 
@@ -124,8 +129,13 @@ def test_missing_mutmut_is_a_missing_tool(monkeypatch: pytest.MonkeyPatch, tmp_p
 
     monkeypatch.setattr(mutmut_tool.subprocess, "run", missing)
 
-    with pytest.raises(ToolError, match=r"ferramenta ausente: .+python"):
+    with pytest.raises(ToolError) as caught:
         mutmut_tool.mutmut_results(tmp_path)
+
+    assert in_both(caught.value) == (
+        f"missing tool: {sys.executable}",
+        f"ferramenta ausente: {sys.executable}",
+    )
 
 
 def test_mutmut_subprocess_timeout_is_a_tool_error(
@@ -139,7 +149,7 @@ def test_mutmut_subprocess_timeout_is_a_tool_error(
     with pytest.raises(ToolError) as caught:
         mutmut_tool.run_mutmut(tmp_path, ["app.weak.x_classify__mutmut*"], 1)
 
-    assert str(caught.value) == "mutmut excedeu o tempo limite"
+    assert in_both(caught.value) == ("mutmut timed out", "mutmut excedeu o tempo limite")
 
 
 def test_nonzero_mutmut_keeps_the_error_after_the_spinner(
@@ -158,9 +168,12 @@ def test_nonzero_mutmut_keeps_the_error_after_the_spinner(
     with pytest.raises(ToolError) as caught:
         mutmut_tool.mutmut_show(tmp_path, "app.weak.x_classify__mutmut_1")
 
-    assert str(caught.value) == (
+    assert in_both(caught.value) == (
+        "the suite passes in the repository and fails inside mutants/;"
+        " check also_copy and the [mutmut] configuration:"
+        " failed to collect stats. runner returned 1",
         "a suíte passa no repositório e falha dentro de mutants/;"
-        " confira also_copy e a configuração [mutmut]: failed to collect stats. runner returned 1"
+        " confira also_copy e a configuração [mutmut]: failed to collect stats. runner returned 1",
     )
 
 
@@ -168,7 +181,9 @@ def test_nothing_matches_is_its_own_tool_error(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     def failed(args: list[str], **_kwargs: object) -> subprocess.CompletedProcess[str]:
-        return subprocess.CompletedProcess(args, 2, stdout="nothing matches\n", stderr="")
+        return subprocess.CompletedProcess(
+            args, 2, stdout="", stderr="error: nothing matches app.x*\n"
+        )
 
     monkeypatch.setattr(mutmut_tool.subprocess, "run", failed)
 
@@ -190,3 +205,35 @@ def test_empty_mutmut_failure_names_the_exit_code(
         mutmut_tool.mutmut_results(tmp_path)
 
     assert str(caught.value) == "exit 7"
+
+
+def test_mutmut_runs_in_the_repo_with_a_clean_env_and_returns_both_streams(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    monkeypatch.setenv("PYTEST_CURRENT_TEST", "leak")
+    monkeypatch.setenv("KEEP_ME", "yes")
+    seen: dict[str, object] = {}
+
+    def fake_run(args: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
+        seen["args"] = args
+        seen.update(kwargs)
+        return subprocess.CompletedProcess(args, 0, stdout="out\n", stderr="err\n")
+
+    monkeypatch.setattr(mutmut_tool.subprocess, "run", fake_run)
+
+    assert mutmut_tool.mutmut_results(tmp_path) == "out\nerr\n"
+
+    env = seen.pop("env")
+    assert seen == {
+        "args": [sys.executable, "-m", "mutmut", "results", "--all", "true"],
+        "cwd": tmp_path,
+        "capture_output": True,
+        "text": True,
+        "stdin": subprocess.DEVNULL,
+        "timeout": 180,
+        "check": False,
+    }
+    assert isinstance(env, dict)
+    assert env["KEEP_ME"] == "yes"
+    assert env["BOB_SKIP_MUTMUT_DOGFOOD"] == "1"
+    assert not any(key.startswith("PYTEST_") for key in env)

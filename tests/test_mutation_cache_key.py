@@ -20,7 +20,7 @@ from bob_quality.adapters.mutmut import mutmut_stats_key
 from bob_quality.mutate import MutationOutcome, _safe_fingerprint
 from bob_quality.suite_fingerprint import suite_fingerprint
 from bob_quality.tools import ToolError
-from helpers import commit_on_branch, commit_on_main, init_python_repo, run_bob
+from helpers import commit_on_branch, commit_on_main, in_both, init_python_repo, run_bob
 
 FIXTURE = Path(__file__).parent / "fixtures" / "python_app"
 ADD_AND_SCALE = (FIXTURE / "cases" / "add_and_scale.py").read_text()
@@ -313,25 +313,45 @@ def test_a_mutmut_section_in_pyproject_hides_the_setup_cfg_one(tmp_path: Path) -
 
 
 @pytest.mark.parametrize(
-    ("files", "message"),
+    ("files", "english", "portuguese", "detail"),
     [
-        ({"pyproject.toml": "[tool.mutmut\n"}, r"^pyproject\.toml ilegível: "),
-        ({"setup.cfg": "also_copy = data\n"}, r"^setup\.cfg ilegível: "),
+        (
+            {"pyproject.toml": "[tool.mutmut\n"},
+            "unreadable pyproject.toml: ",
+            "pyproject.toml ilegível: ",
+            "Expected ']' at the end of a table declaration",
+        ),
+        (
+            {"setup.cfg": "also_copy = data\n"},
+            "unreadable setup.cfg: ",
+            "setup.cfg ilegível: ",
+            "File contains no section headers",
+        ),
     ],
     ids=["pyproject", "setup.cfg"],
 )
 def test_an_unreadable_config_is_a_tool_error(
-    tmp_path: Path, files: dict[str, str], message: str
+    tmp_path: Path, files: dict[str, str], english: str, portuguese: str, detail: str
 ) -> None:
     repo = _git_repo(tmp_path, files)
 
-    with pytest.raises(ToolError, match=message):
+    with pytest.raises(ToolError) as caught:
         suite_fingerprint(repo)
+
+    rendered = in_both(caught.value)
+    assert rendered[0].startswith(english)
+    assert rendered[1].startswith(portuguese)
+    assert detail in rendered[0]
+    assert detail in rendered[1]
 
 
 def test_outside_a_git_repository_the_fingerprint_is_a_tool_error(tmp_path: Path) -> None:
-    with pytest.raises(ToolError, match=r"^git ls-files falhou: fatal: not a git repository"):
+    with pytest.raises(ToolError) as caught:
         suite_fingerprint(tmp_path)
+
+    english, portuguese = in_both(caught.value)
+    assert english.startswith("git ls-files failed: fatal: not a git repository")
+    assert portuguese.startswith("git ls-files falhou: fatal: not a git repository")
 
 
 def test_without_git_the_fingerprint_is_a_missing_tool(
@@ -343,7 +363,7 @@ def test_without_git_the_fingerprint_is_a_missing_tool(
     with pytest.raises(ToolError) as caught:
         suite_fingerprint(repo)
 
-    assert str(caught.value) == "ferramenta ausente: git"
+    assert in_both(caught.value) == ("missing tool: git", "ferramenta ausente: git")
 
 
 def test_the_gate_stops_with_exit_4_when_the_fingerprint_fails(tmp_path: Path) -> None:
@@ -355,6 +375,8 @@ def test_the_gate_stops_with_exit_4_when_the_fingerprint_fails(tmp_path: Path) -
     assert isinstance(failed, MutationOutcome)
     assert failed.exit_code == 4
     assert failed.result.status == "not_run"
-    assert failed.result.reason.startswith("git ls-files falhou: fatal: not a git repository")
+    assert in_both(failed.result.reason)[0].startswith(
+        "git ls-files failed: fatal: not a git repository"
+    )
     assert failed.versions == versions
     assert failed.waivers == waivers

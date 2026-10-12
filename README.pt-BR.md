@@ -9,6 +9,7 @@ O bob dá aos agentes de código (Cursor, Claude Code, GitHub Copilot, Devin) ga
 - Nome nos marketplaces: `bob` (ainda não publicado)
 - Configuração: `bob.yaml`
 - Relatórios: `.bob/report.md` e `.bob/report.json` (schema v1)
+- Idioma da saída: inglês (`en`, o padrão) ou português do Brasil (`pt-BR`)
 
 Licença: MIT.
 
@@ -95,6 +96,8 @@ Cada comando aceita estas flags:
 | `bob waive` | o id do mutante ou o nome da função, `--reason` |
 | `bob doctor` | `--install` |
 
+Todo comando aceita também `--lang en|pt-BR`, antes ou depois do nome do comando. Ver [Idioma da saída](#idioma-da-saída).
+
 Os comandos gravam `.bob/report.md` e `.bob/report.json`. Os exit codes são:
 
 | Código | Significado |
@@ -134,6 +137,7 @@ O bob lê estas chaves. Os valores abaixo são os padrões que valem quando o `b
 
 ```yaml
 base: origin/main
+language: en
 languages: [python]
 paths:
   include: [src]
@@ -148,7 +152,24 @@ dependencies:
   typescript: .dependency-cruiser.cjs
 ```
 
-Com `crap.scope: changed`, só funções alteradas bloqueiam. Qualquer outro valor faz toda função medida contar. Se `--config` aponta para um arquivo que não existe, ou se o YAML não é um mapeamento, a execução sai com `4`. Um YAML com erro de sintaxe, ou uma chave com tipo errado como `crap: 5` ou `max_per_function: abc`, dá traceback e exit `1` sem relatório ([#39](https://github.com/fazedordecodigo/bob/issues/39)).
+Com `crap.scope: changed`, só funções alteradas bloqueiam. Qualquer outro valor faz toda função medida contar. Se `--config` aponta para um arquivo que não existe, se o YAML não é um mapeamento, ou se o YAML tem erro de sintaxe, a execução sai com `4` e uma mensagem no stderr. Uma chave com tipo errado, como `crap: 5` ou `max_per_function: abc`, dá traceback e exit `1` sem relatório ([#39](https://github.com/fazedordecodigo/bob/issues/39)).
+
+### Idioma da saída
+
+O bob escreve o texto para humanos em inglês (`en`) ou em português do Brasil (`pt-BR`). Isso cobre as mensagens da CLI, o texto do `--help`, o `bob doctor`, o hook pre-push e o `.bob/report.md`. Vale a primeira fonte definida:
+
+1. `--lang en|pt-BR`, antes ou depois do nome do comando.
+2. A variável de ambiente `BOB_LANG`.
+3. `language` no `bob.yaml`.
+4. `en`.
+
+A caixa importa (`pt-br` é inválido). Um `--lang` ou `BOB_LANG` vazio é inválido. A execução sai com `4`, imprime `invalid language: "" (use en or pt-BR)` no stderr e não grava nada. Uma chave `language` vazia no `bob.yaml` continua contando como ausente.
+
+Um valor de `language` inválido, um `language` numérico, um `bob.yaml` que não é um mapeamento, ou um YAML com erro de sintaxe, sai com `4`. A mensagem vai para o stderr. A execução não grava relatório nem `waivers.yaml`. `check`, `doctor`, `waive` e os outros comandos fazem isso do mesmo jeito. Um `language` válido continua valendo quando outra chave do arquivo é inválida, e o relatório desse erro usa esse idioma.
+
+O `.bob/report.json` tem os mesmos bytes nos dois idiomas. Todo `reason` de gate, o nome da regra de ciclo e o `reproduce` ficam em inglês, então uma ferramenta pode casar esse texto sem saber o idioma da saída. O `reproduce` do JSON não leva `--lang`. Em inglês a regra de ciclo se chama `Forbidden dependency cycle`. Em `pt-BR` ela se chama `Proibido ciclo de dependência` no `report.md` e no comentário do pull request. Uma regra do dependency-cruiser sem nome é `dependency` no JSON e `dependência` no Markdown. A linha de reprodução do `report.md` inclui o `--lang` que produziu o relatório.
+
+No CI, defina `language: pt-BR` no `bob.yaml`, ou `BOB_LANG: pt-BR` no `env` do job. O input `language` da GitHub Action define a mesma escolha para o `bob check` e para o comentário do pull request. Um input vazio deixa `BOB_LANG` e o `bob.yaml` decidirem. A nota de truncamento do comentário e os erros do próprio comentário usam esse idioma.
 
 ### `bob doctor` e `--install`
 
@@ -169,7 +190,7 @@ Um waiver sem motivo de uma linha é rejeitado com exit `4`. Um waiver novo com 
 
 ### O relatório
 
-`.bob/report.md` é uma página para quem revisa. `.bob/report.json` tem os mesmos dados e segue o schema em `src/bob_quality/schemas/report_v1.json` (`schema_version: 1`). `--format` escolhe um arquivo ou os dois. O relatório em Markdown tem estas partes, com os títulos em português:
+`.bob/report.md` é uma página para quem revisa. `.bob/report.json` tem os mesmos dados e segue o schema em `src/bob_quality/schemas/report_v1.json` (`schema_version: 1`). `--format` escolhe um arquivo ou os dois. O relatório em Markdown tem estas partes, com os títulos no idioma da saída. Os nomes abaixo são os de `pt-BR`, e o `README.md` lista os de `en`:
 
 1. `Waivers`, quando há waivers ou a mutação rodou.
 2. Um cabeçalho com o commit, a base, a data e as versões das ferramentas.
@@ -180,7 +201,7 @@ Um waiver sem motivo de uma linha é rejeitado com exit `4`. Um waiver novo com 
 7. `Violações e ciclos de dependência`, e `Informação (dependências fora do diff)`.
 8. `Clones novos`.
 9. `Mutantes sobreviventes`.
-10. `Como reproduzir`, o comando exato para rodar localmente.
+10. `Como reproduzir`, o comando exato para rodar localmente, incluindo `--lang`. O mesmo comando no `report.json` não leva `--lang`.
 
 ## Conceitos
 
@@ -228,13 +249,13 @@ O limite é zero sobreviventes sem waiver. Qualquer sobrevivente assim reprova o
 
 Regras de dependência e ciclos mostram erosão de arquitetura. Quando o módulo A importa B e B importa A, nenhum dos dois muda sozinho.
 
-O bob roda as regras que o repositório já declara, em `.importlinter` para Python (import-linter) e em `.dependency-cruiser.cjs` para TypeScript (dependency-cruiser). Ele soma uma regra sempre ativa, `Proibido ciclo de dependência`, que proíbe ciclos de dependência. Por exemplo, se `app.a` importa `app.b` e o diff faz `app.b` importar `app.a`, o gate mostra ❌ e sai com `1`.
+O bob roda as regras que o repositório já declara, em `.importlinter` para Python (import-linter) e em `.dependency-cruiser.cjs` para TypeScript (dependency-cruiser). Ele soma uma regra sempre ativa, que proíbe ciclos de dependência. O nome em inglês é `Forbidden dependency cycle`. O nome em `pt-BR` é `Proibido ciclo de dependência`. Por exemplo, se `app.a` importa `app.b` e o diff faz `app.b` importar `app.a`, o gate mostra ❌ e sai com `1`.
 
 O limite é zero violações no diff. Uma violação só bloqueia quando a origem, o destino ou outro módulo do mesmo ciclo (componente fortemente conexo) foi alterado no diff. Violações antigas aparecem como `fora do diff; não bloqueia`.
 
 ## Hook pre-push
 
-O script `src/bob_quality/hooks/pre-push` roda `bob check --gates crap,deps`, os gates rápidos. `tests/test_hook.py` confere que ele termina em menos de 60 s no fixture.
+O script `src/bob_quality/hooks/pre-push` roda `bob check --gates crap,deps`, os gates rápidos. Ele segue o `BOB_LANG` e o `language` do `bob.yaml`. `tests/test_hook.py` confere que ele termina em menos de 60 s no fixture.
 
 ```bash
 cp src/bob_quality/hooks/pre-push .git/hooks/pre-push

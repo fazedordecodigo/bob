@@ -26,4 +26,4 @@ Os gates e os exit codes estão em [`docs/SPEC.md`](docs/SPEC.md). Três pontos 
 
 - O gate `crap` bloqueia quando o CRAP de uma função alterada é maior ou igual a `crap.max_per_function`.
 - O exit `2` também sai do `bob check` padrão. O gate `crap` roda a suíte para medir a cobertura e sai com `2` se a baseline quebra.
-- Um `--config` inexistente ou um `bob.yaml` que não é mapeamento dão exit `4`. Um YAML com erro de sintaxe ou uma chave com tipo errado dão traceback e exit `1` ([#39](https://github.com/fazedordecodigo/bob/issues/39)).
+- Um `--config` inexistente, um `bob.yaml` que não é mapeamento, ou um YAML com erro de sintaxe dão exit `4` com mensagem no stderr. Uma chave com tipo errado, como `crap: 5`, ainda dá traceback e exit `1` ([#39](https://github.com/fazedordecodigo/bob/issues/39)).

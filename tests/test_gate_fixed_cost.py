@@ -15,7 +15,14 @@ from bob_quality.adapters.mutmut import mutmut_run_patterns, suite_failed
 from bob_quality.exit_codes import pytest_passed
 from bob_quality.tools import ToolError, run_coverage
 
-from helpers import FIXTURE_PYTHON, commit_on_branch, commit_on_main, init_python_repo, run_bob
+from helpers import (
+    FIXTURE_PYTHON,
+    commit_on_branch,
+    commit_on_main,
+    in_both,
+    init_python_repo,
+    run_bob,
+)
 
 ADD_AND_SCALE = (FIXTURE_PYTHON / "cases" / "add_and_scale.py").read_text()
 ADD_TOUCHED = (FIXTURE_PYTHON / "cases" / "add_touched.py").read_text()
@@ -243,9 +250,11 @@ def test_a_suite_failure_inside_mutmut_run_points_at_also_copy(
     with pytest.raises(ToolError) as caught:
         mutmut_tool.run_mutmut(tmp_path, ["app.safe.x_add__mutmut*"], None)
 
-    assert str(caught.value) == (
+    assert in_both(caught.value) == (
+        "the suite passes in the repository and fails inside mutants/;"
+        f" check also_copy and the [mutmut] configuration: {message}",
         "a suíte passa no repositório e falha dentro de mutants/;"
-        f" confira also_copy e a configuração [mutmut]: {message}"
+        f" confira also_copy e a configuração [mutmut]: {message}",
     )
 
 

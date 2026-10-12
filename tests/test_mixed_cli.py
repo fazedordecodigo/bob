@@ -69,14 +69,14 @@ def test_mixed_repo_without_node_measures_python_and_skips_typescript(
     assert crap["status"] == "warn"
     assert (
         crap["reason"]
-        == "TypeScript pulado: Node ausente: instale Node.js para medir TypeScript (c8 e vitest via npx)"
+        == "TypeScript skipped: Node missing: install Node.js to measure TypeScript (c8 and vitest via npx)"
     )
     assert add["lang"] == "python"
     assert add["cc"] == 1
     assert add["coverage"] == 1.0
     assert add["crap"] == 1.0
     assert {item["lang"] for item in payload["top_crap"]} == {"python"}
-    assert "⚠️ `crap`: aviso (TypeScript pulado:" in markdown
+    assert "⚠️ `crap`: warning (TypeScript skipped:" in markdown
     assert "src/app/safe.py" in markdown
     assert "src/safe.ts" not in markdown
 
@@ -112,10 +112,10 @@ def test_mixed_repo_without_node_keeps_the_skip_when_python_crap_fails(
     assert crap["status"] == "failed"
     assert crap["reason"] == (
         "CRAP >= 10.0: messy@src/app/risky.py:1; "
-        "TypeScript pulado: Node ausente: instale Node.js para medir TypeScript (c8 e vitest via npx)"
+        "TypeScript skipped: Node missing: install Node.js to measure TypeScript (c8 and vitest via npx)"
     )
     assert messy["lang"] == "python"
     assert messy["cc"] == 4
     assert messy["coverage"] == 0.0
     assert messy["crap"] == 20.0
-    assert "❌ `crap`: falhou (CRAP >= 10.0: messy@src/app/risky.py:1; TypeScript pulado:" in markdown
+    assert "❌ `crap`: failed (CRAP >= 10.0: messy@src/app/risky.py:1; TypeScript skipped:" in markdown

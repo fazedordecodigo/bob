@@ -19,6 +19,7 @@ from bob_quality.config import Config
 from bob_quality.core import deps_verdict, unique_violations
 from bob_quality.cycles import strongly_connected
 from bob_quality.exit_codes import CONFIG_OR_TOOL, GATE_FAILED, PASSED
+from bob_quality.messages import DEFAULT_LANGUAGE, Text, msg, reason, t
 from bob_quality.models import DepViolation, GateResult
 from bob_quality.npm_tools import node_missing_message, npm_prefix
 from bob_quality.tools import ToolError
@@ -31,12 +32,8 @@ raise SystemExit(
 )
 """
 _TS_EXTENSIONS = (".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs")
-_NODE_MISSING = (
-    "Node ausente: instale Node.js para o gate de dependências "
-    "(dependency-cruiser via npx)"
-)
-_CRUISER_MISSING = "ferramenta ausente: dependency-cruiser"
-_CYCLE_RULE = "Proibido ciclo de dependência"
+_NODE_MISSING = msg("deps.node_missing")
+_CRUISER_MISSING = msg("tool.missing", tool="dependency-cruiser")
 _GRAPH_RUNNER = """\
 import json, os, sys, grimp
 for entry in sys.argv[1].split(os.pathsep):
@@ -73,7 +70,11 @@ def run_deps_gate(
     try:
         components = _cycle_components(cwd, config) if python_measured else []
         if python_measured:
-            violations.extend(_python_violations(cwd, config, versions))
+            violations.extend(
+                _python_violations(
+                    cwd, config, versions, t(DEFAULT_LANGUAGE, "deps.cycle_rule")
+                )
+            )
         skip = _collect_typescript(
             enabled="typescript" in config.languages,
             python_measured=python_measured,
@@ -81,7 +82,7 @@ def run_deps_gate(
             sink=violations,
         )
     except ToolError as exc:
-        return GateResult("deps", "not_run", str(exc)), CONFIG_OR_TOOL, versions, []
+        return GateResult("deps", "not_run", reason(exc)), CONFIG_OR_TOOL, versions, []
     except UnparsedBreak as exc:
         return GateResult("deps", "failed", exc.reason), GATE_FAILED, versions, []
     marked = _mark_diff(
@@ -101,7 +102,7 @@ def _collect_typescript(
     python_measured: bool,
     measure: Callable[[], list[DepViolation]],
     sink: list[DepViolation],
-) -> str | None:
+) -> Text | None:
     """Mede o TypeScript. Sem Node, e com Python no repo, devolve o motivo do pulo."""
     if not enabled:
         return None
@@ -110,21 +111,21 @@ def _collect_typescript(
     except NodeMissing as exc:
         if not python_measured:
             raise
-        return str(exc)
+        return reason(exc)
     return None
 
 
 def _note_typescript_skipped(
     result: GateResult,
     code: int,
-    reason: str | None,
+    skipped: Text | None,
 ) -> tuple[GateResult, int]:
     """Aviso no veredito. Exit 1 continua 1; o passe vira aviso e não sai 4."""
-    if not reason:
+    if not skipped:
         return result, code
-    note = f"TypeScript pulado: {reason}"
+    note = msg("probe.typescript_skipped", reason=skipped)
     if result.status == "failed":
-        detail = f"{result.reason}; {note}" if result.reason else note
+        detail = msg("probe.joined", first=result.reason, second=note) if result.reason else note
         return GateResult("deps", "failed", detail), code
     if code != PASSED:
         return result, code
@@ -203,11 +204,11 @@ def _import_edges(cwd: Path, config: Config, roots: list[str]) -> dict[str, list
     )
     if completed.returncode != 0:
         detail = _short(completed.stderr or completed.stdout)
-        raise ToolError(f"grimp não montou o grafo: {detail}")
+        raise ToolError(msg("deps.grimp_failed", detail=detail))
     try:
         return _parse_edges(completed.stdout)
     except ValueError as exc:
-        raise ToolError("grimp devolveu um grafo ilegível") from exc
+        raise ToolError(msg("deps.grimp_unreadable")) from exc
 
 
 def _parse_edges(raw: str) -> dict[str, list[str]]:
@@ -268,6 +269,7 @@ def _python_violations(
     cwd: Path,
     config: Config,
     versions: dict[str, str],
+    cycle_rule: str,
 ) -> list[DepViolation]:
     versions["import-linter"] = _import_linter_version()
     found: list[DepViolation] = []
@@ -276,7 +278,7 @@ def _python_violations(
         found.extend(_lint(cwd, config, user))
     roots = _python_roots(cwd, config)
     if roots:
-        found.extend(_lint_cycles(cwd, config, roots))
+        found.extend(_lint_cycles(cwd, config, roots, cycle_rule))
     return unique_violations(found)
 
 
@@ -307,7 +309,7 @@ def _import_linter_version() -> str:
         stdin=subprocess.DEVNULL,
     )
     if completed.returncode != 0:
-        raise ToolError("ferramenta ausente: import-linter")
+        raise ToolError(msg("tool.missing", tool="import-linter"))
     return completed.stdout.strip()
 
 
@@ -316,11 +318,13 @@ def _lint(cwd: Path, config: Config, config_path: Path) -> list[DepViolation]:
     return _import_linter_violations(completed)
 
 
-def _lint_cycles(cwd: Path, config: Config, roots: list[str]) -> list[DepViolation]:
+def _lint_cycles(
+    cwd: Path, config: Config, roots: list[str], cycle_rule: str
+) -> list[DepViolation]:
     with tempfile.TemporaryDirectory(prefix="bob-import-linter-") as tmp:
         path = Path(tmp) / ".importlinter"
-        path.write_text(_cycle_ini(roots), encoding="utf-8")
-        return _lint(cwd, config, path)
+        path.write_text(_cycle_ini(roots, cycle_rule), encoding="utf-8")
+        return [_cycle_named(item) for item in _lint(cwd, config, path)]
 
 
 def _run_linter(cwd: Path, config: Config, config_path: Path) -> subprocess.CompletedProcess[str]:
@@ -341,7 +345,7 @@ class NodeMissing(ToolError):
 class UnparsedBreak(Exception):
     """import-linter saiu quebrado e o texto não trouxe aresta origem → destino."""
 
-    def __init__(self, reason: str) -> None:
+    def __init__(self, reason: Text) -> None:
         self.reason = reason
         super().__init__(reason)
 
@@ -353,7 +357,7 @@ def _import_linter_violations(completed: subprocess.CompletedProcess[str]) -> li
     parsed = parse_import_linter(completed.stdout)
     if completed.returncode == 1 and not parsed:
         name = broken_contract_name(completed.stdout) or "import-linter"
-        raise UnparsedBreak(f"contrato quebrado: {name}")
+        raise UnparsedBreak(msg("deps.contract_broken", name=name))
     return parsed
 
 
@@ -415,7 +419,11 @@ def _packages_under(root: Path) -> list[_Package]:
     ]
 
 
-def _cycle_ini(roots: list[str]) -> str:
+def _cycle_named(item: DepViolation) -> DepViolation:
+    return DepViolation(item.origin, item.destination, msg("deps.cycle_rule"), item.in_diff)
+
+
+def _cycle_ini(roots: list[str], cycle_rule: str) -> str:
     packages = "\n".join(f"    {name}" for name in roots)
     return (
         "[importlinter]\n"
@@ -423,7 +431,7 @@ def _cycle_ini(roots: list[str]) -> str:
         f"{packages}\n"
         "\n"
         "[importlinter:contract:bob-no-cycles]\n"
-        f"name = {_CYCLE_RULE}\n"
+        f"name = {cycle_rule}\n"
         "type = acyclic_siblings\n"
         "ancestors =\n"
         f"{packages}\n"
@@ -560,8 +568,8 @@ def _resolve(cwd: Path, configured: str) -> Path:
     return cwd / path
 
 
-def _short(text: str) -> str:
+def _short(text: str) -> Text:
     compact = " ".join(text.split())
     if not compact:
-        return "ferramenta de dependência falhou"
+        return msg("deps.tool_failed")
     return compact[:300]

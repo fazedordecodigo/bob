@@ -83,6 +83,40 @@ def test_pull_request_base_ref_is_passed_when_input_is_empty(tmp_path: Path) -> 
     assert "--base origin/main" in (tmp_path / ".bob" / "args").read_text()
 
 
+def test_language_input_is_forwarded_as_lang(tmp_path: Path) -> None:
+    _fake_bob(tmp_path / "bin", 0)
+    env = _env(tmp_path / "bin", tmp_path, BOB_LANGUAGE="pt-BR")
+
+    ran = subprocess.run(
+        ["bash", str(RUN_CHECK)],
+        cwd=tmp_path,
+        env=env,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert ran.returncode == 0, ran.stderr
+    assert "--lang pt-BR" in (tmp_path / ".bob" / "args").read_text()
+
+
+def test_empty_language_input_does_not_pass_an_empty_lang(tmp_path: Path) -> None:
+    _fake_bob(tmp_path / "bin", 0)
+    env = _env(tmp_path / "bin", tmp_path, BOB_LANGUAGE="")
+
+    ran = subprocess.run(
+        ["bash", str(RUN_CHECK)],
+        cwd=tmp_path,
+        env=env,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert ran.returncode == 0, ran.stderr
+    assert "--lang" not in (tmp_path / ".bob" / "args").read_text()
+
+
 def test_missing_exit_file_is_a_config_error(tmp_path: Path) -> None:
     env = _env(tmp_path / "bin", tmp_path)
     propagated = subprocess.run(

@@ -37,7 +37,7 @@ def test_logs_the_run() -> None:
     with Path({log!r}).open("a") as runs:
         runs.write(where + "\\n")
 """
-BROKEN = "testes da baseline falharam antes de medir"
+BROKEN = "baseline tests failed before measuring"
 
 
 def _touched(repo_dir: Path) -> Path:
@@ -94,8 +94,8 @@ def test_a_suite_that_fails_only_inside_mutants_points_at_also_copy(tmp_path: Pa
     assert gate["mutate"] == {
         "name": "mutate",
         "status": "not_run",
-        "reason": "a suíte passa no repositório e falha dentro de mutants/; confira also_copy"
-        " e a configuração [mutmut]: FileNotFoundError: [Errno 2] No such file or directory:"
+        "reason": "the suite passes in the repository and fails inside mutants/; check also_copy"
+        " and the [mutmut] configuration: FileNotFoundError: [Errno 2] No such file or directory:"
         f" '{missing}'",
     }
 

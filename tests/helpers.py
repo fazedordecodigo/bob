@@ -2,10 +2,13 @@
 
 from __future__ import annotations
 
+import os
 import shutil
 import subprocess
 import sys
 from pathlib import Path
+
+from bob_quality.messages import Text, reason, render
 
 FIXTURE_PYTHON = Path(__file__).parent / "fixtures" / "python_app"
 FIXTURE_TYPESCRIPT = Path(__file__).parent / "fixtures" / "ts_app"
@@ -18,12 +21,24 @@ TS_RISKY_SOURCE = (FIXTURE_TYPESCRIPT / "cases" / "fail_crap.ts").read_text()
 TS_SAFE_CHANGE = (FIXTURE_TYPESCRIPT / "cases" / "pass_safe.ts").read_text()
 
 
-def run_bob(repo: Path, *args: str) -> subprocess.CompletedProcess[str]:
+def in_both(text: Text | BaseException) -> tuple[str, str]:
+    """A mensagem renderizada em en e em pt-BR."""
+    message = reason(text) if isinstance(text, BaseException) else text
+    return render(message, "en"), render(message, "pt-BR")
+
+
+def run_bob(
+    repo: Path, *args: str, bob_lang: str | None = None
+) -> subprocess.CompletedProcess[str]:
+    env = {key: value for key, value in os.environ.items() if key != "BOB_LANG"}
+    if bob_lang is not None:
+        env["BOB_LANG"] = bob_lang
     return subprocess.run(
         [sys.executable, "-m", "bob_quality", *args],
         cwd=repo,
         capture_output=True,
         text=True,
+        env=env,
     )
 
 
