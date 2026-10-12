@@ -3,10 +3,13 @@
 import json
 from pathlib import Path
 
+from jsonschema import Draft202012Validator
+
 import bob_quality.models as models
 import bob_quality.test_smells as smells
 from bob_quality.check import run_check
 from bob_quality.messages import msg
+from bob_quality.report import to_markdown
 from bob_quality.waivers import Waiver, apply_waivers
 from helpers import (
     SAFE_CHANGE,
@@ -133,6 +136,7 @@ def test_python_without_a_changed_test_passes(tmp_path: Path) -> None:
     assert payload["schema_version"] == 1
     assert payload["exit_code"] == 0
     assert gate == {"name": "test_smells", "status": "passed", "reason": None}
+    assert payload["test_smells"] == []
 
 
 def test_typescript_without_python_is_not_run(tmp_path: Path) -> None:
@@ -151,6 +155,8 @@ def test_typescript_without_python_is_not_run(tmp_path: Path) -> None:
             "reason": "no language measured test smells",
         }
     ]
+    assert payload["test_smells"] == []
+    assert "no language measured test smells" in (repo / ".bob" / "report.md").read_text()
 
 
 def test_a_bad_waiver_file_is_not_a_smell_verdict(tmp_path: Path) -> None:
@@ -339,6 +345,21 @@ def test_a_python_test_without_an_assert_warns_and_exits_0(tmp_path: Path) -> No
             "reason": "1 test smell in the diff",
         }
     ]
+    assert payload["test_smells"] == [
+        {"file": "tests/test_gap.py", "line": 1, "rule": "missing-assert", "waiver": None}
+    ]
+    markdown = (repo / ".bob" / "report.md").read_text()
+    assert markdown.index("## Diff tests") < markdown.index("## How to reproduce")
+    assert "| `tests:tests/test_gap.py:1:missing-assert` | — |" in markdown
+    Draft202012Validator(
+        json.loads(
+            Path(__file__)
+            .resolve()
+            .parents[1]
+            .joinpath("src/bob_quality/schemas/report_v1.json")
+            .read_text()
+        )
+    ).validate(payload)
 
 
 def test_a_python_test_with_an_assert_passes(tmp_path: Path) -> None:
@@ -359,6 +380,7 @@ def test_a_python_test_with_an_assert_passes(tmp_path: Path) -> None:
     assert payload["gates"] == [
         {"name": "test_smells", "status": "passed", "reason": None}
     ]
+    assert payload["test_smells"] == []
 
 
 def test_a_waiver_keeps_the_smell_from_warning(tmp_path: Path) -> None:
@@ -388,6 +410,18 @@ def test_a_waiver_keeps_the_smell_from_warning(tmp_path: Path) -> None:
     assert payload["gates"] == [
         {"name": "test_smells", "status": "passed", "reason": None}
     ]
+    assert payload["test_smells"] == [
+        {
+            "file": "tests/test_gap.py",
+            "line": 1,
+            "rule": "missing-assert",
+            "waiver": "the sandbox clock is real",
+        }
+    ]
+    assert (
+        "| `tests:tests/test_gap.py:1:missing-assert` | the sandbox clock is real |"
+        in (bob / "report.md").read_text()
+    )
 
 
 def test_an_old_skip_on_an_unchanged_line_does_not_warn(tmp_path: Path) -> None:
@@ -404,6 +438,7 @@ def test_an_old_skip_on_an_unchanged_line_does_not_warn(tmp_path: Path) -> None:
     assert payload["gates"] == [
         {"name": "test_smells", "status": "passed", "reason": None}
     ]
+    assert payload["test_smells"] == []
 
 
 def test_conftest_is_not_a_test_file(tmp_path: Path) -> None:
@@ -578,6 +613,15 @@ def test_eslint_json_keeps_jest_and_vitest_hits_on_changed_lines(tmp_path: Path)
             "reason": "2 test smells in the diff",
         }
     ]
+    assert payload["test_smells"] == [
+        {"file": "src/gap.test.ts", "line": 1, "rule": "jest/expect-expect", "waiver": None},
+        {
+            "file": "src/gap.test.ts",
+            "line": 1,
+            "rule": "vitest/no-commented-out-tests",
+            "waiver": None,
+        },
+    ]
 
 
 def test_eslint_exit_2_is_not_run_even_when_stdout_is_json(tmp_path: Path) -> None:
@@ -691,3 +735,125 @@ def test_a_broken_eslint_stays_in_the_reason_when_python_warns(tmp_path: Path) -
         }
     ]
     assert payload["tool_versions"] == {}
+
+
+def test_an_empty_test_is_not_also_missing_assert(tmp_path: Path) -> None:
+    repo = init_python_repo(tmp_path / "repo")
+    commit_on_branch(
+        repo,
+        "empty",
+        "tests/test_gap.py",
+        "def test_gap():\n    pass\n",
+        "add an empty test",
+    )
+
+    result, payload = _gate(repo)
+
+    assert result.returncode == 0, result.stderr
+    assert payload["exit_code"] == 0
+    assert payload["test_smells"] == [
+        {"file": "tests/test_gap.py", "line": 1, "rule": "empty-test", "waiver": None}
+    ]
+
+
+def test_a_new_skip_is_only_disabled_test(tmp_path: Path) -> None:
+    repo = init_python_repo(tmp_path / "repo")
+    commit_on_branch(
+        repo,
+        "skip",
+        "tests/test_gap.py",
+        "import pytest\n\n@pytest.mark.skip\ndef test_gap():\n    pass\n",
+        "add a skipped test",
+    )
+
+    result, payload = _gate(repo)
+
+    assert result.returncode == 0, result.stderr
+    assert payload["test_smells"] == [
+        {"file": "tests/test_gap.py", "line": 3, "rule": "disabled-test", "waiver": None}
+    ]
+
+
+def test_sleep_on_a_changed_line_is_reported(tmp_path: Path) -> None:
+    repo = init_python_repo(tmp_path / "repo")
+    commit_on_branch(
+        repo,
+        "sleep",
+        "tests/test_gap.py",
+        "import time\n\ndef test_gap():\n    time.sleep(1)\n    assert True\n",
+        "add a sleeping test",
+    )
+
+    result, payload = _gate(repo)
+
+    assert result.returncode == 0, result.stderr
+    assert payload["test_smells"] == [
+        {"file": "tests/test_gap.py", "line": 4, "rule": "sleep", "waiver": None}
+    ]
+
+
+def test_markdown_puts_diff_tests_between_uncovered_mutants_and_reproduce() -> None:
+    smell = models.TestSmell("tests/test_gap.py", 1, "missing-assert", None)
+    report = models.Report(
+        schema_version=1,
+        commit="abc",
+        base="main",
+        generated_at="2026-10-12T00:00:00+00:00",
+        tool_versions={},
+        gates=[models.GateResult("test_smells", "warn", msg("test_smells.one", count=1))],
+        focus=[],
+        top_crap=[],
+        reproduce="bob check --gates test_smells",
+        exit_code=0,
+        mutation={"no_coverage": {"total": 0, "functions": []}},
+        test_smells=(smell,),
+    )
+
+    english = to_markdown(report, "en")
+    portuguese = to_markdown(report, "pt-BR")
+
+    assert english.index("## Mutants without tests") < english.index("## Diff tests")
+    assert english.index("## Diff tests") < english.index("## How to reproduce")
+    assert portuguese.index("## Mutantes sem teste") < portuguese.index("## Testes do diff")
+    assert portuguese.index("## Testes do diff") < portuguese.index("## Como reproduzir")
+    assert "| `tests:tests/test_gap.py:1:missing-assert` | — |" in english
+    assert "| Id | Motivo |" in portuguese
+
+
+def test_an_empty_passed_section_does_not_repeat_a_typescript_failure() -> None:
+    report = models.Report(
+        schema_version=1,
+        commit="abc",
+        base="main",
+        generated_at="2026-10-12T00:00:00+00:00",
+        tool_versions={},
+        gates=[
+            models.GateResult("test_smells", "passed", msg("test_smells.eslint_bad_exit", code=2))
+        ],
+        focus=[],
+        top_crap=[],
+        reproduce="bob check --gates test_smells",
+        test_smells=(),
+    )
+
+    english = to_markdown(report, "en")
+    portuguese = to_markdown(report, "pt-BR")
+
+    assert "No smells in the changed tests." in english
+    assert "Nenhum cheiro nos testes alterados." in portuguese
+    assert english.count("eslint exited 2") == 1
+    assert portuguese.count("eslint saiu com 2") == 1
+
+
+def test_report_schema_keeps_version_1_and_leaves_test_smells_optional() -> None:
+    schema = json.loads(
+        Path(__file__)
+        .resolve()
+        .parents[1]
+        .joinpath("src/bob_quality/schemas/report_v1.json")
+        .read_text()
+    )
+
+    assert schema["properties"]["schema_version"]["const"] == 1
+    assert "test_smells" in schema["properties"]
+    assert "test_smells" not in schema["required"]

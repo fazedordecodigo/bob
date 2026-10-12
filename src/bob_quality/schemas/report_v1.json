@@ -118,6 +118,19 @@
       }
     },
     "reproduce": { "type": "string" },
-    "exit_code": { "type": "integer" }
+    "exit_code": { "type": "integer" },
+    "test_smells": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["file", "line", "rule", "waiver"],
+        "properties": {
+          "file": { "type": "string" },
+          "line": { "type": "integer" },
+          "rule": { "type": "string" },
+          "waiver": { "type": ["string", "null"] }
+        }
+      }
+    }
   }
 }

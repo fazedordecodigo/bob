@@ -13,7 +13,9 @@ from bob_quality.models import (
     GateResult,
     GateStatus,
     Report,
+    TestSmell,
 )
+from bob_quality.test_smells import waiver_id
 
 JSON_LANGUAGE: Language = "en"
 
@@ -41,7 +43,7 @@ def write_report(report: Report, out_dir: Path, fmt: str, lang: Language) -> Non
 
 
 def to_json(report: Report) -> dict[str, object]:
-    return {
+    payload = {
         "schema_version": report.schema_version,
         "commit": report.commit,
         "base": report.base,
@@ -63,6 +65,9 @@ def to_json(report: Report) -> dict[str, object]:
         "reproduce": report.reproduce,
         "exit_code": report.exit_code,
     }
+    if report.test_smells is not None:
+        payload["test_smells"] = [smell_row(smell) for smell in report.test_smells]
+    return payload
 
 
 def _json_reason(reason: Text | None) -> str | None:
@@ -97,6 +102,7 @@ def to_markdown(report: Report, lang: Language) -> str:
     lines.extend(_clone_lines(report))
     lines.extend(_survivor_lines(report))
     lines.extend(_no_coverage_lines(report))
+    lines.extend(_test_smell_lines(report))
     lines.extend(_footer(report, lang))
     return "\n".join(render(line, lang) for line in lines)
 
@@ -221,9 +227,35 @@ def _waiver_section(waivers: list[dict[str, object]]) -> list[Text]:
     return lines
 
 
+def _test_smell_lines(report: Report) -> list[Text]:
+    if report.test_smells is None:
+        return []
+    lines: list[Text] = ["", msg("report.test_smells"), ""]
+    if report.test_smells:
+        lines.append(msg("report.test_smell_header"))
+        lines.append("|---|---|")
+        lines.extend(_test_smell_row(smell) for smell in report.test_smells)
+        return lines
+    gate = _gate_named(report, "test_smells")
+    if gate is not None and gate.status == "not_run" and gate.reason:
+        lines.append(gate.reason)
+        return lines
+    lines.append(msg("report.no_test_smells"))
+    return lines
+
+
+def _test_smell_row(smell: TestSmell) -> str:
+    reason = smell.waiver or "—"
+    return f"| `{waiver_id(smell)}` | {reason.replace('|', '\\|')} |"
+
+
 def _footer(report: Report, lang: Language) -> list[Text]:
     command = f"{report.reproduce} --lang {lang}" if report.reproduce else ""
     return ["", msg("report.reproduce"), "", "```", command, "```", ""]
+
+
+def smell_row(smell: TestSmell) -> dict[str, object]:
+    return {"file": smell.file, "line": smell.line, "rule": smell.rule, "waiver": smell.waiver}
 
 
 def clone_row(clone: Clone) -> dict[str, object]:

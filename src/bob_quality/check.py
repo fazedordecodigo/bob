@@ -15,7 +15,7 @@ from bob_quality.dry_gate import run_dry_gate
 from bob_quality.test_smells import run_test_smells_gate
 from bob_quality.exit_codes import CONFIG_OR_TOOL, PASSED
 from bob_quality.messages import DEFAULT_LANGUAGE, Language, Text, msg, reason
-from bob_quality.models import Clone, DepViolation, FunctionMetric, GateResult, Report
+from bob_quality.models import Clone, DepViolation, FunctionMetric, GateResult, Report, TestSmell
 from bob_quality.mutate import MutationOutcome, focus_with_survivors, run_mutation_gate
 from bob_quality.report import metric_row, violation_rows, write_report
 from bob_quality.waivers import WaiverError, load_waivers
@@ -112,6 +112,7 @@ class _Measured:
     mutation: MutationOutcome | None = None
     loaded_waivers: list[dict[str, object]] = field(default_factory=list)
     baseline: int | None = None
+    test_smells: tuple[TestSmell, ...] | None = None
 
 
 def _measure(
@@ -171,7 +172,8 @@ def _absorb(
         _record(state, result, code, versions)
         return
     if gate == "test_smells":
-        result, _smells, code, versions = run_test_smells_gate(cwd, config, diff_lines)
+        result, smells, code, versions = run_test_smells_gate(cwd, config, diff_lines)
+        state.test_smells = smells
         _record(state, result, code, versions)
         return
     if gate == "deps":
@@ -254,6 +256,7 @@ def _assemble(
         waivers=waivers,
         survivors=survivors,
         mutation=summary,
+        test_smells=measured.test_smells,
     )
 
 

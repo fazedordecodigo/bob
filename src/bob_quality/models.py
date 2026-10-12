@@ -122,3 +122,4 @@ class Report:
     waivers: list[dict[str, object]] = field(default_factory=list)
     survivors: list[dict[str, object]] = field(default_factory=list)
     mutation: dict[str, object] | None = None
+    test_smells: tuple[TestSmell, ...] | None = None
