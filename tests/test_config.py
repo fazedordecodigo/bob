@@ -127,10 +127,19 @@ def test_load_config_keeps_the_default_min_tokens_without_the_key(
     assert load_config(None, tmp_path).min_tokens == 50
 
 
-def test_load_config_stores_zero_min_tokens(tmp_path: Path) -> None:
+def test_load_config_rejects_zero_min_tokens(tmp_path: Path) -> None:
     (tmp_path / "bob.yaml").write_text("duplication:\n  min_tokens: 0\n")
 
-    assert load_config(None, tmp_path).min_tokens == 0
+    assert _config_error(tmp_path) == (
+        "bob.yaml: duplication.min_tokens must be greater than 0",
+        "bob.yaml: duplication.min_tokens deve ser maior que 0",
+    )
+
+
+def test_load_config_stores_one_min_token(tmp_path: Path) -> None:
+    (tmp_path / "bob.yaml").write_text("duplication:\n  min_tokens: 1\n")
+
+    assert load_config(None, tmp_path).min_tokens == 1
 
 
 def test_load_config_stores_all_as_the_crap_scope(tmp_path: Path) -> None:
@@ -146,10 +155,28 @@ def test_load_config_stores_changed_when_scope_is_absent(tmp_path: Path, text: s
     assert load_config(None, tmp_path).crap_scope == "changed"
 
 
-def test_load_config_stores_an_empty_languages_list_as_the_default(tmp_path: Path) -> None:
+def test_load_config_rejects_an_empty_languages_list(tmp_path: Path) -> None:
     (tmp_path / "bob.yaml").write_text("languages: []\n")
 
+    assert _config_error(tmp_path) == (
+        "bob.yaml: languages must not be empty",
+        "bob.yaml: languages não deve ser vazio",
+    )
+
+
+@pytest.mark.parametrize("text", ["languages:\n", "languages: null\n", "{}\n"])
+def test_load_config_stores_python_when_languages_is_absent(
+    tmp_path: Path, text: str
+) -> None:
+    (tmp_path / "bob.yaml").write_text(text)
+
     assert load_config(None, tmp_path).languages == ("python",)
+
+
+def test_load_config_keeps_languages_in_file_order(tmp_path: Path) -> None:
+    (tmp_path / "bob.yaml").write_text("languages: [typescript, python]\n")
+
+    assert load_config(None, tmp_path).languages == ("typescript", "python")
 
 
 def test_load_config_reads_an_empty_mapping_as_the_defaults(tmp_path: Path) -> None:
@@ -284,7 +311,6 @@ def test_load_config_names_an_explicit_file_on_a_wrong_type(tmp_path: Path) -> N
 def test_load_config_treats_null_and_empty_collections_as_defaults(tmp_path: Path) -> None:
     (tmp_path / "bob.yaml").write_text(
         "base:\n"
-        "languages: []\n"
         "paths:\n"
         "  include:\n"
         "  exclude: []\n"
@@ -336,11 +362,11 @@ def test_load_config_rejects_invalid_yaml(tmp_path: Path) -> None:
 
 
 def test_load_config_rejects_a_numeric_language(tmp_path: Path) -> None:
-    (tmp_path / "bob.yaml").write_text("language: 1\n")
+    (tmp_path / "bob.yaml").write_text("language: 5\n")
 
     assert _config_error(tmp_path) == (
-        "invalid language: 1 (use en or pt-BR)",
-        "idioma inválido: 1 (use en ou pt-BR)",
+        "bob.yaml: language must be a string",
+        "bob.yaml: language deve ser um texto",
     )
 
 
@@ -348,8 +374,8 @@ def test_load_config_rejects_an_unknown_language(tmp_path: Path) -> None:
     (tmp_path / "bob.yaml").write_text("language: fr\n")
 
     assert _config_error(tmp_path) == (
-        "invalid language: fr (use en or pt-BR)",
-        "idioma inválido: fr (use en ou pt-BR)",
+        "bob.yaml: language must be en or pt-BR",
+        "bob.yaml: language deve ser en ou pt-BR",
     )
 
 
@@ -360,10 +386,11 @@ def test_load_config_treats_an_empty_language_as_unset(tmp_path: Path, line: str
     assert load_config(None, tmp_path) == Config()
 
 
-def test_configured_language_reads_bob_yaml(tmp_path: Path) -> None:
-    (tmp_path / "bob.yaml").write_text("language: pt-BR\n")
+@pytest.mark.parametrize("language", ["en", "pt-BR"])
+def test_configured_language_reads_bob_yaml(tmp_path: Path, language: str) -> None:
+    (tmp_path / "bob.yaml").write_text(f"language: {language}\n")
 
-    assert configured_language(None, tmp_path) == "pt-BR"
+    assert configured_language(None, tmp_path) == language
 
 
 def test_configured_language_reads_an_explicit_path(tmp_path: Path) -> None:
@@ -379,16 +406,16 @@ def test_configured_language_rejects_an_unknown_language(tmp_path: Path) -> None
     with pytest.raises(ConfigError) as caught:
         configured_language(None, tmp_path)
 
-    assert render(reason(caught.value), "en") == "invalid language: fr (use en or pt-BR)"
+    assert render(reason(caught.value), "en") == "bob.yaml: language must be en or pt-BR"
 
 
 def test_configured_language_rejects_a_number(tmp_path: Path) -> None:
-    (tmp_path / "bob.yaml").write_text("language: 1\n")
+    (tmp_path / "bob.yaml").write_text("language: 5\n")
 
     with pytest.raises(ConfigError) as caught:
         configured_language(None, tmp_path)
 
-    assert render(reason(caught.value), "en") == "invalid language: 1 (use en or pt-BR)"
+    assert render(reason(caught.value), "en") == "bob.yaml: language must be a string"
 
 
 def test_configured_language_rejects_a_list(tmp_path: Path) -> None:
@@ -503,8 +530,18 @@ def test_resolve_language_rejects_an_empty_string(flag: str | None, env: str | N
         ),
         (
             "languages: []\ncrap:\n  max_per_function: -1\n",
-            "bob.yaml: crap.max_per_function must be greater than 0",
-            "bob.yaml: crap.max_per_function deve ser maior que 0",
+            "bob.yaml: languages must not be empty",
+            "bob.yaml: languages não deve ser vazio",
+        ),
+        (
+            "languages: [python, python]\n",
+            "bob.yaml: languages[1] repeats python",
+            "bob.yaml: languages[1] repete python",
+        ),
+        (
+            "languages: [ruby, ruby]\n",
+            "bob.yaml: languages[0] must be python or typescript",
+            "bob.yaml: languages[0] deve ser python ou typescript",
         ),
         (
             "crap:\n  max_per_function: " + "1" + "0" * 400 + "\n",
@@ -533,8 +570,13 @@ def test_resolve_language_rejects_an_empty_string(flag: str | None, env: str | N
         ),
         (
             "duplication:\n  min_tokens: -1\n",
-            "bob.yaml: duplication.min_tokens must be at least 0",
-            "bob.yaml: duplication.min_tokens deve ser no mínimo 0",
+            "bob.yaml: duplication.min_tokens must be greater than 0",
+            "bob.yaml: duplication.min_tokens deve ser maior que 0",
+        ),
+        (
+            "duplication:\n  min_tokens: 0\n",
+            "bob.yaml: duplication.min_tokens must be greater than 0",
+            "bob.yaml: duplication.min_tokens deve ser maior que 0",
         ),
     ],
 )
@@ -555,8 +597,11 @@ def test_load_config_rejects_an_illegal_semantic_value(
         ({"max_crap": float("inf")}, "max_crap"),
         ({"max_crap": 10**400}, "max_crap"),
         ({"min_tokens": -1}, "min_tokens"),
+        ({"min_tokens": 0}, "min_tokens"),
         ({"min_tokens": True}, "min_tokens"),
         ({"languages": ("python", "ruby")}, "languages"),
+        ({"languages": ()}, "languages"),
+        ({"languages": ("python", "python")}, "languages"),
         ({"languages": "python"}, "languages"),
     ],
 )
@@ -567,8 +612,11 @@ def test_config_rejects_an_illegal_in_process_value(kwargs: dict[str, object], n
     assert caught.value.args == (name,)
 
 
-def test_config_accepts_an_empty_language() -> None:
-    assert Config(language="").language == ""
+def test_config_rejects_an_empty_language() -> None:
+    with pytest.raises(ValueError) as caught:
+        Config(language="")
+
+    assert caught.value.args == ("language",)
 
 
 def test_check_rejects_a_bound_that_is_not_a_real_number() -> None:
@@ -577,7 +625,6 @@ def test_check_rejects_a_bound_that_is_not_a_real_number() -> None:
 
     assert caught.value.args == ("gt",)
     _Bound("gt", 0)
-    _Bound("at_least", 0.0)
 
 
 def test_check_rejects_a_choice_list_that_is_not_a_pair() -> None:
@@ -589,7 +636,12 @@ def test_check_rejects_a_choice_list_that_is_not_a_pair() -> None:
         _Check("members", choices=())
 
     assert members.value.args == ("members",)
+    with pytest.raises(ValueError) as language:
+        _Check("language")
+
+    assert language.value.args == ("language",)
     _Check("one_of", choices=("changed", "all"))
+    _Check("language", choices=("en", "pt-BR"))
     _Check("string")
 
 

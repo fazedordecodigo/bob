@@ -32,6 +32,6 @@ Uma linguagem nova entra por um adaptador e um runner. O veredito de CRAP, de de
 
 O preço é uma fronteira fácil de furar sem um import proibido. As docstrings de `models.py` nomeiam as ferramentas. O adaptador do mutmut também decide o prefixo da corrida e o que conta como falha da suíte. `mutate.py` reconstrói `Mutant` a partir do cache. Um status desconhecido no cache vira `survived`. O mesmo rótulo na saída ao vivo levanta `MutmutParseError`.
 
-grimp não tem adaptador nem pin direto. O gate de dependências pede o grafo com `python -c` e `cycles.py` percorre as arestas. A spec só nomeia import-linter e dependency-cruiser.
+grimp não tem adaptador. O pin direto é `grimp==3.17`. O gate de dependências pede o grafo com `python -c` e `cycles.py` percorre as arestas. A spec só nomeia import-linter e dependency-cruiser.
 
 A cobertura que entra no CRAP é a fração de statements no intervalo da função. O PR #20 diz que branch e lcov não entram nessa fatia. A spec, na lista de adaptadores, ainda fala em cobertura de branch e em lcov.

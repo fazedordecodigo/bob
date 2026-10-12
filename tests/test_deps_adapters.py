@@ -11,6 +11,7 @@ from bob_quality.adapters.dependency_cruiser import parse_dependency_cruiser
 from bob_quality.adapters.import_linter import broken_contract_name, parse_import_linter
 from bob_quality.config import Config
 from bob_quality.deps_gate import (
+    NodeMissing,
     UnparsedBreak,
     _cruise_violations,
     _import_linter_violations,
@@ -18,7 +19,7 @@ from bob_quality.deps_gate import (
     _short,
     run_deps_gate,
 )
-from bob_quality.messages import render
+from bob_quality.messages import msg, render
 from bob_quality.models import DepViolation, GateResult, Report
 from bob_quality.report import to_markdown
 from bob_quality.tools import ToolError
@@ -423,6 +424,16 @@ def test_cruiser_json_without_a_violations_list_exits_4(
     assert in_both(result.reason) == _CRUISER_MISSING
 
 
+@pytest.mark.parametrize("raw", ["[]", "null", '"nope"', "1"])
+def test_cruiser_json_that_is_not_an_object_exits_4(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, raw: str
+) -> None:
+    result, code, _, rows = _cruiser_gate(monkeypatch, tmp_path, raw)
+
+    assert (code, result.name, result.status, rows) == (4, "deps", "not_run", [])
+    assert in_both(result.reason) == _CRUISER_MISSING
+
+
 def test_cruiser_empty_violations_list_still_passes(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -448,6 +459,31 @@ def test_import_linter_exit_0_without_an_empty_report_exits_4(
 
     assert (code, result.name, result.status, rows) == (4, "deps", "not_run", [])
     assert in_both(result.reason) == _LINTER_UNRECOGNIZED
+
+
+def test_import_linter_earlier_kept_line_does_not_hide_a_broken_summary(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    raw = "Contracts: 1 kept, 0 broken.\nContracts: 1 kept, 1 broken.\n"
+    result, code, _, rows = _linter_gate(monkeypatch, tmp_path, raw)
+
+    assert (code, result.name, result.status, rows) == (4, "deps", "not_run", [])
+    assert in_both(result.reason) == _LINTER_UNRECOGNIZED
+
+
+def test_import_linter_last_summary_line_kept_still_passes(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    raw = "Contracts: 1 kept, 1 broken.\nContracts: 2 kept, 0 broken.\n"
+    result, code, _, rows = _linter_gate(monkeypatch, tmp_path, raw)
+
+    assert (code, result.name, result.status, result.reason, rows) == (
+        0,
+        "deps",
+        "passed",
+        None,
+        [],
+    )
 
 
 def test_import_linter_recognized_empty_report_still_passes(
@@ -484,3 +520,154 @@ def test_cruiser_invalid_json_reports_stderr_before_stdout() -> None:
         _cruise_violations(_linted(1, "{", ""))
     with pytest.raises(ToolError, match="^broken stderr$"):
         _cruise_violations(_linted(1, "{", "broken stderr"))
+
+
+def test_typescript_only_measurement_stays_in_the_repo_and_skips_python_cycles(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    seen: dict[str, object] = {}
+    config = Config(languages=("typescript",))
+
+    def forbid_python_graph(cwd: Path, measured: Config) -> list[frozenset[str]]:
+        raise ToolError(msg("deps.grimp_failed", detail="python graph"))
+
+    def measure(cwd: Path, measured: Config, versions: dict[str, str]) -> list[DepViolation]:
+        seen["cwd"] = cwd
+        seen["config"] = measured
+        versions["dependency-cruiser"] = "18.5.0"
+        return []
+
+    monkeypatch.setattr("bob_quality.deps_gate._cycle_components", forbid_python_graph)
+    monkeypatch.setattr("bob_quality.deps_gate._typescript_violations", measure)
+    result, code, versions, rows = run_deps_gate(tmp_path, config)
+
+    assert (code, result.name, result.status, result.reason, rows) == (
+        0,
+        "deps",
+        "passed",
+        None,
+        [],
+    )
+    assert seen["cwd"] == tmp_path
+    assert seen["config"] is config
+    assert versions["dependency-cruiser"] == "18.5.0"
+
+
+def test_python_cycle_contract_is_named_from_the_catalog(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    package = tmp_path / "src" / "app"
+    package.mkdir(parents=True)
+    (package / "__init__.py").write_text("")
+    seen: dict[str, object] = {}
+
+    def ini(roots: list[str], cycle_rule: str) -> str:
+        seen["roots"] = roots
+        seen["rule"] = cycle_rule
+        return "[importlinter]\n"
+
+    monkeypatch.setattr("bob_quality.deps_gate._cycle_components", lambda cwd, config: [])
+    monkeypatch.setattr("bob_quality.deps_gate._cycle_ini", ini)
+    monkeypatch.setattr("bob_quality.deps_gate._lint", lambda cwd, config, path: [])
+    result, code, _, rows = run_deps_gate(tmp_path, Config(languages=("python",)))
+
+    assert (code, result.status, rows) == (0, "passed", [])
+    assert seen["roots"] == ["app"]
+    assert seen["rule"] == "Forbidden dependency cycle"
+
+
+def test_a_changed_module_in_the_cycle_marks_the_untouched_edge(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def components(cwd: Path, config: Config) -> list[frozenset[str]]:
+        return [frozenset({"app.a", "app.b", "app.c"})]
+
+    def measure(
+        cwd: Path, config: Config, versions: dict[str, str], cycle_rule: str
+    ) -> list[DepViolation]:
+        versions["import-linter"] = "2.15"
+        return [DepViolation("app.a", "app.c", "cycle", False)]
+
+    monkeypatch.setattr("bob_quality.deps_gate._cycle_components", components)
+    monkeypatch.setattr("bob_quality.deps_gate._python_violations", measure)
+    result, code, _, rows = run_deps_gate(
+        tmp_path, Config(languages=("python",)), {"app/b.py"}
+    )
+
+    assert code == 1
+    assert result.status == "failed"
+    assert [(item.origin, item.destination, item.in_diff) for item in rows] == [
+        ("app.a", "app.c", True)
+    ]
+
+
+def test_changed_python_module_file_blocks_its_dependency_edge(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def measure(
+        cwd: Path, config: Config, versions: dict[str, str], cycle_rule: str
+    ) -> list[DepViolation]:
+        versions["import-linter"] = "2.15"
+        return [DepViolation("app.api", "app.domain", "layers", False)]
+
+    monkeypatch.setattr("bob_quality.deps_gate._cycle_components", lambda cwd, config: [])
+    monkeypatch.setattr("bob_quality.deps_gate._python_violations", measure)
+    result, code, _, rows = run_deps_gate(
+        tmp_path, Config(languages=("python",)), {"app/api.py"}
+    )
+
+    assert (code, result.status) == (1, "failed")
+    assert [(item.origin, item.destination, item.in_diff) for item in rows] == [
+        ("app.api", "app.domain", True)
+    ]
+
+
+def test_unparsed_break_fails_the_gate_with_the_contract_name(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def broken(
+        cwd: Path, config: Config, versions: dict[str, str], cycle_rule: str
+    ) -> list[DepViolation]:
+        versions["import-linter"] = "2.15"
+        raise UnparsedBreak(msg("deps.contract_broken", name="Layers"))
+
+    monkeypatch.setattr("bob_quality.deps_gate._cycle_components", lambda cwd, config: [])
+    monkeypatch.setattr("bob_quality.deps_gate._python_violations", broken)
+    result, code, versions, rows = run_deps_gate(tmp_path, Config(languages=("python",)))
+
+    assert (code, result.name, result.status, rows) == (1, "deps", "failed", [])
+    assert versions["import-linter"] == "2.15"
+    assert in_both(result.reason) == (
+        "broken contract: Layers",
+        "contrato quebrado: Layers",
+    )
+
+
+def test_missing_node_on_a_mixed_repo_warns_instead_of_skipping_the_gate(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def python_ok(
+        cwd: Path, config: Config, versions: dict[str, str], cycle_rule: str
+    ) -> list[DepViolation]:
+        versions["import-linter"] = "2.15"
+        return []
+
+    def typescript_missing(
+        cwd: Path, config: Config, versions: dict[str, str]
+    ) -> list[DepViolation]:
+        raise NodeMissing(msg("deps.node_missing"))
+
+    monkeypatch.setattr("bob_quality.deps_gate._cycle_components", lambda cwd, config: [])
+    monkeypatch.setattr("bob_quality.deps_gate._python_violations", python_ok)
+    monkeypatch.setattr("bob_quality.deps_gate._typescript_violations", typescript_missing)
+    result, code, _, rows = run_deps_gate(
+        tmp_path, Config(languages=("python", "typescript"))
+    )
+
+    assert (code, result.name, result.status, rows) == (0, "deps", "warn", [])
+    assert in_both(result.reason) == (
+        "TypeScript skipped: Node missing: install Node.js for the dependency gate "
+        "(dependency-cruiser via npx)",
+        "TypeScript pulado: Node ausente: instale Node.js para o gate de dependências "
+        "(dependency-cruiser via npx)",
+    )
