@@ -313,23 +313,25 @@ def test_a_mutmut_section_in_pyproject_hides_the_setup_cfg_one(tmp_path: Path) -
 
 
 @pytest.mark.parametrize(
-    ("files", "english", "portuguese"),
+    ("files", "english", "portuguese", "detail"),
     [
         (
             {"pyproject.toml": "[tool.mutmut\n"},
             "unreadable pyproject.toml: ",
             "pyproject.toml ilegível: ",
+            "Expected ']' at the end of a table declaration",
         ),
         (
             {"setup.cfg": "also_copy = data\n"},
             "unreadable setup.cfg: ",
             "setup.cfg ilegível: ",
+            "File contains no section headers",
         ),
     ],
     ids=["pyproject", "setup.cfg"],
 )
 def test_an_unreadable_config_is_a_tool_error(
-    tmp_path: Path, files: dict[str, str], english: str, portuguese: str
+    tmp_path: Path, files: dict[str, str], english: str, portuguese: str, detail: str
 ) -> None:
     repo = _git_repo(tmp_path, files)
 
@@ -339,6 +341,8 @@ def test_an_unreadable_config_is_a_tool_error(
     rendered = in_both(caught.value)
     assert rendered[0].startswith(english)
     assert rendered[1].startswith(portuguese)
+    assert detail in rendered[0]
+    assert detail in rendered[1]
 
 
 def test_outside_a_git_repository_the_fingerprint_is_a_tool_error(tmp_path: Path) -> None:
