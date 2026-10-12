@@ -23,11 +23,11 @@ Estas partes funcionam na `main`:
 - Mutação diferencial em Python, e `bob waive`.
 - A GitHub Action que comenta o relatório no pull request.
 - `bob doctor`, e o pacote `bob-quality` pronto para distribuir. Nada foi enviado ao PyPI.
+- Os manifestos de plugin para Claude Code, Cursor, Copilot e Devin, e o instalador de skills ([#10](https://github.com/fazedordecodigo/bob/issues/10)). Nada foi enviado a marketplace.
 
 Estas partes estão planejadas (planned):
 
 - Mutação em TypeScript com StrykerJS ([#8](https://github.com/fazedordecodigo/bob/issues/8)).
-- Empacotamento para Claude Code, Cursor, Copilot e Devin ([#10](https://github.com/fazedordecodigo/bob/issues/10)).
 - Um aviso para mutantes `no_coverage` no relatório ([#31](https://github.com/fazedordecodigo/bob/issues/31)).
 - O comando `bob report` que o `docs/SPEC.md` lista. A CLI ainda não o tem.
 - Publicação no PyPI e nos marketplaces dos agentes.
@@ -69,6 +69,46 @@ npm ci
 ```
 
 Esses comandos instalam o comando `bob`, as ferramentas Python pinadas em `pyproject.toml` (`lizard`, `coverage`, `mutmut`, `import-linter`) e as ferramentas npm pinadas em `package.json` (`c8`, `vitest`, `jscpd`, `dependency-cruiser`). `bob doctor` mostra a versão esperada e a encontrada de cada ferramenta.
+
+## Instalação nos agentes
+
+Nada foi publicado. Os comandos partem de um clone deste repositório. O plugin traz 30 skills: `bob-check`, `harden`, `review-report` e as skills de `engineering/` e `productivity/` do Matt Pocock. É a mesma seleção do plugin do próprio Pocock, sem `misc/` nem `in-progress/`.
+
+**Claude Code** lê `.claude-plugin/`. Adicione o clone como marketplace local e instale o plugin:
+
+```bash
+claude plugin marketplace add <caminho do clone>
+claude plugin install bob@bob
+```
+
+Para uma sessão só, rode `claude --plugin-dir <caminho do clone>`.
+
+**Cursor** lê `.cursor-plugin/`. Copie o clone para `~/.cursor/plugins/local/bob` como cópia real, não como symlink, e rode **Developer: Reload Window**:
+
+```bash
+git clone <caminho do clone> ~/.cursor/plugins/local/bob
+```
+
+**GitHub Copilot CLI** também lê `.claude-plugin/`:
+
+```bash
+copilot plugin marketplace add <caminho do clone>
+copilot plugin install bob@bob
+```
+
+**Skills do repositório.** O `install_skills.py` copia as skills, achatadas, para a pasta de skills de um projeto:
+
+```bash
+python3 <caminho do clone>/src/bob_quality/install_skills.py --project <projeto> agents
+```
+
+| Alvo | Pasta | Lida por |
+|---|---|---|
+| `agents` | `.agents/skills` | Cursor, Copilot, Devin |
+| `devin` | `.agents/skills` | Devin (a pasta recomendada por ele) |
+| `copilot` | `.github/skills` | Copilot, Devin |
+
+O Devin lê as duas pastas. Se um projeto receber `copilot` e `devin`, o Devin carrega cada skill duas vezes, então escolha um. Rodar o instalador de novo substitui as skills do bob e não mexe nas outras skills da pasta. Como o instalador achata as pastas, cada skill instalada leva o seu `LICENSE`, e as do Pocock levam também o `NOTICE`. Ele também roda como `python -m bob_quality.install_skills`. O `bob-quality` instalado pelo pip não traz as skills, então passe `--source <caminho do clone>`. Sem manifesto, o instalador diz o caminho que leu e sai com `4`. Quando uma skill não tem `LICENSE` da pasta dela até a raiz do plugin, o instalador avisa no stderr e ainda assim a instala.
 
 ## Uso
 
@@ -285,6 +325,7 @@ A action aceita os inputs `base`, `gates`, `pip-spec` e `token`. Este repositór
 - `skills/harden/` diz como matar um mutante sobrevivente ou registrar um waiver.
 - `skills/review-report/` resume `.bob/report.md` no pull request.
 - `AGENTS.md` é o índice para agentes.
+- `.claude-plugin/` e `.cursor-plugin/` são os manifestos do plugin. Veja [Instalação nos agentes](#instalação-nos-agentes).
 
 ## Créditos
 

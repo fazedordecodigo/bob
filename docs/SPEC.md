@@ -109,8 +109,9 @@ O JSON segue um schema versionado (`schema_version: 1`). Os títulos e os textos
 - **A implementação do próprio plugin usa `implement-spec` e `tdd` do Pocock.**
 
 **Empacotamento**:
-- manifests `.claude-plugin/`, `.cursor-plugin/` e `.plugin/` (Copilot);
-- script de instalação que copia as skills para `.github/skills`, `.agents/skills` e a pasta de skills do Devin;
+- manifests `.claude-plugin/` (Claude Code; Copilot CLI e Devin também o leem) e `.cursor-plugin/` (Cursor). Não há `.plugin/`: o Copilot o leria antes de `.claude-plugin/`, e um segundo manifesto poderia divergir;
+- o campo `skills` de `.claude-plugin/plugin.json` é a fonte única da lista de skills, com uma entrada por pasta de skill. `.cursor-plugin/plugin.json` repete a mesma lista, e o instalador a lê de lá. Esta spec não repete a lista. Uma pasta que agrupa skills não entra, porque o Copilot a percorre recursivamente e carregaria `misc/` e `in-progress/` do Pocock;
+- script de instalação que copia as skills listadas, achatadas, para `.github/skills` (Copilot) ou `.agents/skills` (Devin, Cursor e Copilot), cada uma com o `LICENSE` e o `NOTICE` da sua origem;
 - `AGENTS.md`;
 - GitHub Action composta que comenta o relatório no PR (atualizando um único comentário).
 
@@ -154,7 +155,7 @@ O JSON segue um schema versionado (`schema_version: 1`). Os títulos e os textos
 
 - Os limiares refletem os posts recentes do Bob: CRAP < 10 para agentes (https://x.com/unclebobmartin/status/2108946115169030596) e matar mutantes "dentro do razoável" (https://www.aviator.co/podcast/uncle-bob-martin-ai-clean-code).
 - As issues #1 a #5 continuam como rascunho de fatias ("aguardando spec"). Depois da aprovação, `to-tickets` vai regenerá-las ou ajustá-las.
-- As pastas de skills do Devin vêm de uma fonte de terceiros e precisam de confirmação na doc oficial antes do empacotamento.
+- A pasta de skills do Devin foi confirmada na doc oficial: `.agents/skills/<skill-name>/SKILL.md` é a recomendada (https://docs.devin.ai/product-guides/skills).
 
 ---
 
