@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+Invalid command-line usage exits `4`, writes no report, and the stderr does not mention baseline. Help (`-h`, `--help`) stays `0`.
+
+Um uso inválido da linha de comando sai com `4`, não grava relatório, e o stderr não menciona baseline. A ajuda (`-h`, `--help`) continua saindo com `0`.
+
 An invalid semantic value in `bob.yaml` or `.bob/waivers.yaml` exits `4`. The English stderr names the path and the field, as in `bob.yaml: crap.scope must be changed or all` or `.bob/waivers.yaml: waivers[0].reason must be one non-empty line`, and the run writes no report. `check`, `doctor`, and `waive` do this the same way. That covers an unknown key, a bad `crap.scope`, a bad `languages` member, a non-positive or non-finite `crap.max_per_function` (an integer too large to convert to float counts as not finite), a negative `duplication.min_tokens`, an invalid `duplication`, `waivers` set to `0`, `false`, or `""`, and an empty `reason`.
 
 Um valor semântico inválido no `bob.yaml` ou no `.bob/waivers.yaml` sai com `4`. O stderr em inglês cita o caminho e o campo, como em `bob.yaml: crap.scope must be changed or all` ou `.bob/waivers.yaml: waivers[0].reason must be one non-empty line`, e a execução não grava relatório. `check`, `doctor` e `waive` fazem isso do mesmo jeito. Isso cobre uma chave desconhecida, um `crap.scope` inválido, um item de `languages` inválido, um `crap.max_per_function` que não é positivo ou não é finito (um inteiro grande demais para virar float também não é finito), um `duplication.min_tokens` negativo, um `duplication` inválido, um `waivers` igual a `0`, `false` ou `""`, e um `reason` vazio.
