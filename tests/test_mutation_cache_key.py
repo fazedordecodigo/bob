@@ -290,7 +290,7 @@ def test_a_failed_publish_leaves_the_previous_file_and_a_successful_publish_repl
     assert json.loads(temporary.read_text()) == expected
 
     monkeypatch.undo()
-    nested = tmp_path / "fresh" / "mutation-cache.json"
+    nested = tmp_path / "fresh" / "deeper" / "mutation-cache.json"
     _write_cache(_Cache(nested, cache.key), stored)
     expected_text = json.dumps(expected, indent=2) + "\n"
 
