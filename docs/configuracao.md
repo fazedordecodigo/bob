@@ -6,7 +6,7 @@ Dois arquivos. `bob.yaml` na raiz do repositório (ou o caminho de `--config`) d
 
 ## bob.yaml
 
-Se o arquivo não existe e `--config` não foi passado, `load_config` devolve os padrões de `Config` em `src/bob_quality/config.py`. Se `--config` aponta para um arquivo que não existe, a execução sai com `4`, a mensagem em inglês no stderr cita o caminho, e nada é gravado.
+Se o arquivo não existe e `--config` não foi passado, `load_config` devolve os padrões de `Config` em `src/bob_quality/config.py`. Se `--config` aponta para um arquivo que não existe, `check`, `crap`, `dry`, `deps` e `mutate` saem com `4`, gravam `.bob/report.md` e `.bob/report.json`, e deixam o stdout e o stderr vazios. Cada gate pedido fica `not_run`. O `reason` do JSON é `config file not found: <caminho>`, com o caminho que `load_config` recebeu. O `report.md` segue o idioma da saída. `doctor` e `waive` não aceitam `--config`.
 
 Padrões quando não há `bob.yaml`:
 
@@ -41,32 +41,35 @@ O `bob.yaml` deste repositório é mais curto: `base`, `languages: [python]`, `p
 | `paths.include` | lista de strings | `[src]` | Raízes medidas |
 | `paths.exclude` | lista de strings | `[tests, node_modules, dist]` | Fora da medição |
 | `crap.max_per_function` | número (bool não vale) | `10` | Limite. CRAP maior ou igual reprova |
-| `crap.scope` | string | `changed` | `changed` olha só funções alteradas. Qualquer outro texto faz toda função medida contar (`crap_verdict` em `core.py`) |
-| `duplication.min_tokens` | inteiro | `50` | Mínimo de tokens do jscpd |
+| `crap.scope` | string | `changed` | Só `changed` ou `all`. Outro texto sai com `4` |
+| `duplication.min_tokens` | inteiro maior que 0 | `50` | Mínimo de tokens do jscpd |
 | `dependencies.python` | string | `.importlinter` | Config do import-linter |
 | `dependencies.typescript` | string | `.dependency-cruiser.cjs` | Config do dependency-cruiser |
 
 Um tipo errado sai com `4`. A mensagem em inglês no stderr cita o arquivo e a chave, por exemplo `bob.yaml: crap must be a mapping` ou `bob.yaml: crap.max_per_function must be a number`. Isso vale para `check`, `doctor`, `waive` e os outros comandos, e nenhum deles grava arquivo nesse caso. Ver [Exit 4](exit-codes.md#exit-4).
 
-`duplication` que não é mapeamento, ou `min_tokens` que não vira inteiro, é o caso do [CHANGELOG](../CHANGELOG.md): o relatório de erro é gravado no idioma já configurado.
+`duplication` que não é mapeamento, ou `min_tokens` que não é um inteiro maior que 0, sai com `4`. A mensagem em inglês no stderr cita o arquivo e a chave, e nada é gravado. O [CHANGELOG](../CHANGELOG.md) descreve esse caso.
 
 ### languages
 
-A [SPEC](SPEC.md) escreve `languages: [python, typescript]` com o comentário “autodetect se omitido”. Em `config.py`, a chave ausente, nula ou o arquivo ausente viram `["python"]`. Não há função de autodetecção no módulo. Para medir TypeScript é preciso listar `typescript` (e `python` também, num monorepo misto).
+`languages` omitido ou nulo (`languages:` ou `languages: null`) vira `["python"]`, o padrão de `Config`. Não há autodetecção. O mesmo vale quando o arquivo `bob.yaml` não existe e `--config` não foi passado. Para medir TypeScript é preciso listar `typescript` (e `python` também, num monorepo misto).
+
+Uma lista vazia ou um item repetido sai com 4. Uma chave ausente ou nula continua `[python]`.
 
 O gate DRY mapeia `typescript` para os formatos `typescript` e `javascript` do jscpd (`dry_gate.py`).
 
-### Chaves da spec que este YAML de exemplo não liga a um campo
+### Chaves que o loader recusa
 
-O exemplo de `bob.yaml` na [SPEC](SPEC.md) inclui:
+O `_SCHEMA` em `src/bob_quality/config.py` aceita `base`, `language`, `languages`, `paths.include`, `paths.exclude`, `crap.max_per_function`, `crap.scope`, `duplication.min_tokens`, `dependencies.python` e `dependencies.typescript`. `_reject_unknown` recusa qualquer outra chave: exit `4`, mensagem em inglês no stderr, nenhum arquivo gravado.
 
-```yaml
-mutation: { require_zero_unwaived_survivors: true, scope: changed, differential: true }
-duplication: { tool: jscpd, min_tokens: 50, new_clones: warn }
-dependencies: { python: .importlinter, typescript: .dependency-cruiser.cjs, violation: fail }
-```
+Estas não entram no schema:
 
-`load_config` lê `duplication.min_tokens` e os dois caminhos em `dependencies`. Não há campos no `Config` para `mutation`, `duplication.tool`, `duplication.new_clones` nem `dependencies.violation`. O comportamento correspondente está fixo no código: sobrevivente sem waiver sai com `3`, a mutação reusa `.bob/mutation-cache.json`, clone novo é aviso, violação no diff sai com `1`. Mudar essas chaves no YAML não altera o veredito, porque elas não são lidas.
+- `mutation`. O erro é `bob.yaml: unknown key mutation`, também quando o bloco traz `require_zero_unwaived_survivors`, `scope` ou `differential`.
+- `duplication.tool`. O erro é `bob.yaml: unknown key duplication.tool`.
+- `duplication.new_clones`. O erro é `bob.yaml: unknown key duplication.new_clones`.
+- `dependencies.violation`. O erro é `bob.yaml: unknown key dependencies.violation`.
+
+O exemplo de `bob.yaml` na [SPEC](SPEC.md) e nos READMEs não as inclui. Sobrevivente sem waiver sai com `3`, a mutação reusa `.bob/mutation-cache.json`, clone novo é aviso e violação no diff sai com `1`, sem chave para desligar isso. `tests/test_invalid_config.py` cobre a recusa.
 
 ## .bob/waivers.yaml
 
@@ -89,7 +92,7 @@ waivers:
 | `author` | `git config user.name`; se falhar ou vier vazio, `$USER`; senão `unknown` | string não vazia no arquivo |
 | `date` | data UTC de hoje, `YYYY-MM-DD` | string não vazia |
 
-Um `id` repetido substitui a entrada antiga (`add_waiver` filtra o id e acrescenta a nova no fim).
+`bob waive` de um id que já existe uma vez substitui essa linha e sai com 0 quando o resto do arquivo é válido. Um arquivo que já contém duas entradas com o mesmo id sai com 4, em inglês no stderr, e não é reescrito.
 
 Na hora de aplicar, um waiver casa com um mutante se o `id` é igual ao id do mutante, ao nome da função, a `arquivo:função` ou a `arquivo::função` (`_matching_reason`).
 
@@ -102,7 +105,9 @@ Estes casos saem com `4`, em inglês no stderr, citando `.bob/waivers.yaml` e o 
 - `waivers` não é uma lista;
 - um item não é um mapeamento;
 - `id`, `reason`, `author` ou `date` ausente ou não é string;
-- `reason` vazio ou com quebra de linha.
+- `reason` vazio ou com quebra de linha;
+- uma chave desconhecida dentro da entrada;
+- um id repetido.
 
 Exemplo de mensagem, da spec e do CHANGELOG: `.bob/waivers.yaml: waivers[0].reason must be a string`.
 

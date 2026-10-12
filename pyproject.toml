@@ -15,6 +15,7 @@ dependencies = [
     "coverage==7.16.2",
     "PyYAML==6.0.3",
     "import-linter==2.15",
+    "grimp==3.17",
     "mutmut==3.8.0",
 ]
 

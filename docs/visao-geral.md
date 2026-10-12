@@ -30,12 +30,12 @@ O mesmo README lista um aviso de mutantes `no_coverage` como planejado ([#31](ht
 
 ## Fluxo
 
-O agente altera o código. Na máquina de quem desenvolve, o hook `src/bob_quality/hooks/pre-push` roda `bob check --gates crap,deps`. No pull request, a Action roda `bob check` com `crap,dry,deps,mutate`. Os dois medem as funções do diff (`git diff <base>...HEAD`), gravam `.bob/report.md` e `.bob/report.json` e saem com o mesmo conjunto de códigos.
+O agente altera o código. Na máquina de quem desenvolve, o hook `src/bob_quality/hooks/pre-push` roda `bob check --gates crap,dry,deps`. No pull request, a Action roda `bob check` com `crap,dry,deps,mutate`. Os dois medem as funções do diff (`git diff <base>...HEAD`), gravam `.bob/report.md` e `.bob/report.json` e saem com o mesmo conjunto de códigos.
 
 ```mermaid
 flowchart TD
     agent["Agente altera o código"]
-    agent --> hook["hook pre-push<br/>bob check --gates crap,deps"]
+    agent --> hook["hook pre-push<br/>bob check --gates crap,dry,deps"]
     agent --> pr["Pull request"]
     pr --> action["GitHub Action<br/>bob check --gates crap,dry,deps,mutate"]
     hook --> diff["Gates no diff"]

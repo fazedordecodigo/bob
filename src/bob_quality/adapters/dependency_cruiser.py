@@ -12,6 +12,10 @@ from bob_quality.models import DepViolation
 _BLOCKING = {"error", "warn"}
 
 
+class CruiserParseError(Exception):
+    pass
+
+
 def parse_dependency_cruiser(raw: str) -> list[DepViolation]:
     data = json.loads(raw)
     found: list[DepViolation] = []
@@ -22,14 +26,14 @@ def parse_dependency_cruiser(raw: str) -> list[DepViolation]:
 
 def _violation_items(data: object) -> list[object]:
     if not isinstance(data, dict):
-        return []
+        raise CruiserParseError(msg("deps.cruiser_no_list"))
     summary = data.get("summary")
     if isinstance(summary, dict) and isinstance(summary.get("violations"), list):
         return list(summary["violations"])
     violations = data.get("violations")
     if isinstance(violations, list):
         return list(violations)
-    return []
+    raise CruiserParseError(msg("deps.cruiser_no_list"))
 
 
 def _violations_for(item: object) -> list[DepViolation]:

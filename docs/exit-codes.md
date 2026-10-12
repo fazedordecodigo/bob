@@ -54,7 +54,11 @@ Há dois jeitos de chegar no `4`.
 
 ### Antes de medir, sem gravar relatório
 
-`cli.main` devolve `4` e imprime inglês no stderr, sem escrever `report.md`, `report.json` nem alterar `waivers.yaml`, quando:
+`cli.main` devolve `4` sem escrever `report.md`, `report.json` nem alterar `waivers.yaml` em dois casos distintos.
+
+Um uso inválido da linha de comando (comando ausente, comando desconhecido, flag ilegal, valor fora das escolhas) imprime o texto de uso do argparse no stderr. Esse texto não menciona baseline. A ajuda (`-h`, `--help`) sai com `0`. Isso não é o exit `2`.
+
+A configuração inválida imprime inglês no stderr quando:
 
 - `--lang` ou `BOB_LANG` é vazio ou não é `en` nem `pt-BR`;
 - `language` no YAML não é string ou não é um desses dois valores;
@@ -62,17 +66,17 @@ Há dois jeitos de chegar no `4`.
 - uma chave lida por `_parsed` tem o tipo errado (`base`, `languages`, `paths`, `include`, `exclude`, `crap`, `max_per_function`, `scope`, `dependencies`, `python`, `typescript`);
 - `.bob/waivers.yaml` existe e o YAML é inválido ou o formato não é o da [Configuração](configuracao.md#arquivo-inválido). A mensagem cita o caminho e o campo.
 
-Nota sobre `--config` inexistente. `reject_config_types` volta sem erro se o arquivo não existe. `load_config` levanta `ConfigError`, e `run_check` grava um relatório de falha precoce (`_fail_early`) com exit `4` e os gates em `not_run`. O teste `test_check_exits_4_when_config_is_missing` em `tests/test_cli.py` espera `.bob/report.md` e `.bob/report.json`. A promessa de que nada é gravado, nesse caso, está no [README.pt-BR.md](../README.pt-BR.md): `--config` apontando para um arquivo que não existe sai com `4`, a mensagem em inglês no stderr cita o arquivo, e nenhum comando grava um arquivo. A [SPEC](SPEC.md), na decisão 12, reserva “nada é gravado” para `--lang` ou `BOB_LANG` vazio, valor de idioma inválido, `language` numérico, `bob.yaml` que não é mapeamento, YAML com erro de sintaxe, chave com tipo errado e `.bob/waivers.yaml` inválido. O teste e o `run_check` gravam o relatório. O motivo fica no `reason` do gate (`config file not found: …` no JSON).
+`--config` apontando para um arquivo que não existe não entra nessa barreira. `reject_config_types` volta sem erro se o arquivo não existe. `load_config` levanta `ConfigError`, e `run_check` grava um relatório de falha precoce (`_fail_early`) com exit `4`. O stdout e o stderr ficam vazios. Cada gate pedido fica `not_run`. O `reason` do `report.json` é `config file not found: <caminho>` (inglês). O `report.md` traduz o motivo. O teste `test_check_exits_4_when_config_is_missing` em `tests/test_cli.py` espera os dois arquivos. A flag existe em `check`, `crap`, `dry`, `deps` e `mutate`. `doctor` e `waive` não a aceitam. A decisão 12 da [SPEC](SPEC.md) não cobre esse caso.
 
 Erro de sintaxe, tipo errado e waiver inválido são barrados em `_language` ou `_blocked_config`, que imprimem no stderr e retornam `4` sem chamar `write_report`.
 
-`duplication` inválida não entra nessa barreira. `run_check` grava o relatório de erro no idioma configurado. O [CHANGELOG.md](../CHANGELOG.md) descreve esse caso.
+`duplication` inválida entra na mesma barreira que as outras chaves: `reject_config_types` chama `_config_from_file`, o stderr fica em inglês e nenhum relatório é gravado. A recusa cobre um valor que não é mapeamento e um `min_tokens` que não é um inteiro maior que 0. Uma chave desconhecida, inclusive `mutation`, `duplication.tool`, `duplication.new_clones` e `dependencies.violation`, sai do mesmo jeito. O [CHANGELOG.md](../CHANGELOG.md) descreve esses casos.
 
 Um `--reason` ausente no `bob waive` também é `4`, e essa frase segue o idioma da CLI, porque acontece dentro de `_waive_command` depois da barreira do arquivo.
 
 ### Durante a medição, com relatório
 
-Se a ferramenta falta no meio do gate (lizard, mutmut, import-linter, dependency-cruiser, Node num repo só TypeScript, git que falha ao calcular o diff), o gate fica `not_run` e o exit é `4`. `write_report` grava `.bob/report.md` e `report.json` com esse código. `GitError` em `_open` segue o mesmo relatório precoce.
+Se a ferramenta falta no meio do gate (lizard, mutmut, import-linter, dependency-cruiser, Node num repo só TypeScript, git que falha ao calcular o diff), o gate fica `not_run` e o exit é `4`. O mesmo exit `4` vale quando o JSON do dependency-cruiser não é um objeto ou não traz a lista `violations`, e quando a última linha `Contracts:` do import-linter com exit 0 não é `N kept, 0 broken.` `write_report` grava `.bob/report.md` e `report.json` com esse código. `GitError` em `_open` segue o mesmo relatório precoce.
 
 `bob doctor` com pino ausente ou versão diferente sai com `4` no stdout do próprio doctor, sem relatório em `.bob/`.
 

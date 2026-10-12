@@ -13,7 +13,7 @@ O exit code do `bob check` é o maior entre os gates que rodaram. Aviso não aum
 | [Mutação](#mutação) | mutmut (Python) | sobrevivente sem waiver | `3` |
 | [Dependências](#dependências) | import-linter, dependency-cruiser, mais a regra de ciclo | violação cuja origem, destino ou outro módulo do ciclo está no diff | `1` |
 
-Versões pinadas: lizard 1.24.1, coverage 7.16.2, c8 12.0.0, vitest 5.0.3, jscpd 5.4.1, mutmut 3.8.0, import-linter 2.15, dependency-cruiser 18.5.0. Node 22.14.0. Fonte: `pyproject.toml`, `package.json` e `doctor.py`.
+Versões pinadas: lizard 1.24.1, coverage 7.16.2, c8 12.0.0, vitest 5.0.3, jscpd 5.4.1, mutmut 3.8.0, import-linter 2.15, grimp 3.17, dependency-cruiser 18.5.0. Node 22.14.0. Fonte: `pyproject.toml` e `package.json`. O doctor lê os pinos pip do Requires-Dist instalado.
 
 ## CRAP
 
@@ -47,7 +47,7 @@ Um ou mais clones novos deixam o gate em `warn` e o exit em `0`. A linha do rela
 
 Sem Node, ou sem o jscpd instalado, o status é `not_run` e o exit continua `0` (o retorno de `_skipped` é `PASSED`). O jscpd precisa de Node também num repositório só Python, se `dry` estiver na lista.
 
-A spec marca clones novos como aviso no MVP. O código faz isso independente da chave `duplication.new_clones`, que não é lida. Ver [Configuração](configuracao.md#chaves-da-spec-que-este-yaml-de-exemplo-não-liga-a-um-campo).
+A spec marca clones novos como aviso no MVP. O código faz isso no gate. `duplication.new_clones` não está no schema: sai com `4`. Ver [Configuração](configuracao.md#chaves-que-o-loader-recusa).
 
 ## Mutação
 
@@ -63,7 +63,7 @@ Entram na mutação as funções alteradas no diff e as funções do cache que a
 
 Se a versão do mutmut ou a impressão da suíte diferir da chave do arquivo, `_read_cache` devolve vazio e o cache inteiro deixa de ser reusado. Função com hash diferente, ou com sobrevivente ainda sem waiver, é mutada de novo. `--since-last-run` não liga nem desliga isso; o cache já é o caminho padrão.
 
-A Action restaura e publica o artefato `bob-mutation-cache` com esse JSON (`.github/actions/bob/action.yml`). Falha ao restaurar não interrompe o check (`restore_cache.py || echo ...` no workflow da action).
+A Action restaura e publica o artefato `bob-mutation-cache` com esse JSON (`.github/actions/bob/action.yml`) e o guarda por 7 dias (`retention-days: 7`). Falha ao restaurar não interrompe o check (`restore_cache.py || echo ...` no workflow da action). A action também instala o Node `22.14.0` e o jscpd `5.4.1` antes do check, senão o dry fica `not_run`.
 
 O limite efetivo é zero sobreviventes sem waiver. Qualquer um deixa o gate `failed` e o exit `3`. `killed`, `timeout` e `no_coverage` não entram nessa lista. Sobrevivente com waiver continua na tabela de sobreviventes, com a justificativa, e não conta para o `3`.
 
@@ -80,7 +80,7 @@ O nome da regra de ciclo no JSON (sempre inglês) é `Forbidden dependency cycle
 
 Uma violação bloqueia quando a origem, o destino, ou outro módulo do mesmo componente fortemente conexo, está no diff (`_edge_in_diff`). As outras aparecem em “Informação (dependências fora do diff)” e não mudam o exit code. Zero violações no diff: `passed` e exit `0`. Uma no diff: `failed` e exit `1`.
 
-Ferramenta ausente que impede a medição pedida deixa o gate `not_run` e o exit `4` (`ToolError` em `run_deps_gate`).
+Ferramenta ausente que impede a medição pedida deixa o gate `not_run` e o exit `4` (`ToolError` em `run_deps_gate`). O mesmo exit `4` vale para um JSON do dependency-cruiser que não é objeto ou não traz a lista `violations`, e para o import-linter com exit 0 cuja última linha `Contracts:` não é `N kept, 0 broken.`
 
 ## Monorepo e Node ausente
 

@@ -69,7 +69,7 @@ python -m pip install -e ".[dev]"
 npm ci
 ```
 
-These commands install the `bob` command, the Python tools pinned in `pyproject.toml` (`lizard`, `coverage`, `mutmut`, `import-linter`), and the npm tools pinned in `package.json` (`c8`, `vitest`, `jscpd`, `dependency-cruiser`). `bob doctor` shows the expected and the found version of each tool.
+These commands install the `bob` command, the Python tools pinned in `pyproject.toml` (`lizard`, `coverage`, `mutmut`, `import-linter`, `grimp`), and the npm tools pinned in `package.json` (`c8`, `vitest`, `jscpd`, `dependency-cruiser`). `bob doctor` shows the expected and the found version of each tool.
 
 ## Installing in the agents
 
@@ -149,6 +149,8 @@ The commands write `.bob/report.md` and `.bob/report.json`. The exit codes are:
 | `3` | A surviving mutant has no waiver. |
 | `4` | Missing or different tool, or invalid configuration. The message goes to stderr in English, and the run writes nothing. |
 
+Invalid command-line usage exits `4`, writes no report, and the stderr does not mention baseline. Help (`-h`, `--help`) stays `0`.
+
 When more than one gate fails, `bob check` exits with the highest code.
 
 A local `bob check` does not run mutation. `bob check --gates mutate` and `bob mutate` run it, only on the changed functions and on the functions that still have survivors.
@@ -168,7 +170,7 @@ bob wraps each tool in its own adapter and copies no code from them. The version
 | CRAP | `lizard` 1.24.1 for complexity, `coverage` 7.16.2 running pytest | `lizard` 1.24.1 for complexity, `c8` 12.0.0 running `vitest` 5.0.3 |
 | Duplication | `jscpd` 5.4.1 | `jscpd` 5.4.1 |
 | Mutation | `mutmut` 3.8.0 | planned ([#8](https://github.com/fazedordecodigo/bob/issues/8)) |
-| Dependencies | `import-linter` 2.15 | `dependency-cruiser` 18.5.0 |
+| Dependencies | `import-linter` 2.15, `grimp` 3.17 | `dependency-cruiser` 18.5.0 |
 
 The npm tools need Node, and jscpd needs it in a Python-only repository too. In a repository with Python and TypeScript, a missing Node is not exit `4`. bob still measures Python and reports TypeScript as skipped, with a warning. Exit `4` stays when the missing tool blocks the requested measurement, as in a TypeScript-only repository without Node.
 
@@ -193,7 +195,11 @@ dependencies:
   typescript: .dependency-cruiser.cjs
 ```
 
-With `crap.scope: changed`, only changed functions block. `all` counts every measured function. The value is `changed` or `all`. If `--config` points to a file that does not exist, the YAML is not a mapping, the YAML has a syntax error, or a key has the wrong type, the run exits with `4`. The message goes to stderr in English and names the file. A wrong type also names the key, as in `bob.yaml: crap must be a mapping` or `bob.yaml: crap.max_per_function must be a number`. `check`, `doctor`, `waive`, and the other commands do this the same way. None of them writes a file.
+With `crap.scope: changed`, only changed functions block. `all` counts every measured function. The value is `changed` or `all`. Omitting `languages` or setting it to null selects `[python]`. An empty list exits with `4`. There is no autodetection.
+
+If the YAML is not a mapping, the YAML has a syntax error, or a key has the wrong type, the run exits with `4`. The message goes to stderr in English and names the file. A wrong type also names the key, as in `bob.yaml: crap must be a mapping` or `bob.yaml: crap.max_per_function must be a number`. `check`, `doctor`, `waive`, and the other commands do this the same way. None of them writes a file.
+
+If `--config` points to a file that does not exist, `check`, `crap`, `dry`, `deps`, and `mutate` exit with `4`, write `.bob/report.md` and `.bob/report.json`, and leave stdout and stderr empty. Each requested gate is not run. The JSON reason is `config file not found: <path>`, using the path `load_config` received. The Markdown follows the output language. `doctor` and `waive` do not accept `--config`.
 
 ### Output language
 
@@ -206,7 +212,7 @@ bob writes its text for humans in English (`en`) or Brazilian Portuguese (`pt-BR
 
 The case matters (`pt-br` is invalid). An empty `--lang` or `BOB_LANG` is invalid. The run exits with `4`, prints `invalid language: "" (use en or pt-BR)` to stderr, and writes nothing. An empty `language` key in `bob.yaml` still counts as unset.
 
-An invalid `language` value, a numeric `language`, a `bob.yaml` that is not a mapping, YAML with a syntax error, or a key with the wrong type exits with `4`. The message goes to stderr in English, even when `--lang` or `language` is `pt-BR`. The run writes no report and no `waivers.yaml`. `check`, `doctor`, `waive`, and the other commands do this the same way. An invalid `duplication`, an unknown key, a `crap.scope` other than `changed` or `all`, a `languages` member other than `python` or `typescript`, a `crap.max_per_function` that is not a finite number greater than 0 (an integer too large to convert to float counts as not finite), a negative `duplication.min_tokens`, `waivers` set to `0`, `false`, or `""`, and an empty `reason` also exit with `4` on `check`, `doctor`, and `waive`. The English stderr names the path and the field, and the run writes nothing.
+An invalid `--lang` or `BOB_LANG`, a `bob.yaml` that is not a mapping, YAML with a syntax error, or a key with the wrong type exits with `4`. The message goes to stderr in English, even when `--lang` or `language` is `pt-BR`. The run writes no report and no `waivers.yaml`. `check`, `doctor`, `waive`, and the other commands do this the same way. An invalid `duplication`, an unknown key, a numeric `language`, a `language` other than `en` or `pt-BR`, a `crap.scope` other than `changed` or `all`, a `languages` member other than `python` or `typescript`, a `crap.max_per_function` that is not a finite number greater than 0 (an integer too large to convert to float counts as not finite), an empty `languages` list, a repeated `languages` item, `duplication.min_tokens` of 0 or less, `waivers` set to `0`, `false`, or `""`, and an empty `reason` also exit with `4` on `check`, `doctor`, and `waive`. The English stderr names the path and the field, and the run writes nothing.
 
 `.bob/report.json` is the same bytes in both languages. Every gate `reason`, the cycle rule name, and `reproduce` stay English, so a tool can match them without knowing the output language. `reproduce` in the JSON omits `--lang`. English calls the cycle rule `Forbidden dependency cycle`. `pt-BR` calls it `Proibido ciclo de dependência` in `report.md` and in the pull request comment. A dependency-cruiser rule with no name is `dependency` in the JSON and `dependência` in the Markdown. The reproduce line in `report.md` includes the `--lang` that produced it.
 
@@ -227,7 +233,7 @@ Waivers live in `.bob/waivers.yaml`, which you commit with the code. `bob waive`
 - `author`, from `git config user.name`, or `$USER`.
 - `date`, the UTC date.
 
-A waiver without a one-line reason is rejected with exit `4`. A new waiver with the same `id` replaces the old one. A waiver matches a mutant by the mutant id, the function name, `file:function`, or `file::function`. A `waivers.yaml` that is valid YAML with the wrong shape exits with `4`. The message is English on stderr and names `.bob/waivers.yaml` and the field, as in `.bob/waivers.yaml: waivers[0].reason must be a string`. A top-level list, a `waivers` value that is not a list, an item that is not a mapping, and a missing field all do this. The run writes no `report.md` and no `report.json`, and the file stays as it is. `check`, `doctor`, and `waive` do this the same way, even when `--lang` is `pt-BR`. A YAML syntax error also exits with `4`. That message names `.bob/waivers.yaml` and the parser error. The agent writes the waiver, and the human approves it in the pull request review. Every waiver appears at the top of the report.
+A waiver without a one-line reason is rejected with exit `4`. `bob waive` of an id that already appears once replaces that row and exits 0. A file that already contains two rows with one id exits 4 and the bytes stay. A waiver matches a mutant by the mutant id, the function name, `file:function`, or `file::function`. A `waivers.yaml` that is valid YAML with the wrong shape exits with `4`. The message is English on stderr and names `.bob/waivers.yaml` and the field, as in `.bob/waivers.yaml: waivers[0].reason must be a string`. A top-level list, a `waivers` value that is not a list, an item that is not a mapping, and a missing field all do this. The run writes no `report.md` and no `report.json`, and the file stays as it is. `check`, `doctor`, and `waive` do this the same way, even when `--lang` is `pt-BR`. A YAML syntax error also exits with `4`. That message names `.bob/waivers.yaml` and the parser error. The agent writes the waiver, and the human approves it in the pull request review. Every waiver appears at the top of the report.
 
 ### The report
 
@@ -315,7 +321,7 @@ The CI (`.github/workflows/ci.yml`) runs this suite on Python 3.10 and 3.12 with
 
 ## GitHub Action
 
-The composite action in `.github/actions/bob` installs `bob` and runs `bob check` with `crap,dry,deps,mutate`. It restores and publishes the `bob-mutation-cache` artifact (`.bob/mutation-cache.json`), and it creates or updates a single pull request comment with `.bob/report.md`. The job exit code is the one from `bob`.
+The composite action in `.github/actions/bob` installs `bob` and runs `bob check` with `crap,dry,deps,mutate`. It installs Node 22.14.0 and jscpd 5.4.1 first, so the dry gate runs when the caller did not install them. It restores and publishes the `bob-mutation-cache` artifact (`.bob/mutation-cache.json`, kept for 7 days), and it creates or updates a single pull request comment with `.bob/report.md`. The job exit code is the one from `bob`, including `4` for an invalid command line.
 
 The action accepts the inputs `base`, `gates`, `pip-spec`, and `token`. This repository uses it in `.github/workflows/bob.yml`. `bob-quality` is not on PyPI yet, so in a checkout of this repository the action runs `pip install -e ".[dev]"`, and in another repository it installs the action's git source. Publication on the GitHub Marketplace is not part of this slice.
 
@@ -331,7 +337,7 @@ The action accepts the inputs `base`, `gates`, `pip-spec`, and `token`. This rep
 
 The gates follow Uncle Bob's workflow. The READMEs and the output of his tools [crapper](https://github.com/unclebob/crapper) and [mutator](https://github.com/unclebob/mutator) (0BSD) are the behavior reference, and bob reuses none of their code. The exit codes take after mutator. The duplication gate uses jscpd. A structural dryer of bob's own, in the line of his [dryer](https://github.com/unclebob/dryer) (0BSD), is out of scope for the MVP. The limits come from his recent posts, CRAP < 10 for agents ([post on X](https://x.com/unclebobmartin/status/2108946115169030596)) and kill mutants within reason ([Aviator podcast](https://www.aviator.co/podcast/uncle-bob-martin-ai-clean-code)).
 
-The market tools (lizard, coverage.py, c8, vitest, mutmut, jscpd, import-linter, dependency-cruiser) are pinned dependencies, and bob copies no code from them.
+The market tools (lizard, coverage.py, c8, vitest, mutmut, jscpd, import-linter, grimp, dependency-cruiser) are pinned dependencies, and bob copies no code from them. grimp has no adapter.
 
 ## License
 

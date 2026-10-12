@@ -5,7 +5,7 @@ description: "Rodar `bob check`, ler o JSON e iterar até exit 0. Use ao verific
 
 # bob-check
 
-Invocar a CLI, ler o veredito, corrigir o que ela nomeia, repetir até exit 0. A superfície abaixo é a de `docs/SPEC.md`, citada à risca.
+Invocar a CLI, ler o veredito, corrigir o que ela nomeia, repetir até exit 0. Os comandos abaixo são os que a CLI registra.
 
 ## Quando
 
@@ -21,7 +21,6 @@ bob crap    [--base REF] [--threshold N] [--coverage-file PATH]
 bob dry     [--base REF]
 bob deps
 bob mutate  [--base REF] [--since-last-run] [--max-workers N]
-bob report  [--in .bob/] [--out .bob/report.md]
 bob waive   <mutant-id|function> --reason "texto de uma linha"
 bob doctor  # verifica ferramentas e versões instaladas
 bob <comando> [--lang en|pt-BR]  # idioma da saída (padrão: en)
