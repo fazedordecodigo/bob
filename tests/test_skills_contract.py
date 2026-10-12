@@ -8,7 +8,7 @@ Seams (acceptance criteria of #7 / docs/SPEC.md — the public boundary):
    description frontmatter.
 3. CLI surface: bob-check quotes the SPEC command block and exit codes
    verbatim, so an agent invokes `bob check` as specified.
-4. review-report: summarizes .bob/report.md and is a companion to `pr`.
+4. review-report: summarizes .bob/report.md into a Summary / Evidence / Merge Danger pull request body.
 5. AGENTS.md: short index pointing at those skills and `bob check`.
 
 Expected values are literals from docs/SPEC.md and the vendored upstream
@@ -152,13 +152,13 @@ class BobCheckCliSurface(unittest.TestCase):
         self.assertIn(".bob/", body)
 
 
-class ReviewReportCompanion(unittest.TestCase):
-    def test_summarizes_report_for_pr_skill(self) -> None:
-        body = (ROOT / "skills/review-report/SKILL.md").read_text(
-            encoding="utf-8"
-        )
+class ReviewReportPrBody(unittest.TestCase):
+    def test_writes_the_pr_body_around_the_report(self) -> None:
+        body = (ROOT / "skills/review-report/SKILL.md").read_text(encoding="utf-8")
         self.assertIn(".bob/report.md", body)
-        self.assertIn("pr", body)
+        for heading in ("## Summary", "## Evidence", "## Merge Danger"):
+            with self.subTest(heading=heading):
+                self.assertIn(heading, body)
         self.assertIn("Onde focar o review", body)
         self.assertIn("schema_version: 1", body)
 
