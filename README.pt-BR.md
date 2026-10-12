@@ -220,7 +220,7 @@ No CI, defina `language: pt-BR` no `bob.yaml`, ou `BOB_LANG: pt-BR` no `env` do 
 
 ### `bob doctor` e `--install`
 
-`bob doctor` lista cada ferramenta com a versão pinada e a encontrada. Sai com `0` quando todas coincidem, e com `4` quando alguma falta ou diverge, junto com o comando de instalação. As versões precisam bater exatamente, então o Node 20, ou qualquer Node diferente de 22.14.0, dá `4`. Se o diretório do pacote não for gravável, a mensagem pede `bob doctor --install`.
+`bob doctor` lista cada ferramenta com a versão pinada e a encontrada. Sai com `0` quando todas coincidem, e com `4` quando alguma falta ou diverge, junto com o comando de instalação. As ferramentas Python e npm precisam bater exatamente. O Node precisa estar em `>=22.14.0 <23`, então o Node 20 ou o Node 24 dá `4`. Se o diretório do pacote não for gravável, a mensagem pede `bob doctor --install`.
 
 `bob doctor --install` roda `npm ci` no pacote instalado. Quando o npm falha ali com `EACCES`, `EPERM` ou `EROFS`, instala num cache do usuário (`$XDG_CACHE_HOME/bob-quality`, ou `~/.cache/bob-quality`). Outros erros do npm saem com `4` e o comando exato. Depois imprime o mesmo relatório.
 
