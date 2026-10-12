@@ -47,7 +47,7 @@ Por padrão, o hook local roda `bob check --gates crap,dry,deps`. O CI roda `bob
 
 `.bob/report.json` (`schema_version: 1`) espelha `.bob/report.md`.
 
-Veredito por gate: ✅ passou / ⚠️ aviso / ❌ falhou / ⏭️ não executado (com motivo). Exit `0` é o passe do check. ⚠️ (clones novos e mutantes sem teste) não falha. ⏭️ fica ⏭️ com motivo. Violação de dependência é ❌.
+Veredito por gate: ✅ passou / ⚠️ aviso / ❌ falhou / ⏭️ não executado (com motivo). Exit `0` é o passe do check. ⚠️ (clones novos e mutantes sem teste) não falha. ⏭️ fica ⏭️ com motivo. Violação de dependência é ❌. Clones novos ficam em ⚠️ por padrão. Com `duplication.new_clones: fail` ou `--dry-fail`, mais clones novos que `duplication.max_new_clones` dão ❌ e exit `1`. O `reason` cita a chave e o teto.
 
 Cada linha acionável traz função, arquivo:linha, métrica e limite.
 

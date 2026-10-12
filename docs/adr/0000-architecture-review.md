@@ -111,7 +111,7 @@ Pins pip em `pyproject.toml`: lizard 1.24.1, coverage.py 7.16.2, import-linter 2
 
 **`bob report` não existe.** A spec, `bob-check` e `review-report` citam o comando. `build_parser` não o registra. O README diz que está planejado. O `check` já grava os dois relatórios.
 
-**Chaves da spec que `Config` não tem.** `mutation.*`, `duplication.tool`, `duplication.new_clones`, `dependencies.violation`. O loader recusa a chave desconhecida com exit `4`. Um agente que escreve `mutation.differential: false` não desliga o cache: o comando sai com `unknown key mutation`.
+**Chaves da spec que `Config` não tem.** `mutation.*`, `duplication.tool`, `duplication.new_clones`, `dependencies.violation`. O loader recusa a chave desconhecida com exit `4`. Um agente que escreve `mutation.differential: false` não desliga o cache: o comando sai com `unknown key mutation`. Depois desta leitura, a #75 pôs `duplication.new_clones`, `max_new_clones`, `min_similarity` e `min_lines` no schema, pela decisão 4 revista em 12/10/2026.
 
 **Dois formatos do exit 4, e o jscpd fora deles.** O preflight não grava arquivo. Config que escapa do preflight, como `duplication` inválida ou `--config` ausente, grava o relatório. Ferramenta ausente no CRAP, no deps ou na mutação também grava. jscpd ausente ou ilegível fica `not_run` com exit 0.
 

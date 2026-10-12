@@ -82,11 +82,11 @@ language: en                      # idioma da saída: en ou pt-BR
 languages: [python, typescript]
 paths: { include: [src], exclude: [tests, node_modules, dist] }
 crap: { max_per_function: 10, scope: changed }
-duplication: { min_tokens: 50 }
+duplication: { min_tokens: 50, new_clones: warn, max_new_clones: 0, min_similarity: 0, min_lines: 0 }
 dependencies: { python: .importlinter, typescript: .dependency-cruiser.cjs }
 ```
 
-`crap.scope` é `changed` ou `all`. Cada item de `languages` é `python` ou `typescript`. `crap.max_per_function` é um número finito maior que 0. Um inteiro que não cabe em float também não é finito. `duplication.min_tokens` é um inteiro maior ou igual a 0. Uma chave desconhecida sai com 4.
+`crap.scope` é `changed` ou `all`. Cada item de `languages` é `python` ou `typescript`. `crap.max_per_function` é um número finito maior que 0. Um inteiro que não cabe em float também não é finito. `duplication.min_tokens` é um inteiro maior ou igual a 0. `duplication.new_clones` é `warn` ou `fail`, e vazio continua `warn`. `duplication.max_new_clones` e `duplication.min_lines` são inteiros maiores ou iguais a 0. `duplication.min_similarity` é um número finito de 0 a 100. Uma chave desconhecida sai com 4.
 
 **Formato do relatório (`.bob/report.md`, espelhado em `report.json`)**
 1. Cabeçalho: commit, base, data, versões das ferramentas.
@@ -143,7 +143,7 @@ O JSON segue um schema versionado (`schema_version: 1`). Os títulos e os textos
 1. `pip install bob-quality` com versões fixadas mais `bob doctor` mostrando o status de cada ferramenta.
 2. Nos repos-fixture Py e TS, `bob check --base main` produz `report.md` e `report.json` válidos (schema v1) e o exit code correto em cada caso de falha.
 3. CRAP é calculado por função alterada, com limite 10 configurável, e o top 5 aparece no relatório.
-4. Clones novos geram ⚠️ e não falham. Uma violação de dependência gera ❌.
+4. Por padrão, clones novos geram ⚠️ e não falham. Com `duplication.new_clones: fail` ou `--dry-fail`, mais clones novos que `duplication.max_new_clones` geram ❌ e exit 1. Uma violação de dependência gera ❌.
 5. A mutação roda só no CI e só nas funções alteradas. Um sobrevivente sem waiver dá exit 3. Mutantes sem teste (`no_coverage`) aparecem como aviso (⚠️) e não mudam o exit code. Os waivers sem motivo são rejeitados.
 6. Um gate não executado aparece como ⏭️ com motivo, nunca como ✅.
 7. O hook local roda `crap,dry,deps` em menos de 60 s no repo-fixture.
@@ -166,7 +166,7 @@ O JSON segue um schema versionado (`schema_version: 1`). Os títulos e os textos
 1. **Linguagem da CLI**: núcleo e CLI em Python, distribuídos via pip (`bob-quality`). As ferramentas npm ficam fixadas num `package.json` do próprio plugin e são chamadas via `npx`.
 2. **Complexidade**: lizard para Python e TS, para contar o CC do mesmo jeito nas duas.
 3. **Escopo**: os gates bloqueiam só pelas funções alteradas no diff. A dívida antiga aparece apenas como informação.
-4. **Duplicação**: clones novos geram só aviso (⚠️) e nunca bloqueiam no MVP.
+4. **Duplicação** (Emerson, 12/10/2026). O padrão é aviso. `duplication.new_clones` é `warn` ou `fail`. Sem chave nova, um clone novo continua em aviso e o exit continua 0. `max_new_clones` padrão 0. No modo fail, um clone que passa em `min_similarity` e `min_lines` já falha, status `failed`, exit 1. Os dois filtros só escolhem quem entra na conta. Similaridade ausente conta como 100. No modo warn, nenhum limite numérico falha. O relatório cita `duplication.max_new_clones` e o inteiro no `reason`. `--dry-fail` e `--max-new-clones` existem em `bob dry` e `bob check`, vencem o arquivo nessa execução, e 0 é um teto de verdade. Não há flag para forçar warn. O hook não muda.
 5. **Waivers**: o agente cria o waiver com justificativa de uma linha e o humano aprova no review do PR. Os waivers aparecem no topo do relatório.
 6. **Dependências**: executa as regras que o repo já declara (`.importlinter` / `.dependency-cruiser`), mais uma regra padrão sempre ativa: proibido ciclo de dependência. Só bloqueia quando a origem, o destino, ou outro módulo do mesmo ciclo (componente fortemente conexo) foi alterado no diff. Ciclos e violações antigas aparecem no relatório como informação (`fora do diff; não bloqueia`) e não mudam o exit code.
 7. **Distribuição**: CLI `bob`, PyPI `bob-quality`, marketplaces `bob`. A publicação acontece só depois do MVP aprovado pelo Emerson, com o nome reconfirmado como livre na véspera.

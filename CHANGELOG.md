@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+The DRY gate can fail. `duplication.new_clones` is `warn`, the default, or `fail`. Without the new keys, a new clone stays a warning and the exit stays `0`. In fail mode, the gate fails with exit `1` when the new clones that pass `duplication.min_similarity` and `duplication.min_lines` exceed `duplication.max_new_clones` (default `0`). The reason names the key and the ceiling, as in `1 new clone exceeds duplication.max_new_clones 0`. The two filters apply in warn mode too, and a clone they drop stays out of the report. `bob dry` and `bob check` accept `--dry-fail` and `--max-new-clones N`, which override the file for that run. A negative `--max-new-clones`, or an invalid value in the new keys, exits `4` and writes no report. The pre-push hook is unchanged.
+
+O gate DRY pode falhar. `duplication.new_clones` é `warn`, o padrão, ou `fail`. Sem as chaves novas, um clone novo continua em aviso e o exit continua `0`. No modo fail, o gate falha com exit `1` quando os clones novos que passam em `duplication.min_similarity` e `duplication.min_lines` passam de `duplication.max_new_clones` (padrão `0`). O motivo cita a chave e o teto, como em `1 new clone exceeds duplication.max_new_clones 0`. Os dois filtros valem também no modo warn, e um clone que eles descartam fica fora do relatório. `bob dry` e `bob check` aceitam `--dry-fail` e `--max-new-clones N`, que vencem o arquivo nessa execução. Um `--max-new-clones` negativo, ou um valor inválido nas chaves novas, sai com `4` e não grava relatório. O hook pre-push não muda.
+
 Invalid command-line usage exits `4`, writes no report, and the stderr does not mention baseline. Help (`-h`, `--help`) stays `0`.
 
 Um uso inválido da linha de comando sai com `4`, não grava relatório, e o stderr não menciona baseline. A ajuda (`-h`, `--help`) continua saindo com `0`.

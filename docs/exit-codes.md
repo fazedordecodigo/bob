@@ -7,14 +7,14 @@ Os códigos estão em `src/bob_quality/exit_codes.py`. A [SPEC](SPEC.md) os insp
 | Código | Nome no código | Quando sai |
 |---|---|---|
 | `0` | `PASSED` | Todo gate que rodou passou, ou só avisou |
-| `1` | `GATE_FAILED` | CRAP de uma função no escopo ≥ limite, ou violação de dependência no diff |
+| `1` | `GATE_FAILED` | CRAP de uma função no escopo ≥ limite, violação de dependência no diff, ou, no modo fail do DRY, mais clones novos que `duplication.max_new_clones` |
 | `2` | `BASELINE_BROKEN` | A suíte quebra antes da medição |
 | `3` | `UNWAIVED_SURVIVOR` | Mutante `survived` sem waiver |
 | `4` | `CONFIG_OR_TOOL` | Configuração inválida ou ferramenta que impede a medição |
 
 ## Exit 0
 
-Todos os gates pedidos que de fato rodaram passaram. Aviso também termina em `0`: clone novo, mutante `no_coverage` sem sobrevivente sem waiver, e TypeScript pulado num monorepo quando o que foi medido cabe no limite. O veredito do gate fica ⚠️. O exit continua `0`.
+Todos os gates pedidos que de fato rodaram passaram. Aviso também termina em `0`: clone novo no modo warn ou até o teto no modo fail, mutante `no_coverage` sem sobrevivente sem waiver, e TypeScript pulado num monorepo quando o que foi medido cabe no limite. O veredito do gate fica ⚠️. O exit continua `0`.
 
 Um nome de gate desconhecido é `not_run` e contribui `0`.
 
@@ -28,7 +28,7 @@ Um nome de gate desconhecido é `not_run` e contribui `0`.
 
 `deps_verdict` devolve `1` quando alguma violação está marcada `in_diff`. O motivo traz `origem → destino`.
 
-DRY não devolve `1`. Mutação não devolve `1`: sobrevivente sem waiver é `3`.
+DRY devolve `1` só no modo fail (`duplication.new_clones: fail` ou `--dry-fail`), quando a conta de clones novos passa de `duplication.max_new_clones` ou de `--max-new-clones`. O motivo traz a chave e o teto, como `1 new clone exceeds duplication.max_new_clones 0`. No modo warn, o padrão, DRY não devolve `1`. Mutação não devolve `1`: sobrevivente sem waiver é `3`.
 
 Se o CRAP falha (`1`) e a mutação também (`3`), o `check` sai com `3`.
 
@@ -56,7 +56,7 @@ Há dois jeitos de chegar no `4`.
 
 `cli.main` devolve `4` sem escrever `report.md`, `report.json` nem alterar `waivers.yaml` em dois casos distintos.
 
-Um uso inválido da linha de comando (comando ausente, comando desconhecido, flag ilegal, valor fora das escolhas) imprime o texto de uso do argparse no stderr. Esse texto não menciona baseline. A ajuda (`-h`, `--help`) sai com `0`. Isso não é o exit `2`.
+Um uso inválido da linha de comando (comando ausente, comando desconhecido, flag ilegal, valor fora das escolhas) imprime o texto de uso do argparse no stderr. Esse texto não menciona baseline. A ajuda (`-h`, `--help`) sai com `0`. Isso não é o exit `2`. Um `--max-new-clones` negativo em `bob dry` ou `bob check` também sai com `4`, com `--max-new-clones must be at least 0` em inglês no stderr.
 
 A configuração inválida imprime inglês no stderr quando:
 
@@ -70,7 +70,7 @@ A configuração inválida imprime inglês no stderr quando:
 
 Erro de sintaxe, tipo errado e waiver inválido são barrados em `_language` ou `_blocked_config`, que imprimem no stderr e retornam `4` sem chamar `write_report`.
 
-`duplication` inválida entra na mesma barreira que as outras chaves: `reject_config_types` chama `_config_from_file`, o stderr fica em inglês e nenhum relatório é gravado. A recusa cobre um valor que não é mapeamento, um `min_tokens` que não é inteiro e um `min_tokens` negativo. Uma chave desconhecida, inclusive `mutation`, `duplication.tool`, `duplication.new_clones` e `dependencies.violation`, sai do mesmo jeito. O [CHANGELOG.md](../CHANGELOG.md) descreve esses casos.
+`duplication` inválida entra na mesma barreira que as outras chaves: `reject_config_types` chama `_config_from_file`, o stderr fica em inglês e nenhum relatório é gravado. A recusa cobre um valor que não é mapeamento, um `min_tokens` que não é inteiro, um `min_tokens` negativo, e `new_clones`, `max_new_clones`, `min_similarity` ou `min_lines` com tipo ou valor inválido. Uma chave desconhecida, inclusive `mutation`, `duplication.tool` e `dependencies.violation`, sai do mesmo jeito. O [CHANGELOG.md](../CHANGELOG.md) descreve esses casos.
 
 Um `--reason` ausente no `bob waive` também é `4`, e essa frase segue o idioma da CLI, porque acontece dentro de `_waive_command` depois da barreira do arquivo.
 
@@ -80,4 +80,4 @@ Se a ferramenta falta no meio do gate (lizard, mutmut, import-linter, dependency
 
 `bob doctor` com pino ausente ou versão diferente sai com `4` no stdout do próprio doctor, sem relatório em `.bob/`.
 
-Num monorepo com Python e TypeScript, Node ausente não usa este código para o CRAP e para deps: Python segue, TypeScript entra como aviso, e o exit é o do que foi medido (`0` ou `1`). DRY sem Node é `not_run` com `0`. Ver [Monorepo e Node ausente](gates.md#monorepo-e-node-ausente).
+Num monorepo com Python e TypeScript, Node ausente não usa este código para o CRAP e para deps: Python segue, TypeScript entra como aviso, e o exit é o do que foi medido (`0` ou `1`). DRY sem Node é `not_run` com `0`, também no modo fail. Ver [Monorepo e Node ausente](gates.md#monorepo-e-node-ausente).
