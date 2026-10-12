@@ -41,7 +41,7 @@ O `bob.yaml` deste repositório é mais curto: `base`, `languages: [python]`, `p
 | `paths.include` | lista de strings | `[src]` | Raízes medidas |
 | `paths.exclude` | lista de strings | `[tests, node_modules, dist]` | Fora da medição |
 | `crap.max_per_function` | número (bool não vale) | `10` | Limite. CRAP maior ou igual reprova |
-| `crap.scope` | string | `changed` | `changed` olha só funções alteradas. Qualquer outro texto faz toda função medida contar (`crap_verdict` em `core.py`) |
+| `crap.scope` | string | `changed` | Só `changed` ou `all`. Outro texto sai com `4` |
 | `duplication.min_tokens` | inteiro maior que 0 | `50` | Mínimo de tokens do jscpd |
 | `dependencies.python` | string | `.importlinter` | Config do import-linter |
 | `dependencies.typescript` | string | `.dependency-cruiser.cjs` | Config do dependency-cruiser |

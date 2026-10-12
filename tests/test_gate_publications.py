@@ -58,6 +58,21 @@ def test_skill_hook_and_ci_bullets_quote_the_commands() -> None:
     assert _first_backtick_span(_only_line(body, "- CI:")) == CI_COMMAND
 
 
+def test_cli_guide_names_the_hook_gates() -> None:
+    body = _text("docs/cli.md")
+    assert f"| Hook `pre-push` | `{FAST_GATES}` |" in body
+    assert "O script do hook passa `crap,deps`" not in body
+    assert "ainda grava o relatório de erro" not in body
+    for relative in ("docs/cli.md", "docs/instalacao.md", "docs/README.md", "docs/visao-geral.md"):
+        assert "bob check --gates crap,deps" not in _text(relative), relative
+
+
+def test_guides_do_not_say_invalid_duplication_writes_a_report() -> None:
+    stale = "o relatório de erro é gravado no idioma"
+    for relative in ("docs/cli.md", "docs/exit-codes.md", "docs/configuracao.md", "docs/relatorios.md"):
+        assert stale not in _text(relative), relative
+
+
 def test_readmes_publish_the_fast_hook_command() -> None:
     english = _text("README.md")
     portuguese = _text("README.pt-BR.md")

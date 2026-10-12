@@ -149,6 +149,8 @@ Os comandos gravam `.bob/report.md` e `.bob/report.json`. Os exit codes são:
 | `3` | Um mutante sobrevivente não tem waiver. |
 | `4` | Ferramenta ausente ou divergente, ou configuração inválida. A mensagem vai para o stderr em inglês, e a execução não grava nada. |
 
+Um uso inválido da linha de comando sai com `4`, não grava relatório, e o stderr não menciona baseline. A ajuda (`-h`, `--help`) continua saindo com `0`.
+
 Quando mais de um gate falha, `bob check` sai com o código mais alto.
 
 `bob check` local não roda mutação. `bob check --gates mutate` e `bob mutate` rodam, só nas funções alteradas e nas funções que ainda têm sobreviventes.
@@ -319,7 +321,7 @@ O CI (`.github/workflows/ci.yml`) roda essa suíte em Python 3.10 e 3.12 com Nod
 
 ## GitHub Action
 
-A action composta em `.github/actions/bob` instala o `bob` e roda `bob check` com `crap,dry,deps,mutate`. Ela restaura e publica o artefato `bob-mutation-cache` (`.bob/mutation-cache.json`) e cria ou atualiza um único comentário no pull request com `.bob/report.md`. O exit code do job é o do `bob`.
+A action composta em `.github/actions/bob` instala o `bob` e roda `bob check` com `crap,dry,deps,mutate`. Ela restaura e publica o artefato `bob-mutation-cache` (`.bob/mutation-cache.json`) e cria ou atualiza um único comentário no pull request com `.bob/report.md`. O exit code do job é o do `bob`, incluindo `4` para um uso inválido da linha de comando.
 
 A action aceita os inputs `base`, `gates`, `pip-spec` e `token`. Este repositório a usa em `.github/workflows/bob.yml`. O `bob-quality` ainda não está no PyPI, então no checkout deste repositório a action roda `pip install -e ".[dev]"`, e em outro repositório instala o código-fonte git da action. Publicação no GitHub Marketplace não faz parte desta fatia.
 
