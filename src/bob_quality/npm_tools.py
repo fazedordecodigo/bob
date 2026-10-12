@@ -163,9 +163,16 @@ def user_npm_cache() -> Path:
 
 def _plugin_packages() -> list[Path]:
     matches: list[Path] = []
+    seen: set[Path] = set()
     for parent in Path(__file__).resolve().parents:
-        if _is_plugin_manifest(parent / "package.json"):
-            matches.append(parent)
+        manifest = parent / "package.json"
+        if not _is_plugin_manifest(manifest):
+            continue
+        home = manifest.resolve().parent if manifest.is_symlink() else parent
+        if home in seen:
+            continue
+        seen.add(home)
+        matches.append(home)
     return matches
 
 

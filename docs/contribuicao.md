@@ -15,7 +15,7 @@ Os passos do [AGENTS.md](../AGENTS.md), alinhados a `.github/workflows/ci.yml` e
 3. `python3 -m venv .venv && . .venv/bin/activate`.
 4. `python -m pip install -e '.[dev]'`.
 5. `npm ci` na raiz.
-6. `bob doctor`. Sai com `0` só quando cada ferramenta coincide com o pino. `bob doctor --install` num checkout editável cria `src/bob_quality/node_modules` e o teste `tests/test_mutmut_dogfood.py` falha ([#34](https://github.com/fazedordecodigo/bob/issues/34)). Apague essa pasta antes do pytest.
+6. `bob doctor`. Sai com `0` só quando cada ferramenta coincide com o pino. Num checkout editável, `bob doctor --install` instala na raiz, no mesmo lugar que `npm ci`. Apague `src/bob_quality/node_modules` se um `--install` antigo a tiver criado. Essa pasta quebra `tests/test_mutmut_dogfood.py`.
 7. `python -m pytest`. A suíte leva vários minutos: o dogfood do mutmut gera `mutants/`.
 8. `bob check --base origin/main --gates crap,dry,deps,mutate`, como o CI. Sem `--gates`, o padrão é `crap,dry,deps`. O relatório fica em `.bob/report.md` e `.bob/report.json`.
 
