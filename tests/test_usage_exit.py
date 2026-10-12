@@ -333,7 +333,7 @@ def test_invalid_language_is_english_on_stderr_and_writes_nothing(tmp_path: Path
     assert flagged.stdout == ""
     assert "xml" not in flagged.stderr
     assert configured.returncode == 4
-    assert configured.stderr == "invalid language: fr (use en or pt-BR)\n"
+    assert configured.stderr == "bob.yaml: language must be en or pt-BR\n"
     assert configured.stdout == ""
     assert not (repo / ".bob").exists()
 
