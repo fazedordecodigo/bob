@@ -272,7 +272,8 @@ def test_each_skill_bundles_the_nearest_license_inside_the_plugin(
     _write(source / "skills" / "vendor" / "propria" / "SKILL.md", "propria\n")
     _write(source / "skills" / "vendor" / "propria" / "LICENSE", "da propria\n")
     _write(source / "skills" / "vendor" / "herdada" / "SKILL.md", "herdada\n")
-    skills = ["./skills/solta", "./skills/vendor/propria", "./skills/vendor/herdada"]
+    # propria vem antes da solta: se o continue virar break, o aviso da solta some.
+    skills = ["./skills/vendor/propria", "./skills/solta", "./skills/vendor/herdada"]
     _write(source / ".claude-plugin" / "plugin.json", json.dumps({"skills": skills}))
     source_before = _files(source)
     project = tmp_path / "projeto"
