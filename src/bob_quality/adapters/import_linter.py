@@ -1,5 +1,3 @@
-"""Adaptador do import-linter: texto da CLI → `DepViolation`."""
-
 from __future__ import annotations
 
 import re
@@ -13,6 +11,7 @@ _SUMMARY_LINE = re.compile(r"^Contracts: \d+ kept, (\d+) broken\.$")
 _RELATIVE = re.compile(r"^\s*-\s+(\.\w+(?:\.\w+)*)\s+->\s+(\.\w+(?:\.\w+)*)")
 _ABSOLUTE = re.compile(r"^\s*-\s+(\w+(?:\.\w+)*)\s+->\s+(\w+(?:\.\w+)*)")
 _CYCLE_PACKAGE = "No cycles are allowed in "
+_BROKEN_SUFFIX = " BROKEN"
 _SKIP_HEADINGS = {"Contracts", "Broken contracts"}
 
 
@@ -34,12 +33,10 @@ def is_empty_report(raw: str) -> bool:
 
 
 def broken_contract_name(raw: str) -> str | None:
-    """Nome do contrato quando o relatório diz BROKEN e não há aresta `->`."""
     for line in _ANSI.sub("", raw).splitlines():
         stripped = line.strip()
-        if stripped.endswith(" BROKEN"):
-            name = stripped[: -len(" BROKEN")].strip()
-            return name
+        if stripped.endswith(_BROKEN_SUFFIX):
+            return stripped.removesuffix(_BROKEN_SUFFIX).strip()
     return None
 
 
