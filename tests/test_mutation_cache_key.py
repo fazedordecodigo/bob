@@ -23,9 +23,13 @@ from bob_quality.mutate import (
     MutationOutcome,
     _Cache,
     _CacheLineError,
+    _CacheView,
+    _cached_mutants,
     _mutant_from_row,
+    _read_cache,
     _safe_cache,
     _safe_fingerprint,
+    _view_cache,
     _write_cache,
 )
 from bob_quality.suite_fingerprint import suite_fingerprint
@@ -326,21 +330,44 @@ def test_a_non_utf8_cache_exits_4_and_leaves_the_file(tmp_path: Path) -> None:
     detail = "'utf-8' codec can't decode byte 0xff in position 0: invalid start byte"
 
     _assert_invalid_cache(repo, path, before, detail)
-    _view, broken = _safe_cache(_Cache(path, {"mutmut": "3.8.0", "suite": "abc"}), {}, [])
+    versions = {"mutmut": "3.8.0"}
+    waivers = [{"id": "kept"}]
+    view, broken = _safe_cache(_Cache(path, {"mutmut": "3.8.0", "suite": "abc"}), versions, waivers)
     assert broken is not None
+    assert view == _CacheView({}, False)
     assert broken.exit_code == 4
     assert broken.result.status == "not_run"
+    assert broken.versions == versions
+    assert broken.waivers == waivers
     assert in_both(broken.result.reason or "")[0] == f"invalid mutation cache: {detail}"
     assert path.read_bytes() == before
+
+    absent = _read_cache(_Cache(tmp_path / "missing.json", {"mutmut": "3.8.0", "suite": "abc"}))
+    assert absent == _CacheView({}, True)
+    alien = _view_cache(["nope"], {"mutmut": "3.8.0", "suite": "abc"})
+    assert alien == _CacheView({}, True)
+    key = {"mutmut": "3.8.0", "suite": "abc"}
+    weird = _view_cache({"functions": ["nope"], **key}, key)
+    assert weird == _CacheView({}, True)
+    parsed = _cached_mutants(
+        {
+            "mutants": [
+                {"id": "add-planted", "line": 4, "status": "killed"},
+                {"id": 3, "line": 1},
+                "skip",
+            ]
+        }
+    )
+    assert [(item.id, item.line, item.status) for item in parsed] == [("add-planted", 4, "killed")]
+    assert _cached_mutants({}) == []
 
     valid = tmp_path / "valid" / "mutation-cache.json"
     valid.parent.mkdir()
     stored = {"mutmut": "3.8.0", "suite": "abc", "functions": {ADD: {"hash": "x"}}}
     valid.write_bytes(json.dumps(stored).encode())
-    view, ok = _safe_cache(_Cache(valid, {"mutmut": "3.8.0", "suite": "abc"}), {}, [])
+    view, ok = _safe_cache(_Cache(valid, key), versions, waivers)
     assert ok is None
-    assert view.may_reuse is True
-    assert view.held[ADD] == {"hash": "x"}
+    assert view == _CacheView({ADD: {"hash": "x"}}, True)
 
 
 def test_a_publish_fsyncs_a_private_temp_and_ignores_a_tmp_symlink(
