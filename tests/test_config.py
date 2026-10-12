@@ -128,6 +128,24 @@ def test_load_config_rejects_min_tokens_that_is_not_an_integer(tmp_path: Path) -
     )
 
 
+def test_load_config_rejects_invalid_yaml(tmp_path: Path) -> None:
+    (tmp_path / "bob.yaml").write_text(":\n  - [\n")
+
+    assert _config_error(tmp_path) == (
+        "invalid YAML in bob.yaml: while parsing a block mapping",
+        "YAML inválido em bob.yaml: while parsing a block mapping",
+    )
+
+
+def test_load_config_rejects_a_numeric_language(tmp_path: Path) -> None:
+    (tmp_path / "bob.yaml").write_text("language: 1\n")
+
+    assert _config_error(tmp_path) == (
+        "invalid language: 1 (use en or pt-BR)",
+        "idioma inválido: 1 (use en ou pt-BR)",
+    )
+
+
 def test_load_config_rejects_an_unknown_language(tmp_path: Path) -> None:
     (tmp_path / "bob.yaml").write_text("language: fr\n")
 
@@ -157,10 +175,42 @@ def test_configured_language_reads_an_explicit_path(tmp_path: Path) -> None:
     assert configured_language(explicit, tmp_path) == "pt-BR"
 
 
-def test_configured_language_leaves_a_broken_config_to_the_check(tmp_path: Path) -> None:
+def test_configured_language_rejects_an_unknown_language(tmp_path: Path) -> None:
     (tmp_path / "bob.yaml").write_text("language: fr\n")
 
-    assert configured_language(None, tmp_path) is None
+    with pytest.raises(ConfigError) as caught:
+        configured_language(None, tmp_path)
+
+    assert render(reason(caught.value), "en") == "invalid language: fr (use en or pt-BR)"
+
+
+def test_configured_language_rejects_a_number(tmp_path: Path) -> None:
+    (tmp_path / "bob.yaml").write_text("language: 1\n")
+
+    with pytest.raises(ConfigError) as caught:
+        configured_language(None, tmp_path)
+
+    assert render(reason(caught.value), "en") == "invalid language: 1 (use en or pt-BR)"
+
+
+def test_configured_language_rejects_a_list(tmp_path: Path) -> None:
+    (tmp_path / "bob.yaml").write_text("- base\n")
+
+    with pytest.raises(ConfigError) as caught:
+        configured_language(None, tmp_path)
+
+    assert render(reason(caught.value), "en") == "bob.yaml must be a mapping"
+
+
+def test_configured_language_rejects_invalid_yaml(tmp_path: Path) -> None:
+    (tmp_path / "bob.yaml").write_text(":\n  - [\n")
+
+    with pytest.raises(ConfigError) as caught:
+        configured_language(None, tmp_path)
+
+    assert render(reason(caught.value), "en") == (
+        "invalid YAML in bob.yaml: while parsing a block mapping"
+    )
 
 
 def test_configured_language_keeps_pt_br_when_another_key_is_invalid(tmp_path: Path) -> None:
@@ -176,7 +226,6 @@ def test_configured_language_keeps_pt_br_when_another_key_is_invalid(tmp_path: P
         ("en", "pt-BR", "pt-BR", "en"),
         (None, "pt-BR", "en", "pt-BR"),
         (None, "en", "pt-BR", "en"),
-        ("", "", "pt-BR", "pt-BR"),
         (None, None, "pt-BR", "pt-BR"),
         (None, None, None, "en"),
         ("en", "fr", None, "en"),
@@ -196,3 +245,14 @@ def test_resolve_language_rejects_an_unknown_value(
         resolve_language(flag, env, "pt-BR")
 
     assert render(reason(caught.value), "en") == f"invalid language: {shown} (use en or pt-BR)"
+
+
+@pytest.mark.parametrize(
+    ("flag", "env"),
+    [("", "pt-BR"), (None, ""), ("", None)],
+)
+def test_resolve_language_rejects_an_empty_string(flag: str | None, env: str | None) -> None:
+    with pytest.raises(ConfigError) as caught:
+        resolve_language(flag, env, "pt-BR")
+
+    assert render(reason(caught.value), "en") == 'invalid language: "" (use en or pt-BR)'

@@ -94,8 +94,27 @@ def test_python_cycle_fails_without_import_linter_config(tmp_path: Path) -> None
 
     assert code == 1, markdown
     assert deps["status"] == "failed"
+    assert deps["reason"] == "app.right → app.left"
     assert "## Dependency violations and cycles" in markdown
+    assert "`app.right → app.left` (Forbidden dependency cycle)" in markdown
+
+
+def test_python_cycle_rule_name_follows_pt_br(tmp_path: Path) -> None:
+    repo = init_python_repo(tmp_path / "repo")
+    commit_on_branch(repo, "cycle", "src/app/left.py", LEFT, "add left")
+    commit_on_branch(repo, "cycle", "src/app/right.py", RIGHT, "add right")
+
+    code = _invoke(repo, "deps", "--base", "main", "--lang", "pt-BR")
+    payload, markdown = _deps(repo)
+    deps = next(gate for gate in payload["gates"] if gate["name"] == "deps")
+    edge = next(item for item in payload["dependencies"] if item["origin"] == "app.right")
+
+    assert code == 1, markdown
+    assert deps["reason"] == "app.right → app.left"
+    assert edge["rule"] == "Proibido ciclo de dependência"
     assert "`app.right → app.left` (Proibido ciclo de dependência)" in markdown
+    assert "## Violações e ciclos de dependência" in markdown
+    assert payload["reproduce"] == "bob deps --base main --lang pt-BR"
 
 
 A_PY = "from app.b import VALUE as B\n\nVALUE = B\n"
@@ -167,10 +186,10 @@ def test_python_cycle_already_on_main_is_information_and_does_not_fail(
         {
             "origin": "app.right",
             "destination": "app.left",
-            "rule": "Proibido ciclo de dependência",
+            "rule": "Forbidden dependency cycle",
         }
     ]
-    assert "`app.right → app.left` (Proibido ciclo de dependência)" in markdown
+    assert "`app.right → app.left` (Forbidden dependency cycle)" in markdown
     assert "outside the diff; does not block" in markdown
     assert "❌ `deps`" not in markdown
 
@@ -186,7 +205,9 @@ def test_check_gates_deps_reports_the_same_python_cycle(tmp_path: Path) -> None:
     assert code == 1, markdown
     assert payload["exit_code"] == 1
     assert "`app.right → app.left`" in markdown
-    assert "bob check --base main --gates deps" in payload["reproduce"]
+    assert payload["reproduce"] == "bob check --base main --gates deps --lang en"
+    deps = next(gate for gate in payload["gates"] if gate["name"] == "deps")
+    assert deps["reason"] == "app.right → app.left"
 
 
 def test_python_without_cycle_passes_deps(tmp_path: Path) -> None:

@@ -138,6 +138,22 @@ def test_doctor_exits_4_and_prints_install_when_a_tool_is_missing(tmp_path: Path
     assert INSTALL["lizard"] not in result.stdout
 
 
+def test_doctor_follows_language_in_bob_yaml(tmp_path: Path) -> None:
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    for _name, _expected, executable, banner in PINS:
+        _stub(bin_dir, executable, banner)
+
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    (repo / "bob.yaml").write_text("language: pt-BR\n")
+    result = _run_doctor(repo, bin_dir)
+
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert "lizard esperada 1.24.1 encontrada 1.24.1" in result.stdout
+    assert "expected" not in result.stdout
+
+
 def test_doctor_speaks_portuguese_with_lang_pt_br(tmp_path: Path) -> None:
     bin_dir = tmp_path / "bin"
     bin_dir.mkdir()

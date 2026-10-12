@@ -44,7 +44,7 @@ Not run.
 ## How to reproduce
 
 ```
-bob check --base main --gates nope
+bob check --base main --gates nope --lang en
 ```
 """,
     PT: """\
@@ -78,7 +78,7 @@ Não executado.
 ## Como reproduzir
 
 ```
-bob check --base main --gates nope
+bob check --base main --gates nope --lang pt-BR
 ```
 """,
 }
@@ -142,13 +142,15 @@ def test_report_json_is_byte_identical_in_both_languages(tmp_path: Path) -> None
         report = (repo / ".bob" / "report.json").read_bytes()
         raw[lang] = re.sub(rb'"generated_at": "[^"]+"', b'"generated_at": ""', report)
 
-    payload = json.loads(raw[EN])
-    assert raw[EN] == raw[PT]
-    assert payload["gates"] == [
+    english = json.loads(raw[EN])
+    portuguese = json.loads(raw[PT])
+    assert english["gates"] == portuguese["gates"]
+    assert english["gates"] == [
         {"name": "crap", "status": "failed", "reason": "CRAP >= 10.0: messy@src/app/risky.py:1"},
         {"name": "nope", "status": "not_run", "reason": "gate not implemented in this slice"},
     ]
-    assert payload["reproduce"] == "bob check --base main --gates crap,nope"
+    assert english["reproduce"] == "bob check --base main --gates crap,nope --lang en"
+    assert portuguese["reproduce"] == "bob check --base main --gates crap,nope --lang pt-BR"
 
 
 @pytest.mark.parametrize(
@@ -171,27 +173,71 @@ def test_invalid_flag_or_env_exits_4_before_running(
     assert not (repo / ".bob").exists()
 
 
+_COMMANDS = (
+    ("check", "--gates", "nope", "--base", "main"),
+    ("crap", "--base", "main"),
+    ("dry", "--base", "main"),
+    ("deps", "--base", "main"),
+    ("mutate", "--base", "main"),
+    ("doctor",),
+    ("waive", "app.x_add__mutmut_1", "--reason", "because"),
+)
+
+
+@pytest.mark.parametrize("command", _COMMANDS)
 @pytest.mark.parametrize(
-    ("flag", "shown"),
+    ("text", "stderr"),
     [
-        (EN, "invalid language: fr (use en or pt-BR)"),
-        (PT, "idioma inválido: fr (use en ou pt-BR)"),
+        ("language: fr\n", "invalid language: fr (use en or pt-BR)\n"),
+        ("language: 1\n", "invalid language: 1 (use en or pt-BR)\n"),
+        ("- base\n", "bob.yaml must be a mapping\n"),
+        (":\n  - [\n", "invalid YAML in bob.yaml: while parsing a block mapping\n"),
     ],
 )
-def test_invalid_yaml_language_is_a_config_error_in_the_report(
-    tmp_path: Path, flag: str, shown: str
+def test_bad_bob_yaml_exits_4_on_stderr_and_writes_nothing(
+    tmp_path: Path, command: tuple[str, ...], text: str, stderr: str
 ) -> None:
-    repo = _repo(tmp_path, "fr")
+    repo = _repo(tmp_path)
+    (repo / "bob.yaml").write_text(text)
 
-    result = run_bob(repo, "check", "--lang", flag, "--gates", "nope", "--base", "main")
-    payload = json.loads((repo / ".bob" / "report.json").read_text())
-    markdown = (repo / ".bob" / "report.md").read_text()
+    result = run_bob(repo, *command)
 
     assert result.returncode == 4
-    assert payload["gates"] == [
-        {"name": "nope", "status": "not_run", "reason": "invalid language: fr (use en or pt-BR)"}
-    ]
-    assert f"`nope`: {'not run' if flag == EN else 'não executado'} ({shown})" in markdown
+    assert result.stderr == stderr
+    assert result.stdout == ""
+    assert "Traceback" not in result.stderr
+    assert not (repo / ".bob" / "report.md").exists()
+    assert not (repo / ".bob" / "report.json").exists()
+    assert not (repo / ".bob" / "waivers.yaml").exists()
+
+
+def test_valid_flag_does_not_hide_an_invalid_yaml_language(tmp_path: Path) -> None:
+    repo = _repo(tmp_path, "fr")
+
+    result = run_bob(repo, "check", "--lang", EN, "--gates", "nope", "--base", "main")
+
+    assert result.returncode == 4
+    assert result.stderr == "invalid language: fr (use en or pt-BR)\n"
+    assert result.stdout == ""
+    assert not (repo / ".bob" / "report.json").exists()
+
+
+@pytest.mark.parametrize("command", [item for item in _COMMANDS if item[0] != "mutate"])
+@pytest.mark.parametrize("source", ["flag", "env"])
+def test_empty_lang_flag_or_env_exits_4(
+    tmp_path: Path, command: tuple[str, ...], source: str
+) -> None:
+    repo = _repo(tmp_path, PT)
+    if source == "flag":
+        result = run_bob(repo, "--lang", "", *command)
+    else:
+        result = run_bob(repo, *command, bob_lang="")
+
+    assert result.returncode == 4
+    assert result.stderr == 'invalid language: "" (use en or pt-BR)\n'
+    assert result.stdout == ""
+    assert not (repo / ".bob" / "report.md").exists()
+    assert not (repo / ".bob" / "waivers.yaml").exists()
 
 
 def test_valid_yaml_language_survives_another_invalid_key(tmp_path: Path) -> None:
@@ -209,6 +255,7 @@ def test_valid_yaml_language_survives_another_invalid_key(tmp_path: Path) -> Non
     ]
     assert markdown.startswith("# Relatório bob\n")
     assert "duplication deve ser um mapeamento" in markdown
+    assert "bob check --base main --gates nope --lang pt-BR" in markdown
 
 
 @pytest.mark.parametrize(

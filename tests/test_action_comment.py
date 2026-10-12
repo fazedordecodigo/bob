@@ -17,25 +17,29 @@ def _upsert(
     api_base: str,
     pr: str = "8",
     summary: Path | None = None,
+    lang: str | None = None,
 ) -> subprocess.CompletedProcess[str]:
     env = None
     if summary is not None:
         env = {**os.environ, "GITHUB_STEP_SUMMARY": str(summary)}
+    command = [
+        sys.executable,
+        str(UPSERT),
+        "--report",
+        str(report),
+        "--repo",
+        "fazedordecodigo/bob",
+        "--pr",
+        pr,
+        "--api-base",
+        api_base,
+        "--token",
+        "test-token",
+    ]
+    if lang is not None:
+        command.extend(["--lang", lang])
     return subprocess.run(
-        [
-            sys.executable,
-            str(UPSERT),
-            "--report",
-            str(report),
-            "--repo",
-            "fazedordecodigo/bob",
-            "--pr",
-            pr,
-            "--api-base",
-            api_base,
-            "--token",
-            "test-token",
-        ],
+        command,
         capture_output=True,
         text=True,
         check=False,
@@ -101,8 +105,23 @@ def test_long_report_still_fits_in_one_github_comment(tmp_path: Path) -> None:
     body = str(api.comments[0]["body"])
     assert len(body) <= 65536
     assert body.startswith(MARKER)
-    assert "truncado" in body
+    assert "_…report truncated to fit in the GitHub comment._" in body
     assert "linha de mutante" in body
+
+
+def test_long_report_truncation_note_follows_pt_br(tmp_path: Path) -> None:
+    report = tmp_path / "report.md"
+    report.write_text("# Relatório bob\n\n" + ("linha de mutante\n" * 10000))
+    api = GitHubApi()
+    server, base = serve(api)
+    try:
+        result = _upsert(report, base, lang="pt-BR")
+    finally:
+        server.shutdown()
+
+    assert result.returncode == 0, result.stderr
+    body = str(api.comments[0]["body"])
+    assert "_…relatório truncado para caber no comentário do GitHub._" in body
 
 
 def test_missing_report_still_posts_a_single_comment(tmp_path: Path) -> None:
@@ -118,7 +137,21 @@ def test_missing_report_still_posts_a_single_comment(tmp_path: Path) -> None:
     assert len(api.comments) == 1
     body = str(api.comments[0]["body"])
     assert MARKER in body
+    assert "`report.md` was not generated." in result.stderr
     assert "report.md" in body
+
+
+def test_missing_report_error_follows_pt_br(tmp_path: Path) -> None:
+    missing = tmp_path / "report.md"
+    api = GitHubApi()
+    server, base = serve(api)
+    try:
+        result = _upsert(missing, base, lang="pt-BR")
+    finally:
+        server.shutdown()
+
+    assert result.returncode != 0
+    assert "`report.md` não foi gerado." in result.stderr
 
 
 def test_human_comment_quoting_the_marker_is_not_overwritten(tmp_path: Path) -> None:
@@ -190,4 +223,73 @@ def test_comment_api_failure_other_than_forbidden_still_fails(tmp_path: Path) ->
         server.shutdown()
 
     assert result.returncode != 0
+    assert api.comments == []
+
+
+def test_missing_repo_pr_or_token_is_an_english_error() -> None:
+    result = subprocess.run(
+        [sys.executable, str(UPSERT), "--repo", "", "--pr", "", "--token", "", "--lang", "en"],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert result.returncode == 4
+    assert result.stderr == "repo, pr, and token are required\n"
+
+
+def test_missing_repo_pr_or_token_follows_pt_br() -> None:
+    result = subprocess.run(
+        [sys.executable, str(UPSERT), "--repo", "", "--pr", "", "--token", "", "--lang", "pt-BR"],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert result.returncode == 4
+    assert result.stderr == "repo, pr e token são obrigatórios\n"
+
+
+def test_invalid_comment_list_is_an_english_error(tmp_path: Path) -> None:
+    report = tmp_path / "report.md"
+    report.write_text("# bob report\n")
+    api = GitHubApi()
+    api.comment_pages = [{"nope": True}]
+    server, base = serve(api)
+    try:
+        result = _upsert(report, base, lang="en")
+    finally:
+        server.shutdown()
+
+    assert result.returncode == 1
+    assert result.stderr == "invalid comment list\n"
+
+
+def test_invalid_comment_list_follows_pt_br(tmp_path: Path) -> None:
+    report = tmp_path / "report.md"
+    report.write_text("# bob report\n")
+    api = GitHubApi()
+    api.comment_pages = [{"nope": True}]
+    server, base = serve(api)
+    try:
+        result = _upsert(report, base, lang="pt-BR")
+    finally:
+        server.shutdown()
+
+    assert result.returncode == 1
+    assert result.stderr == "lista de comentários inválida\n"
+
+
+def test_empty_lang_on_the_comment_script_exits_4(tmp_path: Path) -> None:
+    report = tmp_path / "report.md"
+    report.write_text("# bob report\n")
+    api = GitHubApi()
+    server, base = serve(api)
+    try:
+        result = _upsert(report, base, lang="")
+    finally:
+        server.shutdown()
+
+    assert result.returncode == 4
+    assert result.stderr == 'invalid language: "" (use en or pt-BR)\n'
     assert api.comments == []
