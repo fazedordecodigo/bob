@@ -424,6 +424,16 @@ def test_cruiser_json_without_a_violations_list_exits_4(
     assert in_both(result.reason) == _CRUISER_MISSING
 
 
+@pytest.mark.parametrize("raw", ["[]", "null", '"nope"', "1"])
+def test_cruiser_json_that_is_not_an_object_exits_4(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, raw: str
+) -> None:
+    result, code, _, rows = _cruiser_gate(monkeypatch, tmp_path, raw)
+
+    assert (code, result.name, result.status, rows) == (4, "deps", "not_run", [])
+    assert in_both(result.reason) == _CRUISER_MISSING
+
+
 def test_cruiser_empty_violations_list_still_passes(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -449,6 +459,31 @@ def test_import_linter_exit_0_without_an_empty_report_exits_4(
 
     assert (code, result.name, result.status, rows) == (4, "deps", "not_run", [])
     assert in_both(result.reason) == _LINTER_UNRECOGNIZED
+
+
+def test_import_linter_earlier_kept_line_does_not_hide_a_broken_summary(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    raw = "Contracts: 1 kept, 0 broken.\nContracts: 1 kept, 1 broken.\n"
+    result, code, _, rows = _linter_gate(monkeypatch, tmp_path, raw)
+
+    assert (code, result.name, result.status, rows) == (4, "deps", "not_run", [])
+    assert in_both(result.reason) == _LINTER_UNRECOGNIZED
+
+
+def test_import_linter_last_summary_line_kept_still_passes(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    raw = "Contracts: 1 kept, 1 broken.\nContracts: 2 kept, 0 broken.\n"
+    result, code, _, rows = _linter_gate(monkeypatch, tmp_path, raw)
+
+    assert (code, result.name, result.status, result.reason, rows) == (
+        0,
+        "deps",
+        "passed",
+        None,
+        [],
+    )
 
 
 def test_import_linter_recognized_empty_report_still_passes(
