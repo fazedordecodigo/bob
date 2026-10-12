@@ -38,16 +38,18 @@ def waivers_path(cwd: Path) -> Path:
     return cwd / ".bob" / "waivers.yaml"
 
 
+def _one_line(text: str) -> bool:
+    return "\n" not in text and "\r" not in text and text.strip() != ""
+
+
 def normalize_reason(reason: str | None) -> str:
-    if reason is None or "\n" in reason or "\r" in reason:
+    if reason is None or not _one_line(reason):
         raise WaiverError(msg("waiver.no_reason"))
-    text = reason.strip()
-    if not text:
-        raise WaiverError(msg("waiver.no_reason"))
-    return text
+    return reason.strip()
 
 
 _WAIVER_FILE = ".bob/waivers.yaml"
+_TOP_LEVEL_KEYS = frozenset({"waivers"})
 
 
 def load_waivers(cwd: Path) -> list[Waiver]:
@@ -66,10 +68,17 @@ def reject_waiver_syntax(cwd: Path) -> None:
 
 
 def _waiver_entries(path: Path) -> list[object]:
-    raw = _load_yaml(path) or {}
-    if not isinstance(raw, dict):
+    loaded = _load_yaml(path)
+    if loaded is None:
+        return []
+    if not isinstance(loaded, dict):
         raise WaiverError(msg("waiver.file_not_mapping", path=_WAIVER_FILE))
-    entries = raw.get("waivers") or []
+    for key in loaded:
+        if key not in _TOP_LEVEL_KEYS:
+            raise WaiverError(msg("file.unknown_key", path=_WAIVER_FILE, key=key))
+    if "waivers" not in loaded or loaded["waivers"] is None:
+        return []
+    entries = loaded["waivers"]
     if not isinstance(entries, list):
         raise WaiverError(msg("waiver.list_required", path=_WAIVER_FILE, field="waivers"))
     return entries
@@ -100,11 +109,12 @@ def _waiver_from_entry(entry: object, index: int) -> Waiver:
 
 def _reason_text(entry: dict[str, object], index: int) -> str:
     value = entry.get("reason")
+    name = _item_field(index, "reason")
     if not isinstance(value, str):
-        raise WaiverError(
-            msg("waiver.field_string", path=_WAIVER_FILE, field=_item_field(index, "reason"))
-        )
-    return normalize_reason(value)
+        raise WaiverError(msg("waiver.field_string", path=_WAIVER_FILE, field=name))
+    if not _one_line(value):
+        raise WaiverError(msg("waiver.reason_line", path=_WAIVER_FILE, field=name))
+    return value.strip()
 
 
 def _required_text(entry: dict[str, object], key: str, index: int) -> str:

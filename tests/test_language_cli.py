@@ -238,22 +238,25 @@ def test_empty_lang_flag_or_env_exits_4(
     assert not (repo / ".bob" / "waivers.yaml").exists()
 
 
-def test_valid_yaml_language_survives_another_invalid_key(tmp_path: Path) -> None:
+@pytest.mark.parametrize("lang", [None, PT])
+def test_invalid_duplication_exits_4_in_english_and_writes_no_report(
+    tmp_path: Path, lang: str | None
+) -> None:
     repo = _repo(tmp_path, PT)
     config = repo / "bob.yaml"
     config.write_text(config.read_text() + "duplication: [1]\n")
+    args = ("check", "--gates", "nope", "--base", "main")
+    if lang is not None:
+        args = ("--lang", lang, *args)
 
-    result = run_bob(repo, "check", "--gates", "nope", "--base", "main")
-    payload = json.loads((repo / ".bob" / "report.json").read_text())
-    markdown = (repo / ".bob" / "report.md").read_text()
+    result = run_bob(repo, *args)
 
     assert result.returncode == 4
-    assert payload["gates"] == [
-        {"name": "nope", "status": "not_run", "reason": "duplication must be a mapping"}
-    ]
-    assert markdown.startswith("# Relatório bob\n")
-    assert "duplication deve ser um mapeamento" in markdown
-    assert "bob check --base main --gates nope --lang pt-BR" in markdown
+    assert result.stderr == "bob.yaml: duplication must be a mapping\n"
+    assert result.stdout == ""
+    assert "Traceback" not in result.stderr
+    assert not (repo / ".bob" / "report.md").exists()
+    assert not (repo / ".bob" / "report.json").exists()
 
 
 @pytest.mark.parametrize(
