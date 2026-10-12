@@ -8,7 +8,7 @@ from pathlib import Path
 from bob_quality.adapters.coverage import CoverageParseError, parse_coverage_json
 from bob_quality.adapters.lizard import LizardParseError, parse_lizard_csv
 from bob_quality.config import Config
-from bob_quality.exit_codes import BASELINE_BROKEN, CONFIG_OR_TOOL
+from bob_quality.exit_codes import BASELINE_BROKEN, CONFIG_OR_TOOL, pytest_passed
 from bob_quality.messages import msg, reason
 from bob_quality.probe import ProbeResult, build_metrics
 from bob_quality.tools import ToolError, run_coverage, run_lizard_csv, tool_version
@@ -35,8 +35,10 @@ def measure_python(
     except ToolError as exc:
         detail = msg("tool.detail", tool="coverage.py", detail=reason(exc))
         return ProbeResult.not_run(versions, detail, CONFIG_OR_TOOL)
-    if pytest_code not in {0, 5}:
-        return ProbeResult.not_run(versions, msg("probe.baseline_failed"), BASELINE_BROKEN)
+    if pytest_code is not None and not pytest_passed(pytest_code):
+        return ProbeResult.not_run(
+            versions, msg("probe.baseline_failed"), BASELINE_BROKEN, baseline=pytest_code
+        )
 
     try:
         raw_lizard = run_lizard_csv(cwd, config.include, config.exclude)
@@ -48,4 +50,5 @@ def measure_python(
     return ProbeResult(
         metrics=build_metrics(cwd, lizard_fns, coverage_files, diff_lines, "python"),
         versions=versions,
+        baseline=pytest_code,
     )

@@ -62,7 +62,12 @@ def test_show_runs_only_for_survivors_and_timeouts(monkeypatch, tmp_path: Path) 
     assert failed is None
     assert calls["run"] == (
         tmp_path,
-        ["app.weak.x_classify__mutmut*", "app.safe.x_add__mutmut*"],
+        [
+            "app.weak.x_classify__mutmut*",
+            "*app.weak.x_classify",
+            "app.safe.x_add__mutmut*",
+            "*app.safe.x_add",
+        ],
         2,
     )
     assert calls["results"] == tmp_path

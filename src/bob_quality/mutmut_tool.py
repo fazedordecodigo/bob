@@ -8,12 +8,15 @@ import subprocess
 import sys
 from pathlib import Path
 
+from bob_quality.adapters.mutmut import suite_failed
 from bob_quality.messages import msg
 from bob_quality.tools import ToolError
 
 _VERSION_RE = re.compile(r"(\d+\.\d+\.\d+)")
 _SPINNER_CHAR = "⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏"
 _SPINNER_LINE = re.compile(rf"^[{_SPINNER_CHAR}]\s")
+_TRACEBACK = "Traceback (most recent call last):\n"
+_EXCEPTION_LINE = re.compile(r"^\S.*", re.MULTILINE)
 
 
 def pytest_exit_code(cwd: Path) -> int:
@@ -92,8 +95,11 @@ def _invoke(args: list[str], cwd: Path | None, timeout: int = 180) -> str:
     except subprocess.TimeoutExpired as exc:
         raise ToolError(msg("mutmut.timeout")) from exc
     if completed.returncode != 0:
-        detail = failure_text(completed.stdout, completed.stderr)
-        if "nothing matches" in f"{completed.stdout}\n{completed.stderr}":
+        output = f"{completed.stdout}\n{completed.stderr}"
+        detail = _final_exception(output) or failure_text(completed.stdout, completed.stderr)
+        if suite_failed(output):
+            raise ToolError(msg("mutmut.suite_fails_in_mutants", detail=detail))
+        if "nothing matches" in output:
             raise ToolError("nothing matches")
         raise ToolError(detail or f"exit {completed.returncode}")
     return completed.stdout + completed.stderr
@@ -114,3 +120,12 @@ def failure_text(stdout: str, stderr: str) -> str:
     if len(compact) > 400:
         return "…" + compact[-400:]
     return compact
+
+
+def _final_exception(blob: str) -> str | None:
+    """Com traceback do Python, o erro é a primeira linha sem recuo depois do último cabeçalho."""
+    _before, header, after = blob.rpartition(_TRACEBACK)
+    line = _EXCEPTION_LINE.search(after)
+    if not header or line is None:
+        return None
+    return line.group(0)

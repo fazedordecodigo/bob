@@ -60,3 +60,11 @@ waivers:
   reason: new_line += 2 no mesmo ponto; o valor devolvido não muda.
   author: Emerson (aprovado 11/10)
   date: '2026-10-11'
+- id: bob_quality.suite_fingerprint.x__setup_cfg_also_copy__mutmut_11
+  reason: has_option com ALSO_COPY; o ConfigParser passa o nome da opção para minúsculas.
+  author: Cursor Agent
+  date: '2026-10-11'
+- id: bob_quality.suite_fingerprint.x__setup_cfg_also_copy__mutmut_20
+  reason: get com ALSO_COPY; o ConfigParser passa o nome da opção para minúsculas.
+  author: Cursor Agent
+  date: '2026-10-11'

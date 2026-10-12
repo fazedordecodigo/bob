@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import re
 
+from bob_quality.exit_codes import pytest_passed
 from bob_quality.messages import msg
 from bob_quality.models import Mutant, MutantStatus
 
@@ -15,6 +16,9 @@ _RESULT_RE = re.compile(r"^\s+(\S+):\s+(.+?)\s*$")
 _FUNCTION_RE = re.compile(r"(?:^|\.)x_(?P<name>.+?)__mutmut_\d+$")
 _METHOD_RE = re.compile(r"(?:^|\.)xǁ(?P<class_name>.+)ǁ(?P<name>.+?)__mutmut_\d+$")
 _HUNK_RE = re.compile(r"^@@ -\d+(?:,\d+)? \+(\d+)")
+# Linhas que `mutmut run` 3.8 imprime antes de sair 1 quando a suíte falha.
+_STATS_FAILED_RE = re.compile(r"failed to collect stats\. runner returned (\d+)")
+_CLEAN_FAILED = "Failed to run clean test"
 
 # Status impressos por mutmut 3.8 (`status_by_exit_code`). O mapa é nosso.
 _STATUS: dict[str, MutantStatus] = {
@@ -33,6 +37,13 @@ _STATUS: dict[str, MutantStatus] = {
 
 class MutmutParseError(Exception):
     """Saída do mutmut fora do contrato da versão pinada."""
+
+
+def suite_failed(output: str) -> bool:
+    """A suíte falhou dentro do `mutmut run`. Exit 5 do pytest (nada coletado) não conta."""
+    if _CLEAN_FAILED in output:
+        return True
+    return any(not pytest_passed(int(code)) for code in _STATS_FAILED_RE.findall(output))
 
 
 def ids_for_show(mutants: list[Mutant]) -> list[str]:
@@ -70,6 +81,21 @@ def mutmut_id_prefix(file: str, name: str) -> str:
     if module.startswith("src."):
         module = module[len("src.") :]
     return f"{module}.x_{name}__mutmut"
+
+
+def mutmut_stats_key(file: str, name: str) -> str:
+    """Chave da função em `tests_by_mangled_function_name` do mutmut 3.8."""
+    return mutmut_id_prefix(file, name).removesuffix("__mutmut")
+
+
+def mutmut_run_patterns(file: str, name: str) -> list[str]:
+    """Padrões do `mutmut run`: os mutantes da função e a chave dela no stats.
+
+    O mutmut 3.8 escolhe os testes da execução limpa casando cada padrão com `*`
+    contra as chaves do stats, por fnmatch. Sem o segundo padrão nada casa, e a
+    execução limpa roda a suíte inteira.
+    """
+    return [f"{mutmut_id_prefix(file, name)}*", f"*{mutmut_stats_key(file, name)}"]
 
 
 def _parse_results(raw: str) -> list[tuple[str, MutantStatus]]:

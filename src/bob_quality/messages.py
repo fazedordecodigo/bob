@@ -70,6 +70,9 @@ _EN: dict[str, str] = {
     "check.gate_not_implemented": "gate not implemented in this slice",
     "tool.missing": "missing tool: {tool}",
     "tool.detail": "{tool}: {detail}",
+    "git.ls_files_failed": "git ls-files failed: {detail}",
+    "suite.pyproject_unreadable": "unreadable pyproject.toml: {detail}",
+    "suite.setup_cfg_unreadable": "unreadable setup.cfg: {detail}",
     "probe.baseline_failed": "baseline tests failed before measuring",
     "probe.c8_no_report": "c8 did not write coverage-final.json",
     "probe.typescript_skipped": "TypeScript skipped: {reason}",
@@ -108,6 +111,10 @@ _EN: dict[str, str] = {
     "mutmut.timeout": "mutmut timed out",
     "mutmut.unknown_status": "unknown mutmut status: {label!r}",
     "mutmut.bad_id": "mutant id outside the contract: {mutant_id}",
+    "mutmut.suite_fails_in_mutants": (
+        "the suite passes in the repository and fails inside mutants/;"
+        " check also_copy and the [mutmut] configuration: {detail}"
+    ),
     "waiver.no_reason": "waiver without a reason: pass --reason with one line",
     "waiver.file_not_mapping": "waivers.yaml must be a mapping",
     "waiver.list_required": "waivers.yaml: 'waivers' must be a list",
@@ -208,6 +215,9 @@ _PT_BR: dict[str, str] = {
     "check.gate_not_implemented": "gate não implementado nesta fatia",
     "tool.missing": "ferramenta ausente: {tool}",
     "tool.detail": "{tool}: {detail}",
+    "git.ls_files_failed": "git ls-files falhou: {detail}",
+    "suite.pyproject_unreadable": "pyproject.toml ilegível: {detail}",
+    "suite.setup_cfg_unreadable": "setup.cfg ilegível: {detail}",
     "probe.baseline_failed": "testes da baseline falharam antes de medir",
     "probe.c8_no_report": "c8 não gravou coverage-final.json",
     "probe.typescript_skipped": "TypeScript pulado: {reason}",
@@ -247,6 +257,10 @@ _PT_BR: dict[str, str] = {
     "mutmut.timeout": "mutmut excedeu o tempo limite",
     "mutmut.unknown_status": "status desconhecido do mutmut: {label!r}",
     "mutmut.bad_id": "id de mutante fora do contrato: {mutant_id}",
+    "mutmut.suite_fails_in_mutants": (
+        "a suíte passa no repositório e falha dentro de mutants/;"
+        " confira also_copy e a configuração [mutmut]: {detail}"
+    ),
     "waiver.no_reason": "waiver sem motivo: informe --reason com uma linha",
     "waiver.file_not_mapping": "waivers.yaml deve ser um mapeamento",
     "waiver.list_required": "waivers.yaml: 'waivers' deve ser uma lista",
