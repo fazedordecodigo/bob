@@ -24,6 +24,21 @@ PLUGIN_ROOT = Path(__file__).resolve().parents[2]
 MANIFEST = Path(".claude-plugin") / "plugin.json"
 ATTRIBUTION = ("LICENSE",)
 
+# O instalador antigo copiava este NOTICE para dentro de cada skill. 2347154.
+RETIRED_NOTICE = b"""\
+Matt Pocock agent skills, vendored for the bob plugin.
+
+Source:  https://github.com/mattpocock/skills
+Commit:  49dd158d1076134a641b33efb035946536778336
+Date:    2026-10-09
+License: MIT (see LICENSE in this directory)
+Copyright (c) 2026 Matt Pocock
+
+This tree is a verbatim copy of the upstream `skills/` directory at that
+commit, plus the upstream LICENSE. Do not edit the vendored files; re-copy
+from the pin above.
+"""
+
 RETIRED_SKILL_NAMES: frozenset[str] = frozenset(
     (
         "ask-matt",
@@ -139,12 +154,26 @@ def _read_manifest(manifest: Path) -> object:
         raise SourceError(f"JSON inválido em {manifest}: {exc}") from None
 
 
+def _skip_reason(child: Path) -> str | None:
+    if child.is_symlink() or not child.is_dir():
+        return "é um arquivo ou um link simbólico"
+    notice = child / "NOTICE"
+    if notice.is_file() and notice.read_bytes() == RETIRED_NOTICE:
+        return None
+    return "o NOTICE não é o da instalação antiga"
+
+
 def _remove_retired(dest: Path) -> None:
     if not dest.is_dir():
         return
     for child in list(dest.iterdir()):
-        if child.name in RETIRED_SKILL_NAMES:
+        if child.name not in RETIRED_SKILL_NAMES:
+            continue
+        reason = _skip_reason(child)
+        if reason is None:
             shutil.rmtree(child)
+            continue
+        print(f"aviso: {child} ficou, porque {reason}.", file=sys.stderr)
 
 
 def _install(skills: dict[Path, list[Path]], dest: Path) -> None:
