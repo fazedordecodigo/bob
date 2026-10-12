@@ -188,14 +188,26 @@ def main(argv: list[str] | None = None) -> int:
     )
 
 
+class _EarlyFlags(argparse.ArgumentParser):
+    class Unreadable(Exception):
+        pass
+
+    def error(self, message: str) -> NoReturn:
+        raise self.Unreadable
+
+
+# Module level so mutmut cannot replace add_help=False with None. argparse treats None like False.
+_EARLY = _EarlyFlags(add_help=False)
+_EARLY.add_argument("--lang")
+_EARLY.add_argument("--config")
+
+
 def _language(argv: list[str] | None) -> Language:
     """Lido antes do parser completo, para a ajuda já sair no idioma escolhido."""
-    early = _Parser(prog="bob")
-    early._option_string_actions.pop("-h")
-    early._option_string_actions.pop("--help")
-    early.add_argument("--lang")
-    early.add_argument("--config")
-    known, _rest = early.parse_known_args(argv)
+    try:
+        known, _rest = _EARLY.parse_known_args(argv)
+    except _EarlyFlags.Unreadable:
+        return DEFAULT_LANGUAGE
     cwd = Path.cwd()
     flag = known.lang
     env = os.environ.get("BOB_LANG")

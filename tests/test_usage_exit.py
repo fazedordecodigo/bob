@@ -109,6 +109,19 @@ def test_missing_lang_and_config_values(tmp_path: Path) -> None:
     _usage_4(run_bob(tmp_path, "check", "--config"), tmp_path)
 
 
+def test_the_full_parser_reports_a_missing_flag_value(tmp_path: Path) -> None:
+    lang = _invoke(tmp_path, "--lang")
+    _usage_4(lang, tmp_path)
+    assert lang.stderr.splitlines()[-1] == "bob: error: argument --lang: expected one argument"
+    assert "[--config CONFIG]" not in lang.stderr
+
+    config = _invoke(tmp_path, "check", "--config")
+    _usage_4(config, tmp_path)
+    assert config.stderr.splitlines()[-1] == (
+        "bob check: error: argument --config: expected one argument"
+    )
+
+
 def test_shared_flag_before_the_command(tmp_path: Path) -> None:
     for command in _commands(tmp_path):
         _usage_4(run_bob(tmp_path, "--base", "main", command), tmp_path)
