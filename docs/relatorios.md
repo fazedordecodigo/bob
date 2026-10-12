@@ -53,4 +53,4 @@ O artefato `bob-mutation-cache` sobe com `.bob/mutation-cache.json` mesmo quando
 
 - `bob doctor` imprime no stdout.
 - `bob waive` só mexe em `.bob/waivers.yaml`.
-- Configuração inválida barrada em `cli.main` antes do `run_check` não grava relatório. Um `--config` inexistente em `check`, `crap`, `dry`, `deps` ou `mutate` grava o relatório de falha precoce. Ver [Exit 4](exit-codes.md#exit-4).
+- Configuração inválida barrada em `cli.main` antes do `run_check` não grava relatório. Isso inclui `duplication` inválida e chave desconhecida. Um uso inválido da linha de comando também não grava relatório. Um `--config` inexistente em `check`, `crap`, `dry`, `deps` ou `mutate` grava o relatório de falha precoce. Ver [Exit 4](exit-codes.md#exit-4).
