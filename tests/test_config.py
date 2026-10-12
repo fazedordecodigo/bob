@@ -30,6 +30,9 @@ dependencies:
   typescript: deps.cjs
 duplication:
   min_tokens: 80
+supply:
+  osv_fail_severities: [CRITICAL]
+  timeout_seconds: 12
 """
 
 
@@ -57,6 +60,8 @@ def test_load_config_reads_every_key(tmp_path: Path) -> None:
         typescript_deps_config="deps.cjs",
         min_tokens=80,
         language="pt-BR",
+        osv_fail_severities=("CRITICAL",),
+        supply_timeout_seconds=12,
     )
 
 
@@ -325,6 +330,17 @@ def test_load_config_treats_null_and_empty_collections_as_defaults(tmp_path: Pat
     assert load_config(None, tmp_path) == Config()
 
 
+def test_load_config_keeps_supply_defaults_when_the_keys_are_null(tmp_path: Path) -> None:
+    (tmp_path / "bob.yaml").write_text(
+        "supply:\n  osv_fail_severities:\n  timeout_seconds:\n"
+    )
+
+    loaded = load_config(None, tmp_path)
+
+    assert loaded.osv_fail_severities == ("HIGH", "CRITICAL")
+    assert loaded.supply_timeout_seconds == 30
+
+
 def test_load_config_keeps_numeric_thresholds_and_string_lists(tmp_path: Path) -> None:
     (tmp_path / "bob.yaml").write_text(
         "base: trunk\n"
@@ -578,6 +594,21 @@ def test_resolve_language_rejects_an_empty_string(flag: str | None, env: str | N
             "bob.yaml: duplication.min_tokens must be greater than 0",
             "bob.yaml: duplication.min_tokens deve ser maior que 0",
         ),
+        (
+            "supply:\n  osv_fail_severities: [MODERATE]\n",
+            "bob.yaml: supply.osv_fail_severities[0] must be HIGH or CRITICAL",
+            "bob.yaml: supply.osv_fail_severities[0] deve ser HIGH ou CRITICAL",
+        ),
+        (
+            "supply:\n  timeout_seconds: 0\n",
+            "bob.yaml: supply.timeout_seconds must be greater than 0",
+            "bob.yaml: supply.timeout_seconds deve ser maior que 0",
+        ),
+        (
+            "supply:\n  timeout_seconds: true\n",
+            "bob.yaml: supply.timeout_seconds must be an integer",
+            "bob.yaml: supply.timeout_seconds deve ser um inteiro",
+        ),
     ],
 )
 def test_load_config_rejects_an_illegal_semantic_value(
@@ -603,6 +634,10 @@ def test_load_config_rejects_an_illegal_semantic_value(
         ({"languages": ()}, "languages"),
         ({"languages": ("python", "python")}, "languages"),
         ({"languages": "python"}, "languages"),
+        ({"osv_fail_severities": ("MODERATE",)}, "osv_fail_severities"),
+        ({"osv_fail_severities": ()}, "osv_fail_severities"),
+        ({"supply_timeout_seconds": 0}, "supply_timeout_seconds"),
+        ({"supply_timeout_seconds": True}, "supply_timeout_seconds"),
     ],
 )
 def test_config_rejects_an_illegal_in_process_value(kwargs: dict[str, object], name: str) -> None:

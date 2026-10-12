@@ -16,6 +16,7 @@ CrapScope = Literal["changed", "all"]
 
 SOURCE_LANGUAGES: tuple[SourceLanguage, ...] = ("python", "typescript")
 CRAP_SCOPES: tuple[CrapScope, ...] = ("changed", "all")
+FAIL_SEVERITIES: tuple[str, ...] = ("HIGH", "CRITICAL")
 
 _CheckKind = Literal[
     "string",
@@ -135,6 +136,23 @@ _SCHEMA = _Node(
                 ),
             ),
         ),
+        _Node(
+            "supply",
+            "",
+            (),
+            children=(
+                _Node(
+                    "osv_fail_severities",
+                    "osv_fail_severities",
+                    (_Check("members", choices=FAIL_SEVERITIES),),
+                ),
+                _Node(
+                    "timeout_seconds",
+                    "supply_timeout_seconds",
+                    (_Check("integer"), _Bound("gt", 0)),
+                ),
+            ),
+        ),
     ),
 )
 
@@ -151,9 +169,11 @@ class Config:
     typescript_deps_config: str = ".dependency-cruiser.cjs"
     min_tokens: int = 50
     language: Language | None = None
+    osv_fail_severities: tuple[str, ...] = FAIL_SEVERITIES
+    supply_timeout_seconds: int = 30
 
     def __post_init__(self) -> None:
-        for name in ("languages", "include", "exclude"):
+        for name in ("languages", "include", "exclude", "osv_fail_severities"):
             value = getattr(self, name)
             if isinstance(value, list):
                 object.__setattr__(self, name, tuple(value))

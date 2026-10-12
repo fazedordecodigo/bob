@@ -285,6 +285,36 @@ _SEMANTIC_YAML = (
     ("duplication: false\n", "bob.yaml: duplication must be a mapping\n"),
     ('duplication: ""\n', "bob.yaml: duplication must be a mapping\n"),
     ("duplication: [1]\n", "bob.yaml: duplication must be a mapping\n"),
+    (
+        "supply:\n  osv_fail_severities: [MODERATE]\n",
+        "bob.yaml: supply.osv_fail_severities[0] must be HIGH or CRITICAL\n",
+    ),
+    (
+        "supply:\n  osv_fail_severities: []\n",
+        "bob.yaml: supply.osv_fail_severities must not be empty\n",
+    ),
+    (
+        "supply:\n  osv_fail_severities: [HIGH, HIGH]\n",
+        "bob.yaml: supply.osv_fail_severities[1] repeats HIGH\n",
+    ),
+    (
+        "supply:\n  osv_fail_severities: HIGH\n",
+        "bob.yaml: supply.osv_fail_severities must be a list of strings\n",
+    ),
+    (
+        "supply:\n  timeout_seconds: 0\n",
+        "bob.yaml: supply.timeout_seconds must be greater than 0\n",
+    ),
+    (
+        "supply:\n  timeout_seconds: true\n",
+        "bob.yaml: supply.timeout_seconds must be an integer\n",
+    ),
+    (
+        "supply:\n  timeout_seconds: 1.5\n",
+        "bob.yaml: supply.timeout_seconds must be an integer\n",
+    ),
+    ("supply: 5\n", "bob.yaml: supply must be a mapping\n"),
+    ("supply:\n  limit: 1\n", "bob.yaml: unknown key supply.limit\n"),
     ("0\n", "bob.yaml must be a mapping\n"),
     ("false\n", "bob.yaml must be a mapping\n"),
     ('""\n', "bob.yaml must be a mapping\n"),
