@@ -9,6 +9,7 @@ from bob_quality.core import unique_violations
 from bob_quality.models import DepViolation
 
 _ANSI = re.compile(r"\x1b\[[0-9;]*m")
+_EMPTY_REPORT = re.compile(r"^Contracts: \d+ kept, 0 broken\.$")
 _RELATIVE = re.compile(r"^\s*-\s+(\.\w+(?:\.\w+)*)\s+->\s+(\.\w+(?:\.\w+)*)")
 _ABSOLUTE = re.compile(r"^\s*-\s+(\w+(?:\.\w+)*)\s+->\s+(\w+(?:\.\w+)*)")
 _CYCLE_PACKAGE = "No cycles are allowed in "
@@ -21,6 +22,14 @@ class _ParseState:
     package: str = ""
     previous: str = ""
     found: list[DepViolation] = field(default_factory=list)
+
+
+def is_empty_report(raw: str) -> bool:
+    """Verdadeiro quando o texto traz a linha `N kept, 0 broken`."""
+    for line in _ANSI.sub("", raw).splitlines():
+        if _EMPTY_REPORT.match(line.strip()):
+            return True
+    return False
 
 
 def broken_contract_name(raw: str) -> str | None:

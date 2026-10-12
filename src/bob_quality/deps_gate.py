@@ -13,8 +13,8 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 
-from bob_quality.adapters.dependency_cruiser import parse_dependency_cruiser
-from bob_quality.adapters.import_linter import broken_contract_name, parse_import_linter
+from bob_quality.adapters.dependency_cruiser import CruiserParseError, parse_dependency_cruiser
+from bob_quality.adapters.import_linter import broken_contract_name, is_empty_report, parse_import_linter
 from bob_quality.config import Config
 from bob_quality.core import deps_verdict, unique_violations
 from bob_quality.cycles import strongly_connected
@@ -81,7 +81,7 @@ def run_deps_gate(
             measure=lambda: _typescript_violations(cwd, config, versions),
             sink=violations,
         )
-    except ToolError as exc:
+    except (ToolError, CruiserParseError) as exc:
         return GateResult("deps", "not_run", reason(exc)), CONFIG_OR_TOOL, versions, []
     except UnparsedBreak as exc:
         return GateResult("deps", "failed", exc.reason), GATE_FAILED, versions, []
@@ -358,6 +358,8 @@ def _import_linter_violations(completed: subprocess.CompletedProcess[str]) -> li
     if completed.returncode == 1 and not parsed:
         name = broken_contract_name(completed.stdout) or "import-linter"
         raise UnparsedBreak(msg("deps.contract_broken", name=name))
+    if completed.returncode == 0 and not parsed and not is_empty_report(completed.stdout):
+        raise ToolError(msg("deps.linter_not_empty"))
     return parsed
 
 
