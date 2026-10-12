@@ -743,3 +743,93 @@ def test_script_mode_runs_from_the_clone_without_site_packages(tmp_path: Path) -
 
     assert (result.returncode, result.stdout, result.stderr) == (0, _installed(".agents/skills"), "")
     assert sorted(path.name for path in (tmp_path / ".agents/skills").iterdir()) == sorted(BOB_SKILLS)
+
+
+def test_symlink_at_a_current_skill_stays_and_the_install_finishes(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    dest = tmp_path / ".github" / "skills"
+    dest.mkdir(parents=True)
+    outside = tmp_path / "fora"
+    bob_target = outside / "bob-check"
+    bob_target.mkdir(parents=True)
+    (bob_target / "KEEP").write_text("bob\n")
+    (dest / "bob-check").symlink_to(bob_target, target_is_directory=True)
+    harden_target = outside / "sumiu"
+    (dest / "harden").symlink_to(harden_target)
+    report_file = outside / "review-report"
+    report_file.write_text("relatorio\n")
+    (dest / "review-report").symlink_to(report_file)
+
+    result = _install(capsys, "--project", str(tmp_path), "copilot")
+
+    warnings = "".join(
+        _kept(dest / name, "é um link simbólico") + "\n" for name in BOB_SKILLS
+    )
+    assert result == (0, _installed(".github/skills"), warnings)
+    assert (dest / "bob-check").readlink() == bob_target
+    assert (bob_target / "KEEP").read_text() == "bob\n"
+    assert list(bob_target.iterdir()) == [bob_target / "KEEP"]
+    assert (dest / "harden").readlink() == harden_target
+    assert not harden_target.exists()
+    assert (dest / "review-report").readlink() == report_file
+    assert report_file.read_text() == "relatorio\n"
+    assert sorted(path.name for path in dest.iterdir()) == sorted(BOB_SKILLS)
+
+
+def test_unreadable_retired_notice_stays_and_the_install_finishes(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    dest = tmp_path / ".github" / "skills"
+    locked = dest / "tdd"
+    locked.mkdir(parents=True)
+    (locked / "SKILL.md").write_text("antiga\n")
+    notice = locked / "NOTICE"
+    notice.write_text(OLD_INSTALL_NOTICE)
+    notice.chmod(0)
+    gone = dest / "code-review"
+    gone.mkdir()
+    (gone / "SKILL.md").write_text("sai\n")
+    (gone / "NOTICE").write_text(OLD_INSTALL_NOTICE)
+    try:
+        result = _install(capsys, "--project", str(tmp_path), "copilot")
+    finally:
+        notice.chmod(0o644)
+
+    denied = f"[Errno 13] Permission denied: '{notice}'"
+    assert result == (0, _installed(".github/skills"), _kept(locked, denied) + "\n")
+    assert (locked / "SKILL.md").read_text() == "antiga\n"
+    assert notice.read_text() == OLD_INSTALL_NOTICE
+    assert not gone.exists()
+    for name in BOB_SKILLS:
+        assert (dest / name / "SKILL.md").read_bytes() == (ROOT / "skills" / name / "SKILL.md").read_bytes()
+
+
+def test_unreadable_retired_folder_stays_and_the_install_finishes(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    if os.geteuid() == 0:
+        pytest.skip("root ignora o chmod 000")
+    dest = tmp_path / ".agents" / "skills"
+    locked = dest / "ask-matt"
+    locked.mkdir(parents=True)
+    (locked / "SKILL.md").write_text("antiga\n")
+    notice = locked / "NOTICE"
+    notice.write_text(OLD_INSTALL_NOTICE)
+    gone = dest / "tdd"
+    gone.mkdir()
+    (gone / "SKILL.md").write_text("sai\n")
+    (gone / "NOTICE").write_text(OLD_INSTALL_NOTICE)
+    locked.chmod(0)
+    try:
+        result = _install(capsys, "--project", str(tmp_path), "agents")
+    finally:
+        locked.chmod(0o755)
+
+    denied = f"[Errno 13] Permission denied: '{notice}'"
+    assert result == (0, _installed(".agents/skills"), _kept(locked, denied) + "\n")
+    assert (locked / "SKILL.md").read_text() == "antiga\n"
+    assert notice.read_text() == OLD_INSTALL_NOTICE
+    assert not gone.exists()
+    for name in BOB_SKILLS:
+        assert (dest / name / "SKILL.md").read_bytes() == (ROOT / "skills" / name / "SKILL.md").read_bytes()

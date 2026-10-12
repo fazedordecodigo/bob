@@ -158,7 +158,13 @@ def _skip_reason(child: Path) -> str | None:
     if child.is_symlink() or not child.is_dir():
         return "é um arquivo ou um link simbólico"
     notice = child / "NOTICE"
-    if notice.is_file() and not notice.is_symlink() and notice.read_bytes() == RETIRED_NOTICE:
+    try:
+        if not (notice.is_file() and not notice.is_symlink()):
+            return "o NOTICE não é o da instalação antiga"
+        payload = notice.read_bytes()
+    except OSError as exc:
+        return str(exc)
+    if payload == RETIRED_NOTICE:
         return None
     return "o NOTICE não é o da instalação antiga"
 
@@ -180,6 +186,9 @@ def _install(skills: dict[Path, list[Path]], dest: Path) -> None:
     _remove_retired(dest)
     for skill, attribution in skills.items():
         target = dest / skill.name
+        if target.is_symlink():
+            print(f"aviso: {target} ficou, porque é um link simbólico.", file=sys.stderr)
+            continue
         if target.exists():
             shutil.rmtree(target)
         shutil.copytree(skill, target)
