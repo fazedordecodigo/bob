@@ -146,7 +146,6 @@ def test_cursor_and_claude_manifests_list_the_same_skills() -> None:
     assert len(cursor_skills) == 30
 
 
-# Sem isso, `minha-skills/x` e `.skills/x` contam como caminho de skill.
 _SKILL_PATH = re.compile(
     r"(?<![\w.-])(?:\.[\\/])?skills[\\/][\w.\\/-]*",
     re.IGNORECASE,
