@@ -81,7 +81,7 @@ def _with_skip(outcome: MutationOutcome | None, skip: Text | None) -> MutationOu
     noted, code = _note_skip(outcome.result, outcome.exit_code, skip)
     if noted is outcome.result:
         return outcome
-    return replace(outcome, result=noted, exit_code=code)
+    return replace(outcome, result=noted)
 
 
 def _note_skip(result: GateResult, code: int, skip: Text | None) -> tuple[GateResult, int]:

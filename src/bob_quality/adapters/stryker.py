@@ -43,7 +43,8 @@ def mutants_from_report(
             status = _status(raw)
             if status is None:
                 continue
-            span = _innermost(str(report_file), _line(report_file, raw), spans)
+            line = _line(report_file, raw)
+            span = _innermost(str(report_file), line, spans)
             if span is None:
                 continue
             mutants.append(
@@ -51,7 +52,7 @@ def mutants_from_report(
                     id=f"{span.file}:{_raw_id(report_file, raw)}",
                     function=span.name,
                     file=span.file,
-                    line=_line(report_file, raw),
+                    line=line,
                     operator=_operator(report_file, raw),
                     status=status,
                 )

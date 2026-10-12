@@ -121,10 +121,9 @@ def _changed_spans(
 
 
 def _script(file: str) -> bool:
-    path = file.replace("\\", "/")
-    if path.endswith(".d.ts"):
+    if file.endswith(".d.ts"):
         return False
-    return path.endswith(MUTATE_EXTENSIONS)
+    return file.endswith(MUTATE_EXTENSIONS)
 
 
 def _run(

@@ -63,11 +63,35 @@ _KILLED = json.dumps(
 )
 
 
+_WAIVER = {
+    "id": "src/safe.ts:9",
+    "reason": "kept so the waiver list is observable",
+    "author": "test",
+    "date": "2026-10-12",
+}
+
+
 def _repo(tmp_path: Path) -> Path:
     repo = init_ts_repo(tmp_path / "repo")
     commit_on_branch(repo, "change", "src/safe.ts", SAFE_TS, "change safe")
     commit_on_branch(repo, "change", "src/types.d.ts", TYPES_D_TS, "add types")
+    bob = repo / ".bob"
+    bob.mkdir()
+    (bob / "waivers.yaml").write_text(
+        "waivers:\n"
+        "- id: src/safe.ts:9\n"
+        "  reason: kept so the waiver list is observable\n"
+        "  author: test\n"
+        "  date: '2026-10-12'\n"
+    )
     return repo
+
+
+def _assert_carried(outcome) -> None:
+    assert outcome.versions["stryker"] == "10.0.0"
+    assert outcome.versions["stryker-vitest-runner"] == "10.0.0"
+    assert outcome.waivers == [_WAIVER]
+    assert outcome.result.name == "mutate"
 
 
 def test_mutate_extensions_match_the_dependency_gate() -> None:
@@ -81,7 +105,7 @@ def test_incremental_argv_deletes_a_stale_report_and_ignores_exit_1(
 ) -> None:
     repo = _repo(tmp_path)
     report = repo / ".bob" / "stryker-report.json"
-    report.parent.mkdir(parents=True)
+    report.parent.mkdir(parents=True, exist_ok=True)
     report.write_text('{"stale": true}\n')
     seen: list[bool] = []
     calls: list[list[str]] = []
@@ -91,6 +115,9 @@ def test_incremental_argv_deletes_a_stale_report_and_ignores_exit_1(
         seen.append(report.exists())
         report.write_text(_KILLED)
         assert kwargs["cwd"] == repo
+        assert kwargs["capture_output"] is True
+        assert kwargs["text"] is True
+        assert kwargs["stdin"] is subprocess.DEVNULL
         return subprocess.CompletedProcess(args, 1, stdout="", stderr="")
 
     _only_stryker(monkeypatch, fake_run)
@@ -128,7 +155,10 @@ def test_incremental_argv_deletes_a_stale_report_and_ignores_exit_1(
     assert "--maxConcurrentTestRunners" not in args
     assert "7" not in args
     assert json.loads((Path(prefix) / "package.json").read_text())["name"] == "bob-quality-tools"
-    assert json.loads((repo / ".bob" / "stryker.config.json").read_text()) == {
+    written = (repo / ".bob" / "stryker.config.json").read_text()
+    assert written == json.dumps(json.loads(written), indent=2) + "\n"
+    _assert_carried(outcome)
+    assert json.loads(written) == {
         "plugins": ["@stryker-mutator/*", str(PLUGIN.resolve())],
         "testRunner": "vitest",
         "vitest": {
@@ -152,12 +182,13 @@ def test_missing_report_retries_once_after_deleting_the_incremental_file(
     repo = _repo(tmp_path)
     incremental = repo / ".bob" / "stryker-incremental.json"
     report = repo / ".bob" / "stryker-report.json"
-    incremental.parent.mkdir(parents=True)
+    incremental.parent.mkdir(parents=True, exist_ok=True)
     incremental.write_text("{}\n")
     report.write_text('{"stale": true}\n')
     states: list[tuple[bool, bool]] = []
 
     def fake_run(args: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
+        assert kwargs["cwd"] == repo
         states.append((report.exists(), incremental.exists()))
         if len(states) == 2:
             report.write_text(_KILLED)
@@ -176,12 +207,13 @@ def test_missing_report_retries_once_after_deleting_the_incremental_file(
     assert states == [(False, True), (False, False)]
     assert outcome.exit_code == 0
     assert outcome.result.status == "passed"
+    _assert_carried(outcome)
 
 
 def test_a_second_missing_report_exits_4(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     repo = _repo(tmp_path)
     incremental = repo / ".bob" / "stryker-incremental.json"
-    incremental.parent.mkdir(parents=True)
+    incremental.parent.mkdir(parents=True, exist_ok=True)
     incremental.write_text("{}\n")
     calls: list[list[str]] = []
 
@@ -202,6 +234,7 @@ def test_a_second_missing_report_exits_4(tmp_path: Path, monkeypatch: pytest.Mon
     assert len(calls) == 2
     assert outcome.exit_code == 4
     assert outcome.result.status == "not_run"
+    _assert_carried(outcome)
     assert in_both(outcome.result.reason) == (
         "Stryker did not write the report",
         "o Stryker não gravou o relatório",
@@ -214,7 +247,7 @@ def test_dry_run_failure_exits_2_and_does_not_retry(
     assert "There were failed tests in the initial test run." in DRY_RUN
     repo = _repo(tmp_path)
     incremental = repo / ".bob" / "stryker-incremental.json"
-    incremental.parent.mkdir(parents=True)
+    incremental.parent.mkdir(parents=True, exist_ok=True)
     incremental.write_text("{}\n")
     calls: list[list[str]] = []
 
@@ -236,6 +269,7 @@ def test_dry_run_failure_exits_2_and_does_not_retry(
     assert incremental.is_file()
     assert outcome.exit_code == 2
     assert outcome.result.status == "not_run"
+    _assert_carried(outcome)
     assert in_both(outcome.result.reason) == (
         "baseline tests failed before measuring",
         "testes da baseline falharam antes de medir",
