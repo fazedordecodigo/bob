@@ -5,7 +5,9 @@ from __future__ import annotations
 import argparse
 import os
 import sys
+from dataclasses import dataclass
 from pathlib import Path
+from typing import NoReturn
 
 from bob_quality.check import run_check
 from bob_quality.config import (
@@ -15,13 +17,47 @@ from bob_quality.config import (
     resolve_language,
 )
 from bob_quality.doctor import run_doctor
-from bob_quality.exit_codes import CONFIG_OR_TOOL
+from bob_quality.exit_codes import CONFIG_OR_TOOL, PASSED
 from bob_quality.messages import DEFAULT_LANGUAGE, Language, reason, render, t
 from bob_quality.waivers import WaiverError, add_waiver, reject_waiver_syntax
 
 
-def build_parser(lang: Language = DEFAULT_LANGUAGE) -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(
+class _Parser(argparse.ArgumentParser):
+    class Help(Exception):
+        pass
+
+    class Usage(Exception):
+        pass
+
+    def exit(self, status: int = 0, message: str | None = None) -> NoReturn:
+        if message is not None:
+            self._print_message(message, sys.stderr)
+        if status == 0:
+            raise self.Help
+        raise self.Usage
+
+
+@dataclass(frozen=True)
+class _HelpShown:
+    pass
+
+
+@dataclass(frozen=True)
+class _Rejected:
+    pass
+
+
+@dataclass(frozen=True)
+class _Ready:
+    lang: Language
+    args: argparse.Namespace
+
+
+_Invocation = _HelpShown | _Rejected | _Ready
+
+
+def build_parser(lang: Language = DEFAULT_LANGUAGE) -> _Parser:
+    parser = _Parser(
         prog="bob",
         description=t(lang, "cli.description"),
     )
@@ -88,13 +124,34 @@ def _add_lang(parser: argparse.ArgumentParser, lang: Language) -> None:
     parser.add_argument("--lang", default=None, help=t(lang, "cli.lang"))
 
 
-def main(argv: list[str] | None = None) -> int:
+def _parse(argv: list[str] | None) -> _Invocation:
     try:
         lang = _language(argv)
+        args = build_parser(lang).parse_args(argv)
     except ConfigError as exc:
         print(render(reason(exc), DEFAULT_LANGUAGE), file=sys.stderr)
+        return _Rejected()
+    except _Parser.Usage:
+        return _Rejected()
+    except _Parser.Help:
+        return _HelpShown()
+    return _Ready(lang, args)
+
+
+def _stop_code(seen: _HelpShown | _Rejected) -> int:
+    if isinstance(seen, _HelpShown):
+        return PASSED
+    if isinstance(seen, _Rejected):
         return CONFIG_OR_TOOL
-    args = build_parser(lang).parse_args(argv)
+    raise AssertionError(type(seen).__name__)
+
+
+def main(argv: list[str] | None = None) -> int:
+    seen = _parse(argv)
+    if not isinstance(seen, _Ready):
+        return _stop_code(seen)
+    lang = seen.lang
+    args = seen.args
     cwd = Path.cwd()
     blocked = _blocked_config(cwd, getattr(args, "config", None))
     if blocked is not None:
@@ -110,7 +167,7 @@ def main(argv: list[str] | None = None) -> int:
 
 def _language(argv: list[str] | None) -> Language:
     """Lido antes do parser completo, para a ajuda já sair no idioma escolhido."""
-    early = argparse.ArgumentParser(prog="bob", add_help=False)
+    early = _Parser(prog="bob", add_help=False)
     early.add_argument("--lang", default=None)
     early.add_argument("--config", default=None)
     known, _rest = early.parse_known_args(argv)

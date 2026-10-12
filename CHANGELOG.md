@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+Invalid command-line usage exits `4`, writes no report, and the stderr does not mention baseline. Help (`-h`, `--help`) stays `0`.
+
+Um uso inválido da linha de comando sai com `4`, não grava relatório, e o stderr não menciona baseline. A ajuda (`-h`, `--help`) continua saindo com `0`.
+
 A wrong value type in `bob.yaml`, and a YAML syntax error in `.bob/waivers.yaml`, exit `4`. The message is English on stderr and names the file. A wrong type also names the key, as in `bob.yaml: crap must be a mapping`. A `waivers.yaml` that is valid YAML with the wrong shape also exits `4`. The English stderr names the path and the field, as in `.bob/waivers.yaml: waivers[0].reason must be a string`, and the run writes no report. `check`, `doctor`, and `waive` do this the same way and write nothing. An invalid `duplication` key still writes the error report in the configured language, and `report.json` reasons stay English.
 
 Um valor com tipo errado no `bob.yaml`, e um erro de sintaxe YAML em `.bob/waivers.yaml`, saem com `4`. A mensagem fica em inglês no stderr e cita o arquivo. Um tipo errado também cita a chave, como em `bob.yaml: crap must be a mapping`. Um `waivers.yaml` que é YAML válido com formato errado também sai com `4`. O stderr em inglês cita o caminho e o campo, como em `.bob/waivers.yaml: waivers[0].reason must be a string`, e a execução não grava relatório. `check`, `doctor` e `waive` fazem isso do mesmo jeito e não gravam nada. Uma chave `duplication` inválida continua gravando o relatório de erro no idioma configurado, e os `reason` do `report.json` continuam em inglês.
