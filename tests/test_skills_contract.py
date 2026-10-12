@@ -4,8 +4,8 @@ Seams (acceptance criteria of #7 / docs/SPEC.md — the public boundary):
 
 1. Agent Skills: skills/bob-check and skills/review-report expose name +
    description frontmatter.
-2. CLI surface: bob-check quotes the SPEC command block and exit codes
-   verbatim, so an agent invokes `bob check` as specified.
+2. CLI surface: bob-check quotes the registered commands and exit codes,
+   and both skills tell the agent to run `bob check --format both`.
 3. review-report: summarizes .bob/report.md into a Summary / Evidence / Merge Danger pull request body.
 4. AGENTS.md: short index pointing at those skills and `bob check`.
 
@@ -33,6 +33,13 @@ SPEC_CLI_LINES = [
     "bob doctor  # verifica ferramentas e versões instaladas",
     "bob <comando> [--lang en|pt-BR]  # idioma da saída (padrão: en)",
 ]
+
+# `bob report` stays in the spec. Issue #37 owns that command. The skills
+# must not send an agent to it.
+SKILL_CLI_LINES = [
+    line for line in SPEC_CLI_LINES if not line.startswith("bob report")
+]
+REPORT_COMMAND = "bob check --format both"
 
 SPEC_EXIT_LINES = [
     "`0` passou",
@@ -95,9 +102,11 @@ class AgentSkillsFrontmatter(unittest.TestCase):
 class BobCheckCliSurface(unittest.TestCase):
     def test_quotes_spec_cli_and_exit_codes(self) -> None:
         body = (ROOT / "skills/bob-check/SKILL.md").read_text(encoding="utf-8")
-        for line in SPEC_CLI_LINES:
+        for line in SKILL_CLI_LINES:
             with self.subTest(line=line):
                 self.assertIn(line, body)
+        self.assertIn(REPORT_COMMAND, body)
+        self.assertNotIn("bob report", body)
         for line in SPEC_EXIT_LINES:
             with self.subTest(line=line):
                 self.assertIn(line, body)
@@ -115,6 +124,8 @@ class ReviewReportPrBody(unittest.TestCase):
                 self.assertIn(heading, body)
         self.assertIn("Onde focar o review", body)
         self.assertIn("schema_version: 1", body)
+        self.assertIn(REPORT_COMMAND, body)
+        self.assertNotIn("bob report", body)
 
 
 class AgentsIndex(unittest.TestCase):
