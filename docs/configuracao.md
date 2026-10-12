@@ -41,14 +41,14 @@ O `bob.yaml` deste repositório é mais curto: `base`, `languages: [python]`, `p
 | `paths.include` | lista de strings | `[src]` | Raízes medidas |
 | `paths.exclude` | lista de strings | `[tests, node_modules, dist]` | Fora da medição |
 | `crap.max_per_function` | número (bool não vale) | `10` | Limite. CRAP maior ou igual reprova |
-| `crap.scope` | string | `changed` | `changed` olha só funções alteradas. Qualquer outro texto faz toda função medida contar (`crap_verdict` em `core.py`) |
+| `crap.scope` | string | `changed` | Só `changed` ou `all`. Outro texto sai com `4` |
 | `duplication.min_tokens` | inteiro | `50` | Mínimo de tokens do jscpd |
 | `dependencies.python` | string | `.importlinter` | Config do import-linter |
 | `dependencies.typescript` | string | `.dependency-cruiser.cjs` | Config do dependency-cruiser |
 
 Um tipo errado sai com `4`. A mensagem em inglês no stderr cita o arquivo e a chave, por exemplo `bob.yaml: crap must be a mapping` ou `bob.yaml: crap.max_per_function must be a number`. Isso vale para `check`, `doctor`, `waive` e os outros comandos, e nenhum deles grava arquivo nesse caso. Ver [Exit 4](exit-codes.md#exit-4).
 
-`duplication` que não é mapeamento, ou `min_tokens` que não vira inteiro, é o caso do [CHANGELOG](../CHANGELOG.md): o relatório de erro é gravado no idioma já configurado.
+`duplication` que não é mapeamento, `min_tokens` que não é inteiro, ou `min_tokens` negativo, sai com `4`. A mensagem em inglês no stderr cita o caminho e o campo, e nada é gravado. O mesmo vale para `check`, `doctor` e `waive`.
 
 ### languages
 
@@ -66,7 +66,7 @@ duplication: { tool: jscpd, min_tokens: 50, new_clones: warn }
 dependencies: { python: .importlinter, typescript: .dependency-cruiser.cjs, violation: fail }
 ```
 
-`load_config` lê `duplication.min_tokens` e os dois caminhos em `dependencies`. Não há campos no `Config` para `mutation`, `duplication.tool`, `duplication.new_clones` nem `dependencies.violation`. O comportamento correspondente está fixo no código: sobrevivente sem waiver sai com `3`, a mutação reusa `.bob/mutation-cache.json`, clone novo é aviso, violação no diff sai com `1`. Mudar essas chaves no YAML não altera o veredito, porque elas não são lidas.
+`load_config` lê `duplication.min_tokens` e os dois caminhos em `dependencies`. Não há campos no `Config` para `mutation`, `duplication.tool`, `duplication.new_clones` nem `dependencies.violation`. Escrever uma dessas chaves sai com `4`: a mensagem em inglês cita `unknown key` e nada é gravado. O comportamento que a spec descreve para elas está fixo no código, não no YAML. Sobrevivente sem waiver sai com `3`, a mutação reusa `.bob/mutation-cache.json`, clone novo é aviso, e violação no diff sai com `1`.
 
 ## .bob/waivers.yaml
 
