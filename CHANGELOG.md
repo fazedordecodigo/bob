@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+`bob check --gates secrets` scans `paths.include` with gitleaks 8.30.1. A secret on a new diff line fails with exit `1`. The report lists the file, the line, and the rule id. It does not print the secret. Waive a finding in `.bob/waivers.yaml` with the id `secret:<rule>:<file>:<line>`. `secrets` in `bob.yaml` is an empty mapping and does not turn the gate on. The gate stays out of the default list, the pre-push hook, and the Action default. `bob doctor` pins gitleaks 8.30.1. A `.gitleaksignore` file under an include root exits `4` before the scan.
+
+`bob check --gates secrets` varre `paths.include` com o gitleaks 8.30.1. Um segredo numa linha nova do diff falha com exit `1`. O relatório lista o arquivo, a linha e o id da regra. Ele não imprime o segredo. O waiver em `.bob/waivers.yaml` usa o id `secret:<regra>:<arquivo>:<linha>`. `secrets` no `bob.yaml` é um mapeamento vazio e não liga o gate. O gate fica fora da lista padrão, do hook pre-push e do padrão da Action. O `bob doctor` pina o gitleaks 8.30.1. Um `.gitleaksignore` numa raiz de include sai com `4` antes da varredura.
+
 `grimp==3.17` is a direct pin in `pyproject.toml`, and `bob doctor` lists it. `bob doctor` no longer treats a PATH binary as a pip tool. The version it expects is the one `bob-quality` declares.
 
 `grimp==3.17` é um pin direto no `pyproject.toml`, e o `bob doctor` lista essa versão. O `bob doctor` não trata mais um binário do PATH como ferramenta pip. A versão que ele espera é a que o `bob-quality` declara.
