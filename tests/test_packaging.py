@@ -297,7 +297,27 @@ def test_reinstall_replaces_bob_skills_and_keeps_the_projects_own(
     assert _files(dest) == after_first
 
 
-def test_reinstall_removes_retired_skill_folders_and_keeps_unknown_ones(
+# Texto que o instalador antigo copiava de skills/vendor/mattpocock/NOTICE (2347154).
+OLD_INSTALL_NOTICE = """\
+Matt Pocock agent skills, vendored for the bob plugin.
+
+Source:  https://github.com/mattpocock/skills
+Commit:  49dd158d1076134a641b33efb035946536778336
+Date:    2026-10-09
+License: MIT (see LICENSE in this directory)
+Copyright (c) 2026 Matt Pocock
+
+This tree is a verbatim copy of the upstream `skills/` directory at that
+commit, plus the upstream LICENSE. Do not edit the vendored files; re-copy
+from the pin above.
+"""
+
+
+def _kept(path: Path, reason: str) -> str:
+    return f"aviso: {path} ficou, porque {reason}."
+
+
+def test_reinstall_removes_a_retired_folder_only_when_its_notice_is_the_old_one(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
     assert len(RETIRED_SKILL_NAMES) == 27
@@ -309,7 +329,7 @@ def test_reinstall_removes_retired_skill_folders_and_keeps_unknown_ones(
         folder = dest / name
         folder.mkdir()
         (folder / "SKILL.md").write_text("antiga\n")
-        (folder / "NOTICE").write_text("aviso\n")
+        (folder / "NOTICE").write_text(OLD_INSTALL_NOTICE)
 
     first = _install(capsys, "--project", str(tmp_path), "copilot")
     after_first = _files(dest)
@@ -321,6 +341,81 @@ def test_reinstall_removes_retired_skill_folders_and_keeps_unknown_ones(
         assert not (dest / name).exists(), name
     assert not any(path.endswith("/NOTICE") or path == "NOTICE" for path in after_first)
     assert sorted(path.name for path in dest.iterdir()) == sorted([*BOB_SKILLS, "mine"])
+    assert _files(dest) == after_first
+
+
+def test_reinstall_keeps_a_user_skill_that_only_shares_a_retired_name(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    dest = tmp_path / ".github" / "skills"
+    (dest / "tdd").mkdir(parents=True)
+    (dest / "tdd" / "SKILL.md").write_text("minha revisão\n")
+    (dest / "tdd" / "NOTICE").write_text("aviso meu\n")
+    (dest / "code-review").mkdir()
+    (dest / "code-review" / "SKILL.md").write_text("sem notice\n")
+    expected = "\n".join(
+        sorted(
+            [
+                _kept(dest / "tdd", "o NOTICE não é o da instalação antiga"),
+                _kept(dest / "code-review", "o NOTICE não é o da instalação antiga"),
+            ]
+        )
+    ) + "\n"
+
+    first = _install(capsys, "--project", str(tmp_path), "copilot")
+    after_first = _files(dest)
+    second = _install(capsys, "--project", str(tmp_path), "copilot")
+
+    assert (dest / "tdd" / "SKILL.md").read_text() == "minha revisão\n"
+    assert (dest / "tdd" / "NOTICE").read_text() == "aviso meu\n"
+    assert (dest / "code-review" / "SKILL.md").read_text() == "sem notice\n"
+    assert not (dest / "code-review" / "NOTICE").exists()
+    assert first[0] == second[0] == 0
+    assert first[1] == second[1] == _installed(".github/skills")
+    assert "\n".join(sorted(first[2].splitlines())) + "\n" == expected
+    assert "\n".join(sorted(second[2].splitlines())) + "\n" == expected
+    assert _files(dest) == after_first
+
+
+def test_reinstall_keeps_a_file_named_like_a_retired_skill(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    dest = tmp_path / ".github" / "skills"
+    dest.mkdir(parents=True)
+    (dest / "pr").write_text("não é pasta\n")
+    warning = _kept(dest / "pr", "é um arquivo ou um link simbólico") + "\n"
+
+    first = _install(capsys, "--project", str(tmp_path), "copilot")
+    after_first = _files(dest)
+    second = _install(capsys, "--project", str(tmp_path), "copilot")
+
+    assert first == second == (0, _installed(".github/skills"), warning)
+    assert (dest / "pr").read_text() == "não é pasta\n"
+    assert (dest / "pr").is_file()
+    assert not (dest / "pr").is_symlink()
+    assert _files(dest) == after_first
+
+
+def test_reinstall_keeps_a_symlink_named_like_a_retired_skill(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    dest = tmp_path / ".github" / "skills"
+    dest.mkdir(parents=True)
+    outside = tmp_path / "alvo"
+    outside.mkdir()
+    (outside / "SKILL.md").write_text("alvo\n")
+    link = dest / "grill-me"
+    link.symlink_to(outside, target_is_directory=True)
+    warning = _kept(link, "é um arquivo ou um link simbólico") + "\n"
+
+    first = _install(capsys, "--project", str(tmp_path), "copilot")
+    after_first = _files(dest)
+    second = _install(capsys, "--project", str(tmp_path), "copilot")
+
+    assert first == second == (0, _installed(".github/skills"), warning)
+    assert link.is_symlink()
+    assert link.readlink() == outside
+    assert (outside / "SKILL.md").read_text() == "alvo\n"
     assert _files(dest) == after_first
 
 
