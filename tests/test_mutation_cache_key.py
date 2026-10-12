@@ -12,6 +12,7 @@ from __future__ import annotations
 import json
 import os
 import subprocess
+import threading
 from collections.abc import Callable
 from pathlib import Path
 
@@ -23,6 +24,7 @@ from bob_quality.mutate import (
     _Cache,
     _CacheLineError,
     _mutant_from_row,
+    _safe_cache,
     _safe_fingerprint,
     _write_cache,
 )
@@ -96,6 +98,24 @@ def _mutate(repo: Path) -> tuple[int, dict, dict]:
     report = json.loads((repo / ".bob" / "report.json").read_text())
     cache = json.loads((repo / ".bob" / "mutation-cache.json").read_text())
     return code, report, cache
+
+
+def _plant(repo: Path, cache: dict[str, object]) -> Path:
+    path = repo / ".bob" / "mutation-cache.json"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(cache) + "\n")
+    return path
+
+
+def _assert_invalid_cache(repo: Path, path: Path, before: bytes, detail: str) -> None:
+    result = run_bob(repo, "mutate", "--base", "main")
+    assert result.returncode == 4, result.stderr
+    report = json.loads((repo / ".bob" / "report.json").read_text())
+    mutate = next(gate for gate in report["gates"] if gate["name"] == "mutate")
+    assert report["exit_code"] == 4
+    assert mutate["status"] == "not_run"
+    assert mutate["reason"] == f"invalid mutation cache: {detail}"
+    assert path.read_bytes() == before
 
 
 def _edit_cache(repo: Path, edit: Callable[[dict], None]) -> None:
@@ -262,6 +282,132 @@ def test_a_non_numeric_mutant_line_exits_4_and_leaves_the_cache_file(tmp_path: P
     assert str(caught.value) == "invalid literal for int() with base 10: 'nope'"
     assert _mutant_from_row({"id": "add-planted", "line": 4}).line == 4
     assert _mutant_from_row({"id": "add-planted"}).line == 0
+
+
+@pytest.mark.parametrize(
+    ("line", "detail"),
+    [
+        ([1], "int() argument must be a string, a bytes-like object or a real number, not 'list'"),
+        (
+            {"a": 1},
+            "int() argument must be a string, a bytes-like object or a real number, not 'dict'",
+        ),
+    ],
+    ids=["list", "object"],
+)
+def test_a_non_scalar_mutant_line_exits_4_and_leaves_the_cache_file(
+    tmp_path: Path, line: object, detail: str
+) -> None:
+    repo = init_python_repo(tmp_path / "repo")
+    path = _plant(
+        repo,
+        {
+            "mutmut": "3.8.0",
+            "suite": "abc",
+            "functions": {
+                ADD: {"mutants": [{"id": "add-planted", "line": line, "status": "killed"}]}
+            },
+        },
+    )
+    before = path.read_bytes()
+
+    _assert_invalid_cache(repo, path, before, detail)
+    with pytest.raises(_CacheLineError) as caught:
+        _mutant_from_row({"id": "add-planted", "line": line})
+    assert str(caught.value) == detail
+
+
+def test_a_non_utf8_cache_exits_4_and_leaves_the_file(tmp_path: Path) -> None:
+    repo = init_python_repo(tmp_path / "repo")
+    path = repo / ".bob" / "mutation-cache.json"
+    path.parent.mkdir()
+    path.write_bytes(b"\xff")
+    before = path.read_bytes()
+    detail = "'utf-8' codec can't decode byte 0xff in position 0: invalid start byte"
+
+    _assert_invalid_cache(repo, path, before, detail)
+    _view, broken = _safe_cache(_Cache(path, {"mutmut": "3.8.0", "suite": "abc"}), {}, [])
+    assert broken is not None
+    assert broken.exit_code == 4
+    assert broken.result.status == "not_run"
+    assert in_both(broken.result.reason or "")[0] == f"invalid mutation cache: {detail}"
+    assert path.read_bytes() == before
+
+    valid = tmp_path / "valid" / "mutation-cache.json"
+    valid.parent.mkdir()
+    stored = {"mutmut": "3.8.0", "suite": "abc", "functions": {ADD: {"hash": "x"}}}
+    valid.write_bytes(json.dumps(stored).encode())
+    view, ok = _safe_cache(_Cache(valid, {"mutmut": "3.8.0", "suite": "abc"}), {}, [])
+    assert ok is None
+    assert view.may_reuse is True
+    assert view.held[ADD] == {"hash": "x"}
+
+
+def test_a_publish_fsyncs_a_private_temp_and_ignores_a_tmp_symlink(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    path = tmp_path / "mutation-cache.json"
+    path.write_text('{"kept": true}\n')
+    cache = _Cache(path, {"mutmut": "3.8.0", "suite": "abc"})
+    stored = {"src/app/safe.py::add": {"hash": "x"}}
+    expected = json.dumps({"mutmut": "3.8.0", "suite": "abc", "functions": stored}, indent=2) + "\n"
+    sentinel = tmp_path / "sentinel"
+    sentinel.write_text("keep")
+    planted = path.with_name("mutation-cache.json.tmp")
+    planted.symlink_to(sentinel)
+    synced: list[int] = []
+    real_fsync = os.fsync
+    real_replace = os.replace
+
+    def spy_fsync(fd: int) -> None:
+        synced.append(os.fstat(fd).st_ino)
+        real_fsync(fd)
+
+    def spy_replace(src: str, dst: str) -> None:
+        assert synced == [os.stat(src).st_ino]
+        assert Path(src).parent == Path(dst).parent
+        real_replace(src, dst)
+
+    monkeypatch.setattr(os, "fsync", spy_fsync)
+    monkeypatch.setattr(os, "replace", spy_replace)
+    _write_cache(cache, stored)
+
+    assert path.read_text() == expected
+    assert not path.is_symlink()
+    assert sentinel.read_text() == "keep"
+    assert planted.is_symlink()
+    assert sorted(item.name for item in path.parent.iterdir()) == [
+        "mutation-cache.json",
+        "mutation-cache.json.tmp",
+        "sentinel",
+    ]
+    assert synced
+
+
+def test_concurrent_publishes_leave_one_complete_cache(tmp_path: Path) -> None:
+    path = tmp_path / "mutation-cache.json"
+    path.write_text("{}\n")
+    cache = _Cache(path, {"mutmut": "3.8.0", "suite": "abc"})
+    errors: list[BaseException] = []
+
+    def publish(mark: int) -> None:
+        try:
+            _write_cache(cache, {f"src/app/safe.py::f{mark}": {"hash": str(mark)}})
+        except BaseException as exc:
+            errors.append(exc)
+
+    threads = [threading.Thread(target=publish, args=(mark,)) for mark in range(8)]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join()
+
+    loaded = json.loads(path.read_text())
+    assert errors == []
+    assert loaded["mutmut"] == "3.8.0"
+    assert loaded["suite"] == "abc"
+    assert list(loaded["functions"]) in [[f"src/app/safe.py::f{mark}"] for mark in range(8)]
+    assert list(path.parent.iterdir()) == [path]
 
 
 def test_a_failed_publish_leaves_the_previous_file_and_a_successful_publish_replaces_it(
