@@ -2,7 +2,7 @@
 
 [Índice](README.md) · [Visão geral](visao-geral.md) · [CLI](cli.md) · [Configuração](configuracao.md) · [Exit codes](exit-codes.md) · [Relatórios](relatorios.md) · [SPEC](SPEC.md)
 
-Quatro gates. Cada um devolve um status `passed`, `warn`, `failed` ou `not_run`. O Markdown traduz para passou, aviso, falhou e não executado, com ✅ ⚠️ ❌ ⏭️ (`GATE_MARK` em `src/bob_quality/report.py`). Um gate que não rodou fica ⏭️ com motivo. Ele não aparece como ✅.
+Cinco gates. `test_smells` só roda quando `--gates` o pede. Cada um devolve um status `passed`, `warn`, `failed` ou `not_run`. O Markdown traduz para passou, aviso, falhou e não executado, com ✅ ⚠️ ❌ ⏭️ (`GATE_MARK` em `src/bob_quality/report.py`). Um gate que não rodou fica ⏭️ com motivo. Ele não aparece como ✅.
 
 O exit code do `bob check` é o maior entre os gates que rodaram. Aviso não aumenta o código. Ver [Exit codes](exit-codes.md).
 
@@ -12,6 +12,7 @@ O exit code do `bob check` é o maior entre os gates que rodaram. Aviso não aum
 | [DRY](#dry) | jscpd | nada; clone novo é aviso | `0` |
 | [Mutação](#mutação) | mutmut (Python) | sobrevivente sem waiver | `3` |
 | [Dependências](#dependências) | import-linter, dependency-cruiser, mais a regra de ciclo | violação cuja origem, destino ou outro módulo do ciclo está no diff | `1` |
+| [Testes do diff](#testes-do-diff) | ast do Python e o eslint do repositório | nada; cheiro no diff é aviso | `0` |
 
 Versões pinadas: lizard 1.24.1, coverage 7.16.2, c8 12.0.0, vitest 5.0.3, jscpd 5.4.1, mutmut 3.8.0, import-linter 2.15, grimp 3.17, dependency-cruiser 18.5.0. Node 22.14.0. Fonte: `pyproject.toml` e `package.json`. O doctor lê os pinos pip do Requires-Dist instalado.
 
@@ -48,6 +49,35 @@ Um ou mais clones novos deixam o gate em `warn` e o exit em `0`. A linha do rela
 Sem Node, ou sem o jscpd instalado, o status é `not_run` e o exit continua `0` (o retorno de `_skipped` é `PASSED`). O jscpd precisa de Node também num repositório só Python, se `dry` estiver na lista.
 
 A spec marca clones novos como aviso no MVP. O código faz isso no gate. `duplication.new_clones` não está no schema: sai com `4`. Ver [Configuração](configuracao.md#chaves-que-o-loader-recusa).
+
+## Testes do diff
+
+O comando é `bob check --gates test_smells`. Não há subcomando `bob test_smells`. O nome fica fora de `DEFAULT_GATES`, do hook `pre-push` e do padrão da Action.
+
+A contribuição de exit é sempre `0`. O status é `passed`, `warn` ou `not_run`.
+
+O gate ignora `paths.include` e `paths.exclude`. Um arquivo em `tests/` entra mesmo com `tests` na lista de exclusão.
+
+Python entra quando `python` está em `languages`. O nome do arquivo é `test_*.py` ou `*_test.py`. `conftest.py` e `__init__.py` ficam de fora. Um teste é uma função `test_*` no corpo do módulo, ou um método `test_*` numa classe de módulo cujo nome começa com `Test`.
+
+| Regra | Quando aparece |
+|---|---|
+| `empty-test` | O corpo só tem docstring, `pass` e `...` |
+| `missing-assert` | O corpo não tem asserção. Um corpo vazio fica só em `empty-test` |
+| `disabled-test` | Uma linha alterada desliga o teste com `skip`, `skipif`, `skipIf`, `skipUnless`, `xfail` ou `importorskip`. Um skip que o diff não tocou não entra. O teste desligado não emite `empty-test` nem `missing-assert` |
+| `sleep` | Uma chamada cujo nome é `sleep`, numa linha alterada dentro do teste. `time.sleep`, `asyncio.sleep` e `trio.sleep` contam. `sleeping` não conta. Uma função fora do teste não entra |
+
+Um arquivo que não parseia não gera linha. Python continua medido.
+
+TypeScript entra quando `typescript` está em `languages`. O nome termina em `.test.ts`, `.test.tsx`, `.test.js`, `.test.jsx`, `.test.mjs`, `.test.cjs`, ou o mesmo com `.spec` no lugar de `.test`. Um arquivo sob `__tests__` também entra quando o sufixo é `.ts`, `.tsx`, `.js`, `.jsx`, `.mjs` ou `.cjs`. `*.d.ts` fica de fora.
+
+O gate procura no texto da configuração `eslint-plugin-jest`, `eslint-plugin-vitest`, `plugin:jest/` ou `plugin:vitest/`. A busca deixa de lado `node_modules`, `dist`, `.git` e `.bob`. Em `package.json` só o valor de `eslintConfig` conta. Sem marcador, o TypeScript é pulado e o eslint não inicia. Com marcador e sem teste alterado, a medição fica vazia e o eslint não inicia. O binário é `node_modules/.bin/eslint`, com `--format json` e os caminhos alterados. O `bob doctor` não pina esse eslint.
+
+Exit `0` ou `1` com uma lista JSON entra na medição. Qualquer outro exit, ou uma saída que não é essa lista, deixa o TypeScript quebrado. Se nenhuma linguagem mediu, o status é `not_run` e o exit do processo continua `0`. Um TypeScript quebrado não muda o status do que já foi medido. O motivo do gate guarda o detalhe.
+
+Cada linha do relatório está numa linha alterada do arquivo. O id do waiver é `tests:<arquivo>:<linha>:<regra>`. O waiver mantém a linha, copia o motivo e o status passa quando não sobra linha sem waiver. Esse id só casa com um mutante quando o id do mutante é a string inteira.
+
+`test_smells: false`, `{}` e qualquer outro valor saem com `4` antes do gate, com stderr `bob.yaml: test_smells accepts only true` e sem relatório. Omitir a chave, `null` e `true` são o mesmo. O gate não lê o campo. Ver [Configuração](configuracao.md).
 
 ## Mutação
 

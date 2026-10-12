@@ -33,7 +33,7 @@ Roda os gates pedidos e grava `.bob/` (ou `--out`).
 
 Um `--config` que aponta para um arquivo inexistente sai com `4` e grava `.bob/report.md` e `.bob/report.json`. O stdout e o stderr ficam vazios. Detalhe em [Exit 4](exit-codes.md#exit-4).
 
-Um nome de gate que o código não trata vira status `not_run`, com o motivo `gate não implementado nesta fatia` em `pt-BR`, e esse gate contribui exit `0` (`check.py`, ramo final de `_absorb`). Os quatro nomes implementados são `crap`, `dry`, `deps` e `mutate`.
+Um nome de gate que o código não trata vira status `not_run`, com o motivo `gate não implementado nesta fatia` em `pt-BR`, e esse gate contribui exit `0` (`check.py`, ramo final de `_absorb`). Os nomes implementados são `crap`, `dry`, `deps`, `mutate` e `test_smells`. `test_smells` entra só por `--gates`. Não há comando `bob test_smells`.
 
 `bob check` sem `mutate` na lista não roda mutação. `bob check --gates mutate` e `bob mutate` rodam.
 
