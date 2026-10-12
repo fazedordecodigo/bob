@@ -6,9 +6,9 @@
     {
       "name": "bob",
       "source": "./",
-      "description": "Gates de qualidade (CRAP, duplicação, mutação, dependências) e o fluxo de spec. Inclui as skills de Matt Pocock (MIT).",
+      "description": "Gates de qualidade (CRAP, duplicação, mutação, dependências) para agentes de código.",
       "category": "development",
-      "keywords": ["quality", "crap", "mutation-testing", "code-review", "tdd", "spec", "skills"]
+      "keywords": ["quality", "crap", "mutation-testing", "code-review", "skills"]
     }
   ]
 }

@@ -8,8 +8,7 @@ Seams:
    stdout, stderr e a árvore de skills no projeto.
 3. Seção Empacotamento de `docs/SPEC.md`: aponta os manifestos e não cita pasta de skill.
 
-Os nomes esperados são literais: as três skills do bob mais a seleção do
-plugin upstream do Pocock (engineering/ e productivity/), sem misc/ nem in-progress/.
+Os nomes esperados são literais: as três skills do bob.
 """
 
 from __future__ import annotations
@@ -33,15 +32,14 @@ else:
     import tomli as tomllib
 
 ROOT = Path(__file__).resolve().parents[1]
-POCOCK = ROOT / "skills" / "vendor" / "mattpocock"
-TDD_SKILL = POCOCK / "engineering" / "tdd" / "SKILL.md"
+BOB_CHECK_SKILL = ROOT / "skills" / "bob-check" / "SKILL.md"
 CLAUDE_PLUGIN = ROOT / ".claude-plugin" / "plugin.json"
 CLAUDE_MARKETPLACE = ROOT / ".claude-plugin" / "marketplace.json"
 CURSOR_PLUGIN = ROOT / ".cursor-plugin" / "plugin.json"
 
-EXPECTED_SKILLS = [
+BOB_SKILLS = ["bob-check", "harden", "review-report"]
+RETIRED_SKILL_NAMES = (
     "ask-matt",
-    "bob-check",
     "code-review",
     "codebase-design",
     "diagnosing-bugs",
@@ -50,7 +48,6 @@ EXPECTED_SKILLS = [
     "grill-with-docs",
     "grilling",
     "handoff",
-    "harden",
     "implement",
     "implement-spec",
     "improve-codebase-architecture",
@@ -58,7 +55,6 @@ EXPECTED_SKILLS = [
     "prototype",
     "research",
     "retro",
-    "review-report",
     "setup-matt-pocock-skills",
     "tdd",
     "teach",
@@ -70,8 +66,7 @@ EXPECTED_SKILLS = [
     "wayfinder",
     "wizard",
     "writing-for-agents",
-]
-BOB_SKILLS = ["bob-check", "harden", "review-report"]
+)
 
 # Schema do Cursor tem additionalProperties: false. Chave fora daqui invalida o plugin.
 CURSOR_ALLOWED_KEYS = {
@@ -122,7 +117,6 @@ def test_manifests_name_bob_with_mit_license_and_pyproject_version() -> None:
         data = _json(path)
         assert data["license"] == "MIT", path
         assert data["version"] == version, path
-        assert "Matt Pocock" in data["description"], path
 
 
 def test_marketplace_lists_only_bob_from_the_plugin_root() -> None:
@@ -131,7 +125,6 @@ def test_marketplace_lists_only_bob_from_the_plugin_root() -> None:
     assert [plugin["name"] for plugin in marketplace["plugins"]] == ["bob"]
     entry = marketplace["plugins"][0]
     assert entry["source"] == "./"
-    assert "Matt Pocock" in entry["description"]
 
 
 def test_cursor_manifest_uses_only_schema_keys_and_displays_bob() -> None:
@@ -143,7 +136,7 @@ def test_cursor_manifest_uses_only_schema_keys_and_displays_bob() -> None:
 def test_cursor_and_claude_manifests_list_the_same_skills() -> None:
     cursor_skills = _json(CURSOR_PLUGIN)["skills"]
     assert cursor_skills == _json(CLAUDE_PLUGIN)["skills"]
-    assert len(cursor_skills) == 30
+    assert len(cursor_skills) == len(BOB_SKILLS)
 
 
 _SKILL_PATH = re.compile(
@@ -199,16 +192,16 @@ def test_spec_points_to_the_manifest_instead_of_listing_skills() -> None:
                     "- o campo `skills` de `.claude-plugin/plugin.json` é a fonte única da lista de skills. "
                     "`.cursor-plugin/plugin.json` repete a mesma lista.",
                     "",
-                    "- ./skills/vendor/mattpocock/engineering/tdd",
+                    "- ./skills/grupo/aninhada",
                     "",
                     "## Next",
                 ]
             ),
-            ["./skills/vendor/mattpocock/engineering/tdd"],
+            ["./skills/grupo/aninhada"],
             [
-                "entrada ./skills/vendor/mattpocock/engineering/tdd",
-                "entrada skills/vendor/mattpocock/engineering/tdd",
-                "caminho ./skills/vendor/mattpocock/engineering/tdd",
+                "entrada ./skills/grupo/aninhada",
+                "entrada skills/grupo/aninhada",
+                "caminho ./skills/grupo/aninhada",
             ],
         ),
     ],
@@ -220,7 +213,7 @@ def test_spec_violations_catch_a_bare_skill_path_and_one_after_a_blank_line(
     if spec.startswith("**Empacotamento**:"):
         section = _packaging_section(spec)
         assert "## Next" not in section
-        assert "\n\n- ./skills/vendor/mattpocock/engineering/tdd" in section
+        assert "\n\n- ./skills/grupo/aninhada" in section
     else:
         section = spec
     assert _spec_violations(section, entries) == violations
@@ -268,7 +261,7 @@ def test_each_manifest_entry_is_a_relative_skill_folder() -> None:
 
 def test_manifest_reaches_exactly_the_expected_skills() -> None:
     folders = _skill_folders(_json(CLAUDE_PLUGIN)["skills"])
-    assert sorted(folder.name for folder in folders) == EXPECTED_SKILLS
+    assert sorted(folder.name for folder in folders) == sorted(BOB_SKILLS)
 
 
 def test_each_reachable_skill_declares_its_folder_name_and_a_description() -> None:
@@ -286,16 +279,19 @@ def _install(capsys: pytest.CaptureFixture[str], *argv: str) -> tuple[int, str, 
     return code, out, err
 
 
+def _installed(*dests: str) -> str:
+    return "".join(f"{len(BOB_SKILLS)} skills em {d}\n" for d in dests)
+
+
 def test_copilot_installs_every_manifest_skill_flat_into_github_skills(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
     result = _install(capsys, "--project", str(tmp_path), "copilot")
 
     dest = tmp_path / ".github" / "skills"
-    assert result == (0, "30 skills em .github/skills\n", "")
-    assert sorted(path.name for path in dest.iterdir()) == EXPECTED_SKILLS
-    assert (dest / "tdd" / "SKILL.md").read_bytes() == TDD_SKILL.read_bytes()
-    assert (dest / "tdd" / "agents" / "openai.yaml").is_file()
+    assert result == (0, _installed(".github/skills"), "")
+    assert sorted(path.name for path in dest.iterdir()) == sorted(BOB_SKILLS)
+    assert (dest / "bob-check" / "SKILL.md").read_bytes() == BOB_CHECK_SKILL.read_bytes()
 
 
 def test_targets_that_share_a_folder_write_it_once(
@@ -303,9 +299,9 @@ def test_targets_that_share_a_folder_write_it_once(
 ) -> None:
     result = _install(capsys, "--project", str(tmp_path), "devin", "agents", "copilot")
 
-    assert result == (0, "30 skills em .agents/skills\n30 skills em .github/skills\n", "")
+    assert result == (0, _installed(".agents/skills", ".github/skills"), "")
     installed = sorted(path.name for path in (tmp_path / ".agents" / "skills").iterdir())
-    assert installed == EXPECTED_SKILLS
+    assert installed == sorted(BOB_SKILLS)
 
 
 def _files(root: Path) -> dict[str, bytes]:
@@ -322,32 +318,174 @@ def test_reinstall_replaces_bob_skills_and_keeps_the_projects_own(
     dest = tmp_path / ".github" / "skills"
     (dest / "mine").mkdir(parents=True)
     (dest / "mine" / "SKILL.md").write_text("minha skill\n")
-    (dest / "tdd").mkdir()
-    (dest / "tdd" / "stale.md").write_text("de uma versão antiga\n")
+    (dest / "bob-check").mkdir()
+    (dest / "bob-check" / "stale.md").write_text("de uma versão antiga\n")
 
     first = _install(capsys, "--project", str(tmp_path), "copilot")
     after_first = _files(dest)
     second = _install(capsys, "--project", str(tmp_path), "copilot")
 
-    assert first == second == (0, "30 skills em .github/skills\n", "")
+    assert first == second == (0, _installed(".github/skills"), "")
     assert (dest / "mine" / "SKILL.md").read_text() == "minha skill\n"
-    assert not (dest / "tdd" / "stale.md").exists()
-    assert (dest / "tdd" / "SKILL.md").read_bytes() == TDD_SKILL.read_bytes()
+    assert not (dest / "bob-check" / "stale.md").exists()
+    assert (dest / "bob-check" / "SKILL.md").read_bytes() == BOB_CHECK_SKILL.read_bytes()
     assert _files(dest) == after_first
 
 
-def test_every_installed_skill_carries_the_license_of_its_origin(
+# Texto que o instalador antigo copiava de skills/vendor/mattpocock/NOTICE (2347154).
+OLD_INSTALL_NOTICE = """\
+Matt Pocock agent skills, vendored for the bob plugin.
+
+Source:  https://github.com/mattpocock/skills
+Commit:  49dd158d1076134a641b33efb035946536778336
+Date:    2026-10-09
+License: MIT (see LICENSE in this directory)
+Copyright (c) 2026 Matt Pocock
+
+This tree is a verbatim copy of the upstream `skills/` directory at that
+commit, plus the upstream LICENSE. Do not edit the vendored files; re-copy
+from the pin above.
+"""
+
+
+def _kept(path: Path, reason: str) -> str:
+    return f"aviso: {path} ficou, porque {reason}."
+
+
+def test_reinstall_removes_a_retired_folder_only_when_its_notice_is_the_old_one(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    assert len(RETIRED_SKILL_NAMES) == 27
+    assert len(set(RETIRED_SKILL_NAMES)) == 27
+    dest = tmp_path / ".github" / "skills"
+    (dest / "mine").mkdir(parents=True)
+    (dest / "mine" / "SKILL.md").write_text("minha skill\n")
+    for name in RETIRED_SKILL_NAMES:
+        folder = dest / name
+        folder.mkdir()
+        (folder / "SKILL.md").write_text("antiga\n")
+        (folder / "NOTICE").write_text(OLD_INSTALL_NOTICE)
+
+    first = _install(capsys, "--project", str(tmp_path), "copilot")
+    after_first = _files(dest)
+    second = _install(capsys, "--project", str(tmp_path), "copilot")
+
+    assert first == second == (0, _installed(".github/skills"), "")
+    assert (dest / "mine" / "SKILL.md").read_text() == "minha skill\n"
+    for name in RETIRED_SKILL_NAMES:
+        assert not (dest / name).exists(), name
+    assert not any(path.endswith("/NOTICE") or path == "NOTICE" for path in after_first)
+    assert sorted(path.name for path in dest.iterdir()) == sorted([*BOB_SKILLS, "mine"])
+    assert _files(dest) == after_first
+
+
+def test_reinstall_keeps_a_user_skill_that_only_shares_a_retired_name(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    dest = tmp_path / ".github" / "skills"
+    (dest / "tdd").mkdir(parents=True)
+    (dest / "tdd" / "SKILL.md").write_text("minha revisão\n")
+    (dest / "tdd" / "NOTICE").write_text("aviso meu\n")
+    (dest / "code-review").mkdir()
+    (dest / "code-review" / "SKILL.md").write_text("sem notice\n")
+    expected = "\n".join(
+        sorted(
+            [
+                _kept(dest / "tdd", "o NOTICE não é o da instalação antiga"),
+                _kept(dest / "code-review", "o NOTICE não é o da instalação antiga"),
+            ]
+        )
+    ) + "\n"
+
+    first = _install(capsys, "--project", str(tmp_path), "copilot")
+    after_first = _files(dest)
+    second = _install(capsys, "--project", str(tmp_path), "copilot")
+
+    assert (dest / "tdd" / "SKILL.md").read_text() == "minha revisão\n"
+    assert (dest / "tdd" / "NOTICE").read_text() == "aviso meu\n"
+    assert (dest / "code-review" / "SKILL.md").read_text() == "sem notice\n"
+    assert not (dest / "code-review" / "NOTICE").exists()
+    assert first[0] == second[0] == 0
+    assert first[1] == second[1] == _installed(".github/skills")
+    assert "\n".join(sorted(first[2].splitlines())) + "\n" == expected
+    assert "\n".join(sorted(second[2].splitlines())) + "\n" == expected
+    assert _files(dest) == after_first
+
+
+def test_reinstall_keeps_a_file_named_like_a_retired_skill(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    dest = tmp_path / ".github" / "skills"
+    dest.mkdir(parents=True)
+    (dest / "pr").write_text("não é pasta\n")
+    warning = _kept(dest / "pr", "é um arquivo ou um link simbólico") + "\n"
+
+    first = _install(capsys, "--project", str(tmp_path), "copilot")
+    after_first = _files(dest)
+    second = _install(capsys, "--project", str(tmp_path), "copilot")
+
+    assert first == second == (0, _installed(".github/skills"), warning)
+    assert (dest / "pr").read_text() == "não é pasta\n"
+    assert (dest / "pr").is_file()
+    assert not (dest / "pr").is_symlink()
+    assert _files(dest) == after_first
+
+
+def test_reinstall_keeps_a_symlink_named_like_a_retired_skill(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    dest = tmp_path / ".github" / "skills"
+    dest.mkdir(parents=True)
+    outside = tmp_path / "alvo"
+    outside.mkdir()
+    (outside / "SKILL.md").write_text("alvo\n")
+    link = dest / "grill-me"
+    link.symlink_to(outside, target_is_directory=True)
+    warning = _kept(link, "é um arquivo ou um link simbólico") + "\n"
+
+    first = _install(capsys, "--project", str(tmp_path), "copilot")
+    after_first = _files(dest)
+    second = _install(capsys, "--project", str(tmp_path), "copilot")
+
+    assert first == second == (0, _installed(".github/skills"), warning)
+    assert link.is_symlink()
+    assert link.readlink() == outside
+    assert (outside / "SKILL.md").read_text() == "alvo\n"
+    assert _files(dest) == after_first
+
+
+def test_reinstall_keeps_a_retired_folder_when_its_notice_is_a_symlink(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    dest = tmp_path / ".github" / "skills"
+    folder = dest / "tdd"
+    folder.mkdir(parents=True)
+    (folder / "SKILL.md").write_text("minha\n")
+    original = tmp_path / "notice-real"
+    original.write_text(OLD_INSTALL_NOTICE)
+    notice = folder / "NOTICE"
+    notice.symlink_to(original)
+    warning = _kept(folder, "o NOTICE não é o da instalação antiga") + "\n"
+
+    first = _install(capsys, "--project", str(tmp_path), "copilot")
+    after_first = _files(dest)
+    second = _install(capsys, "--project", str(tmp_path), "copilot")
+
+    assert (folder / "SKILL.md").read_text() == "minha\n"
+    assert notice.is_symlink()
+    assert notice.readlink() == original
+    assert original.read_text() == OLD_INSTALL_NOTICE
+    assert first == second == (0, _installed(".github/skills"), warning)
+    assert _files(dest) == after_first
+
+
+def test_every_installed_skill_carries_the_plugin_license(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
     result = _install(capsys, "--project", str(tmp_path), "copilot", "devin")
 
-    assert result == (0, "30 skills em .github/skills\n30 skills em .agents/skills\n", "")
-    pocock_skills = [name for name in EXPECTED_SKILLS if name not in BOB_SKILLS]
-    assert len(pocock_skills) == 27
+    assert result == (0, _installed(".github/skills", ".agents/skills"), "")
     for dest in (tmp_path / ".github" / "skills", tmp_path / ".agents" / "skills"):
-        for name in pocock_skills:
-            assert (dest / name / "LICENSE").read_bytes() == (POCOCK / "LICENSE").read_bytes(), name
-            assert (dest / name / "NOTICE").read_bytes() == (POCOCK / "NOTICE").read_bytes(), name
         for name in BOB_SKILLS:
             assert (dest / name / "LICENSE").read_bytes() == (ROOT / "LICENSE").read_bytes(), name
             assert not (dest / name / "NOTICE").exists(), name
@@ -367,6 +505,7 @@ def test_each_skill_bundles_the_nearest_license_inside_the_plugin(
     _write(source / "skills" / "vendor" / "LICENSE", "do vendor\n")
     _write(source / "skills" / "vendor" / "NOTICE", "aviso do vendor\n")
     _write(source / "skills" / "vendor" / "propria" / "SKILL.md", "propria\n")
+    _write(source / "skills" / "vendor" / "propria" / "agents" / "openai.yaml", "interface: propria\n")
     _write(source / "skills" / "vendor" / "propria" / "LICENSE", "da propria\n")
     _write(source / "skills" / "vendor" / "herdada" / "SKILL.md", "herdada\n")
     # propria vem antes da solta: se o continue virar break, o aviso da solta some.
@@ -383,9 +522,9 @@ def test_each_skill_bundles_the_nearest_license_inside_the_plugin(
         "solta/SKILL.md": b"solta\n",
         "propria/SKILL.md": b"propria\n",
         "propria/LICENSE": b"da propria\n",
+        "propria/agents/openai.yaml": b"interface: propria\n",
         "herdada/SKILL.md": b"herdada\n",
         "herdada/LICENSE": b"do vendor\n",
-        "herdada/NOTICE": b"aviso do vendor\n",
     }
     assert result == (
         0,
@@ -398,7 +537,7 @@ def test_each_skill_bundles_the_nearest_license_inside_the_plugin(
     assert _files(source) == source_before
 
     real = _install(capsys, "--project", str(tmp_path / "repo"), "copilot")
-    assert real == (0, "30 skills em .github/skills\n", "")
+    assert real == (0, _installed(".github/skills"), "")
 
 
 def test_relative_source_from_the_repo_installs_bob_skills_with_the_root_license(
@@ -408,7 +547,7 @@ def test_relative_source_from_the_repo_installs_bob_skills_with_the_root_license
 
     result = _install(capsys, "--project", str(tmp_path), "--source", ".", "copilot", "devin")
 
-    assert result == (0, "30 skills em .github/skills\n30 skills em .agents/skills\n", "")
+    assert result == (0, _installed(".github/skills", ".agents/skills"), "")
     license_bytes = (ROOT / "LICENSE").read_bytes()
     for dest in (tmp_path / ".github" / "skills", tmp_path / ".agents" / "skills"):
         for name in BOB_SKILLS:
@@ -431,15 +570,10 @@ def test_partial_copy_without_root_license_names_the_root_it_searched(
         f"{source_arg}; instalada sem licença.\n"
         for name in BOB_SKILLS
     )
-    assert result == (0, "30 skills em .github/skills\n", warnings)
+    assert result == (0, _installed(".github/skills"), warnings)
     dest = project / ".github" / "skills"
     for name in BOB_SKILLS:
         assert not (dest / name / "LICENSE").exists(), name
-    for name in EXPECTED_SKILLS:
-        if name in BOB_SKILLS:
-            continue
-        assert (dest / name / "LICENSE").read_bytes() == (POCOCK / "LICENSE").read_bytes(), name
-        assert (dest / name / "NOTICE").read_bytes() == (POCOCK / "NOTICE").read_bytes(), name
 
 
 def test_project_defaults_to_the_current_directory(
@@ -449,7 +583,7 @@ def test_project_defaults_to_the_current_directory(
 
     result = _install(capsys, "agents")
 
-    assert result == (0, "30 skills em .agents/skills\n", "")
+    assert result == (0, _installed(".agents/skills"), "")
     assert (tmp_path / ".agents" / "skills" / "bob-check" / "SKILL.md").is_file()
 
 
@@ -586,11 +720,11 @@ def test_module_mode_installs_copilot_and_devin(tmp_path: Path) -> None:
 
     assert (result.returncode, result.stdout, result.stderr) == (
         0,
-        "30 skills em .github/skills\n30 skills em .agents/skills\n",
+        _installed(".github/skills", ".agents/skills"),
         "",
     )
-    assert (tmp_path / ".github/skills/tdd/SKILL.md").read_bytes() == TDD_SKILL.read_bytes()
-    assert sorted(path.name for path in (tmp_path / ".agents/skills").iterdir()) == EXPECTED_SKILLS
+    assert (tmp_path / ".github/skills/bob-check/SKILL.md").read_bytes() == BOB_CHECK_SKILL.read_bytes()
+    assert sorted(path.name for path in (tmp_path / ".agents/skills").iterdir()) == sorted(BOB_SKILLS)
 
 
 def test_script_mode_runs_from_the_clone_without_site_packages(tmp_path: Path) -> None:
@@ -607,5 +741,5 @@ def test_script_mode_runs_from_the_clone_without_site_packages(tmp_path: Path) -
         text=True,
     )
 
-    assert (result.returncode, result.stdout, result.stderr) == (0, "30 skills em .agents/skills\n", "")
-    assert sorted(path.name for path in (tmp_path / ".agents/skills").iterdir()) == EXPECTED_SKILLS
+    assert (result.returncode, result.stdout, result.stderr) == (0, _installed(".agents/skills"), "")
+    assert sorted(path.name for path in (tmp_path / ".agents/skills").iterdir()) == sorted(BOB_SKILLS)

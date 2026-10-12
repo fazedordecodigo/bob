@@ -2,17 +2,14 @@
 
 Seams (acceptance criteria of #7 / docs/SPEC.md — the public boundary):
 
-1. Vendor attribution: skills/vendor/mattpocock/ ships LICENSE, NOTICE, and
-   the upstream commit, plus the Pocock skills the spec names.
-2. Agent Skills: skills/bob-check and skills/review-report expose name +
+1. Agent Skills: skills/bob-check and skills/review-report expose name +
    description frontmatter.
-3. CLI surface: bob-check quotes the SPEC command block and exit codes
+2. CLI surface: bob-check quotes the SPEC command block and exit codes
    verbatim, so an agent invokes `bob check` as specified.
-4. review-report: summarizes .bob/report.md and is a companion to `pr`.
-5. AGENTS.md: short index pointing at those skills and `bob check`.
+3. review-report: summarizes .bob/report.md into a Summary / Evidence / Merge Danger pull request body.
+4. AGENTS.md: short index pointing at those skills and `bob check`.
 
-Expected values are literals from docs/SPEC.md and the vendored upstream
-pin, not derived from the files under test.
+Expected values are literals from docs/SPEC.md, not derived from the files under test.
 """
 
 from __future__ import annotations
@@ -23,9 +20,6 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 SPEC = (ROOT / "docs" / "SPEC.md").read_text(encoding="utf-8")
-
-ORIGIN_URL = "https://github.com/mattpocock/skills"
-ORIGIN_COMMIT = "49dd158d1076134a641b33efb035946536778336"
 
 # Verbatim CLI surface from docs/SPEC.md (Implementation Decisions).
 SPEC_CLI_LINES = [
@@ -48,24 +42,12 @@ SPEC_EXIT_LINES = [
     "`4` erro de configuração ou ferramenta ausente",
 ]
 
-SPEC_NAMED_POCOCK_SKILLS = {
-    "grill-me": "productivity/grill-me/SKILL.md",
-    "to-spec": "engineering/to-spec/SKILL.md",
-    "to-tickets": "engineering/to-tickets/SKILL.md",
-    "implement-spec": "engineering/implement-spec/SKILL.md",
-    "tdd": "engineering/tdd/SKILL.md",
-    "code-review": "engineering/code-review/SKILL.md",
-    "pr": "engineering/pr/SKILL.md",
-    "writing-for-agents": "productivity/writing-for-agents/SKILL.md",
-}
-
 FRONTMATTER_RE = re.compile(r"\A---\n(.*?)\n---\n", re.DOTALL)
 NAME_RE = re.compile(r"^name:\s*[\"']?([a-z0-9-]+)[\"']?\s*$", re.MULTILINE)
 DESC_RE = re.compile(
     r"^description:\s*(?:>-?\s*\n(?:[ \t]+.+\n)+|[\"'].*?[\"']|.+)$",
     re.MULTILINE,
 )
-COMMIT_RE = re.compile(r"\b[0-9a-f]{40}\b")
 
 
 def _frontmatter(path: Path) -> str:
@@ -88,34 +70,6 @@ class SpecLiteralsStillInSpec(unittest.TestCase):
         for line in SPEC_EXIT_LINES:
             with self.subTest(line=line):
                 self.assertIn(line, SPEC)
-
-
-class VendorAttribution(unittest.TestCase):
-    def test_license_is_upstream_mit(self) -> None:
-        license_text = (ROOT / "skills/vendor/mattpocock/LICENSE").read_text(
-            encoding="utf-8"
-        )
-        self.assertIn("MIT License", license_text)
-        self.assertIn("Matt Pocock", license_text)
-
-    def test_notice_records_source_and_commit(self) -> None:
-        notice = (ROOT / "skills/vendor/mattpocock/NOTICE").read_text(
-            encoding="utf-8"
-        )
-        self.assertIn(ORIGIN_URL, notice)
-        self.assertIn(ORIGIN_COMMIT, notice)
-        self.assertRegex(notice, COMMIT_RE)
-
-    def test_named_pocock_skills_are_present(self) -> None:
-        vendor = ROOT / "skills/vendor/mattpocock"
-        for name, relpath in SPEC_NAMED_POCOCK_SKILLS.items():
-            skill = vendor / relpath
-            with self.subTest(skill=name):
-                self.assertTrue(skill.is_file(), f"missing {skill}")
-                fm = _frontmatter(skill)
-                match = NAME_RE.search(fm)
-                self.assertIsNotNone(match, f"{skill} has no name")
-                self.assertEqual(match.group(1), name)
 
 
 class AgentSkillsFrontmatter(unittest.TestCase):
@@ -152,13 +106,13 @@ class BobCheckCliSurface(unittest.TestCase):
         self.assertIn(".bob/", body)
 
 
-class ReviewReportCompanion(unittest.TestCase):
-    def test_summarizes_report_for_pr_skill(self) -> None:
-        body = (ROOT / "skills/review-report/SKILL.md").read_text(
-            encoding="utf-8"
-        )
+class ReviewReportPrBody(unittest.TestCase):
+    def test_writes_the_pr_body_around_the_report(self) -> None:
+        body = (ROOT / "skills/review-report/SKILL.md").read_text(encoding="utf-8")
         self.assertIn(".bob/report.md", body)
-        self.assertIn("pr", body)
+        for heading in ("## Summary", "## Evidence", "## Merge Danger"):
+            with self.subTest(heading=heading):
+                self.assertIn(heading, body)
         self.assertIn("Onde focar o review", body)
         self.assertIn("schema_version: 1", body)
 
@@ -168,7 +122,7 @@ class AgentsIndex(unittest.TestCase):
         text = (ROOT / "AGENTS.md").read_text(encoding="utf-8")
         self.assertIn("bob-check", text)
         self.assertIn("review-report", text)
-        self.assertIn("skills/vendor/mattpocock", text)
+        self.assertIn("harden", text)
         self.assertIn("bob check", text)
 
 

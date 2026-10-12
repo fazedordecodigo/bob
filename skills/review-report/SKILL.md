@@ -1,17 +1,17 @@
 ---
 name: review-report
-description: "Resumir `.bob/report.md` no corpo do PR. Use ao escrever ou atualizar um pull request depois de `bob check`, ou quando a skill `pr` precisar do relatório de review."
+description: "Resumir `.bob/report.md` no corpo do PR. Use ao escrever ou atualizar um pull request depois de `bob check`."
 ---
 
 # review-report
 
-Companheira da `pr` (`skills/vendor/mattpocock/engineering/pr/SKILL.md`). Mantenha o molde Summary / Evidence / Merge Danger. O relatório do bob entra em Evidence.
+Escrever o corpo do PR no molde Summary / Evidence / Merge Danger. O relatório do bob entra em Evidence e em Merge Danger.
 
 Fonte do formato: `docs/SPEC.md`. Rode `bob check` (skill `bob-check`) antes, para existirem `.bob/report.md` e `.bob/report.json` (`schema_version: 1`).
 
 ## Quando
 
-- Escrever o corpo do PR com `pr`
+- Escrever o corpo de um PR depois de `bob check`
 - Atualizar um PR depois de um novo `bob check`
 
 ## Interface da CLI
@@ -59,13 +59,28 @@ Lista de `docs/SPEC.md` (fonte):
 
 ⏭️ permanece ⏭️, com o motivo.
 
-## Evidence (na `pr`)
+## Molde do corpo do PR
 
-- **Before:** exit e linhas do `bob check` que falhou.
-- **After:** exit `0` e os vereditos atuais.
+```markdown
+## Summary
 
-Waivers aparecem no relatório e no resumo.
+<o menor diagrama, árvore ou trecho de diff que mostre o que muda>
+
+## Evidence
+
+- **Before:** <exit e linhas do `bob check` que falhou>
+  **After:** <exit `0` e os vereditos atuais>
+- **Onde focar o review:** <a lista do relatório>
+- <cada waiver, com a justificativa>
+- Relatório completo: `.bob/report.md`
 
 ## Merge Danger
 
-Gates ❌ ou sobreviventes sem waiver aumentam o blast radius. Porta de duas vias: reverter o PR. Liste ⚠️ de clones e cada waiver para o humano julgar.
+**Door:** <one-way ou two-way. Reverter o PR é a porta de duas vias.>
+
+**Blast Radius:** <uma palavra>
+
+<Gates ❌ e sobreviventes sem waiver aumentam o blast radius. Liste os ⚠️ de clones e cada waiver para o humano julgar.>
+```
+
+Se o repositório já tem um template de PR, use o dele e ponha os mesmos itens nas seções de evidência e de risco.
