@@ -7,6 +7,8 @@ import pytest
 from bob_quality.config import (
     Config,
     ConfigError,
+    _Bound,
+    _Check,
     configured_language,
     load_config,
     resolve_language,
@@ -41,7 +43,10 @@ def _config_error(path: Path) -> tuple[str, str]:
 def test_load_config_reads_every_key(tmp_path: Path) -> None:
     (tmp_path / "bob.yaml").write_text(FULL_YAML)
 
-    assert load_config(None, tmp_path) == Config(
+    loaded = load_config(None, tmp_path)
+
+    assert type(loaded.max_crap) is float
+    assert loaded == Config(
         base="origin/develop",
         languages=["python", "typescript"],
         include=["lib"],
@@ -412,6 +417,13 @@ def test_configured_language_keeps_pt_br_when_another_key_is_invalid(tmp_path: P
     assert configured_language(None, tmp_path) == "pt-BR"
 
 
+@pytest.mark.parametrize("text", ["base: trunk\n", "language:\n", 'language: ""\n'])
+def test_configured_language_is_unset_without_a_language_value(tmp_path: Path, text: str) -> None:
+    (tmp_path / "bob.yaml").write_text(text)
+
+    assert configured_language(None, tmp_path) is None
+
+
 @pytest.mark.parametrize(
     ("flag", "env", "configured", "expected"),
     [
@@ -475,6 +487,26 @@ def test_resolve_language_rejects_an_empty_string(flag: str | None, env: str | N
             "bob.yaml: languages[0] deve ser python ou typescript",
         ),
         (
+            "languages: [python, ruby]\n",
+            "bob.yaml: languages[1] must be python or typescript",
+            "bob.yaml: languages[1] deve ser python ou typescript",
+        ),
+        (
+            "base:\ncrap:\n  max_per_function: -1\n",
+            "bob.yaml: crap.max_per_function must be greater than 0",
+            "bob.yaml: crap.max_per_function deve ser maior que 0",
+        ),
+        (
+            'base: ""\ncrap:\n  max_per_function: -1\n',
+            "bob.yaml: crap.max_per_function must be greater than 0",
+            "bob.yaml: crap.max_per_function deve ser maior que 0",
+        ),
+        (
+            "languages: []\ncrap:\n  max_per_function: -1\n",
+            "bob.yaml: crap.max_per_function must be greater than 0",
+            "bob.yaml: crap.max_per_function deve ser maior que 0",
+        ),
+        (
             "crap:\n  max_per_function: .nan\n",
             "bob.yaml: crap.max_per_function must be finite",
             "bob.yaml: crap.max_per_function deve ser finito",
@@ -509,10 +541,50 @@ def test_load_config_rejects_an_illegal_semantic_value(
     assert _config_error(tmp_path) == (english, portuguese)
 
 
-@pytest.mark.parametrize("kwargs", [{"crap_scope": "nope"}, {"max_crap": 0}])
-def test_config_rejects_an_illegal_in_process_value(kwargs: dict[str, object]) -> None:
-    with pytest.raises(ValueError):
+@pytest.mark.parametrize(
+    ("kwargs", "name"),
+    [
+        ({"crap_scope": "nope"}, "crap_scope"),
+        ({"max_crap": 0}, "max_crap"),
+        ({"max_crap": float("nan")}, "max_crap"),
+        ({"max_crap": float("inf")}, "max_crap"),
+        ({"min_tokens": -1}, "min_tokens"),
+        ({"min_tokens": True}, "min_tokens"),
+        ({"languages": ("python", "ruby")}, "languages"),
+        ({"languages": "python"}, "languages"),
+    ],
+)
+def test_config_rejects_an_illegal_in_process_value(kwargs: dict[str, object], name: str) -> None:
+    with pytest.raises(ValueError) as caught:
         Config(**kwargs)
+
+    assert caught.value.args == (name,)
+
+
+def test_config_accepts_an_empty_language() -> None:
+    assert Config(language="").language == ""
+
+
+def test_check_rejects_a_bound_that_is_not_a_real_number() -> None:
+    with pytest.raises(ValueError) as caught:
+        _Bound("gt", True)
+
+    assert caught.value.args == ("gt",)
+    _Bound("gt", 0)
+    _Bound("at_least", 0.0)
+
+
+def test_check_rejects_a_choice_list_that_is_not_a_pair() -> None:
+    with pytest.raises(ValueError) as caught:
+        _Check("one_of", choices=("only",))
+
+    assert caught.value.args == ("one_of",)
+    with pytest.raises(ValueError) as members:
+        _Check("members", choices=())
+
+    assert members.value.args == ("members",)
+    _Check("one_of", choices=("changed", "all"))
+    _Check("string")
 
 
 def test_schema_literals_match_config_fields() -> None:
@@ -531,7 +603,7 @@ def test_schema_literals_match_config_fields() -> None:
 def _schema_attrs(node: object) -> set[str]:
     attrs: set[str] = set()
     attr = getattr(node, "attr")
-    if isinstance(attr, str):
+    if isinstance(attr, str) and attr != "":
         attrs.add(attr)
     for child in getattr(node, "children"):
         attrs |= _schema_attrs(child)

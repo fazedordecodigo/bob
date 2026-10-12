@@ -3,7 +3,7 @@ from __future__ import annotations
 import math
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Literal, TypeGuard
+from typing import Any, Callable, Literal, TypeGuard
 
 import yaml
 
@@ -20,37 +20,45 @@ CRAP_SCOPES: tuple[CrapScope, ...] = ("changed", "all")
 _CheckKind = Literal[
     "string",
     "string_list",
-    "mapping",
     "number",
     "finite",
-    "gt",
     "integer",
-    "at_least",
     "one_of",
+    "members",
     "language",
 ]
+_BoundKind = Literal["gt", "at_least"]
+_Failure = tuple[str, str, dict[str, object]]
 
 
 @dataclass(frozen=True)
 class _Check:
     kind: _CheckKind
-    bound: int | float | None = None
     choices: tuple[str, ...] = ()
 
     def __post_init__(self) -> None:
-        if self.kind in {"gt", "at_least"}:
-            bound = self.bound
-            if isinstance(bound, bool) or not isinstance(bound, (int, float)):
-                raise ValueError(self.kind)
-        if self.kind == "one_of" and len(self.choices) != 2:
+        if self.kind in {"one_of", "members"} and len(self.choices) != 2:
             raise ValueError(self.kind)
+
+
+@dataclass(frozen=True)
+class _Bound:
+    kind: _BoundKind
+    bound: int | float
+
+    def __post_init__(self) -> None:
+        if isinstance(self.bound, bool) or not isinstance(self.bound, (int, float)):
+            raise ValueError(self.kind)
+
+
+_Rule = _Check | _Bound
 
 
 @dataclass(frozen=True)
 class _Node:
     key: str
-    attr: str | None
-    checks: tuple[_Check, ...]
+    attr: str
+    checks: tuple[_Rule, ...]
     children: tuple[_Node, ...] = ()
     empty_is_default: bool = False
     null_is_default: bool = True
@@ -58,21 +66,21 @@ class _Node:
 
 _SCHEMA = _Node(
     key="",
-    attr=None,
-    checks=(_Check("mapping"),),
+    attr="",
+    checks=(),
     children=(
         _Node("base", "base", (_Check("string"),), empty_is_default=True),
         _Node("language", "language", (_Check("language"),), empty_is_default=True),
         _Node(
             "languages",
             "languages",
-            (_Check("string_list"), _Check("one_of", choices=SOURCE_LANGUAGES)),
+            (_Check("members", choices=SOURCE_LANGUAGES),),
             empty_is_default=True,
         ),
         _Node(
             "paths",
-            None,
-            (_Check("mapping"),),
+            "",
+            (),
             children=(
                 _Node("include", "include", (_Check("string_list"),), empty_is_default=True),
                 _Node("exclude", "exclude", (_Check("string_list"),), empty_is_default=True),
@@ -80,13 +88,13 @@ _SCHEMA = _Node(
         ),
         _Node(
             "crap",
-            None,
-            (_Check("mapping"),),
+            "",
+            (),
             children=(
                 _Node(
                     "max_per_function",
                     "max_crap",
-                    (_Check("number"), _Check("finite"), _Check("gt", bound=0)),
+                    (_Check("number"), _Check("finite"), _Bound("gt", 0)),
                 ),
                 _Node(
                     "scope",
@@ -98,21 +106,21 @@ _SCHEMA = _Node(
         ),
         _Node(
             "duplication",
-            None,
-            (_Check("mapping"),),
+            "",
+            (),
             children=(
                 _Node(
                     "min_tokens",
                     "min_tokens",
-                    (_Check("integer"), _Check("at_least", bound=0)),
+                    (_Check("integer"), _Bound("at_least", 0)),
                     null_is_default=False,
                 ),
             ),
         ),
         _Node(
             "dependencies",
-            None,
-            (_Check("mapping"),),
+            "",
+            (),
             children=(
                 _Node("python", "python_deps_config", (_Check("string"),), empty_is_default=True),
                 _Node(
@@ -173,13 +181,9 @@ def configured_language(path: Path | None, cwd: Path) -> Language | None:
     if not config_path.is_file():
         return None
     raw = _read_mapping(config_path, cwd)
-    node = _child(_SCHEMA, "language")
-    if "language" not in raw or raw["language"] is None:
+    if "language" not in raw:
         return None
-    value = raw["language"]
-    if node.empty_is_default and _empty(node, value):
-        return None
-    return _as_language(_checked(node, value, _config_label(config_path, cwd), node.key))
+    return _optional_language(raw["language"])
 
 
 def resolve_language(
@@ -229,188 +233,216 @@ def _config_label(config_path: Path, cwd: Path) -> str:
     return config_path.as_posix()
 
 
+def _optional_language(value: object) -> Language | None:
+    if value is None or value == "":
+        return None
+    if isinstance(value, str):
+        return parse_language(value)
+    raise ConfigError(msg("config.invalid_language", value=value))
+
+
 def _read_node(node: _Node, raw: dict[str, Any], label: str, prefix: str) -> dict[str, object]:
-    allowed = {child.key for child in node.children}
-    for key in raw:
-        if key not in allowed:
-            dotted = key if prefix == "" else f"{prefix}.{key}"
-            raise ConfigError(msg("file.unknown_key", path=label, key=dotted))
+    _reject_unknown(raw, _allowed(node), label, prefix)
     values: dict[str, object] = {}
     for child in node.children:
-        dotted = child.key if prefix == "" else f"{prefix}.{child.key}"
-        if child.key not in raw:
-            continue
-        value = raw[child.key]
-        if value is None and child.null_is_default:
-            continue
-        if child.empty_is_default and _empty(child, value):
-            continue
-        if child.children:
-            if not isinstance(value, dict):
-                raise ConfigError(msg("config.key_mapping", path=label, key=dotted))
-            values.update(_read_node(child, value, label, dotted))
-            continue
-        attr = child.attr
-        if attr is None:
-            raise ValueError(child.key)
-        values[attr] = _checked(child, value, label, dotted)
+        values.update(_read_child(child, raw, label, prefix))
     return values
 
 
-def _checked(child: _Node, value: object, label: str, dotted: str) -> object:
-    for check in child.checks:
-        if check.kind == "one_of" and _has(child, "string_list"):
-            if not _string_items(value):
-                raise ConfigError(msg("config.key_string_list", path=label, key=dotted))
-            for index, item in enumerate(value):
-                if item not in check.choices:
-                    raise ConfigError(
-                        msg(
-                            "config.key_one_of",
-                            path=label,
-                            key=f"{dotted}[{index}]",
-                            left=check.choices[0],
-                            right=check.choices[1],
-                        )
-                    )
-            continue
-        failure = _failure(check, value)
-        if failure is None:
-            continue
-        key, params = failure
-        if key == "config.invalid_language":
-            raise ConfigError(msg(key, **params))
-        raise ConfigError(msg(key, path=label, key=dotted, **params))
-    if _has(child, "number") and _real_number(value):
+def _allowed(node: _Node) -> set[str]:
+    return {child.key for child in node.children}
+
+
+def _reject_unknown(raw: dict[str, Any], allowed: set[str], label: str, prefix: str) -> None:
+    for key in raw:
+        if key not in allowed:
+            raise ConfigError(msg("file.unknown_key", path=label, key=_join(prefix, key)))
+
+
+def _read_child(child: _Node, raw: dict[str, Any], label: str, prefix: str) -> dict[str, object]:
+    if child.key not in raw:
+        return {}
+    value = raw[child.key]
+    if _skipped(child, value):
+        return {}
+    return _read_present(child, value, label, _join(prefix, child.key))
+
+
+def _skipped(child: _Node, value: object) -> bool:
+    if child.null_is_default and value is None:
+        return True
+    if child.empty_is_default and _empty(child, value):
+        return True
+    return False
+
+
+def _read_present(child: _Node, value: object, label: str, dotted: str) -> dict[str, object]:
+    if child.children:
+        return _read_nested(child, value, label, dotted)
+    return {child.attr: _apply(child, value, label, dotted)}
+
+
+def _read_nested(child: _Node, value: object, label: str, dotted: str) -> dict[str, object]:
+    if not isinstance(value, dict):
+        raise ConfigError(msg("config.key_mapping", path=label, key=dotted))
+    return _read_node(child, value, label, dotted)
+
+
+def _join(prefix: str, key: str) -> str:
+    if prefix == "":
+        return key
+    return f"{prefix}.{key}"
+
+
+def _apply(child: _Node, value: object, label: str, dotted: str) -> object:
+    _reject(child, value, label, dotted)
+    if _has_kind(child, "number"):
         return float(value)
-    if _has(child, "string_list") and _string_items(value):
-        return tuple(value)
-    if _has(child, "language"):
-        if not isinstance(value, str) or value == "":
-            return None
-        return value
     return value
 
 
-def _failure(check: _Check, value: object) -> tuple[str, dict[str, object]] | None:
-    kind = check.kind
-    if kind == "string":
-        if not isinstance(value, str):
-            return ("config.key_string", {})
+def _reject(child: _Node, value: object, label: str, dotted: str) -> None:
+    for rule in child.checks:
+        failure = _failure_for(rule, value, dotted)
+        if failure is None:
+            continue
+        catalog, field, params = failure
+        raise ConfigError(msg(catalog, path=label, key=field, **params))
+
+
+def _failure_for(rule: _Rule, value: object, field: str) -> _Failure | None:
+    if isinstance(rule, _Bound):
+        return _bound_failure(rule, value, field)
+    return _UNBOUND[rule.kind](rule, value, field)
+
+
+def _bound_failure(rule: _Bound, value: object, field: str) -> _Failure | None:
+    if rule.kind == "gt":
+        return _greater(value, rule.bound, field)
+    return _at_least(value, rule.bound, field)
+
+
+def _greater(value: object, bound: int | float, field: str) -> _Failure | None:
+    if value > bound:
         return None
-    if kind == "string_list":
-        if not _string_items(value):
-            return ("config.key_string_list", {})
+    return ("config.key_greater_than", field, {"bound": bound})
+
+
+def _at_least(value: object, bound: int | float, field: str) -> _Failure | None:
+    if value >= bound:
         return None
-    if kind == "number":
-        if not _real_number(value):
-            return ("config.key_number", {})
+    return ("config.key_at_least", field, {"bound": bound})
+
+
+def _text(check: _Check, value: object, field: str) -> _Failure | None:
+    if isinstance(value, str):
         return None
-    if kind == "finite":
-        if not _real_number(value) or not math.isfinite(value):
-            return ("config.key_finite", {})
+    return ("config.key_string", field, {})
+
+
+def _texts(check: _Check, value: object, field: str) -> _Failure | None:
+    if _string_items(value):
         return None
-    if kind == "gt":
-        bound = _required_bound(check)
-        if not _real_number(value) or not value > bound:
-            return ("config.key_greater_than", {"bound": bound})
+    return ("config.key_string_list", field, {})
+
+
+def _number(check: _Check, value: object, field: str) -> _Failure | None:
+    if isinstance(value, (int, float)) and not isinstance(value, bool):
         return None
-    if kind == "integer":
-        if isinstance(value, bool) or not isinstance(value, int):
-            return ("config.key_integer", {})
+    return ("config.key_number", field, {})
+
+
+def _finite(check: _Check, value: object, field: str) -> _Failure | None:
+    if math.isfinite(value):
         return None
-    if kind == "at_least":
-        bound = _required_bound(check)
-        if not isinstance(value, int) or isinstance(value, bool) or value < bound:
-            return ("config.key_at_least", {"bound": bound})
+    return ("config.key_finite", field, {})
+
+
+def _integer(check: _Check, value: object, field: str) -> _Failure | None:
+    if isinstance(value, int) and not isinstance(value, bool):
         return None
-    if kind == "one_of":
-        if value not in check.choices:
+    return ("config.key_integer", field, {})
+
+
+def _one_of(check: _Check, value: object, field: str) -> _Failure | None:
+    if value in check.choices:
+        return None
+    return (
+        "config.key_one_of",
+        field,
+        {"left": check.choices[0], "right": check.choices[1]},
+    )
+
+
+def _members(check: _Check, value: object, field: str) -> _Failure | None:
+    if not _string_items(value):
+        return ("config.key_string_list", field, {})
+    return _member_at(check, value, field)
+
+
+def _member_at(
+    check: _Check, value: list[str] | tuple[str, ...], field: str
+) -> _Failure | None:
+    for index, item in enumerate(value):
+        if item not in check.choices:
             return (
                 "config.key_one_of",
+                f"{field}[{index}]",
                 {"left": check.choices[0], "right": check.choices[1]},
             )
+    return None
+
+
+def _language(check: _Check, value: object, field: str) -> _Failure | None:
+    if value is None or value == "" or value in LANGUAGES:
         return None
-    if kind == "language":
-        if value is None or value == "":
-            return None
-        if not isinstance(value, str) or value not in LANGUAGES:
-            shown = '""' if value == "" else value
-            return ("config.invalid_language", {"value": shown})
-        return None
-    if kind == "mapping":
-        return None
-    raise ValueError(kind)
+    return ("config.invalid_language", field, {"value": value})
+
+
+_FailFn = Callable[[_Check, object, str], _Failure | None]
+
+_UNBOUND: dict[_CheckKind, _FailFn] = {
+    "string": _text,
+    "string_list": _texts,
+    "number": _number,
+    "finite": _finite,
+    "integer": _integer,
+    "one_of": _one_of,
+    "members": _members,
+    "language": _language,
+}
 
 
 def _guard(config: Config) -> None:
     for node in _leaves(_SCHEMA):
-        attr = node.attr
-        if attr is None:
-            continue
-        _guard_value(node, getattr(config, attr), attr)
+        _guard_value(node, getattr(config, node.attr), node.attr)
 
 
 def _guard_value(node: _Node, value: object, attr: str) -> None:
-    for check in node.checks:
-        if check.kind == "one_of" and _has(node, "string_list"):
-            if not _string_items(value):
-                raise ValueError(attr)
-            for item in value:
-                if item not in check.choices:
-                    raise ValueError(attr)
-            continue
-        if _failure(check, value) is not None:
+    for rule in node.checks:
+        if _failure_for(rule, value, attr) is not None:
             raise ValueError(attr)
 
 
 def _leaves(node: _Node):
-    if not node.children:
-        yield node
+    if node.children:
+        for child in node.children:
+            yield from _leaves(child)
         return
-    for child in node.children:
-        yield from _leaves(child)
+    yield node
 
 
 def _empty(node: _Node, value: object) -> bool:
-    if _has(node, "string_list"):
-        return value == []
-    return value == ""
+    if _has_kind(node, "string") or _has_kind(node, "language"):
+        return value == ""
+    return value == []
 
 
-def _has(node: _Node, kind: _CheckKind) -> bool:
-    return any(check.kind == kind for check in node.checks)
-
-
-def _child(node: _Node, key: str) -> _Node:
-    for child in node.children:
-        if child.key == key:
-            return child
-    raise ValueError(key)
-
-
-def _as_language(value: object) -> Language | None:
-    if value is None:
-        return None
-    for language in LANGUAGES:
-        if value == language:
-            return language
-    shown = '""' if value == "" else value
-    raise ConfigError(msg("config.invalid_language", value=shown))
-
-
-def _real_number(value: object) -> TypeGuard[int | float]:
-    return not isinstance(value, bool) and isinstance(value, (int, float))
+def _has_kind(node: _Node, kind: _CheckKind) -> bool:
+    return any(isinstance(check, _Check) and check.kind == kind for check in node.checks)
 
 
 def _string_items(value: object) -> TypeGuard[list[str] | tuple[str, ...]]:
     if isinstance(value, str) or not isinstance(value, (list, tuple)):
         return False
     return all(isinstance(item, str) for item in value)
-
-
-def _required_bound(check: _Check) -> int | float:
-    bound = check.bound
-    if not _real_number(bound):
-        raise ValueError(check.kind)
-    return bound

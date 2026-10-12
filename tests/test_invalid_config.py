@@ -305,6 +305,10 @@ _BAD_WAIVER_VALUES = (
         ".bob/waivers.yaml: waivers[0].reason must be one non-empty line\n",
     ),
     (
+        "waivers:\n" + _WAIVER_ENTRY.format(reason='"a\\rb"'),
+        ".bob/waivers.yaml: waivers[0].reason must be one non-empty line\n",
+    ),
+    (
         "waivers:\n"
         + _WAIVER_ENTRY.format(reason="because")
         + "  - id: other\n"
@@ -395,7 +399,7 @@ def test_invalid_waiver_values_exit_4_in_english_and_write_no_report(
     assert not (bob / "report.json").exists()
 
 
-@pytest.mark.parametrize("reason", ["", "   ", "a\nb"])
+@pytest.mark.parametrize("reason", ["", "   ", "a\nb", "a\rb"])
 def test_waive_rejects_a_reason_that_is_not_one_line(tmp_path: Path, reason: str) -> None:
     result = run_bob(tmp_path, "waive", "fn", "--reason", reason)
 
@@ -462,6 +466,11 @@ def test_waive_rejects_a_reason_that_is_not_one_line(tmp_path: Path, reason: str
         ),
         (
             "waivers:\n" + _WAIVER_ENTRY.format(reason='"a\\nb"'),
+            ".bob/waivers.yaml: waivers[0].reason must be one non-empty line",
+            ".bob/waivers.yaml: waivers[0].reason deve ser uma linha não vazia",
+        ),
+        (
+            "waivers:\n" + _WAIVER_ENTRY.format(reason='"a\\rb"'),
             ".bob/waivers.yaml: waivers[0].reason must be one non-empty line",
             ".bob/waivers.yaml: waivers[0].reason deve ser uma linha não vazia",
         ),
