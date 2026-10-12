@@ -54,6 +54,19 @@ def test_top_level_imports_have_an_exact_pin() -> None:
     assert pinned == {"grimp": "3.17", "importlinter": "2.15", "yaml": "6.0.3"}
 
 
+def test_mutmut_trampoline_is_not_a_product_import() -> None:
+    body = ast.parse(
+        "from mutmut.mutation.trampoline import wrap_in_trampoline as _mutmut_mutated, MutantDict\n"
+        "import grimp\n"
+        "import mutmut\n"
+    ).body
+    assert _top_level_imports(body) == {"grimp", "mutmut"}
+    trampoline = ast.parse(
+        "from mutmut.mutation.trampoline import wrap_in_trampoline as _mutmut_mutated, MutantDict\n"
+    ).body
+    assert _top_level_imports(trampoline) == set()
+
+
 def _top_level_third_party_imports() -> set[str]:
     names: set[str] = set()
     for path in (ROOT / "src" / "bob_quality").rglob("*.py"):
@@ -81,7 +94,12 @@ def _top_level_imports(body: list[ast.stmt]) -> set[str]:
     for node in body:
         if isinstance(node, ast.Import):
             names.update(alias.name.split(".", 1)[0] for alias in node.names)
-        elif isinstance(node, ast.ImportFrom) and node.level == 0 and node.module:
+        elif (
+            isinstance(node, ast.ImportFrom)
+            and node.level == 0
+            and node.module
+            and node.module != "mutmut.mutation.trampoline"
+        ):
             names.add(node.module.split(".", 1)[0])
     return names
 
