@@ -107,6 +107,16 @@ def test_pull_request_workflow_dogfoods_the_local_action() -> None:
     assert env["BASE_REF"] == "${{ github.base_ref }}"
     assert "$BASE_REF" in str(fetch["run"])
     assert any("npm ci" in str(step.get("run", "")) for step in steps)
+    before_at = next(
+        i for i, step in enumerate(steps) if step.get("name") == "DRY sem jscpd fica not run"
+    )
+    npm_at = next(i for i, step in enumerate(steps) if step.get("name") == "Ferramentas npm")
+    action_at = next(i for i, step in enumerate(steps) if step.get("uses") == "./.github/actions/bob")
+    after_at = next(i for i, step in enumerate(steps) if step.get("name") == "DRY rodou")
+    assert before_at < npm_at < action_at < after_at
+    after = steps[after_at]
+    assert isinstance(after, dict)
+    assert after["if"] == "always()"
 
 
 def test_composite_action_comments_uploads_cache_and_keeps_bob_status() -> None:
@@ -150,6 +160,17 @@ def test_composite_action_comments_uploads_cache_and_keeps_bob_status() -> None:
     assert with_block["path"] == ".bob/mutation-cache.json"
     assert with_block["if-no-files-found"] == "ignore"
     assert with_block["include-hidden-files"] is True
+    assert with_block["retention-days"] == 7
+    node = next(step for step in steps if "setup-node" in str(step.get("uses", "")))
+    node_with = node["with"]
+    assert isinstance(node_with, dict)
+    assert node_with["node-version"] == "22.14.0"
+    assert "49933ea5288caeca8642d1e84afbd3f7d6820020" in str(node["uses"])
+    jscpd = next(step for step in steps if "install_jscpd.sh" in str(step.get("run", "")))
+    assert jscpd.get("env", {}).get("JSCPD_VERSION") == "5.4.1"
+    assert text.index("setup-node") < text.index("install.sh")
+    assert text.index("install.sh") < text.index("install_jscpd.sh")
+    assert text.index("install_jscpd.sh") < text.index("run_check.sh")
     check = next(step for step in steps if "run_check.sh" in str(step.get("run", "")))
     check_env = check["env"]
     assert isinstance(check_env, dict)

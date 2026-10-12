@@ -56,7 +56,7 @@ Quando mais de um gate devolve código, fica o maior (`_worse` em `check.py`).
 
 Lista cada pino de `src/bob_quality/doctor.py` com a versão esperada e a encontrada. Sai com `0` quando todas coincidem e com `4` quando alguma falta ou diverge, e imprime o comando de instalação. Não grava `.bob/report.md`.
 
-Pinos, na ordem do código: lizard 1.24.1, coverage.py 7.16.2, node 22.14.0, c8 12.0.0, vitest 5.0.3, jscpd 5.4.1, mutmut 3.8.0, import-linter 2.15, dependency-cruiser 18.5.0.
+Pinos, na ordem do código: lizard 1.24.1, coverage.py 7.16.2, node 22.14.0, c8 12.0.0, vitest 5.0.3, jscpd 5.4.1, mutmut 3.8.0, import-linter 2.15, grimp 3.17, dependency-cruiser 18.5.0. A versão esperada de uma ferramenta Python vem do Requires-Dist instalado do `bob-quality`.
 
 `bob doctor --install` roda `npm ci` no pacote instalado e depois imprime o mesmo relatório. Ver [Instalação](instalacao.md#pacote-pip-bob-quality).
 
@@ -85,7 +85,7 @@ Vale a primeira fonte definida (`resolve_language` em `src/bob_quality/config.py
 
 A caixa importa. `pt-br` é inválido. Os valores aceitos são os de `LANGUAGES` em `messages.py`: `en` e `pt-BR`.
 
-Um `--lang` ou `BOB_LANG` vazio é inválido. A CLI sai com `4`, imprime `invalid language: "" (use en or pt-BR)` no stderr e não grava relatório. Uma chave `language` vazia no YAML conta como ausente (`_language` devolve `None`).
+Um `--lang` ou `BOB_LANG` vazio é inválido. A CLI sai com `4`, imprime `invalid language: "" (use en or pt-BR)` no stderr e não grava relatório. Uma chave `language` vazia no YAML continua ausente.
 
 Idioma inválido, `language` que não é string, YAML que não é mapeamento, erro de sintaxe no `bob.yaml` e chave com tipo errado também saem com `4` em inglês no stderr, mesmo que se pretendesse `pt-BR`, e não gravam relatório. O mesmo vale para `paths`, `languages`, `base`, `dependencies` e as listas `include` e `exclude`, em `check`, `doctor`, `waive` e nos outros comandos.
 
