@@ -42,7 +42,7 @@ O `bob.yaml` deste repositório é mais curto: `base`, `languages: [python]`, `p
 | `paths.exclude` | lista de strings | `[tests, node_modules, dist]` | Fora da medição |
 | `crap.max_per_function` | número (bool não vale) | `10` | Limite. CRAP maior ou igual reprova |
 | `crap.scope` | string | `changed` | `changed` olha só funções alteradas. Qualquer outro texto faz toda função medida contar (`crap_verdict` em `core.py`) |
-| `duplication.min_tokens` | inteiro | `50` | Mínimo de tokens do jscpd |
+| `duplication.min_tokens` | inteiro maior que 0 | `50` | Mínimo de tokens do jscpd |
 | `dependencies.python` | string | `.importlinter` | Config do import-linter |
 | `dependencies.typescript` | string | `.dependency-cruiser.cjs` | Config do dependency-cruiser |
 
@@ -53,6 +53,8 @@ Um tipo errado sai com `4`. A mensagem em inglês no stderr cita o arquivo e a c
 ### languages
 
 `languages` omitido, nulo (`languages:` ou `languages: null`) ou lista vazia (`languages: []`) vira `["python"]`, o padrão de `Config`. Não há autodetecção. O mesmo vale quando o arquivo `bob.yaml` não existe e `--config` não foi passado. Para medir TypeScript é preciso listar `typescript` (e `python` também, num monorepo misto). A [SPEC](SPEC.md) não descreve esse fallback.
+
+Uma lista vazia ou um item repetido sai com 4. Uma chave ausente ou nula continua `[python]`.
 
 O gate DRY mapeia `typescript` para os formatos `typescript` e `javascript` do jscpd (`dry_gate.py`).
 
@@ -90,7 +92,7 @@ waivers:
 | `author` | `git config user.name`; se falhar ou vier vazio, `$USER`; senão `unknown` | string não vazia no arquivo |
 | `date` | data UTC de hoje, `YYYY-MM-DD` | string não vazia |
 
-Um `id` repetido substitui a entrada antiga (`add_waiver` filtra o id e acrescenta a nova no fim).
+`bob waive` de um id que já existe uma vez substitui essa linha e sai com 0 quando o resto do arquivo é válido. Um arquivo que já contém duas entradas com o mesmo id sai com 4, em inglês no stderr, e não é reescrito.
 
 Na hora de aplicar, um waiver casa com um mutante se o `id` é igual ao id do mutante, ao nome da função, a `arquivo:função` ou a `arquivo::função` (`_matching_reason`).
 
@@ -103,7 +105,9 @@ Estes casos saem com `4`, em inglês no stderr, citando `.bob/waivers.yaml` e o 
 - `waivers` não é uma lista;
 - um item não é um mapeamento;
 - `id`, `reason`, `author` ou `date` ausente ou não é string;
-- `reason` vazio ou com quebra de linha.
+- `reason` vazio ou com quebra de linha;
+- uma chave desconhecida dentro da entrada;
+- um id repetido.
 
 Exemplo de mensagem, da spec e do CHANGELOG: `.bob/waivers.yaml: waivers[0].reason must be a string`.
 
