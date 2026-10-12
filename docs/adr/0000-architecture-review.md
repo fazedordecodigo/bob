@@ -260,7 +260,7 @@ Justificativa. Dois arquivos com o mesmo número desviam no primeiro pin que alg
 
 ### P2. Retirar o radon opcional da spec
 
-A decisão 2 diz que radon fica como adaptador opcional. Não há arquivo, pin, runner nem menção depois de `55216ad`. As duas linguagens usam lizard.
+A decisão 2 chegou a dizer que radon fica como adaptador opcional. Não há arquivo, pin nem runner. As duas linguagens usam lizard. A frase e a menção na lista de adaptadores saíram da spec.
 
 Alvo. Apagar a frase do adaptador opcional e a menção na lista de adaptadores. Não escrever o adaptador.
 
