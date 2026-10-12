@@ -6,6 +6,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
 
+from bob_quality.cognitive_gate import run_cognitive_gate
 from bob_quality.config import Config, ConfigError, load_config
 from bob_quality.core import files_by_risk, informational_debt, top_changed_crap
 from bob_quality.crap_gate import run_crap_gate
@@ -14,7 +15,14 @@ from bob_quality.diff import GitError, changed_lines, current_commit
 from bob_quality.dry_gate import run_dry_gate
 from bob_quality.exit_codes import CONFIG_OR_TOOL, PASSED
 from bob_quality.messages import DEFAULT_LANGUAGE, Language, Text, msg, reason
-from bob_quality.models import Clone, DepViolation, FunctionMetric, GateResult, Report
+from bob_quality.models import (
+    Clone,
+    CognitiveFunction,
+    DepViolation,
+    FunctionMetric,
+    GateResult,
+    Report,
+)
 from bob_quality.mutate import MutationOutcome, focus_with_survivors, run_mutation_gate
 from bob_quality.report import metric_row, violation_rows, write_report
 from bob_quality.waivers import WaiverError, load_waivers
@@ -103,6 +111,7 @@ class _Measured:
     mutation: MutationOutcome | None = None
     loaded_waivers: list[dict[str, object]] = field(default_factory=list)
     baseline: int | None = None
+    cognitive: list[CognitiveFunction] = field(default_factory=list)
 
 
 def _measure(
@@ -176,6 +185,11 @@ def _absorb(
         state.mutation = mutation
         _record(state, mutation.result, mutation.exit_code, mutation.versions)
         return
+    if gate == "cognitive":
+        result, found, code, versions = run_cognitive_gate(cwd, config, diff_lines)
+        state.cognitive = found
+        _record(state, result, code, versions)
+        return
     _record(
         state,
         GateResult(gate, "not_run", msg("check.gate_not_implemented")),
@@ -241,6 +255,7 @@ def _assemble(
         waivers=waivers,
         survivors=survivors,
         mutation=summary,
+        cognitive=measured.cognitive,
     )
 
 

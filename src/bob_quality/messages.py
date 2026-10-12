@@ -105,6 +105,8 @@ _EN: dict[str, str] = {
     "dry.no_report": "jscpd did not write the JSON",
     "cognitive.over": "{count} function at or above the cognitive limit",
     "cognitive.overs": "{count} functions at or above the cognitive limit",
+    "cognitive.tool_missing": "{tool} is not installed",
+    "cognitive.tool_bad": "{tool} failed: {detail}",
     "deps.node_missing": (
         "Node missing: install Node.js for the dependency gate (dependency-cruiser via npx)"
     ),
@@ -268,6 +270,8 @@ _PT_BR: dict[str, str] = {
     "dry.no_report": "jscpd não gravou o JSON",
     "cognitive.over": "{count} função no limite de complexidade cognitiva ou acima",
     "cognitive.overs": "{count} funções no limite de complexidade cognitiva ou acima",
+    "cognitive.tool_missing": "{tool} não está instalado",
+    "cognitive.tool_bad": "{tool} falhou: {detail}",
     "deps.node_missing": (
         "Node ausente: instale Node.js para o gate de dependências (dependency-cruiser via npx)"
     ),

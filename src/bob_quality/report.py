@@ -8,6 +8,7 @@ from pathlib import Path
 from bob_quality.messages import Language, Message, Text, msg, render
 from bob_quality.models import (
     Clone,
+    CognitiveFunction,
     DepViolation,
     FunctionMetric,
     GateResult,
@@ -41,7 +42,7 @@ def write_report(report: Report, out_dir: Path, fmt: str, lang: Language) -> Non
 
 
 def to_json(report: Report) -> dict[str, object]:
-    return {
+    payload: dict[str, object] = {
         "schema_version": report.schema_version,
         "commit": report.commit,
         "base": report.base,
@@ -63,6 +64,9 @@ def to_json(report: Report) -> dict[str, object]:
         "reproduce": report.reproduce,
         "exit_code": report.exit_code,
     }
+    if _cognitive_requested(report):
+        payload["cognitive"] = [cognitive_row(item) for item in report.cognitive]
+    return payload
 
 
 def _json_reason(reason: Text | None) -> str | None:
@@ -224,6 +228,22 @@ def _waiver_section(waivers: list[dict[str, object]]) -> list[Text]:
 def _footer(report: Report, lang: Language) -> list[Text]:
     command = f"{report.reproduce} --lang {lang}" if report.reproduce else ""
     return ["", msg("report.reproduce"), "", "```", command, "```", ""]
+
+
+def cognitive_row(item: CognitiveFunction) -> dict[str, object]:
+    return {
+        "file": item.file,
+        "name": item.name,
+        "start_line": item.start_line,
+        "end_line": item.end_line,
+        "score": item.score,
+        "language": item.language,
+        "waiver_id": item.waiver_id(),
+    }
+
+
+def _cognitive_requested(report: Report) -> bool:
+    return any(gate.name == "cognitive" for gate in report.gates)
 
 
 def clone_row(clone: Clone) -> dict[str, object]:

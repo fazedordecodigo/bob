@@ -17,6 +17,7 @@ dependencies = [
     "import-linter==2.15",
     "grimp==3.17",
     "mutmut==3.8.0",
+    "complexipy==8.0.1",
 ]
 
 [project.optional-dependencies]
