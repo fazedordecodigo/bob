@@ -192,7 +192,7 @@ dependencies:
   typescript: .dependency-cruiser.cjs
 ```
 
-Com `crap.scope: changed`, só funções alteradas bloqueiam. Qualquer outro texto faz toda função medida contar. Se `--config` aponta para um arquivo que não existe, se o YAML não é um mapeamento, se o YAML tem erro de sintaxe, ou se uma chave tem o tipo errado, a execução sai com `4`. A mensagem vai para o stderr em inglês e cita o arquivo. Um tipo errado também cita a chave, como em `bob.yaml: crap must be a mapping` ou `bob.yaml: crap.max_per_function must be a number`. `check`, `doctor`, `waive` e os outros comandos fazem isso do mesmo jeito. Nenhum deles grava um arquivo.
+Com `crap.scope: changed`, só funções alteradas bloqueiam. `all` faz toda função medida contar. O valor é `changed` ou `all`. Se `--config` aponta para um arquivo que não existe, se o YAML não é um mapeamento, se o YAML tem erro de sintaxe, ou se uma chave tem o tipo errado, a execução sai com `4`. A mensagem vai para o stderr em inglês e cita o arquivo. Um tipo errado também cita a chave, como em `bob.yaml: crap must be a mapping` ou `bob.yaml: crap.max_per_function must be a number`. `check`, `doctor`, `waive` e os outros comandos fazem isso do mesmo jeito. Nenhum deles grava um arquivo.
 
 ### Idioma da saída
 
@@ -205,7 +205,7 @@ O bob escreve o texto para humanos em inglês (`en`) ou em português do Brasil 
 
 A caixa importa (`pt-br` é inválido). Um `--lang` ou `BOB_LANG` vazio é inválido. A execução sai com `4`, imprime `invalid language: "" (use en or pt-BR)` no stderr e não grava nada. Uma chave `language` vazia no `bob.yaml` continua contando como ausente.
 
-Um valor de `language` inválido, um `language` numérico, um `bob.yaml` que não é um mapeamento, um YAML com erro de sintaxe, ou uma chave com o tipo errado, sai com `4`. A mensagem vai para o stderr em inglês, mesmo quando `--lang` ou `language` é `pt-BR`. A execução não grava relatório nem `waivers.yaml`. `check`, `doctor`, `waive` e os outros comandos fazem isso do mesmo jeito. Um `language` válido continua valendo quando `duplication` é inválido, e o relatório desse erro usa esse idioma.
+Um valor de `language` inválido, um `language` numérico, um `bob.yaml` que não é um mapeamento, um YAML com erro de sintaxe, ou uma chave com o tipo errado, sai com `4`. A mensagem vai para o stderr em inglês, mesmo quando `--lang` ou `language` é `pt-BR`. A execução não grava relatório nem `waivers.yaml`. `check`, `doctor`, `waive` e os outros comandos fazem isso do mesmo jeito. Um `duplication` inválido, uma chave desconhecida, um `crap.scope` que não é `changed` nem `all`, um item de `languages` que não é `python` nem `typescript`, um `crap.max_per_function` que não é um número finito maior que 0, um `duplication.min_tokens` negativo, um `waivers` igual a `0`, `false` ou `""`, e um `reason` vazio também saem com `4` em `check`, `doctor` e `waive`. O stderr em inglês cita o caminho e o campo, e a execução não grava nada.
 
 O `.bob/report.json` tem os mesmos bytes nos dois idiomas. Todo `reason` de gate, o nome da regra de ciclo e o `reproduce` ficam em inglês, então uma ferramenta pode casar esse texto sem saber o idioma da saída. O `reproduce` do JSON não leva `--lang`. Em inglês a regra de ciclo se chama `Forbidden dependency cycle`. Em `pt-BR` ela se chama `Proibido ciclo de dependência` no `report.md` e no comentário do pull request. Uma regra do dependency-cruiser sem nome é `dependency` no JSON e `dependência` no Markdown. A linha de reprodução do `report.md` inclui o `--lang` que produziu o relatório.
 
