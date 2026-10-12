@@ -1,5 +1,3 @@
-"""Adaptadores: saída bruta pinada de import-linter e dependency-cruiser → arestas."""
-
 import json
 import locale
 import subprocess
