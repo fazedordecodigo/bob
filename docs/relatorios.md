@@ -47,10 +47,10 @@ O `report.md` e o comentário do pull request traduzem a regra de ciclo e o fall
 
 A Action (`.github/actions/bob/upsert_comment.py`) cria ou atualiza um único comentário com o Markdown, em pull request. O limite do corpo é `GITHUB_BODY_LIMIT = 65536`. Acima disso, o comentário é truncado e a nota usa o idioma do input `language` (ou `BOB_LANG` / `bob.yaml` / `en`). O exit code do job é o do bob (`propagate_exit.sh`).
 
-O artefato `bob-mutation-cache` sobe com `.bob/mutation-cache.json` mesmo quando o check falha (`if: always()` na action).
+O artefato `bob-mutation-cache` sobe com `.bob/mutation-cache.json` mesmo quando o check falha (`if: always()` na action). O GitHub guarda esse artefato por 7 dias (`retention-days: 7`).
 
 ## Onde o relatório não aparece
 
 - `bob doctor` imprime no stdout.
 - `bob waive` só mexe em `.bob/waivers.yaml`.
-- Configuração inválida barrada em `cli.main` antes do `run_check` não grava relatório. Um `--config` inexistente em `check`, `crap`, `dry`, `deps` ou `mutate` grava o relatório de falha precoce. Ver [Exit 4](exit-codes.md#exit-4).
+- Configuração inválida barrada em `cli.main` antes do `run_check` não grava relatório. Isso inclui `duplication` inválida e chave desconhecida. Um uso inválido da linha de comando também não grava relatório. Um `--config` inexistente em `check`, `crap`, `dry`, `deps` ou `mutate` grava o relatório de falha precoce. Ver [Exit 4](exit-codes.md#exit-4).

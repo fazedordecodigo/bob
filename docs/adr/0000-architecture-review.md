@@ -12,6 +12,7 @@ As ADRs desta pasta registram decisões que a spec ou um PR já tomou, e que a p
 - [0002](0002-o-diff-filtra-o-veredito.md) separa medição da árvore e bloqueio pelo diff.
 - [0003](0003-exit-codes.md) fixa os cinco exit codes e as exceções já aprovadas.
 - [0004](0004-empacotamento-quatro-agentes.md) fixa os quatro agentes e a lista única de skills.
+- [0005](0005-modelo-de-gate-das-analises-novas.md) fixa o veredito, o waiver, a chave e o relatório das análises novas. Aceita em 12/10/2026, às 17h55 (São Paulo).
 
 ## Visão geral
 
@@ -61,7 +62,7 @@ flowchart TD
  write --> worse["o maior entre 0, 1, 2, 3 e 4"]
 ```
 
-`bob.yaml` é lido até três vezes no `check`. Idioma, preflight, `load_config`. Sem arquivo, vale o padrão. Base `origin/main`, linguagens `["python"]`, include `src`, CRAP 10, escopo `changed`, `min_tokens` 50. Não há autodetecção. `languages` omitido ou lista vazia vira `["python"]`.
+`bob.yaml` é lido até três vezes no `check`. Idioma, preflight, `load_config`. Sem arquivo, vale o padrão. Base `origin/main`, linguagens `["python"]`, include `src`, CRAP 10, escopo `changed`, `min_tokens` 50. Não há autodetecção. Um `languages` omitido vira `["python"]`. Uma lista vazia sai com 4.
 
 `crap.scope` só filtra o veredito. A string exata `changed` olha funções tocadas. Qualquer outra string não vazia conta toda função medida.
 
@@ -93,7 +94,7 @@ A ordem do Markdown é waivers, cabeçalho, veredito, foco, top 5, dívida antig
 | Manifesto fonte | `.claude-plugin/plugin.json` |
 | Skills | `skills/bob-check`, `skills/harden`, `skills/review-report` |
 
-Pins pip em `pyproject.toml`: lizard 1.24.1, coverage.py 7.16.2, import-linter 2.15, mutmut 3.8.0. Pins npm, iguais na raiz e em `src/bob_quality/package.json`: c8 12.0.0, dependency-cruiser 18.5.0, jscpd 5.4.1, vitest 5.0.3. O `doctor` exige Node 22.14.0 exato. A issue #42 pede uma faixa.
+Pins pip em `pyproject.toml`: lizard 1.24.1, coverage.py 7.16.2, import-linter 2.15, grimp 3.17, mutmut 3.8.0. Pins npm, iguais na raiz e em `src/bob_quality/package.json`: c8 12.0.0, dependency-cruiser 18.5.0, jscpd 5.4.1, vitest 5.0.3. O `doctor` exige Node 22.14.0 exato. A issue #42 pede uma faixa.
 
 ## Armadilhas
 

@@ -5,23 +5,60 @@ from __future__ import annotations
 import argparse
 import os
 import sys
+from dataclasses import dataclass
 from pathlib import Path
+from typing import NoReturn
 
 from bob_quality.check import run_check
 from bob_quality.config import (
+    Config,
     ConfigError,
     configured_language,
     reject_config_types,
     resolve_language,
 )
 from bob_quality.doctor import run_doctor
-from bob_quality.exit_codes import CONFIG_OR_TOOL
+from bob_quality.exit_codes import CONFIG_OR_TOOL, PASSED
 from bob_quality.messages import DEFAULT_LANGUAGE, Language, reason, render, t
 from bob_quality.waivers import WaiverError, add_waiver, reject_waiver_syntax
 
 
-def build_parser(lang: Language = DEFAULT_LANGUAGE) -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(
+class _Parser(argparse.ArgumentParser):
+    class Help(Exception):
+        pass
+
+    class Usage(Exception):
+        pass
+
+    def exit(self, status: int = 0, message: str | None = None) -> NoReturn:
+        if message is not None:
+            sys.stderr.write(message)
+        if status == 0:
+            raise self.Help
+        raise self.Usage
+
+
+@dataclass(frozen=True)
+class _HelpShown:
+    pass
+
+
+@dataclass(frozen=True)
+class _Rejected:
+    pass
+
+
+@dataclass(frozen=True)
+class _Ready:
+    lang: Language
+    args: argparse.Namespace
+
+
+_Invocation = _HelpShown | _Rejected | _Ready
+
+
+def build_parser(lang: Language = DEFAULT_LANGUAGE) -> _Parser:
+    parser = _Parser(
         prog="bob",
         description=t(lang, "cli.description"),
     )
@@ -30,11 +67,7 @@ def build_parser(lang: Language = DEFAULT_LANGUAGE) -> argparse.ArgumentParser:
 
     check = sub.add_parser("check", help=t(lang, "cli.check"))
     _add_shared(check, lang)
-    check.add_argument(
-        "--gates",
-        default=None,
-        help=t(lang, "cli.gates"),
-    )
+    check.add_argument("--gates", help=t(lang, "cli.gates"))
     check.add_argument(
         "--format",
         default="both",
@@ -43,8 +76,8 @@ def build_parser(lang: Language = DEFAULT_LANGUAGE) -> argparse.ArgumentParser:
 
     crap = sub.add_parser("crap", help=t(lang, "cli.crap"))
     _add_shared(crap, lang)
-    crap.add_argument("--threshold", type=float, default=None)
-    crap.add_argument("--coverage-file", default=None)
+    crap.add_argument("--threshold", type=_max_crap)
+    crap.add_argument("--coverage-file")
 
     dry = sub.add_parser("dry", help=t(lang, "cli.dry"))
     _add_shared(dry, lang)
@@ -59,11 +92,11 @@ def build_parser(lang: Language = DEFAULT_LANGUAGE) -> argparse.ArgumentParser:
         action="store_true",
         help=t(lang, "cli.since_last_run"),
     )
-    mutate.add_argument("--max-workers", type=int, default=None)
+    mutate.add_argument("--max-workers", type=_max_workers)
 
     waive = sub.add_parser("waive", help=t(lang, "cli.waive"))
     waive.add_argument("target", help=t(lang, "cli.waive_target"))
-    waive.add_argument("--reason", default=None)
+    waive.add_argument("--reason")
     _add_lang(waive, lang)
 
     doctor = sub.add_parser("doctor", help=t(lang, "cli.doctor"))
@@ -77,6 +110,32 @@ def build_parser(lang: Language = DEFAULT_LANGUAGE) -> argparse.ArgumentParser:
     return parser
 
 
+# O mutmut abre um Pool com esse número de processos, e cada um segura dois
+# descritores no processo pai. Com 256 arquivos abertos, o padrão do macOS, 128 já falham.
+_WORKER_CEILING = 64
+
+
+def _max_crap(text: str) -> float:
+    try:
+        return Config(max_crap=float(text)).max_crap
+    except ValueError:
+        raise argparse.ArgumentTypeError(
+            f"invalid value: {text!r} (use a finite number greater than 0)"
+        ) from None
+
+
+def _max_workers(text: str) -> int:
+    try:
+        count = int(text)
+        if 1 <= count <= _WORKER_CEILING:
+            return count
+    except ValueError:
+        pass
+    raise argparse.ArgumentTypeError(
+        f"invalid value: {text!r} (use an integer from 1 to {_WORKER_CEILING})"
+    )
+
+
 def _add_shared(parser: argparse.ArgumentParser, lang: Language) -> None:
     parser.add_argument("--base", default=None)
     parser.add_argument("--config", default=None)
@@ -88,13 +147,34 @@ def _add_lang(parser: argparse.ArgumentParser, lang: Language) -> None:
     parser.add_argument("--lang", default=None, help=t(lang, "cli.lang"))
 
 
-def main(argv: list[str] | None = None) -> int:
+def _parse(argv: list[str] | None) -> _Invocation:
     try:
         lang = _language(argv)
+        args = build_parser(lang).parse_args(argv)
     except ConfigError as exc:
         print(render(reason(exc), DEFAULT_LANGUAGE), file=sys.stderr)
+        return _Rejected()
+    except _Parser.Usage:
+        return _Rejected()
+    except _Parser.Help:
+        return _HelpShown()
+    return _Ready(lang, args)
+
+
+def _stop_code(seen: _HelpShown | _Rejected) -> int:
+    if isinstance(seen, _HelpShown):
+        return PASSED
+    if isinstance(seen, _Rejected):
         return CONFIG_OR_TOOL
-    args = build_parser(lang).parse_args(argv)
+    raise AssertionError(type(seen).__name__)
+
+
+def main(argv: list[str] | None = None) -> int:
+    seen = _parse(argv)
+    if not isinstance(seen, _Ready):
+        return _stop_code(seen)
+    lang = seen.lang
+    args = seen.args
     cwd = Path.cwd()
     blocked = _blocked_config(cwd, getattr(args, "config", None))
     if blocked is not None:
@@ -110,9 +190,11 @@ def main(argv: list[str] | None = None) -> int:
 
 def _language(argv: list[str] | None) -> Language:
     """Lido antes do parser completo, para a ajuda já sair no idioma escolhido."""
-    early = argparse.ArgumentParser(prog="bob", add_help=False)
-    early.add_argument("--lang", default=None)
-    early.add_argument("--config", default=None)
+    early = _Parser(prog="bob")
+    early._option_string_actions.pop("-h")
+    early._option_string_actions.pop("--help")
+    early.add_argument("--lang")
+    early.add_argument("--config")
     known, _rest = early.parse_known_args(argv)
     cwd = Path.cwd()
     flag = known.lang

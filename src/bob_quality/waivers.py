@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import os
 import subprocess
-from dataclasses import dataclass
+from dataclasses import dataclass, fields
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -26,12 +26,10 @@ class Waiver:
     date: str
 
     def as_dict(self) -> dict[str, str]:
-        return {
-            "id": self.id,
-            "reason": self.reason,
-            "author": self.author,
-            "date": self.date,
-        }
+        return {item.name: getattr(self, item.name) for item in fields(Waiver)}
+
+
+_ENTRY_KEYS = frozenset(item.name for item in fields(Waiver))
 
 
 def waivers_path(cwd: Path) -> Path:
@@ -56,10 +54,23 @@ def load_waivers(cwd: Path) -> list[Waiver]:
     path = waivers_path(cwd)
     if not path.is_file():
         return []
-    return [
-        _waiver_from_entry(entry, index)
-        for index, entry in enumerate(_waiver_entries(path))
-    ]
+    loaded: list[Waiver] = []
+    seen: dict[str, int] = {}
+    for index, entry in enumerate(_waiver_entries(path)):
+        waiver = _waiver_from_entry(entry, index)
+        earlier = seen.get(waiver.id)
+        if earlier is not None:
+            raise WaiverError(
+                msg(
+                    "waiver.duplicate_id",
+                    path=_WAIVER_FILE,
+                    field=_item_field(index, "id"),
+                    earlier=_item_field(earlier, "id"),
+                )
+            )
+        seen[waiver.id] = index
+        loaded.append(waiver)
+    return loaded
 
 
 def reject_waiver_syntax(cwd: Path) -> None:
@@ -99,6 +110,11 @@ def _waiver_from_entry(entry: object, index: int) -> Waiver:
         raise WaiverError(
             msg("waiver.entry_mapping", path=_WAIVER_FILE, field=_item_field(index))
         )
+    for key in entry:
+        if key not in _ENTRY_KEYS:
+            raise WaiverError(
+                msg("file.unknown_key", path=_WAIVER_FILE, key=_item_field(index, key))
+            )
     return Waiver(
         id=_required_text(entry, "id", index),
         reason=_reason_text(entry, index),

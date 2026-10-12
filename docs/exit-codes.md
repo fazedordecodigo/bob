@@ -54,7 +54,11 @@ Há dois jeitos de chegar no `4`.
 
 ### Antes de medir, sem gravar relatório
 
-`cli.main` devolve `4` e imprime inglês no stderr, sem escrever `report.md`, `report.json` nem alterar `waivers.yaml`, quando:
+`cli.main` devolve `4` sem escrever `report.md`, `report.json` nem alterar `waivers.yaml` em dois casos distintos.
+
+Um uso inválido da linha de comando (comando ausente, comando desconhecido, flag ilegal, valor fora das escolhas, valor fora da regra de `--threshold` ou de `--max-workers`) imprime o texto de uso do argparse no stderr. Esse texto não menciona baseline. A ajuda (`-h`, `--help`) sai com `0`. Isso não é o exit `2`. A regra de `--threshold` e de `--max-workers` está em [Outros comandos de medição](cli.md#outros-comandos-de-medição).
+
+A configuração inválida imprime inglês no stderr quando:
 
 - `--lang` ou `BOB_LANG` é vazio ou não é `en` nem `pt-BR`;
 - `language` no YAML não é string ou não é um desses dois valores;
@@ -66,13 +70,13 @@ Há dois jeitos de chegar no `4`.
 
 Erro de sintaxe, tipo errado e waiver inválido são barrados em `_language` ou `_blocked_config`, que imprimem no stderr e retornam `4` sem chamar `write_report`.
 
-`duplication` inválida entra na mesma barreira que as outras chaves: `reject_config_types` chama `_config_from_file`, o stderr fica em inglês e nenhum relatório é gravado. O [CHANGELOG.md](../CHANGELOG.md) descreve esse caso.
+`duplication` inválida entra na mesma barreira que as outras chaves: `reject_config_types` chama `_config_from_file`, o stderr fica em inglês e nenhum relatório é gravado. A recusa cobre um valor que não é mapeamento e um `min_tokens` que não é um inteiro maior que 0. Uma chave desconhecida, inclusive `mutation`, `duplication.tool`, `duplication.new_clones` e `dependencies.violation`, sai do mesmo jeito. O [CHANGELOG.md](../CHANGELOG.md) descreve esses casos.
 
 Um `--reason` ausente no `bob waive` também é `4`, e essa frase segue o idioma da CLI, porque acontece dentro de `_waive_command` depois da barreira do arquivo.
 
 ### Durante a medição, com relatório
 
-Se a ferramenta falta no meio do gate (lizard, mutmut, import-linter, dependency-cruiser, Node num repo só TypeScript, git que falha ao calcular o diff), o gate fica `not_run` e o exit é `4`. `write_report` grava `.bob/report.md` e `report.json` com esse código. `GitError` em `_open` segue o mesmo relatório precoce.
+Se a ferramenta falta no meio do gate (lizard, mutmut, import-linter, dependency-cruiser, Node num repo só TypeScript, git que falha ao calcular o diff), o gate fica `not_run` e o exit é `4`. O mesmo exit `4` vale quando o JSON do dependency-cruiser não é um objeto ou não traz a lista `violations`, e quando a última linha `Contracts:` do import-linter com exit 0 não é `N kept, 0 broken.` `write_report` grava `.bob/report.md` e `report.json` com esse código. `GitError` em `_open` segue o mesmo relatório precoce.
 
 `bob doctor` com pino ausente ou versão diferente sai com `4` no stdout do próprio doctor, sem relatório em `.bob/`.
 
