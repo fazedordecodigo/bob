@@ -2,9 +2,15 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+
+import pytest
+
+from bob_quality.config import Config, ConfigError, load_config
+from bob_quality.messages import reason, render
 from bob_quality.models import SecretRow
 from bob_quality.secrets_gate import judge_secrets
-from helpers import in_both
+from helpers import in_both, run_bob
 
 
 def test_judge_secrets_blocks_only_the_changed_unwaived_line() -> None:
@@ -73,3 +79,33 @@ def test_judge_secrets_drops_only_a_whole_secret_waiver_id() -> None:
     assert sast.exit_code == 1
     assert sast.result.status == "failed"
     assert sast.ledger.blocking == (row,)
+
+
+def test_load_config_accepts_an_empty_secrets_mapping(tmp_path: Path) -> None:
+    assert load_config(None, tmp_path) == Config()
+    for text in ("secrets: {}\n", "secrets:\n", "secrets: null\n"):
+        (tmp_path / "bob.yaml").write_text(text)
+        assert load_config(None, tmp_path) == Config()
+
+
+@pytest.mark.parametrize(
+    ("text", "stderr"),
+    [
+        ("secrets: true\n", "bob.yaml: secrets must be a mapping\n"),
+        ("secrets:\n  threshold: 1\n", "bob.yaml: unknown key secrets.threshold\n"),
+    ],
+)
+def test_load_config_rejects_a_secrets_scalar_or_child(
+    tmp_path: Path, text: str, stderr: str
+) -> None:
+    (tmp_path / "bob.yaml").write_text(text)
+
+    with pytest.raises(ConfigError) as caught:
+        load_config(None, tmp_path)
+
+    assert render(reason(caught.value), "en") == stderr.rstrip("\n")
+    result = run_bob(tmp_path, "check", "--gates", "secrets")
+    assert result.returncode == 4
+    assert result.stderr == stderr
+    assert result.stdout == ""
+    assert not (tmp_path / ".bob").exists()
