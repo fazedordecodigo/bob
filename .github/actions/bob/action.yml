@@ -40,6 +40,10 @@ runs:
       with:
         python-version: "3.12"
 
+    - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+      with:
+        node-version: "22.14.0"
+
     - name: Instalar bob
       shell: bash
       env:
@@ -47,6 +51,12 @@ runs:
         GITHUB_ACTION_REPOSITORY: ${{ github.action_repository }}
         GITHUB_ACTION_REF: ${{ github.action_ref }}
       run: bash "$GITHUB_ACTION_PATH/install.sh"
+
+    - name: Instalar jscpd 5.4.1
+      shell: bash
+      env:
+        JSCPD_VERSION: "5.4.1"
+      run: bash "$GITHUB_ACTION_PATH/install_jscpd.sh"
 
     - name: Restaurar cache de mutação
       shell: bash
@@ -74,6 +84,7 @@ runs:
         path: .bob/mutation-cache.json
         if-no-files-found: ignore
         include-hidden-files: true
+        retention-days: 7
 
     - name: Comentar relatório no PR
       if: always() && github.event_name == 'pull_request'
