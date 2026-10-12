@@ -1,13 +1,12 @@
 # bob
 
-Plugin de qualidade: fluxo de spec do Pocock + gates `bob check`.
+Plugin de qualidade: os gates do `bob check` e as skills que dizem ao agente quando rodá-los.
 
 ## Skills
 
 - **bob-check** (`skills/bob-check/SKILL.md`): ao verificar um diff ou quando um gate falhar.
 - **harden** (`skills/harden/SKILL.md`): ao matar um mutante sobrevivente ou registrar um waiver.
 - **review-report** (`skills/review-report/SKILL.md`): ao escrever o PR depois de `bob check`.
-- **Pocock** (`skills/vendor/mattpocock/`): `grill-me` → `to-spec` → `to-tickets` → `implement-spec` / `tdd` → `code-review`. MIT: `NOTICE`.
 
 ## Verificar no Cloud Agent
 
@@ -26,4 +25,4 @@ Os gates e os exit codes estão em [`docs/SPEC.md`](docs/SPEC.md). Três pontos 
 
 - O gate `crap` bloqueia quando o CRAP de uma função alterada é maior ou igual a `crap.max_per_function`.
 - O exit `2` também sai do `bob check` padrão. O gate `crap` roda a suíte para medir a cobertura e sai com `2` se a baseline quebra.
-- Um `--config` inexistente, um `bob.yaml` que não é mapeamento, ou um YAML com erro de sintaxe dão exit `4` com mensagem no stderr. Uma chave com tipo errado, como `crap: 5`, ainda dá traceback e exit `1` ([#39](https://github.com/fazedordecodigo/bob/issues/39)).
+- Um `--config` inexistente, um `bob.yaml` que não é mapeamento, um YAML com erro de sintaxe, ou uma chave com tipo errado dão exit `4` com mensagem em inglês no stderr, e nada é gravado. O mesmo vale para um erro de sintaxe em `.bob/waivers.yaml` e para um YAML válido com formato errado, em `check`, `doctor` e `waive`. A mensagem do formato cita o caminho e o campo.

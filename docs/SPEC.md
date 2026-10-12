@@ -1,7 +1,7 @@
 # SPEC: bob (plugin de qualidade para agentes; CLI `bob`, PyPI `bob-quality`, marketplaces `bob`) (aprovada pelo Emerson em 10/10/2026)
 
-> Escrita com o método `to-spec` (síntese do que já foi decidido, no template da skill) mais uma rodada de `grill-me`/`grilling` (perguntas em aberto numeradas, cada uma com recomendação, redigidas para que "sim" aceite a recomendação). Fontes: https://github.com/mattpocock/skills/blob/main/skills/engineering/to-spec/SKILL.md e https://github.com/mattpocock/skills/blob/main/skills/productivity/grilling/SKILL.md
-> Spec aprovada e publicada em `docs/SPEC.md`. Os tickets foram gerados com `to-tickets` (ver a issue `bob: Spec`).
+> Escrita como síntese do que já foi decidido, mais uma rodada de perguntas em aberto numeradas, cada uma com recomendação, redigidas para que "sim" aceite a recomendação.
+> Spec aprovada e publicada em `docs/SPEC.md`. Os tickets saíram desta spec (ver a issue `bob: Spec`).
 > Pesquisa base: https://app.notion.com/p/3f6cc91c731d81c3bcb0d42894f5acc2 · Repo: https://github.com/fazedordecodigo/bob
 
 ## Problem Statement
@@ -11,8 +11,8 @@ O Emerson usa vários agentes de código (Cursor, Claude Code, Copilot, Devin). 
 ## Solution
 
 Um plugin instalável nos quatro agentes que entrega duas coisas:
-1. **Fluxo de trabalho**: as skills do Matt Pocock (MIT, copiadas com atribuição), com o fluxo leve de spec (`grill-me` → `to-spec` → `to-tickets` → `implement-spec`/`tdd`).
-2. **Camada de verificação**: a CLI `bob`, que mede o diff com gates determinísticos inspirados no fluxo do Uncle Bob (CRAP, duplicação, mutação, dependências), sai com exit code, e gera um **relatório de review** de uma página que diz ao humano onde focar.
+1. **Camada de verificação**: a CLI `bob`, que mede o diff com gates determinísticos inspirados no fluxo do Uncle Bob (CRAP, duplicação, mutação, dependências), sai com exit code, e gera um **relatório de review** de uma página que diz ao humano onde focar.
+2. **Skills**: dizem ao agente quando rodar cada gate, como reagir a um mutante sobrevivente e como levar o relatório ao corpo do PR.
 
 As ferramentas de mercado (lizard, coverage.py, c8, mutmut, StrykerJS, jscpd, import-linter, dependency-cruiser) entram como **dependências com versão fixada (pip/npm)**, encapsuladas por **adaptadores próprios**. Nenhum código delas é copiado. A lógica do Bob (fórmula CRAP, limiares, escopo no diff, mutação diferencial, waivers justificados) vive no núcleo da CLI.
 
@@ -34,7 +34,7 @@ As ferramentas de mercado (lizard, coverage.py, c8, mutmut, StrykerJS, jscpd, im
 14. Como mantenedor, quero versões fixadas das ferramentas de mercado, para resultados reprodutíveis.
 15. Como mantenedor, quero adicionar uma linguagem nova escrevendo só um adaptador, sem mexer no núcleo.
 16. Como usuário do Cursor/Claude Code/Copilot/Devin, quero instalar o plugin pelo mecanismo nativo de cada um, para não ter passo manual.
-17. Como usuário, quero as skills do Pocock incluídas e atribuídas, para seguir o fluxo de spec leve.
+17. Como usuário, quero que cada skill copiada para o meu projeto leve a licença do plugin, para manter a atribuição MIT na cópia achatada.
 18. Como mantenedor do CI, quero uma GitHub Action que roda todos os gates e comenta o relatório no PR.
 19. Como Emerson, quero que merge e publicação no marketplace dependam da minha aprovação.
 20. Como dev, quero uma mutação diferencial (só funções alteradas desde a última execução), para o CI ficar barato.
@@ -102,16 +102,15 @@ O JSON segue um schema versionado (`schema_version: 1`). Os títulos e os textos
 **Mutação diferencial**: um cache (`.bob/mutation-cache.json`, artefato do CI) guarda o hash do texto de cada função, a versão do mutmut e uma impressão da suíte. A impressão é o hash dos arquivos versionados ou não ignorados que a suíte lê além das funções (`tests/`, `test/`, `conftest*`, `test_*.py`, `*_test.py`, configuração do pytest, lockfiles e o `also_copy` do mutmut). Só remuta funções alteradas ou com sobreviventes. Se a versão do mutmut ou a impressão da suíte mudar, o cache inteiro é descartado. Para TS usa o `--incremental` nativo do Stryker. Para Python, filtra os mutantes do mutmut pelas funções do diff.
 
 **Skills**:
-- `bob`: quando rodar o check e como interpretar o JSON e iterar.
+- `bob-check`: quando rodar o check e como interpretar o JSON e iterar.
 - `harden`: matar mutantes "dentro do razoável", com waiver justificado; nunca enfraquecer código de produção para matar mutante.
-- `review-report`: gera e resume o relatório para o corpo do PR, integrada à skill `pr` do Pocock.
-- As skills do Pocock vão em `skills/vendor/mattpocock/` com LICENSE MIT e NOTICE (commit de origem).
-- **A implementação do próprio plugin usa `implement-spec` e `tdd` do Pocock.**
+- `review-report`: gera e resume o relatório para o corpo do PR, no molde Summary / Evidence / Merge Danger.
+- **A implementação do próprio plugin é feita com TDD.**
 
 **Empacotamento**:
 - manifests `.claude-plugin/` (Claude Code; Copilot CLI e Devin também o leem) e `.cursor-plugin/` (Cursor). Não há `.plugin/`: o Copilot o leria antes de `.claude-plugin/`, e um segundo manifesto poderia divergir;
-- o campo `skills` de `.claude-plugin/plugin.json` é a fonte única da lista de skills, com uma entrada por pasta de skill. `.cursor-plugin/plugin.json` repete a mesma lista, e o instalador a lê de lá. Esta spec não repete a lista. Uma pasta que agrupa skills não entra, porque o Copilot a percorre recursivamente e carregaria `misc/` e `in-progress/` do Pocock;
-- script de instalação que copia as skills listadas, achatadas, para `.github/skills` (Copilot) ou `.agents/skills` (Devin, Cursor e Copilot), cada uma com o `LICENSE` e o `NOTICE` da sua origem;
+- o campo `skills` de `.claude-plugin/plugin.json` é a fonte única da lista de skills, com uma entrada por pasta de skill. `.cursor-plugin/plugin.json` repete a mesma lista. O instalador lê a lista de `.claude-plugin/plugin.json`. Esta spec não repete a lista. Uma pasta que agrupa skills não entra, porque o Copilot a percorre recursivamente e carregaria tudo o que houver abaixo dela;
+- script de instalação que copia as skills listadas, achatadas pelo nome da pasta, para `.github/skills` (Copilot) ou `.agents/skills` (Devin, Cursor e Copilot). Cada uma leva o `LICENSE` mais próximo entre a pasta da skill e a raiz do plugin. O instalador não copia `NOTICE`. Ele apaga do destino uma pasta cujo nome está numa lista fechada de skills que o plugin deixou de distribuir só quando o `NOTICE` dela é um arquivo regular com o texto gravado pela instalação antiga. Um arquivo, um link simbólico, um `NOTICE` que é link simbólico ou uma pasta sem esse texto ficam, e o instalador avisa no stderr. Qualquer outra pasta fica;
 - `AGENTS.md`;
 - GitHub Action composta que comenta o relatório no PR (atualizando um único comentário).
 
@@ -147,19 +146,19 @@ O JSON segue um schema versionado (`schema_version: 1`). Os títulos e os textos
 7. O hook local roda `crap,dry,deps` em menos de 60 s no repo-fixture.
 8. A Action comenta e atualiza um único comentário com o relatório num PR de teste.
 9. O plugin instala localmente no Claude Code e no Cursor, e as skills aparecem no Copilot (`.github/skills`) e no Devin.
-10. As skills do Pocock estão incluídas com LICENSE MIT e NOTICE.
-11. Todo o código do plugin foi escrito via `implement-spec`/`tdd`, com testes, e passa nos próprios gates.
+10. O instalador copia cada skill do manifesto com o `LICENSE` mais próximo dela e avisa quando não acha nenhum.
+11. Todo o código do plugin foi escrito com TDD, tem testes e passa nos próprios gates.
 12. Nada é publicado em marketplace nem mergeado sem OK do Emerson.
 
 ## Further Notes
 
 - Os limiares refletem os posts recentes do Bob: CRAP < 10 para agentes (https://x.com/unclebobmartin/status/2108946115169030596) e matar mutantes "dentro do razoável" (https://www.aviator.co/podcast/uncle-bob-martin-ai-clean-code).
-- As issues #1 a #5 continuam como rascunho de fatias ("aguardando spec"). Depois da aprovação, `to-tickets` vai regenerá-las ou ajustá-las.
+- As issues #1 a #5 continuam como rascunho de fatias ("aguardando spec"). Depois da aprovação, elas serão regeneradas ou ajustadas a partir desta spec.
 - A pasta de skills do Devin foi confirmada na doc oficial: `.agents/skills/<skill-name>/SKILL.md` é a recomendada (https://docs.devin.ai/product-guides/skills).
 
 ---
 
-## Decisões fechadas (grill-me, rodada 1, aceitas pelo Emerson em 10/10/2026)
+## Decisões fechadas (rodada 1, aceitas pelo Emerson em 10/10/2026)
 
 1. **Linguagem da CLI**: núcleo e CLI em Python, distribuídos via pip (`bob-quality`). As ferramentas npm ficam fixadas num `package.json` do próprio plugin e são chamadas via `npx`.
 2. **Complexidade**: lizard para Python e TS, para contar o CC do mesmo jeito nas duas. Radon fica como adaptador opcional.
@@ -172,4 +171,4 @@ O JSON segue um schema versionado (`schema_version: 1`). Os títulos e os textos
 9. **Pasta de saída**: `.bob/` (relatórios, `waivers.yaml`, `mutation-cache.json`).
 10. **Monorepo sem Node** (aprovada pelo Emerson em 11/10/2026): num repositório com Python e TypeScript, a ausência do Node não é exit 4. O Python continua medido. O TypeScript aparece no relatório como pulado, com aviso (⚠️). O exit code é o do que foi medido: 0 com aviso quando não há falha bloqueante, 1 quando há. Exit 4 continua quando a ferramenta ausente impede a medição pedida (repositório só TypeScript sem Node, ou configuração inválida).
 11. **Mutantes sem teste** (Emerson, 11/10/2026): `no_coverage` aparece como aviso no `report.md` e no `report.json` (total e contagem por função e arquivo). O gate mutate fica ⚠️ quando não há sobrevivente sem waiver, e o exit code não muda. A fase 2 (testes de CLI no mesmo processo e `no_coverage` nas funções do diff falhando com exit 3) fica para depois (#31).
-12. **Idioma da saída** (#38): `en` (padrão) ou `pt-BR`. Vale a primeira fonte definida: `--lang`, depois `BOB_LANG`, depois `language` no `bob.yaml`, depois `en`. A caixa importa. Um `--lang` ou `BOB_LANG` vazio é inválido e sai com 4. A mensagem em inglês vai para o stderr e nada é gravado. O mesmo vale para um valor inválido, um `language` numérico, um `bob.yaml` que não é mapeamento e um YAML com erro de sintaxe, em `check`, `doctor`, `waive` e nos outros comandos. Uma chave `language` vazia no `bob.yaml` continua ausente. Um `language` válido continua valendo quando outra chave do arquivo é inválida, e o relatório desse erro sai nesse idioma. Uma chave com tipo errado, como `crap: 5`, continua no #39 (traceback e exit 1). O idioma muda o texto para humanos. Isso cobre a saída da CLI, a ajuda, `bob doctor`, o hook, o `report.md` e a nota de truncamento do comentário da Action. O `report.json` é o mesmo arquivo nos dois idiomas. O `reason`, o nome da regra de ciclo e o `reproduce` ficam em inglês nesse JSON. O `reproduce` do JSON não leva `--lang`. O `report.md` e o comentário do PR traduzem o nome da regra e incluem o `--lang` usado. Em inglês a regra de ciclo se chama `Forbidden dependency cycle`. Em `pt-BR` se chama `Proibido ciclo de dependência`. Uma regra do dependency-cruiser sem nome usa `dependency` no JSON e `dependência` no Markdown. O input `language` da GitHub Action repassa essa escolha ao `bob check` e ao comentário. Vazio deixa `BOB_LANG` e o `bob.yaml` decidirem. As mensagens ficam num catálogo (`src/bob_quality/messages.py`), e um teste de paridade exige as mesmas chaves e os mesmos placeholders nos dois idiomas.
+12. **Idioma da saída** (#38): `en` (padrão) ou `pt-BR`. Vale a primeira fonte definida: `--lang`, depois `BOB_LANG`, depois `language` no `bob.yaml`, depois `en`. A caixa importa. Um `--lang` ou `BOB_LANG` vazio é inválido e sai com 4. A mensagem em inglês vai para o stderr e nada é gravado. O mesmo vale para um valor inválido, um `language` numérico, um `bob.yaml` que não é mapeamento e um YAML com erro de sintaxe, em `check`, `doctor`, `waive` e nos outros comandos. Uma chave `language` vazia no `bob.yaml` continua ausente. Uma chave com tipo errado, como `crap: 5` ou `crap.max_per_function: abc`, sai com 4. A mensagem em inglês vai para o stderr e cita o arquivo e a chave. Nada é gravado, mesmo com `--lang` ou `language: pt-BR`. O mesmo vale para `paths`, `languages`, `base`, `dependencies` e as listas `include` e `exclude`, em `check`, `doctor`, `waive` e nos outros comandos. Um `language` válido continua valendo quando `duplication` é inválido, e o relatório desse erro sai nesse idioma. Um erro de sintaxe YAML em `.bob/waivers.yaml` também sai com 4, em inglês no stderr, sem gravar relatório e sem alterar o arquivo. Um YAML válido com formato errado faz o mesmo, em `check`, `doctor` e `waive`. A mensagem cita o caminho e o campo, como em `.bob/waivers.yaml: waivers[0].reason must be a string`. Isso cobre uma lista no topo, um `waivers` que não é lista, um item que não é mapeamento e um campo ausente. O idioma muda o texto para humanos. Isso cobre a saída da CLI, a ajuda, `bob doctor`, o hook, o `report.md` e a nota de truncamento do comentário da Action. O `report.json` é o mesmo arquivo nos dois idiomas. O `reason`, o nome da regra de ciclo e o `reproduce` ficam em inglês nesse JSON. O `reproduce` do JSON não leva `--lang`. O `report.md` e o comentário do PR traduzem o nome da regra e incluem o `--lang` usado. Em inglês a regra de ciclo se chama `Forbidden dependency cycle`. Em `pt-BR` se chama `Proibido ciclo de dependência`. Uma regra do dependency-cruiser sem nome usa `dependency` no JSON e `dependência` no Markdown. O input `language` da GitHub Action repassa essa escolha ao `bob check` e ao comentário. Vazio deixa `BOB_LANG` e o `bob.yaml` decidirem. As mensagens ficam num catálogo (`src/bob_quality/messages.py`), e um teste de paridade exige as mesmas chaves e os mesmos placeholders nos dois idiomas.

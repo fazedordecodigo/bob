@@ -2,7 +2,7 @@
 
 English | [Português](README.pt-BR.md)
 
-bob gives coding agents (Cursor, Claude Code, GitHub Copilot, Devin) deterministic quality gates for the code they change, plus skills that tell the agent when to run them. The gates measure CRAP, duplication, mutation, and dependencies, only for the functions in the diff. Each run exits with a code the agent can act on and writes a one-page report that tells the human reviewer where to look first. The gates follow Uncle Bob's workflow, and the spec skills come from Matt Pocock (see [Credits](#credits)).
+bob gives coding agents (Cursor, Claude Code, GitHub Copilot, Devin) deterministic quality gates for the code they change, plus skills that tell the agent when to run them. The gates measure CRAP, duplication, mutation, and dependencies, only for the functions in the diff. Each run exits with a code the agent can act on and writes a one-page report that tells the human reviewer where to look first. The gates follow Uncle Bob's workflow (see [Credits](#credits)).
 
 - CLI: `bob` (`bob check | crap | dry | deps | mutate | waive | doctor`)
 - PyPI package: `bob-quality` (sdist and wheel ready, not published yet)
@@ -72,7 +72,7 @@ These commands install the `bob` command, the Python tools pinned in `pyproject.
 
 ## Installing in the agents
 
-Nothing is published. The commands start from a clone of this repository. The plugin ships 30 skills: `bob-check`, `harden`, `review-report`, and Matt Pocock's `engineering/` and `productivity/` skills. That is the same selection as Pocock's own plugin, without `misc/` and `in-progress/`.
+Nothing is published. The commands start from a clone of this repository. The plugin ships three skills, listed in [Skills](#skills).
 
 **Claude Code** reads `.claude-plugin/`. Add the clone as a local marketplace and install the plugin:
 
@@ -108,7 +108,7 @@ python3 <clone path>/src/bob_quality/install_skills.py --project <project> agent
 | `devin` | `.agents/skills` | Devin (its recommended folder) |
 | `copilot` | `.github/skills` | Copilot, Devin |
 
-Devin reads both folders. If one project gets `copilot` and `devin`, Devin loads every skill twice, so pick one. Running the installer again replaces bob's skills and leaves other skills in the folder alone. Because the installer flattens the folders, each installed skill carries its `LICENSE`, plus `NOTICE` for Pocock's skills. It also runs as `python -m bob_quality.install_skills`. A pip-installed `bob-quality` does not carry the skills, so pass `--source <clone path>`. Without a manifest the installer names the path it read and exits with `4`. When a skill has no `LICENSE` from its folder up to the plugin root, the installer warns on stderr and still installs the skill.
+Devin reads both folders. If one project gets `copilot` and `devin`, Devin loads every skill twice, so pick one. Running the installer again replaces the skills named in the manifest. It deletes a folder from the fixed list of skills the plugin no longer ships only when that folder's `NOTICE` is a regular file with the text the old installer wrote. A file, a symlink, a `NOTICE` that is a symlink, or a folder without that text stays, and the installer warns on stderr. Every other folder stays. Because the installer flattens the folders, each installed skill carries a copy of the plugin's `LICENSE` and no `NOTICE`. It also runs as `python -m bob_quality.install_skills`. A pip-installed `bob-quality` does not carry the skills, so pass `--source <clone path>`. Without a manifest the installer names the path it read and exits with `4`. When a skill has no `LICENSE` from its folder up to the plugin root, the installer warns on stderr and still installs the skill.
 
 ## Usage
 
@@ -146,7 +146,7 @@ The commands write `.bob/report.md` and `.bob/report.json`. The exit codes are:
 | `1` | A gate failed. A changed function has CRAP at or above the limit, or the diff has a dependency violation. |
 | `2` | The baseline tests failed before bob could measure. The `crap` gate runs them in the default `bob check` too. |
 | `3` | A surviving mutant has no waiver. |
-| `4` | Missing or different tool, or a configuration error that bob catches. A YAML syntax error or a key with the wrong type still gives a traceback and exit `1` ([#39](https://github.com/fazedordecodigo/bob/issues/39)). |
+| `4` | Missing or different tool, or invalid configuration. The message goes to stderr in English, and the run writes nothing. |
 
 When more than one gate fails, `bob check` exits with the highest code.
 
@@ -192,7 +192,7 @@ dependencies:
   typescript: .dependency-cruiser.cjs
 ```
 
-With `crap.scope: changed`, only changed functions block. Any other value makes every measured function count. If `--config` points to a file that does not exist, the YAML is not a mapping, or the YAML has a syntax error, the run exits with `4` and a message on stderr. A key with the wrong type, such as `crap: 5` or `max_per_function: abc`, gives a traceback and exit `1` without a report ([#39](https://github.com/fazedordecodigo/bob/issues/39)).
+With `crap.scope: changed`, only changed functions block. Any other string makes every measured function count. If `--config` points to a file that does not exist, the YAML is not a mapping, the YAML has a syntax error, or a key has the wrong type, the run exits with `4`. The message goes to stderr in English and names the file. A wrong type also names the key, as in `bob.yaml: crap must be a mapping` or `bob.yaml: crap.max_per_function must be a number`. `check`, `doctor`, `waive`, and the other commands do this the same way. None of them writes a file.
 
 ### Output language
 
@@ -205,7 +205,7 @@ bob writes its text for humans in English (`en`) or Brazilian Portuguese (`pt-BR
 
 The case matters (`pt-br` is invalid). An empty `--lang` or `BOB_LANG` is invalid. The run exits with `4`, prints `invalid language: "" (use en or pt-BR)` to stderr, and writes nothing. An empty `language` key in `bob.yaml` still counts as unset.
 
-An invalid `language` value, a numeric `language`, a `bob.yaml` that is not a mapping, or YAML with a syntax error exits with `4`. The message goes to stderr. The run writes no report and no `waivers.yaml`. `check`, `doctor`, `waive`, and the other commands do this the same way. A valid `language` still applies when another key in the file is invalid, and that error's report uses it.
+An invalid `language` value, a numeric `language`, a `bob.yaml` that is not a mapping, YAML with a syntax error, or a key with the wrong type exits with `4`. The message goes to stderr in English, even when `--lang` or `language` is `pt-BR`. The run writes no report and no `waivers.yaml`. `check`, `doctor`, `waive`, and the other commands do this the same way. A valid `language` still applies when `duplication` is invalid, and that error's report uses it.
 
 `.bob/report.json` is the same bytes in both languages. Every gate `reason`, the cycle rule name, and `reproduce` stay English, so a tool can match them without knowing the output language. `reproduce` in the JSON omits `--lang`. English calls the cycle rule `Forbidden dependency cycle`. `pt-BR` calls it `Proibido ciclo de dependência` in `report.md` and in the pull request comment. A dependency-cruiser rule with no name is `dependency` in the JSON and `dependência` in the Markdown. The reproduce line in `report.md` includes the `--lang` that produced it.
 
@@ -226,7 +226,7 @@ Waivers live in `.bob/waivers.yaml`, which you commit with the code. `bob waive`
 - `author`, from `git config user.name`, or `$USER`.
 - `date`, the UTC date.
 
-A waiver without a one-line reason is rejected with exit `4`. A new waiver with the same `id` replaces the old one. A waiver matches a mutant by the mutant id, the function name, `file:function`, or `file::function`. A `waivers.yaml` with the wrong structure makes the run exit with `4`. A YAML syntax error in it gives a traceback and exit `1`. The agent writes the waiver, and the human approves it in the pull request review. Every waiver appears at the top of the report.
+A waiver without a one-line reason is rejected with exit `4`. A new waiver with the same `id` replaces the old one. A waiver matches a mutant by the mutant id, the function name, `file:function`, or `file::function`. A `waivers.yaml` that is valid YAML with the wrong shape exits with `4`. The message is English on stderr and names `.bob/waivers.yaml` and the field, as in `.bob/waivers.yaml: waivers[0].reason must be a string`. A top-level list, a `waivers` value that is not a list, an item that is not a mapping, and a missing field all do this. The run writes no `report.md` and no `report.json`, and the file stays as it is. `check`, `doctor`, and `waive` do this the same way, even when `--lang` is `pt-BR`. A YAML syntax error also exits with `4`. That message names `.bob/waivers.yaml` and the parser error. The agent writes the waiver, and the human approves it in the pull request review. Every waiver appears at the top of the report.
 
 ### The report
 
@@ -320,7 +320,6 @@ The action accepts the inputs `base`, `gates`, `pip-spec`, and `token`. This rep
 
 ## Skills
 
-- Matt Pocock's spec flow (MIT, attributed), in `skills/vendor/mattpocock/`: `grill-me` → `to-spec` → `to-tickets` → `implement-spec` / `tdd` → `code-review`.
 - `skills/bob-check/` says when and how to run `bob check`.
 - `skills/harden/` says how to kill a surviving mutant or record a waiver.
 - `skills/review-report/` summarizes `.bob/report.md` in the pull request.
@@ -330,8 +329,6 @@ The action accepts the inputs `base`, `gates`, `pip-spec`, and `token`. This rep
 ## Credits
 
 The gates follow Uncle Bob's workflow. The READMEs and the output of his tools [crapper](https://github.com/unclebob/crapper) and [mutator](https://github.com/unclebob/mutator) (0BSD) are the behavior reference, and bob reuses none of their code. The exit codes take after mutator. The duplication gate uses jscpd. A structural dryer of bob's own, in the line of his [dryer](https://github.com/unclebob/dryer) (0BSD), is out of scope for the MVP. The limits come from his recent posts, CRAP < 10 for agents ([post on X](https://x.com/unclebobmartin/status/2108946115169030596)) and kill mutants within reason ([Aviator podcast](https://www.aviator.co/podcast/uncle-bob-martin-ai-clean-code)).
-
-The spec skills are a verbatim copy of [mattpocock/skills](https://github.com/mattpocock/skills) at commit `49dd158d1076134a641b33efb035946536778336`, under the MIT license. See `skills/vendor/mattpocock/LICENSE` and `skills/vendor/mattpocock/NOTICE`.
 
 The market tools (lizard, coverage.py, c8, vitest, mutmut, jscpd, import-linter, dependency-cruiser) are pinned dependencies, and bob copies no code from them.
 

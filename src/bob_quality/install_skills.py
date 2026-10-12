@@ -22,7 +22,54 @@ TARGETS: dict[str, str] = {
 
 PLUGIN_ROOT = Path(__file__).resolve().parents[2]
 MANIFEST = Path(".claude-plugin") / "plugin.json"
-ATTRIBUTION = ("LICENSE", "NOTICE")
+ATTRIBUTION = ("LICENSE",)
+
+# O instalador antigo copiava este NOTICE para dentro de cada skill. 2347154.
+RETIRED_NOTICE = b"""\
+Matt Pocock agent skills, vendored for the bob plugin.
+
+Source:  https://github.com/mattpocock/skills
+Commit:  49dd158d1076134a641b33efb035946536778336
+Date:    2026-10-09
+License: MIT (see LICENSE in this directory)
+Copyright (c) 2026 Matt Pocock
+
+This tree is a verbatim copy of the upstream `skills/` directory at that
+commit, plus the upstream LICENSE. Do not edit the vendored files; re-copy
+from the pin above.
+"""
+
+RETIRED_SKILL_NAMES: frozenset[str] = frozenset(
+    (
+        "ask-matt",
+        "code-review",
+        "codebase-design",
+        "diagnosing-bugs",
+        "domain-modeling",
+        "grill-me",
+        "grill-with-docs",
+        "grilling",
+        "handoff",
+        "implement",
+        "implement-spec",
+        "improve-codebase-architecture",
+        "pr",
+        "prototype",
+        "research",
+        "retro",
+        "setup-matt-pocock-skills",
+        "tdd",
+        "teach",
+        "to-questionnaire",
+        "to-spec",
+        "to-tickets",
+        "triage",
+        "wait-what",
+        "wayfinder",
+        "wizard",
+        "writing-for-agents",
+    )
+)
 
 # Mesmo valor de bob_quality.exit_codes.CONFIG_OR_TOOL. O script roda sem o pacote
 # instalado e não pode importá-lo.
@@ -76,12 +123,6 @@ def _skills(source: Path) -> dict[Path, list[Path]]:
 
 
 def _attribution(skill: Path, source: Path) -> list[Path]:
-    """`LICENSE`, e `NOTICE` ao lado dele, da pasta mais próxima entre a skill e a raiz.
-
-    A cópia achatada deixa para trás a pasta do vendor, e a MIT exige o aviso em
-    toda cópia. A raiz do destino é compartilhada com outras skills, então a licença
-    vai dentro da pasta de cada skill.
-    """
     for folder in (skill, *skill.parents):
         if (folder / "LICENSE").is_file():
             return [folder / name for name in ATTRIBUTION if (folder / name).is_file()]
@@ -113,20 +154,45 @@ def _read_manifest(manifest: Path) -> object:
         raise SourceError(f"JSON inválido em {manifest}: {exc}") from None
 
 
+def _skip_reason(child: Path) -> str | None:
+    if child.is_symlink() or not child.is_dir():
+        return "é um arquivo ou um link simbólico"
+    notice = child / "NOTICE"
+    if notice.is_file() and not notice.is_symlink():
+        try:
+            payload = notice.read_bytes()
+        except OSError as exc:
+            return str(exc)
+        if payload == RETIRED_NOTICE:
+            return None
+    return "o NOTICE não é o da instalação antiga"
+
+
+def _remove_retired(dest: Path) -> None:
+    if not dest.is_dir():
+        return
+    for child in list(dest.iterdir()):
+        if child.name not in RETIRED_SKILL_NAMES:
+            continue
+        reason = _skip_reason(child)
+        if reason is None:
+            shutil.rmtree(child)
+            continue
+        print(f"aviso: {child} ficou, porque {reason}.", file=sys.stderr)
+
+
 def _install(skills: dict[Path, list[Path]], dest: Path) -> None:
+    _remove_retired(dest)
     for skill, attribution in skills.items():
         target = dest / skill.name
         if target.is_symlink():
             print(f"aviso: {target} ficou, porque é um link simbólico.", file=sys.stderr)
             continue
-        try:
-            if target.exists():
-                shutil.rmtree(target)
-            shutil.copytree(skill, target)
-            for path in attribution:
-                shutil.copy2(path, target / path.name)
-        except OSError as exc:
-            print(f"aviso: {target} ficou, porque {exc}.", file=sys.stderr)
+        if target.exists():
+            shutil.rmtree(target)
+        shutil.copytree(skill, target)
+        for path in attribution:
+            shutil.copy2(path, target / path.name)
 
 
 if __name__ == "__main__":

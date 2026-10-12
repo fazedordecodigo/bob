@@ -35,7 +35,20 @@ def load_config(path: Path | None, cwd: Path) -> Config:
         if path is not None:
             raise ConfigError(msg("config.not_found", path=config_path))
         return Config()
-    return _from_dict(_read_mapping(config_path, cwd))
+    raw = _read_mapping(config_path, cwd)
+    label = _config_label(config_path, cwd)
+    parsed = _parsed(raw, label)
+    parsed.min_tokens = _min_tokens(raw.get("duplication"))
+    parsed.language = _language(raw.get("language"))
+    return parsed
+
+
+def reject_config_types(path: Path | None, cwd: Path) -> None:
+    config_path = path if path is not None else cwd / "bob.yaml"
+    if not config_path.is_file():
+        return
+    raw = _read_mapping(config_path, cwd)
+    _parsed(raw, _config_label(config_path, cwd))
 
 
 def configured_language(path: Path | None, cwd: Path) -> Language | None:
@@ -85,23 +98,23 @@ def _config_label(config_path: Path, cwd: Path) -> str:
     return config_path.as_posix()
 
 
-def _from_dict(raw: dict[str, Any]) -> Config:
-    paths = raw.get("paths") or {}
-    crap = raw.get("crap") or {}
-    include = paths.get("include") or ["src"]
-    exclude = paths.get("exclude") or list(DEFAULT_EXCLUDE)
-    python_deps, typescript_deps = _dependency_paths(raw)
+def _parsed(raw: dict[str, Any], label: str) -> Config:
+    paths = _mapping(raw, "paths", label)
+    crap = _mapping(raw, "crap", label)
+    dependencies = _mapping(raw, "dependencies", label)
     return Config(
-        base=str(raw.get("base") or "origin/main"),
-        languages=list(raw.get("languages") or ["python"]),
-        include=list(include),
-        exclude=list(exclude),
-        max_crap=float(crap.get("max_per_function", 10)),
-        crap_scope=str(crap.get("scope") or "changed"),
-        python_deps_config=python_deps,
-        typescript_deps_config=typescript_deps,
-        min_tokens=_min_tokens(raw.get("duplication")),
-        language=_language(raw.get("language")),
+        base=_string(raw, "base", label) or "origin/main",
+        languages=_string_list(raw, "languages", label) or ["python"],
+        include=_string_list(paths, "include", label, "paths.include") or ["src"],
+        exclude=_string_list(paths, "exclude", label, "paths.exclude") or list(DEFAULT_EXCLUDE),
+        max_crap=_number(crap, "max_per_function", label, "crap.max_per_function", 10.0),
+        crap_scope=_string(crap, "scope", label, "crap.scope") or "changed",
+        python_deps_config=_string(dependencies, "python", label, "dependencies.python")
+        or ".importlinter",
+        typescript_deps_config=_string(
+            dependencies, "typescript", label, "dependencies.typescript"
+        )
+        or ".dependency-cruiser.cjs",
     )
 
 
@@ -113,11 +126,46 @@ def _language(raw: Any) -> Language | None:
     return parse_language(raw)
 
 
-def _dependency_paths(raw: dict[str, Any]) -> tuple[str, str]:
-    dependencies = raw.get("dependencies") or {}
-    python = str(dependencies.get("python") or ".importlinter")
-    typescript = str(dependencies.get("typescript") or ".dependency-cruiser.cjs")
-    return python, typescript
+def _mapping(raw: dict[str, Any], key: str, label: str) -> dict[str, Any]:
+    if key not in raw or raw[key] is None:
+        return {}
+    value = raw[key]
+    if not isinstance(value, dict):
+        raise ConfigError(msg("config.key_mapping", path=label, key=key))
+    return value
+
+
+def _string(
+    raw: dict[str, Any], key: str, label: str, dotted: str | None = None
+) -> str | None:
+    if key not in raw or raw[key] is None:
+        return None
+    value = raw[key]
+    if not isinstance(value, str):
+        raise ConfigError(msg("config.key_string", path=label, key=dotted or key))
+    return value
+
+
+def _string_list(
+    raw: dict[str, Any], key: str, label: str, dotted: str | None = None
+) -> list[str] | None:
+    if key not in raw or raw[key] is None:
+        return None
+    value = raw[key]
+    if not isinstance(value, list) or any(not isinstance(item, str) for item in value):
+        raise ConfigError(msg("config.key_string_list", path=label, key=dotted or key))
+    return value
+
+
+def _number(
+    raw: dict[str, Any], key: str, label: str, dotted: str, default: float
+) -> float:
+    if key not in raw or raw[key] is None:
+        return default
+    value = raw[key]
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        raise ConfigError(msg("config.key_number", path=label, key=dotted))
+    return float(value)
 
 
 def _min_tokens(duplication: Any) -> int:
