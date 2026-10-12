@@ -107,6 +107,16 @@ def test_pull_request_workflow_dogfoods_the_local_action() -> None:
     assert env["BASE_REF"] == "${{ github.base_ref }}"
     assert "$BASE_REF" in str(fetch["run"])
     assert any("npm ci" in str(step.get("run", "")) for step in steps)
+    before_at = next(
+        i for i, step in enumerate(steps) if step.get("name") == "DRY sem jscpd fica not run"
+    )
+    npm_at = next(i for i, step in enumerate(steps) if step.get("name") == "Ferramentas npm")
+    action_at = next(i for i, step in enumerate(steps) if step.get("uses") == "./.github/actions/bob")
+    after_at = next(i for i, step in enumerate(steps) if step.get("name") == "DRY rodou")
+    assert before_at < npm_at < action_at < after_at
+    after = steps[after_at]
+    assert isinstance(after, dict)
+    assert after["if"] == "always()"
 
 
 def test_composite_action_comments_uploads_cache_and_keeps_bob_status() -> None:
