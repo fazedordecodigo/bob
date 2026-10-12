@@ -230,20 +230,30 @@ def _types_lines(report: Report) -> list[Text]:
     if not isinstance(found, dict):
         return []
     lines: list[Text] = ["", msg("report.types"), ""]
-    gate = _gate_named(report, "typing")
-    if gate is not None and gate.status == "not_run" and gate.reason is not None:
-        lines.append(msg("report.types_line", reason=gate.reason))
-        return lines
-    findings = found.get("findings")
-    if not isinstance(findings, list) or not findings:
-        lines.append(msg("report.types_none"))
-        return lines
-    lines.append(msg("report.types_header"))
-    lines.append("|---|---:|---|---|---|")
-    for item in findings:
-        if isinstance(item, dict):
-            lines.append(_finding_row(item))
+    lines.extend(_type_body(report, found))
     return lines
+
+
+def _type_body(report: Report, found: dict[str, object]) -> list[Text]:
+    skipped = _not_run_line(report)
+    if skipped is not None:
+        return [skipped]
+    return _finding_table(found.get("findings"))
+
+
+def _not_run_line(report: Report) -> Text | None:
+    gate = _gate_named(report, "typing")
+    if gate is None or gate.status != "not_run" or gate.reason is None:
+        return None
+    return msg("report.types_line", reason=gate.reason)
+
+
+def _finding_table(findings: object) -> list[Text]:
+    if not isinstance(findings, list) or not findings:
+        return [msg("report.types_none")]
+    rows: list[Text] = [msg("report.types_header"), "|---|---:|---|---|---|"]
+    rows.extend(_finding_row(item) for item in findings if isinstance(item, dict))
+    return rows
 
 
 def _finding_row(item: dict[str, object]) -> str:

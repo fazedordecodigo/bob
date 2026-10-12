@@ -379,7 +379,7 @@ _CHECKERS: tuple[_CheckerSpec, ...] = (
         clean_exits=MYPY_CLEAN_EXITS,
         error_exits=MYPY_ERROR_EXITS,
         diagnostic=re.compile(
-            r"^(?P<file>.+):(?P<line>\d+):(?:\d+:)? error: .*\[(?P<code>[a-z0-9-]+)\]\s*$"
+            r"^(?P<file>.+?):(?P<line>\d+):(?:\d+:)? error: .*\[(?P<code>[a-z0-9-]+)\]\s*$"
         ),
         error_shaped=re.compile(r": error:"),
         sourceless=None,
@@ -634,6 +634,13 @@ def _output(stdout: str, stderr: str) -> str:
     return _ANSI.sub("", text)
 
 
+@dataclass(frozen=True)
+class _Collected:
+    diagnostics: tuple[Diagnostic, ...]
+    malformed: bool
+    saw_diagnostic: bool
+
+
 def _classify(
     spec: _CheckerSpec,
     exit_code: int,
@@ -644,38 +651,46 @@ def _classify(
 ) -> CheckerRun:
     if exit_code not in spec.clean_exits | spec.error_exits:
         return Unmeasured(spec.tool, "exit_outside_measurement", code=exit_code)
+    collected = _collect_lines(spec, text, cwd)
+    if _rejected(spec, exit_code, collected):
+        return Unmeasured(spec.tool, "unparseable_output")
+    kept = tuple(
+        item
+        for item in collected.diagnostics
+        if _in_scope(item.file, include, exclude)
+    )
+    return Measured(spec.tool, kept)
+
+
+def _rejected(spec: _CheckerSpec, exit_code: int, collected: _Collected) -> bool:
+    if collected.malformed:
+        return True
+    if exit_code in spec.clean_exits:
+        return collected.saw_diagnostic
+    return not collected.saw_diagnostic
+
+
+def _collect_lines(spec: _CheckerSpec, text: str, cwd: Path) -> _Collected:
     diagnostics: list[Diagnostic] = []
     malformed = False
     saw_diagnostic = False
     for raw in text.splitlines():
-        line = raw.strip()
-        if line == "":
-            continue
-        parsed = _parse_line(spec, line, cwd)
-        if parsed is None:
-            continue
-        if parsed == "sourceless":
+        parsed = _parse_line(spec, raw.strip(), cwd)
+        if parsed is None or parsed == "sourceless":
             continue
         if parsed == "malformed":
             malformed = True
             continue
         saw_diagnostic = True
         diagnostics.append(parsed)
-    if malformed or (exit_code in spec.clean_exits and saw_diagnostic):
-        return Unmeasured(spec.tool, "unparseable_output")
-    if exit_code in spec.error_exits and not saw_diagnostic:
-        return Unmeasured(spec.tool, "unparseable_output")
-    kept = tuple(
-        item
-        for item in _dedupe_diagnostics(diagnostics)
-        if _in_scope(item.file, include, exclude)
-    )
-    return Measured(spec.tool, kept)
+    return _Collected(_dedupe_diagnostics(diagnostics), malformed, saw_diagnostic)
 
 
 def _parse_line(
     spec: _CheckerSpec, line: str, cwd: Path
 ) -> Diagnostic | Literal["sourceless", "malformed"] | None:
+    if line == "":
+        return None
     match = spec.diagnostic.match(line)
     if match is not None:
         return _diagnostic(spec, match, cwd)
@@ -725,14 +740,14 @@ def _repo_relative(cwd: Path, raw: str) -> str | None:
 
 
 def _in_scope(file: str, include: tuple[str, ...], exclude: tuple[str, ...]) -> bool:
-    parts = tuple(part for part in PurePosixPath(file).parts if part not in {"", "."})
+    parts = _segments(file)
     if any(part in exclude for part in parts):
         return False
-    return any(
-        parts[: len(prefix)] == prefix
-        for prefix in (_segments(entry) for entry in include)
-        if prefix
-    )
+    return _under_include(parts, include)
+
+
+def _under_include(parts: tuple[str, ...], include: tuple[str, ...]) -> bool:
+    return any(parts[: len(prefix)] == prefix for prefix in map(_segments, include) if prefix)
 
 
 def _segments(entry: str) -> tuple[str, ...]:
@@ -747,14 +762,25 @@ def _scan_escapes(
 ) -> tuple[Escape, ...]:
     found: list[Escape] = []
     for file, lines in diff_lines.items():
-        if not lines or not _in_scope(file, config.include, config.exclude):
-            continue
-        suffix = PurePosixPath(file).suffix
-        if suffix in _PYTHON_SUFFIXES and "python" in configured:
-            found.extend(_python_file(cwd, file, lines))
-        elif suffix in _TYPESCRIPT_SUFFIXES and "typescript" in configured:
-            found.extend(_typescript_file(cwd, file, lines))
+        found.extend(_file_escapes(cwd, config, file, lines, configured))
     return _dedupe_escapes(found)
+
+
+def _file_escapes(
+    cwd: Path,
+    config: Config,
+    file: str,
+    lines: set[int],
+    configured: frozenset[SourceLanguage],
+) -> tuple[Escape, ...]:
+    if not lines or not _in_scope(file, config.include, config.exclude):
+        return ()
+    suffix = PurePosixPath(file).suffix
+    if suffix in _PYTHON_SUFFIXES and "python" in configured:
+        return _python_file(cwd, file, lines)
+    if suffix in _TYPESCRIPT_SUFFIXES and "typescript" in configured:
+        return _typescript_file(cwd, file, lines)
+    return ()
 
 
 def _python_file(cwd: Path, file: str, lines: set[int]) -> tuple[Escape, ...]:
@@ -884,23 +910,51 @@ def _take_string(
 ) -> int:
     cursor = start + 1
     while cursor < end:
-        if text[cursor] == "\\" and cursor + 1 < end:
-            _blank(code, cursor)
-            _blank(code, cursor + 1)
-            cursor += 2
-            continue
-        if quote == "`" and text.startswith("${", cursor):
-            _blank(code, cursor)
-            _blank(code, cursor + 1)
-            cursor = _take_interpolation(text, code, comments, cursor + 2, end)
-            continue
-        if text[cursor] == quote:
+        step = _string_step(text, code, comments, cursor, end, quote)
+        if step is None:
             return cursor + 1
-        if text[cursor] == "\n" and quote != "`":
+        if step == cursor:
             return cursor
-        _blank(code, cursor)
-        cursor += 1
+        cursor = step
     return max(cursor, start + 1)
+
+
+def _string_step(
+    text: str,
+    code: list[str],
+    comments: list[str],
+    cursor: int,
+    end: int,
+    quote: str,
+) -> int | None:
+    special = _string_special(text, code, comments, cursor, end, quote)
+    if special is not False:
+        return special
+    if text[cursor] == quote:
+        return None
+    if text[cursor] == "\n" and quote != "`":
+        return cursor
+    _blank(code, cursor)
+    return cursor + 1
+
+
+def _string_special(
+    text: str,
+    code: list[str],
+    comments: list[str],
+    cursor: int,
+    end: int,
+    quote: str,
+) -> int | None | bool:
+    if text[cursor] == "\\" and cursor + 1 < end:
+        _blank(code, cursor)
+        _blank(code, cursor + 1)
+        return cursor + 2
+    if quote == "`" and text.startswith("${", cursor):
+        _blank(code, cursor)
+        _blank(code, cursor + 1)
+        return _take_interpolation(text, code, comments, cursor + 2, end)
+    return False
 
 
 def _take_interpolation(
@@ -909,24 +963,33 @@ def _take_interpolation(
     depth = 1
     cursor = start
     while cursor < end and depth > 0:
-        if text.startswith("//", cursor):
-            cursor = _take_comment(text, code, comments, cursor, end, line=True)
-            continue
-        if text.startswith("/*", cursor):
-            cursor = _take_comment(text, code, comments, cursor, end, line=False)
-            continue
-        char = text[cursor]
-        if char in {"'", '"', "`"}:
-            cursor = _take_string(text, code, comments, cursor, end, char)
-            continue
-        if char == "{":
-            depth += 1
-        elif char == "}":
-            depth -= 1
-            if depth == 0:
-                return cursor + 1
-        cursor += 1
+        cursor, depth, closed = _interpolation_step(text, code, comments, cursor, end, depth)
+        if closed:
+            return cursor
     return max(cursor, start)
+
+
+def _interpolation_step(
+    text: str,
+    code: list[str],
+    comments: list[str],
+    cursor: int,
+    end: int,
+    depth: int,
+) -> tuple[int, int, bool]:
+    if text.startswith("//", cursor):
+        return _take_comment(text, code, comments, cursor, end, line=True), depth, False
+    if text.startswith("/*", cursor):
+        return _take_comment(text, code, comments, cursor, end, line=False), depth, False
+    char = text[cursor]
+    if char in {"'", '"', "`"}:
+        return _take_string(text, code, comments, cursor, end, char), depth, False
+    if char == "{":
+        return cursor + 1, depth + 1, False
+    if char == "}":
+        closed = depth == 1
+        return cursor + 1, depth - 1, closed
+    return cursor + 1, depth, False
 
 
 def _blank(code: list[str], index: int) -> None:

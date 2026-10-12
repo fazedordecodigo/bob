@@ -355,6 +355,37 @@ def test_mypy_error_on_a_diff_line_exits_1(tmp_path: Path) -> None:
     }
 
 
+def test_mypy_column_form_keeps_the_line_and_not_the_column(tmp_path: Path) -> None:
+    repo = init_python_repo(tmp_path / "repo")
+    (repo / "mypy.ini").write_text("[mypy]\n")
+    path = _install(repo, "mypy")
+    commit_on_branch(repo, "bad", "src/app/bad.py", 'value: int = "no"\n', "add bad")
+    _checker_output(repo, "mypy", "src/app/bad.py:1:4: error: bad [assignment]\n", 1)
+
+    result = _bob(repo, "check", "--gates", "typing", "--base", "main", path=path)
+
+    assert result.returncode == 1
+    payload = _json(repo)
+    assert payload["gates"] == [
+        {
+            "name": "typing",
+            "status": "failed",
+            "reason": "typing:src/app/bad.py:1:assignment",
+        }
+    ]
+    assert payload["typing"]["findings"] == [
+        {
+            "kind": "diagnostic",
+            "disposition": "blocking",
+            "file": "src/app/bad.py",
+            "line": 1,
+            "code": "assignment",
+            "tool": "mypy",
+            "waiver_id": "typing:src/app/bad.py:1:assignment",
+        }
+    ]
+
+
 def test_the_same_mypy_id_waived_exits_0(tmp_path: Path) -> None:
     repo = init_python_repo(tmp_path / "repo")
     (repo / "mypy.ini").write_text("[mypy]\n")
