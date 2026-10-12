@@ -201,21 +201,26 @@ def _plan_functions(
 ) -> _Plan:
     remutate, reuse = _split_functions(measured, diff_lines, view, cwd, waivers)
     by_key = {f"{item.file}::{item.name}": item for item in measured}
-    taken = {f"{item.file}::{item.name}" for item in remutate}
-    taken.update(key for key, _entry in reuse)
-    carried = {
-        name: dict(entry)
-        for name, entry in view.held.items()
-        if name in by_key and name not in taken and _carry(entry, waivers)
-    }
     return _Plan(
         remutate=remutate,
         reuse=reuse,
         reused_mutants=apply_waivers(_mutants_from_cache(reuse, by_key), waivers),
         remutated_labels=[f"{item.file}::{item.name}" for item in remutate],
         reused_labels=[key for key, _entry in reuse],
-        carried=carried,
+        carried=_carried_rows(view, by_key, waivers),
     )
+
+
+def _carried_rows(
+    view: _CacheView,
+    by_key: dict[str, CyclomaticFunction],
+    waivers: list[Waiver],
+) -> dict[str, dict[str, object]]:
+    return {
+        name: entry
+        for name, entry in view.held.items()
+        if name in by_key and _carry(entry, waivers)
+    }
 
 
 def _baseline_outcome(
@@ -457,13 +462,16 @@ def _cached_start(entry: dict[str, object]) -> int | None:
     return None
 
 
+def _mutant_line(row: dict[str, object]) -> int:
+    try:
+        return int(row.get("line") or 0)
+    except ValueError as exc:
+        raise _CacheLineError(str(exc))
+
+
 def _mutant_from_row(row: dict[str, object], file_start: int | None = None) -> Mutant:
     waiver = row.get("waiver")
-    raw_line = row.get("line")
-    try:
-        line = int(raw_line or 0)
-    except ValueError as exc:
-        raise _CacheLineError(str(exc)) from exc
+    line = _mutant_line(row)
     if file_start is not None and line > 0:
         line = file_start + line - 1
     return Mutant(

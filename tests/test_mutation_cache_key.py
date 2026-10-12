@@ -18,7 +18,14 @@ from pathlib import Path
 import pytest
 
 from bob_quality.adapters.mutmut import mutmut_stats_key
-from bob_quality.mutate import MutationOutcome, _Cache, _safe_fingerprint, _write_cache
+from bob_quality.mutate import (
+    MutationOutcome,
+    _Cache,
+    _CacheLineError,
+    _mutant_from_row,
+    _safe_fingerprint,
+    _write_cache,
+)
 from bob_quality.suite_fingerprint import suite_fingerprint
 from bob_quality.tools import ToolError
 from helpers import commit_on_branch, commit_on_main, in_both, init_python_repo, run_bob
@@ -250,6 +257,11 @@ def test_a_non_numeric_mutant_line_exits_4_and_leaves_the_cache_file(tmp_path: P
     )
     assert path.read_bytes() == before
     assert sorted(path.parent.glob("mutation-cache.json*")) == [path]
+    with pytest.raises(_CacheLineError) as caught:
+        _mutant_from_row({"id": "add-planted", "line": "nope"})
+    assert str(caught.value) == "invalid literal for int() with base 10: 'nope'"
+    assert _mutant_from_row({"id": "add-planted", "line": 4}).line == 4
+    assert _mutant_from_row({"id": "add-planted"}).line == 0
 
 
 def test_a_failed_publish_leaves_the_previous_file_and_a_successful_publish_replaces_it(
@@ -278,10 +290,12 @@ def test_a_failed_publish_leaves_the_previous_file_and_a_successful_publish_repl
     assert json.loads(temporary.read_text()) == expected
 
     monkeypatch.undo()
-    _write_cache(cache, stored)
+    nested = tmp_path / "fresh" / "mutation-cache.json"
+    _write_cache(_Cache(nested, cache.key), stored)
+    expected_text = json.dumps(expected, indent=2) + "\n"
 
-    assert json.loads(path.read_text()) == expected
-    assert list(path.parent.iterdir()) == [path]
+    assert nested.read_text() == expected_text
+    assert list(nested.parent.iterdir()) == [nested]
 
 
 def test_an_unrelated_source_change_keeps_the_cached_function(tmp_path: Path) -> None:
