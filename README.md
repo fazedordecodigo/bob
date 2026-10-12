@@ -152,7 +152,7 @@ dependencies:
   typescript: .dependency-cruiser.cjs
 ```
 
-With `crap.scope: changed`, only changed functions block. Any other value makes every measured function count. If `--config` points to a file that does not exist, or the YAML is not a mapping, the run exits with `4`. A YAML syntax error, or a key with the wrong type such as `crap: 5` or `max_per_function: abc`, gives a traceback and exit `1` without a report ([#39](https://github.com/fazedordecodigo/bob/issues/39)).
+With `crap.scope: changed`, only changed functions block. Any other value makes every measured function count. If `--config` points to a file that does not exist, the YAML is not a mapping, or the YAML has a syntax error, the run exits with `4` and a message on stderr. A key with the wrong type, such as `crap: 5` or `max_per_function: abc`, gives a traceback and exit `1` without a report ([#39](https://github.com/fazedordecodigo/bob/issues/39)).
 
 ### Output language
 
@@ -163,11 +163,13 @@ bob writes its text for humans in English (`en`) or Brazilian Portuguese (`pt-BR
 3. `language` in `bob.yaml`.
 4. `en`.
 
-An empty value counts as unset, and the case matters (`pt-br` is invalid). When an invalid `--lang` or `BOB_LANG` decides the language, the run exits with `4`, prints `invalid language: <value> (use en or pt-BR)` to stderr, and writes no report. An invalid `language` in `bob.yaml` is a configuration error like any other. `bob check` exits with `4` and writes the report in the language from the flag, from the environment, or in English. A valid `language` still applies when another key in the file is invalid, and that error's report uses it.
+The case matters (`pt-br` is invalid). An empty `--lang` or `BOB_LANG` is invalid. The run exits with `4`, prints `invalid language: "" (use en or pt-BR)` to stderr, and writes nothing. An empty `language` key in `bob.yaml` still counts as unset.
 
-`.bob/report.json` does not depend on the language. Its keys stay the same and its `reason` texts are always in English, so the same input gives the same bytes in both languages. Tool output and rule names, such as `Proibido ciclo de dependência`, pass through unchanged.
+An invalid `language` value, a numeric `language`, a `bob.yaml` that is not a mapping, or YAML with a syntax error exits with `4`. The message goes to stderr. The run writes no report and no `waivers.yaml`. `check`, `doctor`, `waive`, and the other commands do this the same way. A valid `language` still applies when another key in the file is invalid, and that error's report uses it.
 
-In CI, set `language: pt-BR` in `bob.yaml`, or `BOB_LANG: pt-BR` in the job `env`. The GitHub Action comments `.bob/report.md`, so the comment follows the same choice.
+`.bob/report.json` keeps the same keys. Every gate `reason` is English, so a tool can match it without knowing the output language. The cycle rule name follows the output language. English uses `Forbidden dependency cycle`. `pt-BR` uses `Proibido ciclo de dependência`. The reproduce command includes the `--lang` that produced the report.
+
+In CI, set `language: pt-BR` in `bob.yaml`, or `BOB_LANG: pt-BR` in the job `env`. The GitHub Action input `language` sets the same choice for `bob check` and for the pull request comment. An empty input leaves `BOB_LANG` and `bob.yaml` in charge. The comment's truncation note and its own errors use that language.
 
 ### `bob doctor` and `--install`
 
@@ -199,7 +201,7 @@ A waiver without a one-line reason is rejected with exit `4`. A new waiver with 
 7. `Dependency violations and cycles`, and `Information (dependencies outside the diff)`.
 8. `New clones`.
 9. `Surviving mutants`.
-10. `How to reproduce`, the exact command to run locally.
+10. `How to reproduce`, the exact command to run locally, including `--lang`.
 
 ## Concepts
 
@@ -247,7 +249,7 @@ The limit is zero survivors without a waiver. Any such survivor fails the gate w
 
 Dependency rules and cycles show architecture erosion. When module A imports B and B imports A, neither can change alone.
 
-bob runs the rules the repository already declares, in `.importlinter` for Python (import-linter) and in `.dependency-cruiser.cjs` for TypeScript (dependency-cruiser). It adds one rule that is always on, `Proibido ciclo de dependência`, which forbids dependency cycles. For example, if `app.a` imports `app.b` and the diff makes `app.b` import `app.a`, the gate shows ❌ and exits with `1`.
+bob runs the rules the repository already declares, in `.importlinter` for Python (import-linter) and in `.dependency-cruiser.cjs` for TypeScript (dependency-cruiser). It adds one rule that is always on and forbids dependency cycles. The English name is `Forbidden dependency cycle`. The `pt-BR` name is `Proibido ciclo de dependência`. For example, if `app.a` imports `app.b` and the diff makes `app.b` import `app.a`, the gate shows ❌ and exits with `1`.
 
 The limit is zero violations in the diff. A violation blocks only when its origin, its destination, or another module in the same cycle (strongly connected component) changed in the diff. Older violations appear as `outside the diff; does not block`.
 

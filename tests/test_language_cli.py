@@ -131,7 +131,7 @@ def test_lang_flag_also_works_before_the_command(tmp_path: Path) -> None:
     assert _markdown(repo) == EXPECTED_MARKDOWN[PT]
 
 
-def test_report_json_is_byte_identical_in_both_languages(tmp_path: Path) -> None:
+def test_report_json_keeps_english_reasons_and_records_lang(tmp_path: Path) -> None:
     repo = _repo(tmp_path)
     commit_on_branch(repo, "risky", "src/app/risky.py", RISKY_SOURCE, "add untested messy")
     raw: dict[str, bytes] = {}

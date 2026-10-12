@@ -66,6 +66,7 @@ _EN: dict[str, str] = {
     "config.duplication_not_mapping": "duplication must be a mapping",
     "config.min_tokens_not_integer": "duplication.min_tokens must be an integer",
     "config.invalid_language": "invalid language: {value} (use en or pt-BR)",
+    "config.invalid_yaml": "invalid YAML in {path}: {detail}",
     "check.gate_not_implemented": "gate not implemented in this slice",
     "tool.missing": "missing tool: {tool}",
     "tool.detail": "{tool}: {detail}",
@@ -97,6 +98,7 @@ _EN: dict[str, str] = {
     "deps.grimp_unreadable": "grimp returned an unreadable graph",
     "deps.contract_broken": "broken contract: {name}",
     "deps.tool_failed": "dependency tool failed",
+    "deps.cycle_rule": "Forbidden dependency cycle",
     "mutate.cache_invalid": "invalid mutation cache: {detail}",
     "mutate.unwaived": "survivor without waiver: {mutants}",
     "mutate.uncovered_one": "{count} mutant without a test",
@@ -177,6 +179,10 @@ _EN: dict[str, str] = {
     ),
     "report.exact": "exact",
     "report.reproduce": "## How to reproduce",
+    "action.truncated": "\n\n_…report truncated to fit in the GitHub comment._\n",
+    "action.required": "repo, pr, and token are required",
+    "action.report_missing": "`{path}` was not generated.",
+    "action.comments_invalid": "invalid comment list",
 }
 
 _PT_BR: dict[str, str] = {
@@ -198,6 +204,7 @@ _PT_BR: dict[str, str] = {
     "config.duplication_not_mapping": "duplication deve ser um mapeamento",
     "config.min_tokens_not_integer": "duplication.min_tokens deve ser um inteiro",
     "config.invalid_language": "idioma inválido: {value} (use en ou pt-BR)",
+    "config.invalid_yaml": "YAML inválido em {path}: {detail}",
     "check.gate_not_implemented": "gate não implementado nesta fatia",
     "tool.missing": "ferramenta ausente: {tool}",
     "tool.detail": "{tool}: {detail}",
@@ -230,6 +237,7 @@ _PT_BR: dict[str, str] = {
     "deps.grimp_unreadable": "grimp devolveu um grafo ilegível",
     "deps.contract_broken": "contrato quebrado: {name}",
     "deps.tool_failed": "ferramenta de dependência falhou",
+    "deps.cycle_rule": "Proibido ciclo de dependência",
     "mutate.cache_invalid": "cache de mutação inválido: {detail}",
     "mutate.unwaived": "sobrevivente sem waiver: {mutants}",
     "mutate.uncovered_one": "{count} mutante sem teste",
@@ -310,6 +318,10 @@ _PT_BR: dict[str, str] = {
     ),
     "report.exact": "exata",
     "report.reproduce": "## Como reproduzir",
+    "action.truncated": "\n\n_…relatório truncado para caber no comentário do GitHub._\n",
+    "action.required": "repo, pr e token são obrigatórios",
+    "action.report_missing": "`{path}` não foi gerado.",
+    "action.comments_invalid": "lista de comentários inválida",
 }
 
 CATALOG: dict[Language, dict[str, str]] = {"en": _EN, "pt-BR": _PT_BR}

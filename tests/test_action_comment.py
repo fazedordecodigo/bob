@@ -137,7 +137,7 @@ def test_missing_report_still_posts_a_single_comment(tmp_path: Path) -> None:
     assert len(api.comments) == 1
     body = str(api.comments[0]["body"])
     assert MARKER in body
-    assert "`report.md` was not generated." in result.stderr
+    assert result.stderr == f"`{missing.as_posix()}` was not generated.\n"
     assert "report.md" in body
 
 
@@ -151,7 +151,7 @@ def test_missing_report_error_follows_pt_br(tmp_path: Path) -> None:
         server.shutdown()
 
     assert result.returncode != 0
-    assert "`report.md` não foi gerado." in result.stderr
+    assert result.stderr == f"`{missing.as_posix()}` não foi gerado.\n"
 
 
 def test_human_comment_quoting_the_marker_is_not_overwritten(tmp_path: Path) -> None:

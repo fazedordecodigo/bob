@@ -107,8 +107,17 @@ def _language(argv: list[str] | None) -> Language:
     early.add_argument("--config", default=None)
     known, _rest = early.parse_known_args(argv)
     cwd = Path.cwd()
+    flag = known.lang
+    env = os.environ.get("BOB_LANG")
+    selected = (
+        resolve_language(flag, env, None) if flag is not None or env is not None else None
+    )
     configured = configured_language(_resolve_config(cwd, known.config), cwd)
-    return resolve_language(known.lang, os.environ.get("BOB_LANG"), configured)
+    if selected is not None:
+        return selected
+    if configured is None:
+        return DEFAULT_LANGUAGE
+    return configured
 
 
 def _waive_command(cwd: Path, args: argparse.Namespace, lang: Language) -> int:
@@ -171,7 +180,7 @@ def _run_check(
         config_path=config_path,
         out_dir=out_dir,
         fmt=args.format,
-        reproduce=_reproduce("check", args),
+        reproduce=_reproduce("check", args, lang),
         lang=lang,
     )
 
@@ -193,7 +202,7 @@ def _run_crap(
         fmt="both",
         threshold=args.threshold,
         coverage_file=coverage,
-        reproduce=_reproduce("crap", args),
+        reproduce=_reproduce("crap", args, lang),
         lang=lang,
     )
 
@@ -212,7 +221,7 @@ def _run_dry(
         config_path=config_path,
         out_dir=out_dir,
         fmt="both",
-        reproduce=_reproduce("dry", args),
+        reproduce=_reproduce("dry", args, lang),
         lang=lang,
     )
 
@@ -231,7 +240,7 @@ def _run_deps(
         config_path=config_path,
         out_dir=out_dir,
         fmt="both",
-        reproduce=_reproduce("deps", args),
+        reproduce=_reproduce("deps", args, lang),
         lang=lang,
     )
 
@@ -251,12 +260,12 @@ def _run_mutate(
         out_dir=out_dir,
         fmt="both",
         max_workers=args.max_workers,
-        reproduce=_reproduce("mutate", args),
+        reproduce=_reproduce("mutate", args, lang),
         lang=lang,
     )
 
 
-def _reproduce(command: str, args: argparse.Namespace) -> str:
+def _reproduce(command: str, args: argparse.Namespace, lang: Language) -> str:
     parts = ["bob", command]
     _append_flag(parts, "--base", getattr(args, "base", None))
     _append_flag(parts, "--gates", getattr(args, "gates", None))
@@ -268,6 +277,7 @@ def _reproduce(command: str, args: argparse.Namespace) -> str:
     _append_flag(parts, "--max-workers", getattr(args, "max_workers", None))
     if getattr(args, "since_last_run", False):
         parts.append("--since-last-run")
+    parts.extend(["--lang", lang])
     return " ".join(parts)
 
 

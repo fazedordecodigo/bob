@@ -19,7 +19,7 @@ from bob_quality.config import Config
 from bob_quality.core import deps_verdict, unique_violations
 from bob_quality.cycles import strongly_connected
 from bob_quality.exit_codes import CONFIG_OR_TOOL, GATE_FAILED, PASSED
-from bob_quality.messages import Text, msg, reason
+from bob_quality.messages import DEFAULT_LANGUAGE, Language, Text, msg, reason, t
 from bob_quality.models import DepViolation, GateResult
 from bob_quality.npm_tools import node_missing_message, npm_prefix
 from bob_quality.tools import ToolError
@@ -34,7 +34,6 @@ raise SystemExit(
 _TS_EXTENSIONS = (".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs")
 _NODE_MISSING = msg("deps.node_missing")
 _CRUISER_MISSING = msg("tool.missing", tool="dependency-cruiser")
-_CYCLE_RULE = "Proibido ciclo de dependência"
 _GRAPH_RUNNER = """\
 import json, os, sys, grimp
 for entry in sys.argv[1].split(os.pathsep):
@@ -64,6 +63,7 @@ def run_deps_gate(
     cwd: Path,
     config: Config,
     changed_files: set[str] | None = None,
+    lang: Language = DEFAULT_LANGUAGE,
 ) -> tuple[GateResult, int, dict[str, str], list[DepViolation]]:
     violations: list[DepViolation] = []
     versions: dict[str, str] = {}
@@ -71,7 +71,7 @@ def run_deps_gate(
     try:
         components = _cycle_components(cwd, config) if python_measured else []
         if python_measured:
-            violations.extend(_python_violations(cwd, config, versions))
+            violations.extend(_python_violations(cwd, config, versions, t(lang, "deps.cycle_rule")))
         skip = _collect_typescript(
             enabled="typescript" in config.languages,
             python_measured=python_measured,
@@ -266,6 +266,7 @@ def _python_violations(
     cwd: Path,
     config: Config,
     versions: dict[str, str],
+    cycle_rule: str,
 ) -> list[DepViolation]:
     versions["import-linter"] = _import_linter_version()
     found: list[DepViolation] = []
@@ -274,7 +275,7 @@ def _python_violations(
         found.extend(_lint(cwd, config, user))
     roots = _python_roots(cwd, config)
     if roots:
-        found.extend(_lint_cycles(cwd, config, roots))
+        found.extend(_lint_cycles(cwd, config, roots, cycle_rule))
     return unique_violations(found)
 
 
@@ -314,10 +315,12 @@ def _lint(cwd: Path, config: Config, config_path: Path) -> list[DepViolation]:
     return _import_linter_violations(completed)
 
 
-def _lint_cycles(cwd: Path, config: Config, roots: list[str]) -> list[DepViolation]:
+def _lint_cycles(
+    cwd: Path, config: Config, roots: list[str], cycle_rule: str
+) -> list[DepViolation]:
     with tempfile.TemporaryDirectory(prefix="bob-import-linter-") as tmp:
         path = Path(tmp) / ".importlinter"
-        path.write_text(_cycle_ini(roots), encoding="utf-8")
+        path.write_text(_cycle_ini(roots, cycle_rule), encoding="utf-8")
         return _lint(cwd, config, path)
 
 
@@ -413,7 +416,7 @@ def _packages_under(root: Path) -> list[_Package]:
     ]
 
 
-def _cycle_ini(roots: list[str]) -> str:
+def _cycle_ini(roots: list[str], cycle_rule: str) -> str:
     packages = "\n".join(f"    {name}" for name in roots)
     return (
         "[importlinter]\n"
@@ -421,7 +424,7 @@ def _cycle_ini(roots: list[str]) -> str:
         f"{packages}\n"
         "\n"
         "[importlinter:contract:bob-no-cycles]\n"
-        f"name = {_CYCLE_RULE}\n"
+        f"name = {cycle_rule}\n"
         "type = acyclic_siblings\n"
         "ancestors =\n"
         f"{packages}\n"

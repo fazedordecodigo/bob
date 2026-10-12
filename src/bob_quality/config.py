@@ -35,31 +35,23 @@ def load_config(path: Path | None, cwd: Path) -> Config:
         if path is not None:
             raise ConfigError(msg("config.not_found", path=config_path))
         return Config()
-    raw = yaml.safe_load(config_path.read_text()) or {}
-    if not isinstance(raw, dict):
-        raise ConfigError(msg("config.not_mapping"))
-    return _from_dict(raw)
+    return _from_dict(_read_mapping(config_path, cwd))
 
 
 def configured_language(path: Path | None, cwd: Path) -> Language | None:
     config_path = path if path is not None else cwd / "bob.yaml"
     if not config_path.is_file():
         return None
-    raw = yaml.safe_load(config_path.read_text()) or {}
-    if not isinstance(raw, dict):
-        return None
-    try:
-        return _language(raw.get("language"))
-    except ConfigError:
-        return None
+    return _language(_read_mapping(config_path, cwd).get("language"))
 
 
 def resolve_language(
     flag: str | None, env: str | None, configured: Language | None
 ) -> Language:
-    for candidate in (flag, env):
-        if candidate is not None and candidate != "":
-            return parse_language(candidate)
+    if flag is not None:
+        return parse_language(flag)
+    if env is not None:
+        return parse_language(env)
     if configured is None:
         return DEFAULT_LANGUAGE
     return configured
@@ -69,7 +61,28 @@ def parse_language(value: str) -> Language:
     for language in LANGUAGES:
         if value == language:
             return language
-    raise ConfigError(msg("config.invalid_language", value=value))
+    shown = '""' if value == "" else value
+    raise ConfigError(msg("config.invalid_language", value=shown))
+
+
+def _read_mapping(config_path: Path, cwd: Path) -> dict[str, Any]:
+    try:
+        loaded = yaml.safe_load(config_path.read_text())
+    except yaml.YAMLError as exc:
+        detail = str(exc).strip().splitlines()[0].strip()
+        raise ConfigError(
+            msg("config.invalid_yaml", path=_config_label(config_path, cwd), detail=detail)
+        ) from exc
+    raw = loaded or {}
+    if not isinstance(raw, dict):
+        raise ConfigError(msg("config.not_mapping"))
+    return raw
+
+
+def _config_label(config_path: Path, cwd: Path) -> str:
+    if config_path == cwd / "bob.yaml":
+        return "bob.yaml"
+    return config_path.as_posix()
 
 
 def _from_dict(raw: dict[str, Any]) -> Config:
@@ -95,7 +108,9 @@ def _from_dict(raw: dict[str, Any]) -> Config:
 def _language(raw: Any) -> Language | None:
     if raw is None or raw == "":
         return None
-    return parse_language(str(raw))
+    if not isinstance(raw, str):
+        raise ConfigError(msg("config.invalid_language", value=raw))
+    return parse_language(raw)
 
 
 def _dependency_paths(raw: dict[str, Any]) -> tuple[str, str]:

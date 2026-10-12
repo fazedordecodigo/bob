@@ -26,6 +26,12 @@ inputs:
     description: Token para o comentário e para ler artefatos. Vazio usa o GITHUB_TOKEN do workflow.
     required: false
     default: ""
+  language:
+    description: >-
+      Idioma da saída do bob e do comentário (en ou pt-BR). Vazio deixa
+      BOB_LANG, language no bob.yaml e en decidirem, nesta ordem.
+    required: false
+    default: ""
 
 runs:
   using: composite
@@ -58,6 +64,7 @@ runs:
       env:
         BOB_BASE: ${{ inputs.base }}
         BOB_GATES: ${{ inputs.gates }}
+        BOB_LANGUAGE: ${{ inputs.language }}
       run: bash "$GITHUB_ACTION_PATH/run_check.sh"
 
     - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
@@ -76,6 +83,7 @@ runs:
         GITHUB_REPOSITORY: ${{ github.repository }}
         BOB_PR_NUMBER: ${{ github.event.pull_request.number }}
         GITHUB_API_URL: ${{ github.api_url }}
+        BOB_LANGUAGE: ${{ inputs.language }}
       run: python "$GITHUB_ACTION_PATH/upsert_comment.py"
 
     - name: Propagar exit code do bob

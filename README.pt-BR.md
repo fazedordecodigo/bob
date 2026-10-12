@@ -152,7 +152,7 @@ dependencies:
   typescript: .dependency-cruiser.cjs
 ```
 
-Com `crap.scope: changed`, só funções alteradas bloqueiam. Qualquer outro valor faz toda função medida contar. Se `--config` aponta para um arquivo que não existe, ou se o YAML não é um mapeamento, a execução sai com `4`. Um YAML com erro de sintaxe, ou uma chave com tipo errado como `crap: 5` ou `max_per_function: abc`, dá traceback e exit `1` sem relatório ([#39](https://github.com/fazedordecodigo/bob/issues/39)).
+Com `crap.scope: changed`, só funções alteradas bloqueiam. Qualquer outro valor faz toda função medida contar. Se `--config` aponta para um arquivo que não existe, se o YAML não é um mapeamento, ou se o YAML tem erro de sintaxe, a execução sai com `4` e uma mensagem no stderr. Uma chave com tipo errado, como `crap: 5` ou `max_per_function: abc`, dá traceback e exit `1` sem relatório ([#39](https://github.com/fazedordecodigo/bob/issues/39)).
 
 ### Idioma da saída
 
@@ -163,11 +163,13 @@ O bob escreve o texto para humanos em inglês (`en`) ou em português do Brasil 
 3. `language` no `bob.yaml`.
 4. `en`.
 
-Um valor vazio conta como ausente, e a caixa importa (`pt-br` é inválido). Quando um `--lang` ou `BOB_LANG` inválido decide o idioma, a execução sai com `4`, imprime `invalid language: <valor> (use en or pt-BR)` no stderr e não grava relatório. Um `language` inválido no `bob.yaml` é um erro de configuração como qualquer outro. O `bob check` sai com `4` e grava o relatório no idioma da flag, do ambiente ou em inglês. Um `language` válido continua valendo quando outra chave do arquivo é inválida, e o relatório desse erro usa esse idioma.
+A caixa importa (`pt-br` é inválido). Um `--lang` ou `BOB_LANG` vazio é inválido. A execução sai com `4`, imprime `invalid language: "" (use en or pt-BR)` no stderr e não grava nada. Uma chave `language` vazia no `bob.yaml` continua contando como ausente.
 
-O `.bob/report.json` não depende do idioma. As chaves continuam as mesmas e os textos de `reason` ficam sempre em inglês, então a mesma entrada dá os mesmos bytes nos dois idiomas. Saída de ferramenta e nomes de regra, como `Proibido ciclo de dependência`, passam como vieram.
+Um valor de `language` inválido, um `language` numérico, um `bob.yaml` que não é um mapeamento, ou um YAML com erro de sintaxe, sai com `4`. A mensagem vai para o stderr. A execução não grava relatório nem `waivers.yaml`. `check`, `doctor`, `waive` e os outros comandos fazem isso do mesmo jeito. Um `language` válido continua valendo quando outra chave do arquivo é inválida, e o relatório desse erro usa esse idioma.
 
-No CI, defina `language: pt-BR` no `bob.yaml`, ou `BOB_LANG: pt-BR` no `env` do job. A GitHub Action comenta o `.bob/report.md`, então o comentário segue a mesma escolha.
+O `.bob/report.json` mantém as mesmas chaves. Todo `reason` de gate fica em inglês, então uma ferramenta pode casar esse texto sem saber o idioma da saída. O nome da regra de ciclo segue o idioma da saída. Em inglês é `Forbidden dependency cycle`. Em `pt-BR` é `Proibido ciclo de dependência`. O comando de reprodução inclui o `--lang` que produziu o relatório.
+
+No CI, defina `language: pt-BR` no `bob.yaml`, ou `BOB_LANG: pt-BR` no `env` do job. O input `language` da GitHub Action define a mesma escolha para o `bob check` e para o comentário do pull request. Um input vazio deixa `BOB_LANG` e o `bob.yaml` decidirem. A nota de truncamento do comentário e os erros do próprio comentário usam esse idioma.
 
 ### `bob doctor` e `--install`
 
@@ -199,7 +201,7 @@ Um waiver sem motivo de uma linha é rejeitado com exit `4`. Um waiver novo com 
 7. `Violações e ciclos de dependência`, e `Informação (dependências fora do diff)`.
 8. `Clones novos`.
 9. `Mutantes sobreviventes`.
-10. `Como reproduzir`, o comando exato para rodar localmente.
+10. `Como reproduzir`, o comando exato para rodar localmente, incluindo `--lang`.
 
 ## Conceitos
 
@@ -247,7 +249,7 @@ O limite é zero sobreviventes sem waiver. Qualquer sobrevivente assim reprova o
 
 Regras de dependência e ciclos mostram erosão de arquitetura. Quando o módulo A importa B e B importa A, nenhum dos dois muda sozinho.
 
-O bob roda as regras que o repositório já declara, em `.importlinter` para Python (import-linter) e em `.dependency-cruiser.cjs` para TypeScript (dependency-cruiser). Ele soma uma regra sempre ativa, `Proibido ciclo de dependência`, que proíbe ciclos de dependência. Por exemplo, se `app.a` importa `app.b` e o diff faz `app.b` importar `app.a`, o gate mostra ❌ e sai com `1`.
+O bob roda as regras que o repositório já declara, em `.importlinter` para Python (import-linter) e em `.dependency-cruiser.cjs` para TypeScript (dependency-cruiser). Ele soma uma regra sempre ativa, que proíbe ciclos de dependência. O nome em inglês é `Forbidden dependency cycle`. O nome em `pt-BR` é `Proibido ciclo de dependência`. Por exemplo, se `app.a` importa `app.b` e o diff faz `app.b` importar `app.a`, o gate mostra ❌ e sai com `1`.
 
 O limite é zero violações no diff. Uma violação só bloqueia quando a origem, o destino ou outro módulo do mesmo ciclo (componente fortemente conexo) foi alterado no diff. Violações antigas aparecem como `fora do diff; não bloqueia`.
 
