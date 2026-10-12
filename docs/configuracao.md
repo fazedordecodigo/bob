@@ -56,17 +56,18 @@ A [SPEC](SPEC.md) escreve `languages: [python, typescript]` com o comentário �
 
 O gate DRY mapeia `typescript` para os formatos `typescript` e `javascript` do jscpd (`dry_gate.py`).
 
-### Chaves da spec que este YAML de exemplo não liga a um campo
+### Chaves que o loader recusa
 
-O exemplo de `bob.yaml` na [SPEC](SPEC.md) inclui:
+O `_SCHEMA` em `src/bob_quality/config.py` aceita `base`, `language`, `languages`, `paths.include`, `paths.exclude`, `crap.max_per_function`, `crap.scope`, `duplication.min_tokens`, `dependencies.python` e `dependencies.typescript`. `_reject_unknown` recusa qualquer outra chave: exit `4`, mensagem em inglês no stderr, nenhum arquivo gravado.
 
-```yaml
-mutation: { require_zero_unwaived_survivors: true, scope: changed, differential: true }
-duplication: { tool: jscpd, min_tokens: 50, new_clones: warn }
-dependencies: { python: .importlinter, typescript: .dependency-cruiser.cjs, violation: fail }
-```
+Estas não entram no schema:
 
-`load_config` lê `duplication.min_tokens` e os dois caminhos em `dependencies`. Não há campos no `Config` para `mutation`, `duplication.tool`, `duplication.new_clones` nem `dependencies.violation`. O comportamento correspondente está fixo no código: sobrevivente sem waiver sai com `3`, a mutação reusa `.bob/mutation-cache.json`, clone novo é aviso, violação no diff sai com `1`. Mudar essas chaves no YAML não altera o veredito, porque elas não são lidas.
+- `mutation`. O erro é `bob.yaml: unknown key mutation`, também quando o bloco traz `require_zero_unwaived_survivors`, `scope` ou `differential`.
+- `duplication.tool`. O erro é `bob.yaml: unknown key duplication.tool`.
+- `duplication.new_clones`. O erro é `bob.yaml: unknown key duplication.new_clones`.
+- `dependencies.violation`. O erro é `bob.yaml: unknown key dependencies.violation`.
+
+O exemplo de `bob.yaml` na [SPEC](SPEC.md) e nos READMEs não as inclui. Sobrevivente sem waiver sai com `3`, a mutação reusa `.bob/mutation-cache.json`, clone novo é aviso e violação no diff sai com `1`, sem chave para desligar isso. `tests/test_invalid_config.py` cobre a recusa.
 
 ## .bob/waivers.yaml
 
