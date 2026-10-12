@@ -12,6 +12,7 @@ import yaml
 
 from bob_quality.messages import msg
 from bob_quality.models import Mutant
+from bob_quality.yaml_text import parse_yaml
 
 
 class WaiverError(Exception):
@@ -97,7 +98,7 @@ def _waiver_entries(path: Path) -> list[object]:
 
 def _load_yaml(path: Path) -> object:
     try:
-        return yaml.safe_load(path.read_text())
+        return parse_yaml(path.read_text())
     except yaml.YAMLError as exc:
         detail = str(exc).strip().splitlines()[0].strip()
         raise WaiverError(
