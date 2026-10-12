@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+import ast
+import enum
 from dataclasses import dataclass
-from pathlib import Path
+from fnmatch import fnmatch
+from pathlib import Path, PurePosixPath
 from typing import Literal, Mapping, Sequence
 
 from bob_quality.config import Config, SourceLanguage
@@ -12,6 +15,30 @@ from bob_quality.models import GateResult, TestSmell
 from bob_quality.waivers import Waiver, load_waivers
 
 WarningContribution = Literal[0]
+
+PYTHON_EMPTY = "empty-test"
+PYTHON_DISABLED = "disabled-test"
+PYTHON_SLEEP = "sleep"
+PYTHON_MISSING_ASSERT = "missing-assert"
+SKIP_ATTRS = frozenset({"skip", "skipif", "skipIf", "skipUnless", "xfail", "importorskip"})
+SLEEP_NAMES = frozenset({"sleep"})
+ASSERTION_NAMES = frozenset({"fail", "raises", "warns", "deprecated_call"})
+_PY_TEST_NAMES = ("test_*.py", "*_test.py")
+_NOT_PY_TESTS = frozenset({"conftest.py", "__init__.py"})
+_NESTED = (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)
+_TEST_FN = (ast.FunctionDef, ast.AsyncFunctionDef)
+
+
+class BodyKind(enum.Enum):
+    EMPTY = "EMPTY"
+    NO_ASSERT = "NO_ASSERT"
+    HAS_ASSERT = "HAS_ASSERT"
+
+
+_BODY_RULE = {
+    BodyKind.EMPTY: PYTHON_EMPTY,
+    BodyKind.NO_ASSERT: PYTHON_MISSING_ASSERT,
+}
 
 
 @dataclass(frozen=True)
@@ -111,10 +138,51 @@ def run_test_smells_gate(
 
 
 def measure_python(
-    _cwd: Path,
-    _diff_lines: Mapping[str, set[int]],
+    cwd: Path,
+    diff_lines: Mapping[str, set[int]],
 ) -> LanguageMeasured:
-    return LanguageMeasured("python", ())
+    findings: list[TestSmell] = []
+    for relative in changed_test_paths(diff_lines, "python"):
+        source = _read_source(cwd / relative)
+        if source is None:
+            continue
+        changed = frozenset(diff_lines.get(relative, ()))
+        findings.extend(python_smells(source, relative, changed))
+    return LanguageMeasured("python", tuple(findings))
+
+
+def changed_test_paths(
+    diff_lines: Mapping[str, set[int]],
+    language: SourceLanguage,
+) -> tuple[str, ...]:
+    if language == "python":
+        return tuple(sorted(path for path in diff_lines if _is_python_test(path)))
+    if language == "typescript":
+        return ()
+    raise AssertionError(language)
+
+
+def python_smells(source: str, file: str, changed: frozenset[int]) -> tuple[TestSmell, ...]:
+    try:
+        tree = ast.parse(source)
+    except SyntaxError:
+        return ()
+    smells: list[TestSmell] = []
+    module_markers = _block_markers(tree.body)
+    for node in tree.body:
+        if _is_test_function(node):
+            smells.extend(_function_smells(file, node, changed, module_markers))
+            continue
+        if isinstance(node, ast.ClassDef) and node.name.startswith("Test"):
+            inherited = [
+                *module_markers,
+                *_decorator_markers(node.decorator_list),
+                *_block_markers(node.body),
+            ]
+            for item in node.body:
+                if _is_test_function(item):
+                    smells.extend(_function_smells(file, item, changed, inherited))
+    return tuple(sorted(_unique(smells), key=_by_location))
 
 
 def measure_typescript(
@@ -194,3 +262,209 @@ def _count_key(unwaived: int) -> str:
 
 def _by_location(smell: TestSmell) -> tuple[str, int, str]:
     return smell.file, smell.line, smell.rule
+
+
+def _read_source(path: Path) -> str | None:
+    try:
+        return path.read_text(encoding="utf-8")
+    except (OSError, UnicodeError):
+        return None
+
+
+def _is_python_test(path: str) -> bool:
+    name = PurePosixPath(path).name
+    if name in _NOT_PY_TESTS:
+        return False
+    return any(fnmatch(name, pattern) for pattern in _PY_TEST_NAMES)
+
+
+def _is_test_function(node: ast.AST) -> bool:
+    return isinstance(node, _TEST_FN) and node.name.startswith("test_")
+
+
+def _function_smells(
+    file: str,
+    fn: ast.FunctionDef | ast.AsyncFunctionDef,
+    changed: frozenset[int],
+    inherited: list[ast.AST],
+) -> list[TestSmell]:
+    markers = [*inherited, *_decorator_markers(fn.decorator_list), *_skip_calls(fn.body)]
+    smells: list[TestSmell] = []
+    for marker in markers:
+        smell = test_smell(file, marker.lineno, PYTHON_DISABLED, changed)
+        if smell is not None:
+            smells.append(smell)
+    if not markers:
+        smells.extend(_body_smell(file, fn, changed))
+    smells.extend(_sleep_smells(file, fn.body, changed))
+    return smells
+
+
+def _body_smell(
+    file: str,
+    fn: ast.FunctionDef | ast.AsyncFunctionDef,
+    changed: frozenset[int],
+) -> list[TestSmell]:
+    rule = _BODY_RULE.get(_body_kind(fn.body))
+    if rule is None:
+        return []
+    line = _body_line(fn, changed)
+    if line is None:
+        return []
+    smell = test_smell(file, line, rule, changed)
+    if smell is None:
+        return []
+    return [smell]
+
+
+def _body_kind(body: list[ast.stmt]) -> BodyKind:
+    if all(_is_empty_statement(stmt) for stmt in body):
+        return BodyKind.EMPTY
+    if _contains_assert(body):
+        return BodyKind.HAS_ASSERT
+    return BodyKind.NO_ASSERT
+
+
+def _is_empty_statement(stmt: ast.stmt) -> bool:
+    if isinstance(stmt, ast.Pass):
+        return True
+    if not isinstance(stmt, ast.Expr) or not isinstance(stmt.value, ast.Constant):
+        return False
+    return stmt.value.value is Ellipsis or isinstance(stmt.value.value, str)
+
+
+def _contains_assert(body: list[ast.stmt]) -> bool:
+    return any(_statement_asserts(stmt) for stmt in body)
+
+
+def _statement_asserts(stmt: ast.stmt) -> bool:
+    if isinstance(stmt, _NESTED):
+        return False
+    for node in _walk_outside_nested(stmt):
+        if isinstance(node, ast.Assert):
+            return True
+        if isinstance(node, ast.Call) and _call_is_assertion(node):
+            return True
+    return False
+
+
+def _walk_outside_nested(node: ast.AST):
+    yield node
+    if isinstance(node, _NESTED):
+        return
+    for child in ast.iter_child_nodes(node):
+        yield from _walk_outside_nested(child)
+
+
+def _call_is_assertion(node: ast.Call) -> bool:
+    name = _terminal_name(node.func)
+    return name is not None and _is_assertion_name(name)
+
+
+def _is_assertion_name(name: str) -> bool:
+    if name in ASSERTION_NAMES:
+        return True
+    if not name.startswith("assert"):
+        return False
+    rest = name.removeprefix("assert")
+    if rest == "":
+        return True
+    return rest[0] == "_" or rest[0].isupper()
+
+
+def _body_line(
+    fn: ast.FunctionDef | ast.AsyncFunctionDef,
+    changed: frozenset[int],
+) -> int | None:
+    start = fn.lineno
+    if fn.decorator_list:
+        start = min(start, *(item.lineno for item in fn.decorator_list))
+    end = fn.end_lineno if fn.end_lineno is not None else fn.lineno
+    overlap = {line for line in changed if start <= line <= end}
+    if not overlap:
+        return None
+    if fn.lineno in overlap:
+        return fn.lineno
+    return min(overlap)
+
+
+def _sleep_smells(
+    file: str,
+    body: list[ast.stmt],
+    changed: frozenset[int],
+) -> list[TestSmell]:
+    smells: list[TestSmell] = []
+    for stmt in body:
+        for node in ast.walk(stmt):
+            if not isinstance(node, ast.Call):
+                continue
+            if _terminal_name(node.func) not in SLEEP_NAMES:
+                continue
+            smell = test_smell(file, node.lineno, PYTHON_SLEEP, changed)
+            if smell is not None:
+                smells.append(smell)
+    return smells
+
+
+def _block_markers(body: list[ast.stmt]) -> list[ast.AST]:
+    found: list[ast.AST] = []
+    for stmt in body:
+        if isinstance(stmt, ast.Assign) and any(_is_pytestmark(target) for target in stmt.targets):
+            found.extend(_skip_values(stmt.value))
+            continue
+        if isinstance(stmt, ast.AnnAssign) and _is_pytestmark(stmt.target) and stmt.value is not None:
+            found.extend(_skip_values(stmt.value))
+            continue
+        if isinstance(stmt, ast.Expr):
+            found.extend(_skip_values(stmt.value))
+    return found
+
+
+def _decorator_markers(decorators: list[ast.expr]) -> list[ast.AST]:
+    return [item for item in decorators if _terminal_name(item) in SKIP_ATTRS]
+
+
+def _skip_calls(body: list[ast.stmt]) -> list[ast.Call]:
+    found: list[ast.Call] = []
+    for stmt in body:
+        for node in ast.walk(stmt):
+            if isinstance(node, ast.Call) and _terminal_name(node.func) in SKIP_ATTRS:
+                found.append(node)
+    return found
+
+
+def _skip_values(node: ast.AST) -> list[ast.AST]:
+    if isinstance(node, (ast.List, ast.Tuple, ast.Set)):
+        found: list[ast.AST] = []
+        for item in node.elts:
+            found.extend(_skip_values(item))
+        return found
+    if _terminal_name(node) in SKIP_ATTRS:
+        return [node]
+    return []
+
+
+def _is_pytestmark(node: ast.AST) -> bool:
+    return isinstance(node, ast.Name) and node.id == "pytestmark"
+
+
+def _terminal_name(node: ast.AST) -> str | None:
+    if isinstance(node, ast.Call):
+        return _terminal_name(node.func)
+    if isinstance(node, ast.Attribute):
+        return node.attr
+    if isinstance(node, ast.Name):
+        return node.id
+    return None
+
+
+def _unique(smells: list[TestSmell]) -> list[TestSmell]:
+    seen: set[tuple[str, int, str]] = set()
+    chosen: list[TestSmell] = []
+    for smell in smells:
+        key = (smell.file, smell.line, smell.rule)
+        if key in seen:
+            continue
+        seen.add(key)
+        chosen.append(smell)
+    return chosen
