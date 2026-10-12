@@ -297,7 +297,7 @@ def _join(prefix: str, key: str) -> str:
 def _apply(child: _Node, value: object, label: str, dotted: str) -> object:
     _reject(child, value, label, dotted)
     if _has_kind(child, "number"):
-        return float(value)
+        return _float_or_none(value)
     return value
 
 
@@ -352,8 +352,16 @@ def _number(check: _Check, value: object) -> _Failure | None:
     return ("config.key_number", "", {})
 
 
+def _float_or_none(value: object) -> float | None:
+    try:
+        return float(value)
+    except OverflowError:
+        return None
+
+
 def _finite(check: _Check, value: object) -> _Failure | None:
-    if math.isfinite(value):
+    number = _float_or_none(value)
+    if number is not None and math.isfinite(number):
         return None
     return ("config.key_finite", "", {})
 
