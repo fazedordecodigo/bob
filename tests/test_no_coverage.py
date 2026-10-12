@@ -60,9 +60,10 @@ def test_no_coverage_summary_groups_uncovered_mutants_by_listed_function() -> No
 
 def test_finish_warns_for_one_uncovered_mutant_and_passes_when_there_are_none() -> None:
     uncovered = Mutant("app.orphan.x_orphan__mutmut_1", "orphan", "", 0, "", "no_coverage")
-    warned = _finish([uncovered], ["src/app/orphan.py::orphan"], [], {}, [])
+    warned = _finish([uncovered], {}, ["src/app/orphan.py::orphan"], [], {}, [])
     passed = _finish(
         [Mutant("app.a.x_add__mutmut_1", "add", "src/app/a.py", 1, "AOR", "killed")],
+        {},
         ["src/app/a.py::add"],
         ["src/app/a.py::scale"],
         {},
@@ -90,6 +91,7 @@ def test_finish_stays_failed_when_an_unwaived_survivor_remains() -> None:
     waivers = [{"id": "other", "reason": "outro", "author": "ada", "date": "2026-10-11"}]
     outcome = _finish(
         [first, second, uncovered],
+        {"src/app/a.py": {2}, "src/app/b.py": {4}},
         ["src/app/a.py::a", "src/app/b.py::b"],
         [],
         {"mutmut": "3.8.0"},
@@ -118,6 +120,7 @@ def test_finish_stays_failed_when_an_unwaived_survivor_remains() -> None:
             "operator": "AOR",
             "status": "survived",
             "waiver": None,
+            "blocking": True,
         },
         {
             "id": "app.b.x_b__mutmut_1",
@@ -127,6 +130,7 @@ def test_finish_stays_failed_when_an_unwaived_survivor_remains() -> None:
             "operator": "AOR",
             "status": "survived",
             "waiver": None,
+            "blocking": True,
         },
     ]
     assert outcome.summary["no_coverage"] == {
@@ -149,6 +153,7 @@ def test_finish_keeps_a_waived_survivor_while_warning_about_uncovered_mutants() 
     waivers = [{"id": "w1", "reason": "equivalente", "author": "ada", "date": "2026-10-11"}]
     outcome = _finish(
         [survivor, uncovered],
+        {"src/app/orphan.py": {2}},
         ["src/app/orphan.py::orphan"],
         [],
         {"mutmut": "3.8.0"},
@@ -168,6 +173,7 @@ def test_finish_keeps_a_waived_survivor_while_warning_about_uncovered_mutants() 
             "operator": "AOR",
             "status": "survived",
             "waiver": "w1",
+            "blocking": False,
         }
     ]
 
@@ -177,7 +183,7 @@ def test_finish_warns_with_the_uncovered_total() -> None:
         Mutant("app.orphan.x_orphan__mutmut_1", "orphan", "", 0, "", "no_coverage"),
         Mutant("app.orphan.x_orphan__mutmut_2", "orphan", "", 0, "", "no_coverage"),
     ]
-    outcome = _finish(mutants, ["src/app/orphan.py::orphan"], [], {}, [])
+    outcome = _finish(mutants, {}, ["src/app/orphan.py::orphan"], [], {}, [])
 
     assert outcome.exit_code == 0
     assert _verdict(outcome.result, "pt-BR") == ("mutate", "warn", "2 mutantes sem teste")

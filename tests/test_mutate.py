@@ -281,7 +281,6 @@ def test_removed_waiver_fails_the_survivor_again(tmp_path: Path) -> None:
 
 
 def _repo_with_tally(tmp_path: Path, touched: str) -> Path:
-    """`tally` e o teste fraco estão na main. O branch edita uma linha de `tally`."""
     repo = init_python_repo(tmp_path / "repo")
     commit_on_main(repo, "src/app/tally.py", TALLY, "add tally")
     commit_on_main(repo, "tests/test_tally.py", TALLY_WEAK_TEST, "weak tally test")

@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+The mutate gate exits `3` only for an unwaived survivor on a changed line. An unwaived survivor on a line the diff did not change stays in the report, marked outside the diff, and does not change the exit or the review focus. A survivor with no file, or with a line at or below zero, still exits `3`. Remutation is unchanged: a changed function, and a cached function that still has an unwaived survivor, are still mutated. The cache does not store `blocking`.
+
+O gate mutate sai com `3` só para um sobrevivente sem waiver numa linha alterada. Sobrevivente sem waiver numa linha que o diff não mudou fica no relatório, marcado fora do diff, e não muda o exit nem o foco do review. Sobrevivente sem arquivo, ou com linha menor ou igual a zero, continua saindo com `3`. A remutação não muda: função alterada, e função do cache que ainda tem sobrevivente sem waiver, continuam sendo mutadas. O cache não guarda `blocking`.
+
 `grimp==3.17` is a direct pin in `pyproject.toml`, and `bob doctor` lists it. `bob doctor` no longer treats a PATH binary as a pip tool. The version it expects is the one `bob-quality` declares.
 
 `grimp==3.17` é um pin direto no `pyproject.toml`, e o `bob doctor` lista essa versão. O `bob doctor` não trata mais um binário do PATH como ferramenta pip. A versão que ele espera é a que o `bob-quality` declara.

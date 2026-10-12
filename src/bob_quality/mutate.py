@@ -70,7 +70,12 @@ def run_mutation_gate(
     if not plan.remutate:
         _write_cache(cache, _publish_body(plan, {}))
         return _finish(
-            plan.reused_mutants, plan.remutated_labels, plan.reused_labels, versions, waiver_rows
+            plan.reused_mutants,
+            diff_lines,
+            plan.remutated_labels,
+            plan.reused_labels,
+            versions,
+            waiver_rows,
         )
     blocked = _baseline_outcome(cwd, baseline, versions, waiver_rows)
     if blocked is not None:
@@ -80,7 +85,12 @@ def run_mutation_gate(
         return fresh
     _write_cache(cache, _publish_body(plan, _cache_body(cwd, plan.remutate, fresh)))
     return _finish(
-        fresh + plan.reused_mutants, plan.remutated_labels, plan.reused_labels, versions, waiver_rows
+        fresh + plan.reused_mutants,
+        diff_lines,
+        plan.remutated_labels,
+        plan.reused_labels,
+        versions,
+        waiver_rows,
     )
 
 
@@ -496,19 +506,29 @@ def _status_from_cache(value: object) -> MutantStatus:
     return "survived"
 
 
+def _blocks(mutant: Mutant, diff_lines: dict[str, set[int]]) -> bool:
+    if mutant.status != "survived" or mutant.waiver:
+        return False
+    if not mutant.file or mutant.line <= 0:
+        return True
+    return mutant.line in diff_lines.get(mutant.file, ())
+
+
 def _finish(
     mutants: list[Mutant],
+    diff_lines: dict[str, set[int]],
     remutated: list[str],
     reused: list[str],
     versions: dict[str, str],
     waiver_rows: list[dict[str, object]],
 ) -> MutationOutcome:
     visible = [item for item in mutants if item.status == "survived"]
-    unwaived = [item for item in visible if not item.waiver]
-    rows = [_mutant_row(item) for item in visible]
+    judged = [(item, _blocks(item, diff_lines)) for item in visible]
+    rows = [_reported_survivor(item, blocking) for item, blocking in judged]
+    blockers = [item for item, blocking in judged if blocking]
     uncovered = no_coverage_summary(mutants, [*remutated, *reused])
     summary = {"remutated": remutated, "reused": reused, "no_coverage": uncovered}
-    if not unwaived:
+    if not blockers:
         return _outcome(
             _passing_result(int(uncovered["total"])),
             PASSED,
@@ -517,9 +537,9 @@ def _finish(
             survivors=rows,
             summary=summary,
         )
-    mutants = ", ".join(f"{item.function}@{item.file}:{item.line}" for item in unwaived)
+    listed = ", ".join(f"{item.function}@{item.file}:{item.line}" for item in blockers)
     return _outcome(
-        GateResult("mutate", "failed", msg("mutate.unwaived", mutants=mutants)),
+        GateResult("mutate", "failed", msg("mutate.unwaived", mutants=listed)),
         UNWAIVED_SURVIVOR,
         versions,
         waivers=waiver_rows,
@@ -556,11 +576,12 @@ def focus_with_survivors(
 ) -> list[dict[str, object]]:
     scores: dict[str, float] = {str(item["file"]): float(item["risk"]) for item in focus}
     for item in survivors:
+        if not item.get("blocking"):
+            continue
         file = str(item["file"])
         if not file:
             continue
-        bump = 0.0 if item.get("waiver") else 100.0
-        scores[file] = scores.get(file, 0.0) + bump
+        scores[file] = scores.get(file, 0.0) + 100.0
     ordered = sorted(scores.items(), key=lambda pair: pair[1], reverse=True)
     extras = {str(item["file"]): item for item in focus}
     rows: list[dict[str, object]] = []
@@ -640,6 +661,10 @@ def _write_cache(cache: _Cache, functions: dict[str, object]) -> None:
         os.replace(temporary, cache.path)
     finally:
         temporary.unlink(missing_ok=True)
+
+
+def _reported_survivor(mutant: Mutant, blocking: bool) -> dict[str, object]:
+    return {**_mutant_row(mutant), "blocking": blocking}
 
 
 def _mutant_row(mutant: Mutant) -> dict[str, object]:
