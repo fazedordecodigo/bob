@@ -129,12 +129,6 @@ _SCHEMA = _Node(
 
 @dataclass(frozen=True)
 class Config:
-    """max_crap é finito e maior que 0. min_tokens é um int >= 0.
-
-    crap_scope é changed ou all. Cada item de languages é python ou typescript.
-    Um gate confia nisso.
-    """
-
     base: str = "origin/main"
     languages: tuple[SourceLanguage, ...] = ("python",)
     include: tuple[str, ...] = ("src",)
