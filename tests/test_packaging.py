@@ -147,7 +147,10 @@ def test_cursor_and_claude_manifests_list_the_same_skills() -> None:
 
 
 # Sem isso, `minha-skills/x` e `.skills/x` contam como caminho de skill.
-_SKILL_PATH = re.compile(r"(?<![\w.-])(?:\./)?skills/[\w./-]+")
+_SKILL_PATH = re.compile(
+    r"(?<![\w.-])(?:\.[\\/])?skills[\\/][\w.\\/-]*",
+    re.IGNORECASE,
+)
 
 
 def _packaging_section(text: str) -> str:
