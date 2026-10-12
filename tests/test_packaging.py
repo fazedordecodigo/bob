@@ -224,6 +224,39 @@ def test_spec_violations_catch_a_bare_skill_path_and_one_after_a_blank_line(
     assert _spec_violations(section, entries) == violations
 
 
+@pytest.mark.parametrize(
+    ("spec", "violations"),
+    [
+        ("Skills/bob-check", ["caminho Skills/bob-check"]),
+        ("SKILLS/BOB-CHECK", ["caminho SKILLS/BOB-CHECK"]),
+        ("Skills/", ["caminho Skills/"]),
+        ("SKILLS/", ["caminho SKILLS/"]),
+        ("skills\\bob-check", ["caminho skills\\bob-check"]),
+        (".\\skills\\vendor\\mattpocock", ["caminho .\\skills\\vendor\\mattpocock"]),
+        ("minha-skills/x", []),
+        (".skills/x", []),
+        (".github/skills", []),
+        (".agents/skills", []),
+    ],
+    ids=[
+        "skills-capitalizado",
+        "skills-maiusculo",
+        "pasta-skills-capitalizada",
+        "pasta-skills-maiuscula",
+        "barra-invertida",
+        "ponto-barra-invertida",
+        "prefixo-hifen",
+        "prefixo-ponto",
+        "github-skills",
+        "agents-skills",
+    ],
+)
+def test_spec_violations_catch_case_and_backslash_skill_paths(
+    spec: str, violations: list[str]
+) -> None:
+    assert _spec_violations(spec, []) == violations
+
+
 def test_each_manifest_entry_is_a_relative_skill_folder() -> None:
     for entry in _json(CLAUDE_PLUGIN)["skills"]:
         assert entry.startswith("./"), entry
