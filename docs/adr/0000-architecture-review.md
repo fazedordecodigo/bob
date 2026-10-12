@@ -118,7 +118,7 @@ Pins pip em `pyproject.toml`: lizard 1.24.1, coverage.py 7.16.2, import-linter 2
 
 **JSON de dependência sem lista de violações vira lista vazia.** `_violation_items` em `dependency_cruiser.py` devolve `[]` quando o objeto não traz `summary.violations` nem `violations`. O gate pode passar.
 
-**Cache inválido esquece sobrevivente fora do diff.** Se a versão do mutmut ou a impressão da suíte muda, `_read_cache` devolve `{}`. A corrida seguinte só remuta o diff.
+**Cache inválido esquece sobrevivente fora do diff.** Fechado na issue #63. Se a versão do mutmut ou a impressão da suíte muda, os corpos ficam inelegíveis e o nome do sobrevivente sem waiver permanece. A corrida seguinte remuta essa função.
 
 **Top 5 e a issue #29.** `top_changed_crap` não junta funções pelo nome. Cada métrica guarda o próprio arquivo. O colapso que existe é a chave `arquivo::nome` do cache de mutação, dentro de um arquivo.
 
@@ -139,7 +139,7 @@ Confiança. O motivo do produto e as decisões datadas são citação direta da 
 ## Riscos
 
 1. Um agente que segue `bob-check` ao pé da letra trata `bob check` nu como a corrida de CI, com mutação, e trata exit 2 como teste quebrado. Os dois estão errados em parte dos caminhos. O primeiro porque o padrão da CLI omite `mutate`. O segundo porque o argparse usa o mesmo inteiro.
-2. Uma mudança de teste que invalida a impressão da suíte apaga sobreviventes em funções que o diff não tocou. O gate pode sair 0 com um sobrevivente que o cache antigo já conhecia.
+2. Uma mudança de teste que invalida a impressão da suíte remuta o sobrevivente fora do diff. O gate sai 0 só quando a corrida nova não acha sobrevivente sem waiver.
 3. Um JSON do dependency-cruiser com outro formato parece "nenhuma violação". O gate de arquitetura passa calado.
 4. A próxima edição de uma função em `cli.py` com CRAP alto bloqueia o PR. A issue #21 já registra CRAP 110 nesse arquivo. O limite do próprio bob é 10 para função alterada.
 5. A issue #41 estima centenas de mutantes `no_coverage` se essa fase passar a sair 3. Waiver novo nesse caminho depende de aprovação do Emerson.
@@ -200,13 +200,13 @@ Justificativa. O inteiro já tem um significado no domínio. O segundo significa
 
 ### P0. Cache inválido não esquece sobrevivente fora do diff
 
-Quando `mutmut` ou `suite` não batem, `_read_cache` devolve vazio. A spec manda remutar função alterada ou função com sobrevivente. O descarte apaga a segunda lista.
+Quando `mutmut` ou `suite` não batem, os corpos guardados ficam inelegíveis para reuso. Os nomes dos sobreviventes sem waiver permanecem. A corrida remuta as funções alteradas e essas funções. Resultados só `killed`, com waiver ou `no_coverage`, fora do diff, não são copiados adiante.
 
-Alvo. Antes de jogar o mapa fora, ler os sobreviventes sem waiver. A corrida nova remuta o diff e essas funções. Um teste monta cache com chave velha, sobrevivente numa função que o diff não toca, muda a impressão da suíte, e exige que essa função seja remutada.
+Alvo. O teste `test_a_new_suite_file_remutates_an_unwaived_survivor_outside_the_diff` monta o cache, planta um sobrevivente fora do diff, muda a impressão da suíte com um arquivo de teste, e exige que essa função seja remutada.
 
 Fora de escopo. Issue #8, #24, #25 e #41. Não mudar o que conta como `survived`. Não fazer `no_coverage` falhar.
 
-Justificativa. O PR #43 diz que a chave é o preço de não esconder sobrevivente. O filtro do diff logo depois esconde o sobrevivente que não está no diff.
+Justificativa. O PR #43 diz que a chave é o preço de não esconder sobrevivente. Descartar o mapa inteiro escondia o sobrevivente fora do diff. A leitura guarda o nome e joga o corpo fora.
 
 ### P1. JSON do dependency-cruiser sem lista não passa
 

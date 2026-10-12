@@ -87,8 +87,21 @@ def run_mutation_gate(
 @dataclass(frozen=True)
 class _Cache:
     path: Path
-    # Versão do mutmut e impressão da suíte. Qualquer diferença descarta o cache inteiro.
     key: dict[str, str]
+
+
+@dataclass(frozen=True)
+class _ReusableMap:
+    functions: dict[str, dict[str, object]]
+    survivor_keys: frozenset[str]
+
+
+@dataclass(frozen=True)
+class _NamesOnly:
+    survivor_keys: frozenset[str]
+
+
+_CacheView = _ReusableMap | _NamesOnly
 
 
 @dataclass
@@ -120,7 +133,7 @@ def _prepare_mutation(
     if isinstance(suite, MutationOutcome):
         return suite
     cache = _Cache(out_dir / CACHE_NAME, {"mutmut": versions["mutmut"], "suite": suite})
-    cached, broken = _safe_cache(cache, versions, waiver_rows)
+    cached, broken = _safe_cache(cache, versions, waiver_rows, waivers)
     if broken is not None:
         return broken
     return versions, waivers, waiver_rows, cache, _plan_functions(
@@ -175,22 +188,23 @@ def _safe_cache(
     cache: _Cache,
     versions: dict[str, str],
     waiver_rows: list[dict[str, object]],
-) -> tuple[dict[str, dict[str, object]], MutationOutcome | None]:
+    waivers: list[Waiver],
+) -> tuple[_CacheView, MutationOutcome | None]:
     try:
-        return _read_cache(cache), None
+        return _read_cache(cache, waivers), None
     except (OSError, json.JSONDecodeError) as exc:
         broken = msg("mutate.cache_invalid", detail=str(exc))
-        return {}, _tool_outcome(broken, versions, waiver_rows)
+        return _ReusableMap({}, frozenset()), _tool_outcome(broken, versions, waiver_rows)
 
 
 def _plan_functions(
     measured: list[CyclomaticFunction],
     diff_lines: dict[str, set[int]],
-    cached: dict[str, dict[str, object]],
+    view: _CacheView,
     cwd: Path,
     waivers: list[Waiver],
 ) -> _Plan:
-    remutate, reuse = _split_functions(measured, diff_lines, cached, cwd, waivers)
+    remutate, reuse = _split_functions(measured, diff_lines, view, cwd, waivers)
     by_key = {f"{item.file}::{item.name}": item for item in measured}
     return _Plan(
         remutate=remutate,
@@ -311,17 +325,18 @@ def _tool_outcome(
 def _split_functions(
     measured: list[CyclomaticFunction],
     diff_lines: dict[str, set[int]],
-    cache: dict[str, dict[str, object]],
+    view: _CacheView,
     cwd: Path,
     waivers: list[Waiver],
 ) -> tuple[list[CyclomaticFunction], list[tuple[str, dict[str, object]]]]:
     by_key = {f"{item.file}::{item.name}": item for item in measured}
-    keys = _candidate_keys(measured, diff_lines, cache, by_key, waivers)
+    keys = _candidate_keys(measured, diff_lines, view.survivor_keys, by_key)
+    held = view.functions if isinstance(view, _ReusableMap) else {}
     remutate: list[CyclomaticFunction] = []
     reuse: list[tuple[str, dict[str, object]]] = []
     for key in sorted(keys):
         item = by_key[key]
-        entry = cache.get(key)
+        entry = held.get(key)
         digest = _function_hash(cwd, item.file, item.start_line, item.end_line)
         if isinstance(entry, dict) and not _needs_remutation(entry, digest, waivers):
             reuse.append((key, entry))
@@ -333,18 +348,15 @@ def _split_functions(
 def _candidate_keys(
     measured: list[CyclomaticFunction],
     diff_lines: dict[str, set[int]],
-    cache: dict[str, dict[str, object]],
+    survivor_keys: frozenset[str],
     by_key: dict[str, CyclomaticFunction],
-    waivers: list[Waiver],
 ) -> set[str]:
     keys = {
         f"{item.file}::{item.name}"
         for item in measured
         if function_is_changed(item.file, item.start_line, item.end_line, diff_lines)
     }
-    for key, entry in cache.items():
-        if key in by_key and _has_unwaived_survivor(entry, waivers):
-            keys.add(key)
+    keys.update(name for name in survivor_keys if name in by_key)
     return keys
 
 
@@ -363,16 +375,27 @@ def _has_unwaived_survivor(entry: dict[str, object], waivers: list[Waiver]) -> b
     return any(item.status == "survived" and not item.waiver for item in current)
 
 
-def _read_cache(cache: _Cache) -> dict[str, dict[str, object]]:
+def _read_cache(cache: _Cache, waivers: list[Waiver]) -> _CacheView:
     if not cache.path.is_file():
-        return {}
-    raw = json.loads(cache.path.read_text())
-    if not isinstance(raw, dict) or any(raw.get(field) != cache.key[field] for field in cache.key):
-        return {}
+        return _ReusableMap({}, frozenset())
+    return _view_cache(json.loads(cache.path.read_text()), cache.key, waivers)
+
+
+def _view_cache(raw: object, key: dict[str, str], waivers: list[Waiver]) -> _CacheView:
+    if not isinstance(raw, dict):
+        return _ReusableMap({}, frozenset())
     functions = raw.get("functions")
-    if not isinstance(functions, dict):
-        return {}
-    return {str(key): value for key, value in functions.items() if isinstance(value, dict)}
+    entries = (
+        {str(name): value for name, value in functions.items() if isinstance(value, dict)}
+        if isinstance(functions, dict)
+        else {}
+    )
+    survivor_keys = frozenset(
+        name for name, entry in entries.items() if _has_unwaived_survivor(entry, waivers)
+    )
+    if any(raw.get(field) != key[field] for field in key):
+        return _NamesOnly(survivor_keys)
+    return _ReusableMap(entries, survivor_keys)
 
 
 def _mutants_from_cache(

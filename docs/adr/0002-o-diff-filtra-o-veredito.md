@@ -17,7 +17,7 @@ As ferramentas medem a árvore de `paths.include`. O diff só escolhe o que pode
 - CRAP bloqueia quando uma função considerada tem CRAP maior ou igual a `crap.max_per_function`. O padrão é 10. Com `crap.scope` igual a `changed`, só funções tocadas entram. Qualquer outra string não vazia conta toda função medida.
 - jscpd vê a árvore inteira. Um clone entra no relatório quando um dos lados cruza o diff. O status é aviso. O exit do gate continua 0. A decisão 4 fecha isso para o MVP.
 - Dependências bloqueiam a aresta cuja origem, destino, ou outro módulo do mesmo componente fortemente conexo em Python é um arquivo alterado. A decisão 6 ganhou a frase do componente no commit `9be1cb2`. Arestas fora do diff ficam no relatório e não mudam o exit.
-- Mutação remuta função alterada ou função com sobrevivente sem waiver no cache. O cache mora em `.bob/mutation-cache.json`. A chave da corrida é a versão do mutmut e a impressão da suíte. Se uma das duas muda, o mapa de funções é descartado.
+- Mutação remuta função alterada ou função com sobrevivente sem waiver no cache. O cache mora em `.bob/mutation-cache.json`. A chave da corrida é a versão do mutmut e a impressão da suíte. Se uma das duas muda, os resultados guardados ficam inelegíveis para reuso, e a corrida ainda remuta um sobrevivente sem waiver fora do diff.
 
 O campo `delta` existe no modelo e no top 5. Nada o preenche. A spec pede o delta contra a base. O PR #17 deixou esse delta fora da fatia.
 
@@ -25,6 +25,6 @@ O campo `delta` existe no modelo e no top 5. Nada o preenche. A spec pede o delt
 
 Um hunk de deleção com comprimento zero marca a linha de início. A função que contém essa linha entra no CRAP e na mutação. A linha seguinte a uma deleção na fronteira de duas funções pode puxar a vizinha.
 
-Quando a chave do cache não bate, `_read_cache` devolve um mapa vazio. A corrida seguinte só vê as funções do diff atual. Um sobrevivente sem waiver que estava no cache, numa função que o diff não tocou, deixa de existir para o bob. O PR #43 diz que a chave existe para não esconder sobrevivente. O descarte inteiro, seguido do filtro do diff, esconde justamente esse conjunto.
+Quando a chave do cache não bate, os corpos ficam inelegíveis para reuso e os nomes dos sobreviventes sem waiver permanecem. A corrida seguinte remuta o diff e essas funções. O PR #43 diz que a chave existe para não esconder sobrevivente.
 
 A issue #24 continua aberta para métodos de classe. O prefixo que escolhe o mutante não cobre o id `xǁ`. A issue #8 continua aberta para o Stryker.
