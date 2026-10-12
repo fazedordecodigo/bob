@@ -48,11 +48,11 @@ O `bob.yaml` deste repositório é mais curto: `base`, `languages: [python]`, `p
 
 Um tipo errado sai com `4`. A mensagem em inglês no stderr cita o arquivo e a chave, por exemplo `bob.yaml: crap must be a mapping` ou `bob.yaml: crap.max_per_function must be a number`. Isso vale para `check`, `doctor`, `waive` e os outros comandos, e nenhum deles grava arquivo nesse caso. Ver [Exit 4](exit-codes.md#exit-4).
 
-`duplication` que não é mapeamento, ou `min_tokens` que não é um inteiro maior ou igual a 0, sai com `4`. A mensagem em inglês no stderr cita o arquivo e a chave, e nada é gravado. O [CHANGELOG](../CHANGELOG.md) descreve esse caso.
+`duplication` que não é mapeamento, ou `min_tokens` que não é um inteiro maior que 0, sai com `4`. A mensagem em inglês no stderr cita o arquivo e a chave, e nada é gravado. O [CHANGELOG](../CHANGELOG.md) descreve esse caso.
 
 ### languages
 
-`languages` omitido, nulo (`languages:` ou `languages: null`) ou lista vazia (`languages: []`) vira `["python"]`, o padrão de `Config`. Não há autodetecção. O mesmo vale quando o arquivo `bob.yaml` não existe e `--config` não foi passado. Para medir TypeScript é preciso listar `typescript` (e `python` também, num monorepo misto). A [SPEC](SPEC.md) não descreve esse fallback.
+`languages` omitido ou nulo (`languages:` ou `languages: null`) vira `["python"]`, o padrão de `Config`. Não há autodetecção. O mesmo vale quando o arquivo `bob.yaml` não existe e `--config` não foi passado. Para medir TypeScript é preciso listar `typescript` (e `python` também, num monorepo misto).
 
 Uma lista vazia ou um item repetido sai com 4. Uma chave ausente ou nula continua `[python]`.
 
