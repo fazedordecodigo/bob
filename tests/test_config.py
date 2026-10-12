@@ -128,6 +128,118 @@ def test_load_config_rejects_min_tokens_that_is_not_an_integer(tmp_path: Path) -
     )
 
 
+@pytest.mark.parametrize(
+    ("text", "english", "portuguese"),
+    [
+        (
+            "crap: 5\n",
+            "bob.yaml: crap must be a mapping",
+            "bob.yaml: crap deve ser um mapeamento",
+        ),
+        (
+            "crap:\n  max_per_function: abc\n",
+            "bob.yaml: crap.max_per_function must be a number",
+            "bob.yaml: crap.max_per_function deve ser um número",
+        ),
+        (
+            "crap:\n  max_per_function: true\n",
+            "bob.yaml: crap.max_per_function must be a number",
+            "bob.yaml: crap.max_per_function deve ser um número",
+        ),
+        (
+            "crap:\n  scope: [changed]\n",
+            "bob.yaml: crap.scope must be a string",
+            "bob.yaml: crap.scope deve ser um texto",
+        ),
+        (
+            "paths: 5\n",
+            "bob.yaml: paths must be a mapping",
+            "bob.yaml: paths deve ser um mapeamento",
+        ),
+        (
+            "paths:\n  include: src\n",
+            "bob.yaml: paths.include must be a list of strings",
+            "bob.yaml: paths.include deve ser uma lista de textos",
+        ),
+        (
+            "paths:\n  exclude: 1\n",
+            "bob.yaml: paths.exclude must be a list of strings",
+            "bob.yaml: paths.exclude deve ser uma lista de textos",
+        ),
+        (
+            "languages: python\n",
+            "bob.yaml: languages must be a list of strings",
+            "bob.yaml: languages deve ser uma lista de textos",
+        ),
+        (
+            "languages: [python, 1]\n",
+            "bob.yaml: languages must be a list of strings",
+            "bob.yaml: languages deve ser uma lista de textos",
+        ),
+        (
+            "dependencies: 5\n",
+            "bob.yaml: dependencies must be a mapping",
+            "bob.yaml: dependencies deve ser um mapeamento",
+        ),
+        (
+            "dependencies:\n  python: 1\n",
+            "bob.yaml: dependencies.python must be a string",
+            "bob.yaml: dependencies.python deve ser um texto",
+        ),
+        (
+            "base: [main]\n",
+            "bob.yaml: base must be a string",
+            "bob.yaml: base deve ser um texto",
+        ),
+    ],
+)
+def test_load_config_rejects_a_wrong_value_type(
+    tmp_path: Path, text: str, english: str, portuguese: str
+) -> None:
+    (tmp_path / "bob.yaml").write_text(text)
+
+    assert _config_error(tmp_path) == (english, portuguese)
+
+
+def test_load_config_names_an_explicit_file_on_a_wrong_type(tmp_path: Path) -> None:
+    explicit = tmp_path / "custom.yaml"
+    explicit.write_text("crap:\n  max_per_function: abc\n")
+
+    with pytest.raises(ConfigError) as caught:
+        load_config(explicit, tmp_path)
+
+    assert render(reason(caught.value), "en") == (
+        f"{explicit.as_posix()}: crap.max_per_function must be a number"
+    )
+
+
+def test_load_config_keeps_numeric_thresholds_and_string_lists(tmp_path: Path) -> None:
+    (tmp_path / "bob.yaml").write_text(
+        "base: trunk\n"
+        "languages: [python, typescript]\n"
+        "paths:\n"
+        "  include: [lib]\n"
+        "  exclude: [vendor]\n"
+        "crap:\n"
+        "  max_per_function: 10.5\n"
+        "  scope: all\n"
+        "dependencies:\n"
+        "  python: deps.ini\n"
+        "  typescript: deps.cjs\n"
+    )
+
+    loaded = load_config(None, tmp_path)
+
+    assert loaded.base == "trunk"
+    assert loaded.languages == ["python", "typescript"]
+    assert loaded.include == ["lib"]
+    assert loaded.exclude == ["vendor"]
+    assert loaded.max_crap == 10.5
+    assert loaded.crap_scope == "all"
+    assert loaded.python_deps_config == "deps.ini"
+    assert loaded.typescript_deps_config == "deps.cjs"
+
+
 def test_load_config_rejects_invalid_yaml(tmp_path: Path) -> None:
     (tmp_path / "bob.yaml").write_text(":\n  - [\n")
 
