@@ -351,6 +351,28 @@ def test_json_is_the_schema_with_english_reasons_whatever_the_markdown_language(
     }
 
 
+def test_catalog_rule_names_stay_english_in_json_and_follow_the_markdown_language() -> None:
+    report = replace(
+        _empty([GateResult("deps", "failed", "a → b")]),
+        dependencies=[
+            {"origin": "src/a.ts", "destination": "src/b.ts", "rule": msg("deps.unnamed")},
+            {"origin": "app.right", "destination": "app.left", "rule": msg("deps.cycle_rule")},
+        ],
+    )
+
+    payload = to_json(report)
+    assert payload["dependencies"] == [
+        {"origin": "src/a.ts", "destination": "src/b.ts", "rule": "dependency"},
+        {"origin": "app.right", "destination": "app.left", "rule": "Forbidden dependency cycle"},
+    ]
+    portuguese = to_markdown(report, "pt-BR")
+    english = to_markdown(report, "en")
+    assert "`src/a.ts → src/b.ts` (dependência)" in portuguese
+    assert "`app.right → app.left` (Proibido ciclo de dependência)" in portuguese
+    assert "`src/a.ts → src/b.ts` (dependency)" in english
+    assert "`app.right → app.left` (Forbidden dependency cycle)" in english
+
+
 def test_waiver_rows_escape_pipes_and_leave_missing_fields_blank() -> None:
     piped = {"id": "m.x__mutmut_2", "reason": "a | b", "author": "E", "date": "2026-10-11"}
     report = replace(_empty([]), waivers=[piped, {}])

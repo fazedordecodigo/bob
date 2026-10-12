@@ -6,6 +6,7 @@ Não pega o formato cru das ferramentas (seam do adaptador).
 
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -99,6 +100,21 @@ def test_python_cycle_fails_without_import_linter_config(tmp_path: Path) -> None
     assert "`app.right → app.left` (Forbidden dependency cycle)" in markdown
 
 
+def test_deps_json_matches_across_languages(tmp_path: Path) -> None:
+    repo = init_python_repo(tmp_path / "repo")
+    commit_on_branch(repo, "cycle", "src/app/left.py", LEFT, "add left")
+    commit_on_branch(repo, "cycle", "src/app/right.py", RIGHT, "add right")
+    raw: dict[str, bytes] = {}
+
+    for lang in ("en", "pt-BR"):
+        code = _invoke(repo, "deps", "--base", "main", "--lang", lang)
+        assert code == 1
+        report = (repo / ".bob" / "report.json").read_bytes()
+        raw[lang] = re.sub(rb'"generated_at": "[^"]+"', b'"generated_at": ""', report)
+
+    assert raw["en"] == raw["pt-BR"]
+
+
 def test_python_cycle_rule_name_follows_pt_br(tmp_path: Path) -> None:
     repo = init_python_repo(tmp_path / "repo")
     commit_on_branch(repo, "cycle", "src/app/left.py", LEFT, "add left")
@@ -111,10 +127,11 @@ def test_python_cycle_rule_name_follows_pt_br(tmp_path: Path) -> None:
 
     assert code == 1, markdown
     assert deps["reason"] == "app.right → app.left"
-    assert edge["rule"] == "Proibido ciclo de dependência"
+    assert edge["rule"] == "Forbidden dependency cycle"
     assert "`app.right → app.left` (Proibido ciclo de dependência)" in markdown
     assert "## Violações e ciclos de dependência" in markdown
-    assert payload["reproduce"] == "bob deps --base main --lang pt-BR"
+    assert payload["reproduce"] == "bob deps --base main"
+    assert "--lang pt-BR" in markdown
 
 
 A_PY = "from app.b import VALUE as B\n\nVALUE = B\n"
@@ -205,7 +222,8 @@ def test_check_gates_deps_reports_the_same_python_cycle(tmp_path: Path) -> None:
     assert code == 1, markdown
     assert payload["exit_code"] == 1
     assert "`app.right → app.left`" in markdown
-    assert payload["reproduce"] == "bob check --base main --gates deps --lang en"
+    assert payload["reproduce"] == "bob check --base main --gates deps"
+    assert "--lang en" in markdown
     deps = next(gate for gate in payload["gates"] if gate["name"] == "deps")
     assert deps["reason"] == "app.right → app.left"
 

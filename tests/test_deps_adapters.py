@@ -14,6 +14,7 @@ from bob_quality.messages import render
 from bob_quality.models import GateResult, Report
 from bob_quality.report import to_markdown
 from bob_quality.tools import ToolError
+from helpers import in_both
 
 RAW = Path(__file__).parent / "fixtures" / "raw"
 
@@ -113,9 +114,10 @@ def test_cruiser_violation_without_rule_metadata_still_blocks() -> None:
 
     violations = parse_dependency_cruiser(raw)
 
-    assert [(item.origin, item.destination, item.rule, item.in_diff) for item in violations] == [
-        ("src/a.ts", "src/b.ts", "dependência", False)
+    assert [(item.origin, item.destination, item.in_diff) for item in violations] == [
+        ("src/a.ts", "src/b.ts", False)
     ]
+    assert in_both(violations[0].rule) == ("dependency", "dependência")
 
 
 def test_cruiser_violation_without_an_origin_is_dropped() -> None:
@@ -267,10 +269,14 @@ def test_cruiser_rule_without_name_or_severity_uses_the_defaults() -> None:
         }
     )
 
-    assert [(item.origin, item.destination, item.rule) for item in parse_dependency_cruiser(raw)] == [
-        ("src/a.ts", "src/b.ts", "dependência"),
-        ("src/c.ts", "src/d.ts", "layers"),
+    violations = parse_dependency_cruiser(raw)
+
+    assert [(item.origin, item.destination) for item in violations] == [
+        ("src/a.ts", "src/b.ts"),
+        ("src/c.ts", "src/d.ts"),
     ]
+    assert in_both(violations[0].rule) == ("dependency", "dependência")
+    assert violations[1].rule == "layers"
 
 
 def test_cruiser_reads_top_level_violations_when_summary_has_none() -> None:
