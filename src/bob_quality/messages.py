@@ -100,6 +100,10 @@ _EN: dict[str, str] = {
     "dry.deps_missing": (
         "plugin npm dependencies missing: bob doctor --install (#19; jscpd pinned in package.json)"
     ),
+    "dead.one": "{count} unused symbol in the diff",
+    "dead.many": "{count} unused symbols in the diff",
+    "dead.no_language": "dead_code: no language selected",
+    "dead.node_missing": "Node missing: install Node.js to run knip",
     "dry.clone": "{count} new clone in the diff",
     "dry.clones": "{count} new clones in the diff",
     "dry.include_missing": "jscpd: include path missing: {paths}",
@@ -262,6 +266,10 @@ _PT_BR: dict[str, str] = {
         "dependências npm do plugin ausentes: bob doctor --install "
         "(#19; jscpd fixado no package.json)"
     ),
+    "dead.one": "{count} símbolo morto no diff",
+    "dead.many": "{count} símbolos mortos no diff",
+    "dead.no_language": "dead_code: nenhuma linguagem selecionada",
+    "dead.node_missing": "Node ausente: instale o Node.js para rodar o knip",
     "dry.clone": "{count} clone novo no diff",
     "dry.clones": "{count} clones novos no diff",
     "dry.include_missing": "jscpd: caminho de include ausente: {paths}",

@@ -86,6 +86,66 @@ class DepViolation:
     in_diff: bool
 
 
+VultureKind = Literal[
+    "attribute",
+    "class",
+    "function",
+    "import",
+    "method",
+    "property",
+    "variable",
+    "unreachable_code",
+]
+
+KnipKind = Literal[
+    "export",
+    "type",
+    "enum_member",
+    "namespace_member",
+    "ns_export",
+    "ns_type",
+]
+
+
+@dataclass(frozen=True)
+class PythonDead:
+    """Símbolo do vulture. `confidence` é o número que a ferramenta imprimiu."""
+
+    file: str
+    line: int
+    name: str
+    kind: VultureKind
+    confidence: int
+
+
+@dataclass(frozen=True)
+class TypeScriptDead:
+    """Símbolo do knip. Não tem confiança."""
+
+    file: str
+    line: int
+    name: str
+    kind: KnipKind
+
+
+DeadSymbol = PythonDead | TypeScriptDead
+
+
+@dataclass(frozen=True)
+class LedgerRow:
+    """Definição no diff. `waiver` é o id `dead:` ou None quando a linha conta para o aviso."""
+
+    symbol: DeadSymbol
+    waiver: str | None
+
+
+@dataclass(frozen=True)
+class DeadSection:
+    """Presente no relatório quando o gate rodou. `rows` vazio continua verdadeiro."""
+
+    rows: tuple[LedgerRow, ...] = ()
+
+
 @dataclass(frozen=True)
 class GateResult:
     name: str
@@ -112,3 +172,4 @@ class Report:
     waivers: list[dict[str, object]] = field(default_factory=list)
     survivors: list[dict[str, object]] = field(default_factory=list)
     mutation: dict[str, object] | None = None
+    dead_code: DeadSection | None = None
