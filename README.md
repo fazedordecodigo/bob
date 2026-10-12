@@ -4,7 +4,7 @@ English | [Português](README.pt-BR.md)
 
 bob gives coding agents (Cursor, Claude Code, GitHub Copilot, Devin) deterministic quality gates for the code they change, plus skills that tell the agent when to run them. The gates measure CRAP, duplication, mutation, and dependencies, only for the functions in the diff. Each run exits with a code the agent can act on and writes a one-page report that tells the human reviewer where to look first. The gates follow Uncle Bob's workflow (see [Credits](#credits)).
 
-- CLI: `bob` (`bob check | crap | dry | deps | mutate | waive | doctor`)
+- CLI: `bob` (`bob check | crap | dry | deps | mutate | report | waive | doctor`)
 - PyPI package: `bob-quality` (sdist and wheel ready, not published yet)
 - Marketplace name: `bob` (not published yet)
 - Configuration: `bob.yaml`
@@ -24,13 +24,13 @@ These parts work on `main`:
 - Differential mutation testing for Python, and `bob waive`.
 - The GitHub Action that comments the report on the pull request.
 - `bob doctor`, and the `bob-quality` package ready to distribute. Nothing has been sent to PyPI.
+- `bob report`, which renders a saved `report.json` to Markdown.
 - Plugin manifests for Claude Code, Cursor, Copilot, and Devin, and the skill installer ([#10](https://github.com/fazedordecodigo/bob/issues/10)). Nothing has been sent to a marketplace.
 
 These parts are planned:
 
 - Mutation testing for TypeScript with StrykerJS ([#8](https://github.com/fazedordecodigo/bob/issues/8)).
 - A warning for `no_coverage` mutants in the report ([#31](https://github.com/fazedordecodigo/bob/issues/31)).
-- The `bob report` command that `docs/SPEC.md` lists. The CLI does not have it yet.
 - Publication on PyPI and on the agent marketplaces.
 
 ## Flow

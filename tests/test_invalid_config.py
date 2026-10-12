@@ -13,6 +13,7 @@ _COMMANDS = (
     ("dry",),
     ("deps",),
     ("mutate",),
+    ("report",),
     ("doctor",),
     ("waive", "fn", "--reason", "because"),
 )
@@ -207,6 +208,7 @@ def test_explicit_config_names_that_file(tmp_path: Path) -> None:
 
 _SHAPE_COMMANDS = (
     ("check",),
+    ("report",),
     ("doctor",),
     ("waive", "fn", "--reason", "because"),
 )
