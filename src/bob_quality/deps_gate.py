@@ -81,7 +81,7 @@ def run_deps_gate(
             measure=lambda: _typescript_violations(cwd, config, versions),
             sink=violations,
         )
-    except (ToolError, CruiserParseError) as exc:
+    except ToolError as exc:
         return GateResult("deps", "not_run", reason(exc)), CONFIG_OR_TOOL, versions, []
     except UnparsedBreak as exc:
         return GateResult("deps", "failed", exc.reason), GATE_FAILED, versions, []
@@ -493,6 +493,8 @@ def _cruise_violations(completed: subprocess.CompletedProcess[str]) -> list[DepV
         return parse_dependency_cruiser(completed.stdout)
     except json.JSONDecodeError as exc:
         raise ToolError(_short(completed.stderr or completed.stdout)) from exc
+    except CruiserParseError as exc:
+        raise ToolError(reason(exc)) from exc
 
 
 def _cruiser_config(user: Path) -> str:

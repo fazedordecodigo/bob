@@ -462,3 +462,25 @@ def test_import_linter_recognized_empty_report_still_passes(
         None,
         [],
     )
+
+
+def test_import_linter_colored_empty_report_still_passes(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    colored = "\x1b[32mContracts: 1 kept, 0 broken.\x1b[0m\n"
+    result, code, _, rows = _linter_gate(monkeypatch, tmp_path, colored)
+
+    assert (code, result.name, result.status, result.reason, rows) == (
+        0,
+        "deps",
+        "passed",
+        None,
+        [],
+    )
+
+
+def test_cruiser_invalid_json_reports_stderr_before_stdout() -> None:
+    with pytest.raises(ToolError, match=r"^\{$"):
+        _cruise_violations(_linted(1, "{", ""))
+    with pytest.raises(ToolError, match="^broken stderr$"):
+        _cruise_violations(_linted(1, "{", "broken stderr"))
