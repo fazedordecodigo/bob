@@ -26,7 +26,6 @@ TRUNCATED_PT = "\n\n_…relatório truncado para caber no comentário do GitHub.
 def _lang_env(
     *, input_: str | None = None, bob_lang: str | None = None
 ) -> dict[str, str]:
-    """os.environ sem BOB_LANG e BOB_LANGUAGE, mais os valores dados."""
     env = {
         key: value
         for key, value in os.environ.items()
@@ -49,7 +48,6 @@ def _upsert(
     env: dict[str, str] | None = None,
     summary: Path | None = None,
 ) -> subprocess.CompletedProcess[str]:
-    """Roda o script em `cwd`, para ele ler `cwd/bob.yaml`. Sem `env`, limpa os dois."""
     run_env = _lang_env() if env is None else dict(env)
     if summary is not None:
         run_env["GITHUB_STEP_SUMMARY"] = str(summary)
@@ -82,7 +80,6 @@ def _upsert(
 def _required(
     cwd: Path, *args: str, env: dict[str, str]
 ) -> subprocess.CompletedProcess[str]:
-    """Roda o script com repo, pr e token vazios. Não precisa de servidor."""
     return subprocess.run(
         [
             sys.executable,
@@ -106,7 +103,6 @@ def _required(
 def _required_on_api(
     cwd: Path, *args: str, env: dict[str, str]
 ) -> tuple[subprocess.CompletedProcess[str], GitHubApi]:
-    """Roda `_required` na API falsa, para o teste ver se o script postou."""
     api = GitHubApi()
     server, base = serve(api)
     try:
