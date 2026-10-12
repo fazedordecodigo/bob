@@ -3,7 +3,7 @@ from __future__ import annotations
 import math
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Callable, Literal, TypeGuard, cast
+from typing import Any, Callable, Literal, TypeGuard
 
 import yaml
 
@@ -188,9 +188,9 @@ def configured_language(path: Path | None, cwd: Path) -> Language | None:
     child = next(item for item in _SCHEMA.children if item.key == "language")
     values = _read_child(child, raw, _config_label(config_path, cwd), "")
     found = values.get("language")
-    if found is None:
+    if not isinstance(found, str):
         return None
-    return cast(Language, found)
+    return parse_language(found)
 
 
 def resolve_language(

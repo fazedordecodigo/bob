@@ -386,10 +386,11 @@ def test_load_config_treats_an_empty_language_as_unset(tmp_path: Path, line: str
     assert load_config(None, tmp_path) == Config()
 
 
-def test_configured_language_reads_bob_yaml(tmp_path: Path) -> None:
-    (tmp_path / "bob.yaml").write_text("language: pt-BR\n")
+@pytest.mark.parametrize("language", ["en", "pt-BR"])
+def test_configured_language_reads_bob_yaml(tmp_path: Path, language: str) -> None:
+    (tmp_path / "bob.yaml").write_text(f"language: {language}\n")
 
-    assert configured_language(None, tmp_path) == "pt-BR"
+    assert configured_language(None, tmp_path) == language
 
 
 def test_configured_language_reads_an_explicit_path(tmp_path: Path) -> None:
