@@ -101,6 +101,10 @@ _EN: dict[str, str] = {
     "dry.clone": "{count} new clone in the diff",
     "dry.clones": "{count} new clones in the diff",
     "dry.include_missing": "jscpd: include path missing: {paths}",
+    "secrets.new_one": "1 new secret in the diff",
+    "secrets.new_many": "{count} new secrets in the diff",
+    "secrets.outside_one": "1 secret outside the diff",
+    "secrets.outside_many": "{count} secrets outside the diff",
     "dry.no_report": "jscpd did not write the JSON",
     "deps.node_missing": (
         "Node missing: install Node.js for the dependency gate (dependency-cruiser via npx)"
@@ -260,6 +264,10 @@ _PT_BR: dict[str, str] = {
     "dry.clone": "{count} clone novo no diff",
     "dry.clones": "{count} clones novos no diff",
     "dry.include_missing": "jscpd: caminho de include ausente: {paths}",
+    "secrets.new_one": "1 segredo novo no diff",
+    "secrets.new_many": "{count} segredos novos no diff",
+    "secrets.outside_one": "1 segredo fora do diff",
+    "secrets.outside_many": "{count} segredos fora do diff",
     "dry.no_report": "jscpd não gravou o JSON",
     "deps.node_missing": (
         "Node ausente: instale Node.js para o gate de dependências (dependency-cruiser via npx)"

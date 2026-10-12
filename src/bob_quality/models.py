@@ -9,6 +9,54 @@ from bob_quality.messages import Text
 
 GateStatus = Literal["passed", "warn", "failed", "not_run"]
 
+SECRET_PREFIX = "secret:"
+
+
+@dataclass(frozen=True)
+class SecretRow:
+    """Achado depois que o JSON do gitleaks some.
+
+    Não há campo para o valor. `line` é o StartLine e vale pelo menos 1.
+    """
+
+    file: str
+    line: int
+    rule_id: str
+
+    def waiver_id(self) -> str:
+        """`secret:<regra>:<arquivo>:<linha>`. O casamento é a string inteira."""
+        return f"{SECRET_PREFIX}{self.rule_id}:{self.file}:{self.line}"
+
+
+@dataclass(frozen=True)
+class SecretLedger:
+    """Partição do que o relatório pode mostrar.
+
+    `blocking` falha o gate. `outside_diff` aparece e não muda o exit.
+    As tuplas são disjuntas e ordenadas por arquivo, linha e regra.
+    Waiver fica fora das duas.
+    """
+
+    blocking: tuple[SecretRow, ...] = ()
+    outside_diff: tuple[SecretRow, ...] = ()
+
+    def __post_init__(self) -> None:
+        rows = (*self.blocking, *self.outside_diff)
+        ids = [row.waiver_id() for row in rows]
+        if len(ids) != len(set(ids)):
+            raise ValueError("duplicate secret row")
+        _require_sorted(self.blocking)
+        _require_sorted(self.outside_diff)
+        for row in rows:
+            if row.line < 1:
+                raise ValueError("secret line")
+
+
+def _require_sorted(rows: tuple[SecretRow, ...]) -> None:
+    ordered = tuple(sorted(rows, key=lambda row: (row.file, row.line, row.rule_id)))
+    if ordered != rows:
+        raise ValueError("secret rows are unsorted")
+
 
 @dataclass(frozen=True)
 class CyclomaticFunction:
