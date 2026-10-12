@@ -38,6 +38,35 @@ CLAUDE_MARKETPLACE = ROOT / ".claude-plugin" / "marketplace.json"
 CURSOR_PLUGIN = ROOT / ".cursor-plugin" / "plugin.json"
 
 BOB_SKILLS = ["bob-check", "harden", "review-report"]
+RETIRED_SKILL_NAMES = (
+    "ask-matt",
+    "code-review",
+    "codebase-design",
+    "diagnosing-bugs",
+    "domain-modeling",
+    "grill-me",
+    "grill-with-docs",
+    "grilling",
+    "handoff",
+    "implement",
+    "implement-spec",
+    "improve-codebase-architecture",
+    "pr",
+    "prototype",
+    "research",
+    "retro",
+    "setup-matt-pocock-skills",
+    "tdd",
+    "teach",
+    "to-questionnaire",
+    "to-spec",
+    "to-tickets",
+    "triage",
+    "wait-what",
+    "wayfinder",
+    "wizard",
+    "writing-for-agents",
+)
 
 # Schema do Cursor tem additionalProperties: false. Chave fora daqui invalida o plugin.
 CURSOR_ALLOWED_KEYS = {
@@ -268,6 +297,33 @@ def test_reinstall_replaces_bob_skills_and_keeps_the_projects_own(
     assert _files(dest) == after_first
 
 
+def test_reinstall_removes_retired_skill_folders_and_keeps_unknown_ones(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    assert len(RETIRED_SKILL_NAMES) == 27
+    assert len(set(RETIRED_SKILL_NAMES)) == 27
+    dest = tmp_path / ".github" / "skills"
+    (dest / "mine").mkdir(parents=True)
+    (dest / "mine" / "SKILL.md").write_text("minha skill\n")
+    for name in RETIRED_SKILL_NAMES:
+        folder = dest / name
+        folder.mkdir()
+        (folder / "SKILL.md").write_text("antiga\n")
+        (folder / "NOTICE").write_text("aviso\n")
+
+    first = _install(capsys, "--project", str(tmp_path), "copilot")
+    after_first = _files(dest)
+    second = _install(capsys, "--project", str(tmp_path), "copilot")
+
+    assert first == second == (0, _installed(".github/skills"), "")
+    assert (dest / "mine" / "SKILL.md").read_text() == "minha skill\n"
+    for name in RETIRED_SKILL_NAMES:
+        assert not (dest / name).exists(), name
+    assert not any(path.endswith("/NOTICE") or path == "NOTICE" for path in after_first)
+    assert sorted(path.name for path in dest.iterdir()) == sorted([*BOB_SKILLS, "mine"])
+    assert _files(dest) == after_first
+
+
 def test_every_installed_skill_carries_the_plugin_license(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
@@ -314,7 +370,6 @@ def test_each_skill_bundles_the_nearest_license_inside_the_plugin(
         "propria/agents/openai.yaml": b"interface: propria\n",
         "herdada/SKILL.md": b"herdada\n",
         "herdada/LICENSE": b"do vendor\n",
-        "herdada/NOTICE": b"aviso do vendor\n",
     }
     assert result == (
         0,
