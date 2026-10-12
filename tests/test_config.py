@@ -104,27 +104,85 @@ def test_load_config_rejects_a_list(tmp_path: Path) -> None:
     )
 
 
-def test_load_config_keeps_the_default_min_tokens_without_the_key(tmp_path: Path) -> None:
-    (tmp_path / "bob.yaml").write_text("duplication:\n  other: 1\n")
+@pytest.mark.parametrize(
+    "text",
+    [
+        "{}\n",
+        "duplication: {}\n",
+        "duplication:\n",
+        "duplication: null\n",
+        "base: trunk\n",
+    ],
+)
+def test_load_config_keeps_the_default_min_tokens_without_the_key(
+    tmp_path: Path, text: str
+) -> None:
+    (tmp_path / "bob.yaml").write_text(text)
 
     assert load_config(None, tmp_path).min_tokens == 50
 
 
-def test_load_config_rejects_duplication_that_is_not_a_mapping(tmp_path: Path) -> None:
-    (tmp_path / "bob.yaml").write_text("duplication: [1]\n")
+def test_load_config_stores_zero_min_tokens(tmp_path: Path) -> None:
+    (tmp_path / "bob.yaml").write_text("duplication:\n  min_tokens: 0\n")
+
+    assert load_config(None, tmp_path).min_tokens == 0
+
+
+def test_load_config_stores_all_as_the_crap_scope(tmp_path: Path) -> None:
+    (tmp_path / "bob.yaml").write_text("crap:\n  scope: all\n")
+
+    assert load_config(None, tmp_path).crap_scope == "all"
+
+
+@pytest.mark.parametrize("text", ["crap:\n  scope:\n", 'crap:\n  scope: ""\n', "{}\n"])
+def test_load_config_stores_changed_when_scope_is_absent(tmp_path: Path, text: str) -> None:
+    (tmp_path / "bob.yaml").write_text(text)
+
+    assert load_config(None, tmp_path).crap_scope == "changed"
+
+
+def test_load_config_stores_an_empty_languages_list_as_the_default(tmp_path: Path) -> None:
+    (tmp_path / "bob.yaml").write_text("languages: []\n")
+
+    assert load_config(None, tmp_path).languages == ("python",)
+
+
+def test_load_config_reads_an_empty_mapping_as_the_defaults(tmp_path: Path) -> None:
+    (tmp_path / "bob.yaml").write_text("{}\n")
+
+    assert load_config(None, tmp_path) == Config()
+
+
+@pytest.mark.parametrize(
+    "text",
+    ["duplication: [1]\n", "duplication: 0\n", "duplication: false\n", 'duplication: ""\n'],
+)
+def test_load_config_rejects_duplication_that_is_not_a_mapping(
+    tmp_path: Path, text: str
+) -> None:
+    (tmp_path / "bob.yaml").write_text(text)
 
     assert _config_error(tmp_path) == (
-        "duplication must be a mapping",
-        "duplication deve ser um mapeamento",
+        "bob.yaml: duplication must be a mapping",
+        "bob.yaml: duplication deve ser um mapeamento",
     )
 
 
-def test_load_config_rejects_min_tokens_that_is_not_an_integer(tmp_path: Path) -> None:
-    (tmp_path / "bob.yaml").write_text("duplication:\n  min_tokens: many\n")
+@pytest.mark.parametrize(
+    "text",
+    [
+        "duplication:\n  min_tokens: many\n",
+        "duplication:\n  min_tokens: null\n",
+    ],
+)
+def test_load_config_rejects_min_tokens_that_is_not_an_integer(
+    tmp_path: Path, text: str
+) -> None:
+    (tmp_path / "bob.yaml").write_text(text)
 
     assert _config_error(tmp_path) == (
-        "duplication.min_tokens must be an integer",
-        "duplication.min_tokens deve ser um inteiro",
+        "bob.yaml: duplication.min_tokens must be an integer",
+        "bob.yaml: duplication.min_tokens deve ser um inteiro",
     )
 
 
@@ -254,9 +312,9 @@ def test_load_config_keeps_numeric_thresholds_and_string_lists(tmp_path: Path) -
     loaded = load_config(None, tmp_path)
 
     assert loaded.base == "trunk"
-    assert loaded.languages == ["python", "typescript"]
-    assert loaded.include == ["lib"]
-    assert loaded.exclude == ["vendor"]
+    assert loaded.languages == ("python", "typescript")
+    assert loaded.include == ("lib",)
+    assert loaded.exclude == ("vendor",)
     assert loaded.max_crap == 10.5
     assert loaded.crap_scope == "all"
     assert loaded.python_deps_config == "deps.ini"
@@ -391,3 +449,90 @@ def test_resolve_language_rejects_an_empty_string(flag: str | None, env: str | N
         resolve_language(flag, env, "pt-BR")
 
     assert render(reason(caught.value), "en") == 'invalid language: "" (use en or pt-BR)'
+
+
+@pytest.mark.parametrize(
+    ("text", "english", "portuguese"),
+    [
+        (
+            "mutation: {}\n",
+            "bob.yaml: unknown key mutation",
+            "bob.yaml: chave desconhecida mutation",
+        ),
+        (
+            "duplication:\n  tool: jscpd\n",
+            "bob.yaml: unknown key duplication.tool",
+            "bob.yaml: chave desconhecida duplication.tool",
+        ),
+        (
+            "crap:\n  scope: Changed\n",
+            "bob.yaml: crap.scope must be changed or all",
+            "bob.yaml: crap.scope deve ser changed ou all",
+        ),
+        (
+            "languages: [ruby]\n",
+            "bob.yaml: languages[0] must be python or typescript",
+            "bob.yaml: languages[0] deve ser python ou typescript",
+        ),
+        (
+            "crap:\n  max_per_function: .nan\n",
+            "bob.yaml: crap.max_per_function must be finite",
+            "bob.yaml: crap.max_per_function deve ser finito",
+        ),
+        (
+            "crap:\n  max_per_function: .inf\n",
+            "bob.yaml: crap.max_per_function must be finite",
+            "bob.yaml: crap.max_per_function deve ser finito",
+        ),
+        (
+            "crap:\n  max_per_function: -.inf\n",
+            "bob.yaml: crap.max_per_function must be finite",
+            "bob.yaml: crap.max_per_function deve ser finito",
+        ),
+        (
+            "crap:\n  max_per_function: 0\n",
+            "bob.yaml: crap.max_per_function must be greater than 0",
+            "bob.yaml: crap.max_per_function deve ser maior que 0",
+        ),
+        (
+            "duplication:\n  min_tokens: -1\n",
+            "bob.yaml: duplication.min_tokens must be at least 0",
+            "bob.yaml: duplication.min_tokens deve ser no mínimo 0",
+        ),
+    ],
+)
+def test_load_config_rejects_an_illegal_semantic_value(
+    tmp_path: Path, text: str, english: str, portuguese: str
+) -> None:
+    (tmp_path / "bob.yaml").write_text(text)
+
+    assert _config_error(tmp_path) == (english, portuguese)
+
+
+@pytest.mark.parametrize("kwargs", [{"crap_scope": "nope"}, {"max_crap": 0}])
+def test_config_rejects_an_illegal_in_process_value(kwargs: dict[str, object]) -> None:
+    with pytest.raises(ValueError):
+        Config(**kwargs)
+
+
+def test_schema_literals_match_config_fields() -> None:
+    from dataclasses import fields
+    from typing import get_args
+
+    import bob_quality.config as config_module
+
+    assert set(config_module.SOURCE_LANGUAGES) == set(get_args(config_module.SourceLanguage))
+    assert set(config_module.CRAP_SCOPES) == set(get_args(config_module.CrapScope))
+    assert {item.name for item in fields(config_module.Config)} == _schema_attrs(
+        config_module._SCHEMA
+    )
+
+
+def _schema_attrs(node: object) -> set[str]:
+    attrs: set[str] = set()
+    attr = getattr(node, "attr")
+    if isinstance(attr, str):
+        attrs.add(attr)
+    for child in getattr(node, "children"):
+        attrs |= _schema_attrs(child)
+    return attrs

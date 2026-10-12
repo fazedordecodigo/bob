@@ -221,6 +221,100 @@ _BAD_WAIVER_SHAPE = (
     ),
 )
 
+_SEMANTIC_YAML = (
+    ("mutation: {}\n", "bob.yaml: unknown key mutation\n"),
+    ("duplication:\n  tool: jscpd\n", "bob.yaml: unknown key duplication.tool\n"),
+    ("duplication:\n  new_clones: warn\n", "bob.yaml: unknown key duplication.new_clones\n"),
+    ("dependencies:\n  violation: fail\n", "bob.yaml: unknown key dependencies.violation\n"),
+    ("crap:\n  max_per_functon: 10\n", "bob.yaml: unknown key crap.max_per_functon\n"),
+    ("crap:\n  scope: Changed\n", "bob.yaml: crap.scope must be changed or all\n"),
+    ("languages: [ruby]\n", "bob.yaml: languages[0] must be python or typescript\n"),
+    (
+        "languages: [python, ruby]\n",
+        "bob.yaml: languages[1] must be python or typescript\n",
+    ),
+    ("languages: ['']\n", "bob.yaml: languages[0] must be python or typescript\n"),
+    ("crap:\n  max_per_function: true\n", "bob.yaml: crap.max_per_function must be a number\n"),
+    ("crap:\n  max_per_function: .nan\n", "bob.yaml: crap.max_per_function must be finite\n"),
+    ("crap:\n  max_per_function: .inf\n", "bob.yaml: crap.max_per_function must be finite\n"),
+    ("crap:\n  max_per_function: -.inf\n", "bob.yaml: crap.max_per_function must be finite\n"),
+    ("crap:\n  max_per_function: 0\n", "bob.yaml: crap.max_per_function must be greater than 0\n"),
+    (
+        "crap:\n  max_per_function: 0.0\n",
+        "bob.yaml: crap.max_per_function must be greater than 0\n",
+    ),
+    ("crap:\n  max_per_function: -1\n", "bob.yaml: crap.max_per_function must be greater than 0\n"),
+    (
+        "duplication:\n  min_tokens: true\n",
+        "bob.yaml: duplication.min_tokens must be an integer\n",
+    ),
+    (
+        'duplication:\n  min_tokens: "1"\n',
+        "bob.yaml: duplication.min_tokens must be an integer\n",
+    ),
+    (
+        "duplication:\n  min_tokens: 1.5\n",
+        "bob.yaml: duplication.min_tokens must be an integer\n",
+    ),
+    (
+        "duplication:\n  min_tokens: .inf\n",
+        "bob.yaml: duplication.min_tokens must be an integer\n",
+    ),
+    (
+        "duplication:\n  min_tokens: null\n",
+        "bob.yaml: duplication.min_tokens must be an integer\n",
+    ),
+    (
+        "duplication:\n  min_tokens: -1\n",
+        "bob.yaml: duplication.min_tokens must be at least 0\n",
+    ),
+    ("duplication: 0\n", "bob.yaml: duplication must be a mapping\n"),
+    ("duplication: false\n", "bob.yaml: duplication must be a mapping\n"),
+    ('duplication: ""\n', "bob.yaml: duplication must be a mapping\n"),
+    ("duplication: [1]\n", "bob.yaml: duplication must be a mapping\n"),
+    ("0\n", "bob.yaml must be a mapping\n"),
+    ("false\n", "bob.yaml must be a mapping\n"),
+    ('""\n', "bob.yaml must be a mapping\n"),
+)
+
+_WAIVER_ENTRY = (
+    "  - id: fn\n"
+    "    reason: {reason}\n"
+    "    author: ada\n"
+    "    date: '2026-10-11'\n"
+)
+
+_BAD_WAIVER_VALUES = (
+    ("0\n", ".bob/waivers.yaml must be a mapping\n"),
+    ("false\n", ".bob/waivers.yaml must be a mapping\n"),
+    ('""\n', ".bob/waivers.yaml must be a mapping\n"),
+    ("waivers: 0\n", ".bob/waivers.yaml: waivers must be a list\n"),
+    ("waivers: false\n", ".bob/waivers.yaml: waivers must be a list\n"),
+    ('waivers: ""\n', ".bob/waivers.yaml: waivers must be a list\n"),
+    ("notes: hi\n", ".bob/waivers.yaml: unknown key notes\n"),
+    (
+        "waivers:\n" + _WAIVER_ENTRY.format(reason='""'),
+        ".bob/waivers.yaml: waivers[0].reason must be one non-empty line\n",
+    ),
+    (
+        "waivers:\n" + _WAIVER_ENTRY.format(reason='"   "'),
+        ".bob/waivers.yaml: waivers[0].reason must be one non-empty line\n",
+    ),
+    (
+        "waivers:\n" + _WAIVER_ENTRY.format(reason='"a\\nb"'),
+        ".bob/waivers.yaml: waivers[0].reason must be one non-empty line\n",
+    ),
+    (
+        "waivers:\n"
+        + _WAIVER_ENTRY.format(reason="because")
+        + "  - id: other\n"
+        '    reason: ""\n'
+        "    author: ada\n"
+        "    date: '2026-10-11'\n",
+        ".bob/waivers.yaml: waivers[1].reason must be one non-empty line\n",
+    ),
+)
+
 
 @pytest.mark.parametrize("command", _SHAPE_COMMANDS)
 @pytest.mark.parametrize(("text", "stderr"), _BAD_WAIVER_SHAPE)
@@ -248,6 +342,158 @@ def test_wrong_waiver_shape_exits_4_in_english_and_writes_no_report(
     assert waiver.read_bytes() == before
     assert not (bob / "report.md").exists()
     assert not (bob / "report.json").exists()
+
+
+@pytest.mark.parametrize("command", _COMMANDS)
+@pytest.mark.parametrize(("text", "stderr"), _SEMANTIC_YAML)
+@pytest.mark.parametrize("lang", [None, "pt-BR"])
+def test_invalid_semantic_config_exits_4_in_english_and_writes_nothing(
+    tmp_path: Path,
+    command: tuple[str, ...],
+    text: str,
+    stderr: str,
+    lang: str | None,
+) -> None:
+    (tmp_path / "bob.yaml").write_text(text)
+    before = _files(tmp_path)
+    args = ("--lang", lang, *command) if lang is not None else command
+
+    result = run_bob(tmp_path, *args)
+
+    assert result.returncode == 4
+    assert result.stderr == stderr
+    assert result.stdout == ""
+    assert "Traceback" not in result.stderr
+    assert _files(tmp_path) == before
+
+
+@pytest.mark.parametrize("command", _COMMANDS)
+@pytest.mark.parametrize(("text", "stderr"), _BAD_WAIVER_VALUES)
+@pytest.mark.parametrize("lang", [None, "pt-BR"])
+def test_invalid_waiver_values_exit_4_in_english_and_write_no_report(
+    tmp_path: Path,
+    command: tuple[str, ...],
+    text: str,
+    stderr: str,
+    lang: str | None,
+) -> None:
+    bob = tmp_path / ".bob"
+    bob.mkdir()
+    waiver = bob / "waivers.yaml"
+    waiver.write_text(text)
+    before = waiver.read_bytes()
+    args = ("--lang", lang, *command) if lang is not None else command
+
+    result = run_bob(tmp_path, *args)
+
+    assert result.returncode == 4
+    assert result.stderr == stderr
+    assert result.stdout == ""
+    assert "Traceback" not in result.stderr
+    assert waiver.read_bytes() == before
+    assert not (bob / "report.md").exists()
+    assert not (bob / "report.json").exists()
+
+
+@pytest.mark.parametrize("reason", ["", "   ", "a\nb"])
+def test_waive_rejects_a_reason_that_is_not_one_line(tmp_path: Path, reason: str) -> None:
+    result = run_bob(tmp_path, "waive", "fn", "--reason", reason)
+
+    assert result.returncode == 4
+    assert result.stderr == "waiver without a reason: pass --reason with one line\n"
+    assert result.stdout == ""
+    assert "Traceback" not in result.stderr
+    assert not (tmp_path / ".bob" / "report.md").exists()
+    assert not (tmp_path / ".bob" / "report.json").exists()
+
+
+@pytest.mark.parametrize(
+    ("text", "english", "portuguese"),
+    [
+        (
+            "0\n",
+            ".bob/waivers.yaml must be a mapping",
+            ".bob/waivers.yaml deve ser um mapeamento",
+        ),
+        (
+            "false\n",
+            ".bob/waivers.yaml must be a mapping",
+            ".bob/waivers.yaml deve ser um mapeamento",
+        ),
+        (
+            '""\n',
+            ".bob/waivers.yaml must be a mapping",
+            ".bob/waivers.yaml deve ser um mapeamento",
+        ),
+        (
+            "waivers: 0\n",
+            ".bob/waivers.yaml: waivers must be a list",
+            ".bob/waivers.yaml: waivers deve ser uma lista",
+        ),
+        (
+            "waivers: false\n",
+            ".bob/waivers.yaml: waivers must be a list",
+            ".bob/waivers.yaml: waivers deve ser uma lista",
+        ),
+        (
+            'waivers: ""\n',
+            ".bob/waivers.yaml: waivers must be a list",
+            ".bob/waivers.yaml: waivers deve ser uma lista",
+        ),
+        (
+            "notes: hi\n",
+            ".bob/waivers.yaml: unknown key notes",
+            ".bob/waivers.yaml: chave desconhecida notes",
+        ),
+        (
+            "notes: hi\nextra: there\n",
+            ".bob/waivers.yaml: unknown key notes",
+            ".bob/waivers.yaml: chave desconhecida notes",
+        ),
+        (
+            "waivers:\n" + _WAIVER_ENTRY.format(reason='""'),
+            ".bob/waivers.yaml: waivers[0].reason must be one non-empty line",
+            ".bob/waivers.yaml: waivers[0].reason deve ser uma linha não vazia",
+        ),
+        (
+            "waivers:\n" + _WAIVER_ENTRY.format(reason='"   "'),
+            ".bob/waivers.yaml: waivers[0].reason must be one non-empty line",
+            ".bob/waivers.yaml: waivers[0].reason deve ser uma linha não vazia",
+        ),
+        (
+            "waivers:\n" + _WAIVER_ENTRY.format(reason='"a\\nb"'),
+            ".bob/waivers.yaml: waivers[0].reason must be one non-empty line",
+            ".bob/waivers.yaml: waivers[0].reason deve ser uma linha não vazia",
+        ),
+    ],
+)
+def test_load_waivers_rejects_closed_values(
+    tmp_path: Path, text: str, english: str, portuguese: str
+) -> None:
+    _write_waivers(tmp_path, text)
+
+    with pytest.raises(WaiverError) as caught:
+        load_waivers(tmp_path)
+
+    assert in_both(caught.value) == (english, portuguese)
+
+
+def test_load_waivers_keeps_an_entry_with_an_extra_key(tmp_path: Path) -> None:
+    _write_waivers(
+        tmp_path,
+        "waivers:\n"
+        "  - id: fn\n"
+        "    reason: '  because  '\n"
+        "    author: ada\n"
+        "    date: '2026-10-11'\n"
+        "    note: ignored\n",
+    )
+
+    loaded = load_waivers(tmp_path)
+
+    assert [(item.id, item.reason, item.author, item.date) for item in loaded] == [
+        ("fn", "because", "ada", "2026-10-11")
+    ]
 
 
 @pytest.mark.parametrize("command", _COMMANDS)
