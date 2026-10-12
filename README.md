@@ -2,7 +2,7 @@
 
 English | [Português](README.pt-BR.md)
 
-bob gives coding agents (Cursor, Claude Code, GitHub Copilot, Devin) deterministic quality gates for the code they change, plus skills that tell the agent when to run them. The gates measure CRAP, duplication, mutation, and dependencies, only for the functions in the diff. Each run exits with a code the agent can act on and writes a one-page report that tells the human reviewer where to look first. The gates follow Uncle Bob's workflow, and the spec skills come from Matt Pocock (see [Credits](#credits)).
+bob gives coding agents (Cursor, Claude Code, GitHub Copilot, Devin) deterministic quality gates for the code they change, plus skills that tell the agent when to run them. The gates measure CRAP, duplication, mutation, and dependencies, only for the functions in the diff. Each run exits with a code the agent can act on and writes a one-page report that tells the human reviewer where to look first. The gates follow Uncle Bob's workflow (see [Credits](#credits)).
 
 - CLI: `bob` (`bob check | crap | dry | deps | mutate | waive | doctor`)
 - PyPI package: `bob-quality` (sdist and wheel ready, not published yet)
@@ -72,7 +72,7 @@ These commands install the `bob` command, the Python tools pinned in `pyproject.
 
 ## Installing in the agents
 
-Nothing is published. The commands start from a clone of this repository. The plugin ships 30 skills: `bob-check`, `harden`, `review-report`, and Matt Pocock's `engineering/` and `productivity/` skills. That is the same selection as Pocock's own plugin, without `misc/` and `in-progress/`.
+Nothing is published. The commands start from a clone of this repository. The plugin ships three skills, listed in [Skills](#skills).
 
 **Claude Code** reads `.claude-plugin/`. Add the clone as a local marketplace and install the plugin:
 
@@ -108,7 +108,7 @@ python3 <clone path>/src/bob_quality/install_skills.py --project <project> agent
 | `devin` | `.agents/skills` | Devin (its recommended folder) |
 | `copilot` | `.github/skills` | Copilot, Devin |
 
-Devin reads both folders. If one project gets `copilot` and `devin`, Devin loads every skill twice, so pick one. Running the installer again replaces bob's skills and leaves other skills in the folder alone. Because the installer flattens the folders, each installed skill carries its `LICENSE`, plus `NOTICE` for Pocock's skills. It also runs as `python -m bob_quality.install_skills`. A pip-installed `bob-quality` does not carry the skills, so pass `--source <clone path>`. Without a manifest the installer names the path it read and exits with `4`. When a skill has no `LICENSE` from its folder up to the plugin root, the installer warns on stderr and still installs the skill.
+Devin reads both folders. If one project gets `copilot` and `devin`, Devin loads every skill twice, so pick one. Running the installer again replaces bob's skills and leaves other skills in the folder alone. Because the installer flattens the folders, each installed skill carries a copy of the plugin's `LICENSE`. It also runs as `python -m bob_quality.install_skills`. A pip-installed `bob-quality` does not carry the skills, so pass `--source <clone path>`. Without a manifest the installer names the path it read and exits with `4`. When a skill has no `LICENSE` from its folder up to the plugin root, the installer warns on stderr and still installs the skill.
 
 ## Usage
 
@@ -320,7 +320,6 @@ The action accepts the inputs `base`, `gates`, `pip-spec`, and `token`. This rep
 
 ## Skills
 
-- Matt Pocock's spec flow (MIT, attributed), in `skills/vendor/mattpocock/`: `grill-me` → `to-spec` → `to-tickets` → `implement-spec` / `tdd` → `code-review`.
 - `skills/bob-check/` says when and how to run `bob check`.
 - `skills/harden/` says how to kill a surviving mutant or record a waiver.
 - `skills/review-report/` summarizes `.bob/report.md` in the pull request.
@@ -330,8 +329,6 @@ The action accepts the inputs `base`, `gates`, `pip-spec`, and `token`. This rep
 ## Credits
 
 The gates follow Uncle Bob's workflow. The READMEs and the output of his tools [crapper](https://github.com/unclebob/crapper) and [mutator](https://github.com/unclebob/mutator) (0BSD) are the behavior reference, and bob reuses none of their code. The exit codes take after mutator. The duplication gate uses jscpd. A structural dryer of bob's own, in the line of his [dryer](https://github.com/unclebob/dryer) (0BSD), is out of scope for the MVP. The limits come from his recent posts, CRAP < 10 for agents ([post on X](https://x.com/unclebobmartin/status/2108946115169030596)) and kill mutants within reason ([Aviator podcast](https://www.aviator.co/podcast/uncle-bob-martin-ai-clean-code)).
-
-The spec skills are a verbatim copy of [mattpocock/skills](https://github.com/mattpocock/skills) at commit `49dd158d1076134a641b33efb035946536778336`, under the MIT license. See `skills/vendor/mattpocock/LICENSE` and `skills/vendor/mattpocock/NOTICE`.
 
 The market tools (lizard, coverage.py, c8, vitest, mutmut, jscpd, import-linter, dependency-cruiser) are pinned dependencies, and bob copies no code from them.
 
