@@ -9,9 +9,17 @@ import pytest
 
 from bob_quality.adapters.dependency_cruiser import parse_dependency_cruiser
 from bob_quality.adapters.import_linter import broken_contract_name, parse_import_linter
-from bob_quality.deps_gate import UnparsedBreak, _import_linter_violations, _ini_roots, _short
+from bob_quality.config import Config
+from bob_quality.deps_gate import (
+    UnparsedBreak,
+    _cruise_violations,
+    _import_linter_violations,
+    _ini_roots,
+    _short,
+    run_deps_gate,
+)
 from bob_quality.messages import render
-from bob_quality.models import GateResult, Report
+from bob_quality.models import DepViolation, GateResult, Report
 from bob_quality.report import to_markdown
 from bob_quality.tools import ToolError
 from helpers import in_both
@@ -355,3 +363,124 @@ def test_tool_failure_text_is_one_line_capped_at_300_characters() -> None:
     assert render(_short(" \n\t"), "pt-BR") == "ferramenta de dependência falhou"
     assert render(_short(" \n\t"), "en") == "dependency tool failed"
     assert _short("x" * 400) == "x" * 300
+
+
+_LISTS = json.loads((RAW / "dependency-cruiser-violations-list.json").read_text())
+_CRUISER_MISSING = (
+    "dependency-cruiser: JSON without a violations list",
+    "dependency-cruiser: JSON sem a lista violations",
+)
+_LINTER_UNRECOGNIZED = (
+    "import-linter: output is not an empty report",
+    "import-linter: saída não é um relatório vazio",
+)
+_KEPT_REPORT = (
+    "---------\n"
+    "Contracts\n"
+    "---------\n"
+    "\n"
+    "Analyzed 3 files, 1 dependencies.\n"
+    "---------------------------------\n"
+    "\n"
+    "Layers KEPT\n"
+    "\n"
+    "Contracts: 1 kept, 0 broken.\n"
+)
+
+
+def _cruiser_gate(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, raw: str
+) -> tuple[GateResult, int, dict[str, str], list[DepViolation]]:
+    def measure(cwd: Path, config: Config, versions: dict[str, str]) -> list[DepViolation]:
+        versions["dependency-cruiser"] = "18.5.0"
+        return _cruise_violations(_linted(0, raw))
+
+    monkeypatch.setattr("bob_quality.deps_gate._typescript_violations", measure)
+    return run_deps_gate(tmp_path, Config(languages=("typescript",)))
+
+
+def _linter_gate(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, stdout: str
+) -> tuple[GateResult, int, dict[str, str], list[DepViolation]]:
+    def measure(
+        cwd: Path, config: Config, versions: dict[str, str], cycle_rule: str
+    ) -> list[DepViolation]:
+        versions["import-linter"] = "2.15"
+        return _import_linter_violations(_linted(0, stdout))
+
+    monkeypatch.setattr("bob_quality.deps_gate._python_violations", measure)
+    return run_deps_gate(tmp_path, Config(languages=("python",)))
+
+
+def test_cruiser_json_without_a_violations_list_exits_4(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    result, code, _, rows = _cruiser_gate(
+        monkeypatch, tmp_path, json.dumps(_LISTS["missing_list"])
+    )
+
+    assert (code, result.name, result.status, rows) == (4, "deps", "not_run", [])
+    assert in_both(result.reason) == _CRUISER_MISSING
+
+
+def test_cruiser_empty_violations_list_still_passes(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    result, code, _, rows = _cruiser_gate(
+        monkeypatch, tmp_path, json.dumps(_LISTS["empty_list"])
+    )
+
+    assert (code, result.name, result.status, result.reason, rows) == (
+        0,
+        "deps",
+        "passed",
+        None,
+        [],
+    )
+
+
+def test_import_linter_exit_0_without_an_empty_report_exits_4(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    result, code, _, rows = _linter_gate(
+        monkeypatch, tmp_path, "Analyzed 3 files, 1 dependencies.\n"
+    )
+
+    assert (code, result.name, result.status, rows) == (4, "deps", "not_run", [])
+    assert in_both(result.reason) == _LINTER_UNRECOGNIZED
+
+
+def test_import_linter_recognized_empty_report_still_passes(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    result, code, _, rows = _linter_gate(monkeypatch, tmp_path, _KEPT_REPORT)
+
+    assert (code, result.name, result.status, result.reason, rows) == (
+        0,
+        "deps",
+        "passed",
+        None,
+        [],
+    )
+
+
+def test_import_linter_colored_empty_report_still_passes(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    colored = "\x1b[32mContracts: 1 kept, 0 broken.\x1b[0m\n"
+    result, code, _, rows = _linter_gate(monkeypatch, tmp_path, colored)
+
+    assert (code, result.name, result.status, result.reason, rows) == (
+        0,
+        "deps",
+        "passed",
+        None,
+        [],
+    )
+
+
+def test_cruiser_invalid_json_reports_stderr_before_stdout() -> None:
+    with pytest.raises(ToolError, match=r"^\{$"):
+        _cruise_violations(_linted(1, "{", ""))
+    with pytest.raises(ToolError, match="^broken stderr$"):
+        _cruise_violations(_linted(1, "{", "broken stderr"))

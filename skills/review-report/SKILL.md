@@ -16,7 +16,7 @@ Fonte do formato: `docs/SPEC.md`. Rode `bob check` (skill `bob-check`) antes, pa
 
 ## Interface da CLI
 
-A mesma superfície de `docs/SPEC.md`, citada à risca:
+Os comandos abaixo são os que a CLI registra.
 
 ```
 bob check   [--base REF] [--gates crap,dry,deps,mutate] [--config bob.yaml] [--format md|json|both] [--out .bob/]
@@ -24,7 +24,6 @@ bob crap    [--base REF] [--threshold N] [--coverage-file PATH]
 bob dry     [--base REF]
 bob deps
 bob mutate  [--base REF] [--since-last-run] [--max-workers N]
-bob report  [--in .bob/] [--out .bob/report.md]
 bob waive   <mutant-id|function> --reason "texto de uma linha"
 bob doctor  # verifica ferramentas e versões instaladas
 ```
@@ -37,7 +36,7 @@ bob doctor  # verifica ferramentas e versões instaladas
 
 ## Passos
 
-1. Confirmar `.bob/report.md`. Se faltar, gerar com `bob check --format both` (ou `bob report --in .bob/ --out .bob/report.md` se `.bob/` já tiver o JSON). Feito quando `.bob/report.md` existe.
+1. Confirmar `.bob/report.md`. Se faltar, gerar com `bob check --format both`. Feito quando `.bob/report.md` existe.
 2. Ler o relatório na ordem da spec (abaixo). Feito quando as oito seções foram lidas.
 3. Colocar os vereditos e **Onde focar o review** em Evidence (antes/depois: último `bob check` que falhou vs a corrida que passou).
 4. Apontar o caminho `.bob/report.md` para a página completa. O corpo do PR fica o resumo de uma página.

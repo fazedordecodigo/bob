@@ -10,10 +10,10 @@ O exit code do `bob check` é o maior entre os gates que rodaram. Aviso não aum
 |---|---|---|---|
 | [CRAP](#crap) | lizard + coverage.py ou c8/vitest | função no escopo com CRAP ≥ limite | `1` |
 | [DRY](#dry) | jscpd | nada; clone novo é aviso | `0` |
-| [Mutação](#mutação) | mutmut (Python) | sobrevivente sem waiver | `3` |
+| [Mutação](#mutação) | mutmut (Python), StrykerJS (TypeScript) | sobrevivente sem waiver | `3` |
 | [Dependências](#dependências) | import-linter, dependency-cruiser, mais a regra de ciclo | violação cuja origem, destino ou outro módulo do ciclo está no diff | `1` |
 
-Versões pinadas: lizard 1.24.1, coverage 7.16.2, c8 12.0.0, vitest 5.0.3, jscpd 5.4.1, mutmut 3.8.0, import-linter 2.15, dependency-cruiser 18.5.0. Node 22.14.0. Fonte: `pyproject.toml`, `package.json` e `doctor.py`.
+Versões pinadas: lizard 1.24.1, coverage 7.16.2, c8 12.0.0, vitest 5.0.3, jscpd 5.4.1, mutmut 3.8.0, `@stryker-mutator/core` 10.0.0, `@stryker-mutator/vitest-runner` 10.0.0, import-linter 2.15, dependency-cruiser 18.5.0. Node 22.14.0. Fonte: `pyproject.toml`, `package.json` e `doctor.py`.
 
 ## CRAP
 
@@ -47,7 +47,7 @@ Um ou mais clones novos deixam o gate em `warn` e o exit em `0`. A linha do rela
 
 Sem Node, ou sem o jscpd instalado, o status é `not_run` e o exit continua `0` (o retorno de `_skipped` é `PASSED`). O jscpd precisa de Node também num repositório só Python, se `dry` estiver na lista.
 
-A spec marca clones novos como aviso no MVP. O código faz isso independente da chave `duplication.new_clones`, que não é lida. Ver [Configuração](configuracao.md#chaves-da-spec-que-este-yaml-de-exemplo-não-liga-a-um-campo).
+A spec marca clones novos como aviso no MVP. O código faz isso no gate. `duplication.new_clones` não está no schema: sai com `4`. Ver [Configuração](configuracao.md#chaves-que-o-loader-recusa).
 
 ## Mutação
 
@@ -55,7 +55,7 @@ A cobertura mostra que a linha rodou. A mutação altera o código e roda a suí
 
 Não há status separado para mutante equivalente. A skill `harden` manda registrar um waiver.
 
-O bob muta Python com mutmut. Não há chamada a Stryker no código; a mutação TypeScript continua a issue [#8](https://github.com/fazedordecodigo/bob/issues/8), como o README descreve.
+O bob muta Python com mutmut e TypeScript com Stryker. O arquivo incremental do Stryker fica em `.bob/stryker-incremental.json` (ou `<--out>/stryker-incremental.json`). Ele não entra em `.bob/mutation-cache.json`. A Action restaura só o cache do mutmut.
 
 Antes de mutar, a baseline roda. Se o `crap` já mediu o pytest na mesma execução, esse código é reusado. Baseline quebrada: o gate fica `not_run` e o exit é `2`.
 

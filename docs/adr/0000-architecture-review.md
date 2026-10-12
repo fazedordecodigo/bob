@@ -110,7 +110,7 @@ Pins pip em `pyproject.toml`: lizard 1.24.1, coverage.py 7.16.2, import-linter 2
 
 **`bob report` não existe.** A spec, `bob-check` e `review-report` citam o comando. `build_parser` não o registra. O README diz que está planejado. O `check` já grava os dois relatórios.
 
-**Chaves da spec que `Config` não tem.** `mutation.*`, `duplication.tool`, `duplication.new_clones`, `dependencies.violation`. O comportamento correspondente está fixo no código. Um agente que escreve `mutation.differential: false` não desliga o cache.
+**Chaves da spec que `Config` não tem.** `mutation.*`, `duplication.tool`, `duplication.new_clones`, `dependencies.violation`. O loader recusa a chave desconhecida com exit `4`. Um agente que escreve `mutation.differential: false` não desliga o cache: o comando sai com `unknown key mutation`.
 
 **Dois formatos do exit 4, e o jscpd fora deles.** O preflight não grava arquivo. Config que escapa do preflight, como `duplication` inválida ou `--config` ausente, grava o relatório. Ferramenta ausente no CRAP, no deps ou na mutação também grava. jscpd ausente ou ilegível fica `not_run` com exit 0.
 
@@ -240,9 +240,9 @@ Justificativa. O restante das ferramentas de mercado tem versão fixada porque o
 
 ### P2. Tirar do exemplo as chaves que o loader ignora
 
-`Config` não tem campo para `mutation.require_zero_unwaived_survivors`, `mutation.scope`, `mutation.differential`, `duplication.tool`, `duplication.new_clones` nem `dependencies.violation`. A spec ainda mostra essas chaves, e diz que `languages` omitido autodetecta. O código usa `["python"]`.
+`Config` não tem campo para `mutation.require_zero_unwaived_survivors`, `mutation.scope`, `mutation.differential`, `duplication.tool`, `duplication.new_clones` nem `dependencies.violation`. O loader recusa essas chaves com exit `4`. O exemplo de `bob.yaml` na spec e nos READMEs não as inclui. `languages` omitido fica `["python"]`.
 
-Alvo. Apagar essas chaves do exemplo na spec e no README, e escrever a frase do fallback `["python"]`. Um teste garante que `Config` continua sem esses campos. Não implementar os interruptores. O comportamento já está fixo no código.
+Alvo. Tirar essas chaves de qualquer exemplo de `bob.yaml`. Não implementar os interruptores. O comportamento já está fixo no código.
 
 Fora de escopo. A validação de limiar negativo e de chave desconhecida. Isso é a #53. Não mudar limite, escopo nem exit.
 
@@ -260,7 +260,7 @@ Justificativa. Dois arquivos com o mesmo número desviam no primeiro pin que alg
 
 ### P2. Retirar o radon opcional da spec
 
-A decisão 2 diz que radon fica como adaptador opcional. Não há arquivo, pin, runner nem menção depois de `55216ad`. As duas linguagens usam lizard.
+A decisão 2 chegou a dizer que radon fica como adaptador opcional. Não há arquivo, pin nem runner. As duas linguagens usam lizard. A frase e a menção na lista de adaptadores saíram da spec.
 
 Alvo. Apagar a frase do adaptador opcional e a menção na lista de adaptadores. Não escrever o adaptador.
 

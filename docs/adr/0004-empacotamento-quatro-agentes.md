@@ -36,6 +36,6 @@ Instalar `copilot` e `devin` no mesmo projeto grava cada skill duas vezes. O PR 
 
 A Action composta instala o pacote e roda `bob check`. Ela não instala skills. O comentário no PR é o `.bob/report.md` sob o marcador `<!-- bob-report -->`. A skill `review-report` pede outro texto no corpo do PR, com Summary, Evidence e Merge Danger.
 
-O hook em `src/bob_quality/hooks/pre-push` roda `bob check --gates crap,deps`. A spec e a skill descrevem `crap,dry,deps` para o hook. A Action, sem inputs, roda `crap,dry,deps,mutate`. `bob check` sem `--gates` não roda mutação. Esses quatro lugares não implementam a mesma frase.
+O hook em `src/bob_quality/hooks/pre-push` roda `bob check --gates crap,dry,deps`. A spec, a skill `skills/bob-check/SKILL.md` e `bob check` sem `--gates` descrevem os mesmos três gates. A Action, sem inputs, roda `crap,dry,deps,mutate`. A mutação continua fora do hook e do `bob check` sem `--gates`.
 
 A issue #54 e o pull request #55 tratam de `rmtree` em skill que é link simbólico.
