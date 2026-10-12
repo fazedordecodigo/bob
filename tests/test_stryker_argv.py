@@ -18,6 +18,19 @@ RAW = Path(__file__).parent / "fixtures" / "raw"
 PLUGIN = ROOT / "src" / "bob_quality" / "js" / "stryker-vitest5-plugin.mjs"
 DRY_RUN = (RAW / "stryker-initial-test-run.txt").read_text()
 
+def _only_stryker(monkeypatch: pytest.MonkeyPatch, fake):
+    from bob_quality import stryker_gate
+
+    real_run = subprocess.run
+
+    def wrapped(args: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
+        if args and args[0] == "npx":
+            return fake(args, **kwargs)
+        return real_run(args, **kwargs)
+
+    monkeypatch.setattr(stryker_gate.subprocess, "run", wrapped)
+
+
 SAFE_TS = """\
 export function add(left: number, right: number): number {
   return left + right;
@@ -71,8 +84,6 @@ def test_incremental_argv_deletes_a_stale_report_and_ignores_exit_1(
     report.parent.mkdir(parents=True)
     report.write_text('{"stale": true}\n')
     seen: list[bool] = []
-    from bob_quality import stryker_gate
-
     calls: list[list[str]] = []
 
     def fake_run(args: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
@@ -82,7 +93,7 @@ def test_incremental_argv_deletes_a_stale_report_and_ignores_exit_1(
         assert kwargs["cwd"] == repo
         return subprocess.CompletedProcess(args, 1, stdout="", stderr="")
 
-    monkeypatch.setattr(stryker_gate.subprocess, "run", fake_run)
+    _only_stryker(monkeypatch, fake_run)
     from bob_quality.mutate_gate import run_mutate_gate
 
     outcome = run_mutate_gate(
@@ -118,7 +129,7 @@ def test_incremental_argv_deletes_a_stale_report_and_ignores_exit_1(
     assert "7" not in args
     assert json.loads((Path(prefix) / "package.json").read_text())["name"] == "bob-quality-tools"
     assert json.loads((repo / ".bob" / "stryker.config.json").read_text()) == {
-        "plugins": [str(PLUGIN.resolve())],
+        "plugins": ["@stryker-mutator/*", str(PLUGIN.resolve())],
         "testRunner": "vitest",
         "vitest": {
             "related": False,
@@ -145,7 +156,6 @@ def test_missing_report_retries_once_after_deleting_the_incremental_file(
     incremental.write_text("{}\n")
     report.write_text('{"stale": true}\n')
     states: list[tuple[bool, bool]] = []
-    from bob_quality import stryker_gate
 
     def fake_run(args: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
         states.append((report.exists(), incremental.exists()))
@@ -153,7 +163,7 @@ def test_missing_report_retries_once_after_deleting_the_incremental_file(
             report.write_text(_KILLED)
         return subprocess.CompletedProcess(args, 1, stdout="", stderr="")
 
-    monkeypatch.setattr(stryker_gate.subprocess, "run", fake_run)
+    _only_stryker(monkeypatch, fake_run)
     from bob_quality.mutate_gate import run_mutate_gate
 
     outcome = run_mutate_gate(
@@ -173,15 +183,13 @@ def test_a_second_missing_report_exits_4(tmp_path: Path, monkeypatch: pytest.Mon
     incremental = repo / ".bob" / "stryker-incremental.json"
     incremental.parent.mkdir(parents=True)
     incremental.write_text("{}\n")
-    from bob_quality import stryker_gate
-
     calls: list[list[str]] = []
 
     def fake_run(args: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
         calls.append(list(args))
         return subprocess.CompletedProcess(args, 1, stdout="", stderr="")
 
-    monkeypatch.setattr(stryker_gate.subprocess, "run", fake_run)
+    _only_stryker(monkeypatch, fake_run)
     from bob_quality.mutate_gate import run_mutate_gate
 
     outcome = run_mutate_gate(
@@ -208,15 +216,13 @@ def test_dry_run_failure_exits_2_and_does_not_retry(
     incremental = repo / ".bob" / "stryker-incremental.json"
     incremental.parent.mkdir(parents=True)
     incremental.write_text("{}\n")
-    from bob_quality import stryker_gate
-
     calls: list[list[str]] = []
 
     def fake_run(args: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
         calls.append(list(args))
         return subprocess.CompletedProcess(args, 1, stdout="", stderr=DRY_RUN)
 
-    monkeypatch.setattr(stryker_gate.subprocess, "run", fake_run)
+    _only_stryker(monkeypatch, fake_run)
     from bob_quality.mutate_gate import run_mutate_gate
 
     outcome = run_mutate_gate(
