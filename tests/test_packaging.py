@@ -354,15 +354,33 @@ def test_invalid_json_exits_4_and_shows_where_it_broke(
     assert result == (
         4,
         "",
-        f"JSON inválido em {manifest}: {detail}. Passe --source com a raiz do plugin bob.\n",
+        f"JSON inválido em {manifest}: {detail}\n",
     )
     assert not project.exists()
 
 
 @pytest.mark.parametrize(
     "content",
-    ['["./skills/bob-check"]', '{"skills": "./skills/"}', '{"skills": [1]}'],
-    ids=["raiz-nao-objeto", "skills-texto", "pasta-nao-texto"],
+    ['["./skills/bob-check"]', "[]", "1", '"x"'],
+    ids=["raiz-nao-objeto", "lista-vazia", "numero", "texto"],
+)
+def test_manifest_root_that_is_not_an_object_exits_4(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str], content: str
+) -> None:
+    manifest = tmp_path / ".claude-plugin" / "plugin.json"
+    manifest.parent.mkdir()
+    manifest.write_text(content)
+
+    result = _install(capsys, "--project", str(tmp_path), "--source", str(tmp_path), "copilot")
+
+    assert result == (4, "", f"manifesto não é objeto JSON: {manifest}\n")
+    assert not (tmp_path / ".github").exists()
+
+
+@pytest.mark.parametrize(
+    "content",
+    ['{"skills": "./skills/"}', '{"skills": [1]}'],
+    ids=["skills-texto", "pasta-nao-texto"],
 )
 def test_malformed_manifest_exits_4_and_names_it(
     tmp_path: Path, capsys: pytest.CaptureFixture[str], content: str
@@ -376,8 +394,7 @@ def test_malformed_manifest_exits_4_and_names_it(
     assert result == (
         4,
         "",
-        f"manifesto inválido (skills deve ser uma lista de pastas): {manifest}."
-        " Passe --source com a raiz do plugin bob.\n",
+        f"manifesto inválido (skills deve ser uma lista de pastas): {manifest}\n",
     )
     assert not (tmp_path / ".github").exists()
 
@@ -403,8 +420,7 @@ def test_entry_without_skill_md_exits_4_before_writing_anything(
     assert result == (
         4,
         "",
-        f"pasta de skill sem SKILL.md: {source / folder} (listada em {manifest})."
-        " Passe --source com a raiz do plugin bob.\n",
+        f"pasta de skill sem SKILL.md: {source / folder} (listada em {manifest})\n",
     )
     assert not project.exists()
 

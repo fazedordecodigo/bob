@@ -38,7 +38,7 @@ def main(argv: list[str] | None = None) -> int:
     try:
         skills = _skills(args.source)
     except SourceError as exc:
-        print(f"{exc}. Passe --source com a raiz do plugin bob.", file=sys.stderr)
+        print(str(exc), file=sys.stderr)
         return CONFIG_ERROR
     for dest in dict.fromkeys(TARGETS[name] for name in args.targets):
         _install(skills, args.project / dest)
@@ -84,7 +84,9 @@ def _attribution(skill: Path, source: Path) -> list[Path]:
 
 def _skill_entries(manifest: Path) -> list[str]:
     data = _read_manifest(manifest)
-    entries = data.get("skills") if isinstance(data, dict) else None
+    if not isinstance(data, dict):
+        raise SourceError(f"manifesto não é objeto JSON: {manifest}")
+    entries = data.get("skills")
     if isinstance(entries, list) and all(isinstance(entry, str) for entry in entries):
         return entries
     raise SourceError(f"manifesto inválido (skills deve ser uma lista de pastas): {manifest}")
@@ -94,7 +96,9 @@ def _read_manifest(manifest: Path) -> object:
     try:
         raw = manifest.read_bytes()
     except OSError:
-        raise SourceError(f"manifesto não encontrado: {manifest}") from None
+        raise SourceError(
+            f"manifesto não encontrado: {manifest}. Passe --source com a raiz do plugin bob."
+        ) from None
     try:
         return json.loads(raw)
     except ValueError as exc:
