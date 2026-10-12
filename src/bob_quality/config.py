@@ -394,7 +394,7 @@ def _member_at(check: _Check, value: list[str] | tuple[str, ...]) -> _Failure | 
 def _language(check: _Check, value: object) -> _Failure | None:
     if value is None or value == "" or value in LANGUAGES:
         return None
-    return ("config.invalid_language", "", {"value": value})
+    raise ConfigError(msg("config.invalid_language", value=value))
 
 
 _FailFn = Callable[[_Check, object], _Failure | None]
