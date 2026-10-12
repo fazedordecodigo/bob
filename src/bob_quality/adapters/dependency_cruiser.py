@@ -13,7 +13,7 @@ _BLOCKING = {"error", "warn"}
 
 
 class CruiserParseError(Exception):
-    """JSON do dependency-cruiser fora do contrato da versão pinada."""
+    pass
 
 
 def parse_dependency_cruiser(raw: str) -> list[DepViolation]:

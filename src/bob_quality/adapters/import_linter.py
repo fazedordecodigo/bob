@@ -25,7 +25,6 @@ class _ParseState:
 
 
 def is_empty_report(raw: str) -> bool:
-    """Verdadeiro quando o texto traz a linha `N kept, 0 broken`."""
     for line in _ANSI.sub("", raw).splitlines():
         if _EMPTY_REPORT.match(line.strip()):
             return True
