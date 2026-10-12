@@ -319,7 +319,7 @@ O CI (`.github/workflows/ci.yml`) roda essa suíte em Python 3.10 e 3.12 com Nod
 
 ## GitHub Action
 
-A action composta em `.github/actions/bob` instala o `bob` e roda `bob check` com `crap,dry,deps,mutate`. Ela restaura e publica o artefato `bob-mutation-cache` (`.bob/mutation-cache.json`) e cria ou atualiza um único comentário no pull request com `.bob/report.md`. O exit code do job é o do `bob`.
+A action composta em `.github/actions/bob` instala o `bob` e roda `bob check` com `crap,dry,deps,mutate`. Ela instala o Node 22.14.0 e o jscpd 5.4.1 antes, para o gate dry rodar quando quem chama a action não instalou os dois. Ela restaura e publica o artefato `bob-mutation-cache` (`.bob/mutation-cache.json`, guardado por 7 dias) e cria ou atualiza um único comentário no pull request com `.bob/report.md`. O exit code do job é o do `bob`.
 
 A action aceita os inputs `base`, `gates`, `pip-spec` e `token`. Este repositório a usa em `.github/workflows/bob.yml`. O `bob-quality` ainda não está no PyPI, então no checkout deste repositório a action roda `pip install -e ".[dev]"`, e em outro repositório instala o código-fonte git da action. Publicação no GitHub Marketplace não faz parte desta fatia.
 
