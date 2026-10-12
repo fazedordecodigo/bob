@@ -2,7 +2,7 @@
 
 [Índice](README.md) · [Visão geral](visao-geral.md) · [CLI](cli.md) · [Configuração](configuracao.md) · [Exit codes](exit-codes.md) · [Relatórios](relatorios.md) · [SPEC](SPEC.md)
 
-Quatro gates. Cada um devolve um status `passed`, `warn`, `failed` ou `not_run`. O Markdown traduz para passou, aviso, falhou e não executado, com ✅ ⚠️ ❌ ⏭️ (`GATE_MARK` em `src/bob_quality/report.py`). Um gate que não rodou fica ⏭️ com motivo. Ele não aparece como ✅.
+Cinco gates. Cada um devolve um status `passed`, `warn`, `failed` ou `not_run`. O Markdown traduz para passou, aviso, falhou e não executado, com ✅ ⚠️ ❌ ⏭️ (`GATE_MARK` em `src/bob_quality/report.py`). Um gate que não rodou fica ⏭️ com motivo. Ele não aparece como ✅.
 
 O exit code do `bob check` é o maior entre os gates que rodaram. Aviso não aumenta o código. Ver [Exit codes](exit-codes.md).
 
@@ -12,8 +12,9 @@ O exit code do `bob check` é o maior entre os gates que rodaram. Aviso não aum
 | [DRY](#dry) | jscpd | nada; clone novo é aviso | `0` |
 | [Mutação](#mutação) | mutmut (Python) | sobrevivente sem waiver | `3` |
 | [Dependências](#dependências) | import-linter, dependency-cruiser, mais a regra de ciclo | violação cuja origem, destino ou outro módulo do ciclo está no diff | `1` |
+| [Tipos](#tipos) | mypy, pyright ou tsc do próprio repositório | diagnóstico ou escape numa linha nova do diff, sem waiver | `1` |
 
-Versões pinadas: lizard 1.24.1, coverage 7.16.2, c8 12.0.0, vitest 5.0.3, jscpd 5.4.1, mutmut 3.8.0, import-linter 2.15, grimp 3.17, dependency-cruiser 18.5.0. Node 22.14.0. Fonte: `pyproject.toml` e `package.json`. O doctor lê os pinos pip do Requires-Dist instalado.
+Versões pinadas: lizard 1.24.1, coverage 7.16.2, c8 12.0.0, vitest 5.0.3, jscpd 5.4.1, mutmut 3.8.0, import-linter 2.15, grimp 3.17, dependency-cruiser 18.5.0. Node 22.14.0. Fonte: `pyproject.toml` e `package.json`. O doctor lê os pinos pip do Requires-Dist instalado. mypy, pyright e tsc ficam de fora dessa lista. O gate de tipos usa o executável que o `PATH` do repositório resolver, e o doctor não confere a versão.
 
 ## CRAP
 
@@ -81,6 +82,31 @@ O nome da regra de ciclo no JSON (sempre inglês) é `Forbidden dependency cycle
 Uma violação bloqueia quando a origem, o destino, ou outro módulo do mesmo componente fortemente conexo, está no diff (`_edge_in_diff`). As outras aparecem em “Informação (dependências fora do diff)” e não mudam o exit code. Zero violações no diff: `passed` e exit `0`. Uma no diff: `failed` e exit `1`.
 
 Ferramenta ausente que impede a medição pedida deixa o gate `not_run` e o exit `4` (`ToolError` em `run_deps_gate`). O mesmo exit `4` vale para um JSON do dependency-cruiser que não é objeto ou não traz a lista `violations`, e para o import-linter com exit 0 cuja última linha `Contracts:` não é `N kept, 0 broken.`
+
+## Tipos
+
+O gate roda com `bob check --gates typing`. O `bob check` sem `--gates` continua `crap,dry,deps` (`DEFAULT_GATES`). O hook `src/bob_quality/hooks/pre-push` passa esses três. A Action `.github/actions/bob/action.yml`, sem inputs, continua `crap,dry,deps,mutate`. Nenhum dos três inclui `typing`.
+
+mypy, pyright e tsc são os executáveis do repositório. O bob não os pina, não os instala e não os chama com `python -m` nem com `npx`. A primeira linha não vazia de `--version` vai para `tool_versions`. Se o processo não chegou a subir, a chave desse checker não entra.
+
+Não há limiar de type-coverage. A chave `typing` no `bob.yaml` não tem filhos. `typing: {}` é aceito e não liga o gate. Quem liga é `--gates typing`. Ver [Configuração](configuracao.md#typing).
+
+Bloqueia, com status `failed` e exit `1`, um diagnóstico do checker ou um escape que esteja numa linha nova do diff e não tenha waiver. O id é `typing:<arquivo>:<linha>:<código>`, comparado pelo texto inteiro. O motivo do gate, quando falha, é o primeiro id. O relatório lista o resto. Um achado fora do diff entra na tabela com disposição `off_diff` e não muda o exit.
+
+Os escapes são `Any` e `type: ignore` em `.py` e `.pyi`, e `as any`, `@ts-ignore` e `@ts-expect-error` em `.ts` e `.tsx`. Não entra `.js`. O código gravado de um ignore do Python é sempre `type: ignore`, inclusive em `# type: ignore[arg-type]` e `# type:ignore`. `@ts-ignore` dentro de uma string não conta. O escape só é lido em arquivo do diff, dentro de `paths.include`, e só se a linguagem tiver config de checker.
+
+A linguagem vem de `languages`. Sem config de checker, ela fica `not_run`, contribui `0`, e o motivo do gate é `no checker config`.
+
+- mypy roda quando existe `mypy.ini`, `.mypy.ini`, a seção `[mypy]` no `setup.cfg`, ou `[tool.mypy]` no `pyproject.toml`.
+- pyright roda quando existe `pyrightconfig.json` ou `[tool.pyright]`.
+- Se os dois existem, os dois rodam.
+- tsc roda quando o `tsconfig.json` da raiz é um arquivo. Um `tsconfig` aninhado não conta. Sem o arquivo da raiz, TypeScript fica `not_run` e contribui `0`.
+
+Config presente e executável ausente deixa esse checker sem medição (`missing_executable`). Exit `4` só quando o gate foi pedido e nenhum checker mediu. Se um mediu e o outro não, o exit é o da medição, e o motivo de um passe continua vazio.
+
+Contam como medição os exits `0` e `1` do mypy, `0` e `1` do pyright, e `0`, `1` e `2` do tsc. O `2` do mypy, os exits `2`, `3` e `4` do pyright, e os exits `3` e `4` do tsc ficam `exit_outside_measurement`. Exit `0` com uma linha de erro, ou um exit de erro sem linha de diagnóstico, fica `unparseable_output`. Uma linha do tsc sem arquivo é ignorada. Os diagnósticos que têm arquivo permanecem. Stdout e stderr entram os dois na leitura.
+
+O `report.md` ganha `## Types` ou `## Tipos` depois dos mutantes sem teste e antes de como reproduzir, também quando a lista de achados está vazia. O `report.json` ganha o objeto `typing`. `schema_version` continua `1`, e `typing` não é obrigatório no schema.
 
 ## Monorepo e Node ausente
 

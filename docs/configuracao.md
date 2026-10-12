@@ -45,6 +45,7 @@ O `bob.yaml` deste repositório é mais curto: `base`, `languages: [python]`, `p
 | `duplication.min_tokens` | inteiro maior que 0 | `50` | Mínimo de tokens do jscpd |
 | `dependencies.python` | string | `.importlinter` | Config do import-linter |
 | `dependencies.typescript` | string | `.dependency-cruiser.cjs` | Config do dependency-cruiser |
+| `typing` | mapeamento vazio | ausente | Aceito e ignorado. Não liga o gate de tipos |
 
 Um tipo errado sai com `4`. A mensagem em inglês no stderr cita o arquivo e a chave, por exemplo `bob.yaml: crap must be a mapping` ou `bob.yaml: crap.max_per_function must be a number`. Isso vale para `check`, `doctor`, `waive` e os outros comandos, e nenhum deles grava arquivo nesse caso. Ver [Exit 4](exit-codes.md#exit-4).
 
@@ -60,7 +61,7 @@ O gate DRY mapeia `typescript` para os formatos `typescript` e `javascript` do j
 
 ### Chaves que o loader recusa
 
-O `_SCHEMA` em `src/bob_quality/config.py` aceita `base`, `language`, `languages`, `paths.include`, `paths.exclude`, `crap.max_per_function`, `crap.scope`, `duplication.min_tokens`, `dependencies.python` e `dependencies.typescript`. `_reject_unknown` recusa qualquer outra chave: exit `4`, mensagem em inglês no stderr, nenhum arquivo gravado.
+O `_SCHEMA` em `src/bob_quality/config.py` aceita `base`, `language`, `languages`, `paths.include`, `paths.exclude`, `crap.max_per_function`, `crap.scope`, `duplication.min_tokens`, `dependencies.python`, `dependencies.typescript` e `typing`. `_reject_unknown` recusa qualquer outra chave: exit `4`, mensagem em inglês no stderr, nenhum arquivo gravado.
 
 Estas não entram no schema:
 
@@ -70,6 +71,16 @@ Estas não entram no schema:
 - `dependencies.violation`. O erro é `bob.yaml: unknown key dependencies.violation`.
 
 O exemplo de `bob.yaml` na [SPEC](SPEC.md) e nos READMEs não as inclui. Sobrevivente sem waiver sai com `3`, a mutação reusa `.bob/mutation-cache.json`, clone novo é aviso e violação no diff sai com `1`, sem chave para desligar isso. `tests/test_invalid_config.py` cobre a recusa.
+
+### typing
+
+`typing` é um mapeamento sem filhos. `typing: {}`, `typing:` e `typing: null` carregam e não gravam campo em `Config`. Type-coverage não é limiar. A chave não liga o gate. Quem liga é `bob check --gates typing`, e esse nome fica de fora do padrão, do hook e da Action. Ver [Tipos](gates.md#tipos).
+
+Uma chave dentro do mapeamento sai com `4` antes do relatório. `typing: {threshold: 1}` produz `bob.yaml: unknown key typing.threshold`. Um valor que não é mapeamento, como `typing: 1` ou `typing: []`, produz `bob.yaml: typing must be a mapping`. Nada é gravado em `.bob/`.
+
+mypy, pyright e tsc continuam sendo os executáveis do repositório. O bob não os pina.
+
+Um waiver de tipo fica no mesmo `.bob/waivers.yaml`. O `id` é `typing:<arquivo>:<linha>:<código>`. O texto `type: ignore` tem dois-pontos e espaço, então esse id vai entre aspas. O gate compara o id inteiro. Não parte no `:`.
 
 ## .bob/waivers.yaml
 
