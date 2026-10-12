@@ -20,16 +20,18 @@ def run_crap_gate(
     diff_lines: dict[str, set[int]],
     max_crap: float,
     coverage_file: Path | None,
-) -> tuple[GateResult, list[FunctionMetric], int, dict[str, str]]:
+) -> tuple[GateResult, list[FunctionMetric], int, dict[str, str], int | None]:
+    """O último item é o exit do pytest da medição Python, ou None sem pytest."""
     metrics: list[FunctionMetric] = []
     versions: dict[str, str] = {}
     typescript_skip: str | None = None
+    baseline: int | None = None
     if "python" in config.languages:
-        failure = _absorb(
-            measure_python(cwd, config, diff_lines, coverage_file), metrics, versions
-        )
+        python = measure_python(cwd, config, diff_lines, coverage_file)
+        baseline = python.baseline
+        failure = _absorb(python, metrics, versions)
         if failure is not None:
-            return failure
+            return (*failure, baseline)
     if "typescript" in config.languages:
         probed = measure_typescript(cwd, config, diff_lines)
         if "python" in config.languages and _node_is_missing(probed):
@@ -38,9 +40,9 @@ def run_crap_gate(
         else:
             failure = _absorb(probed, metrics, versions)
             if failure is not None:
-                return failure
+                return (*failure, baseline)
     verdict, code = crap_verdict(metrics, max_crap, config.crap_scope)
-    return _with_typescript_skip(verdict, typescript_skip), metrics, code, versions
+    return _with_typescript_skip(verdict, typescript_skip), metrics, code, versions, baseline
 
 
 def _with_typescript_skip(verdict: GateResult, typescript_skip: str | None) -> GateResult:

@@ -17,6 +17,8 @@ ROOT = Path(__file__).resolve().parents[1]
 def _skip_under_mutmut() -> None:
     if os.environ.get("MUTANT_UNDER_TEST") or os.environ.get("BOB_SKIP_MUTMUT_DOGFOOD"):
         pytest.skip("o build do wheel não participa da execução do mutmut")
+    if os.environ.get("BOB_COVERAGE_RC"):
+        pytest.skip("o build do wheel leva minutos sob o coverage do gate CRAP")
 
 
 def test_sdist_and_wheel_pass_twine_check(tmp_path: Path) -> None:

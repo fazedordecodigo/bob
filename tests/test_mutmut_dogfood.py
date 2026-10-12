@@ -126,6 +126,8 @@ def test_prepare_is_idempotent_when_the_mutants_directory_exists(tmp_path: Path)
 def test_mutmut_stats_collection_does_not_die_on_this_repo() -> None:
     if os.environ.get("MUTANT_UNDER_TEST") or os.environ.get("BOB_SKIP_MUTMUT_DOGFOOD"):
         pytest.skip("não reentrar na coleta do mutmut")
+    if os.environ.get("BOB_COVERAGE_RC"):
+        pytest.skip("leva minutos sob o coverage do gate CRAP e roda no job de pytest")
     prepare_mutmut_workspace(ROOT)
     env = {
         key: value

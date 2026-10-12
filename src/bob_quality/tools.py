@@ -8,6 +8,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+from bob_quality.exit_codes import pytest_passed
+
 
 class ToolError(Exception):
     """Ferramenta pinada ausente ou falhou de forma inesperada."""
@@ -39,10 +41,11 @@ def run_coverage(
     include: list[str],
     json_path: Path,
     coverage_file: Path | None,
-) -> int:
+) -> int | None:
     """Roda pytest sob coverage e grava JSON. Devolve o exit code do pytest.
 
-    Se `coverage_file` já existe, só exporta JSON a partir dele (exit 0).
+    Se `coverage_file` já existe, só exporta JSON a partir dele e devolve None,
+    porque nenhum pytest rodou.
     """
     if coverage_file is not None:
         _run(
@@ -50,7 +53,7 @@ def run_coverage(
             cwd,
             extra_env={"COVERAGE_FILE": str(coverage_file)},
         )
-        return 0
+        return None
     rc = _coverage_rc(json_path, include, cwd)
     env = {
         key: value
@@ -68,7 +71,7 @@ def run_coverage(
         stdin=subprocess.DEVNULL,
         env=env,
     )
-    if pytest_run.returncode in {0, 5}:
+    if pytest_passed(pytest_run.returncode):
         _export_coverage_json(cwd, rc, json_path)
     return pytest_run.returncode
 

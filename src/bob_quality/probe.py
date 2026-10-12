@@ -21,6 +21,8 @@ class ProbeResult:
     versions: dict[str, str] = field(default_factory=dict)
     gate: GateResult | None = None
     exit_code: int | None = None
+    # Exit do pytest que a medição rodou. O gate mutate o usa como baseline.
+    baseline: int | None = None
 
     @classmethod
     def not_run(
@@ -28,11 +30,13 @@ class ProbeResult:
         versions: dict[str, str],
         reason: str,
         exit_code: int,
+        baseline: int | None = None,
     ) -> ProbeResult:
         return cls(
             versions=versions,
             gate=GateResult("crap", "not_run", reason),
             exit_code=exit_code,
+            baseline=baseline,
         )
 
 
