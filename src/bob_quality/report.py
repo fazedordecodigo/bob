@@ -13,6 +13,7 @@ from bob_quality.models import (
     GateResult,
     GateStatus,
     Report,
+    SecretRow,
 )
 
 JSON_LANGUAGE: Language = "en"
@@ -41,7 +42,7 @@ def write_report(report: Report, out_dir: Path, fmt: str, lang: Language) -> Non
 
 
 def to_json(report: Report) -> dict[str, object]:
-    return {
+    payload = {
         "schema_version": report.schema_version,
         "commit": report.commit,
         "base": report.base,
@@ -60,9 +61,12 @@ def to_json(report: Report) -> dict[str, object]:
         "waivers": report.waivers,
         "survivors": report.survivors,
         "mutation": report.mutation,
-        "reproduce": report.reproduce,
-        "exit_code": report.exit_code,
     }
+    if report.secrets is not None:
+        payload["secrets"] = [secret_row(row) for row in report.secrets.blocking]
+    payload["reproduce"] = report.reproduce
+    payload["exit_code"] = report.exit_code
+    return payload
 
 
 def _json_reason(reason: Text | None) -> str | None:
@@ -97,6 +101,7 @@ def to_markdown(report: Report, lang: Language) -> str:
     lines.extend(_clone_lines(report))
     lines.extend(_survivor_lines(report))
     lines.extend(_no_coverage_lines(report))
+    lines.extend(_secrets_lines(report))
     lines.extend(_footer(report, lang))
     return "\n".join(render(line, lang) for line in lines)
 
@@ -219,6 +224,36 @@ def _waiver_section(waivers: list[dict[str, object]]) -> list[Text]:
         )
     lines.append("")
     return lines
+
+
+def _secrets_lines(report: Report) -> list[Text]:
+    ledger = report.secrets
+    if ledger is None:
+        return []
+    lines: list[Text] = ["", msg("report.secrets"), ""]
+    if ledger.blocking:
+        lines.extend(_secret_table(ledger.blocking))
+    else:
+        lines.append(msg("report.no_secrets"))
+    if not ledger.outside_diff:
+        return lines
+    lines.extend(["", msg("report.secrets_outside"), ""])
+    lines.extend(_secret_table(ledger.outside_diff))
+    return lines
+
+
+def _secret_table(rows: tuple[SecretRow, ...]) -> list[Text]:
+    lines: list[Text] = [msg("report.secrets_header"), "|---|---|---:|---|"]
+    lines.extend(_secret_table_row(row) for row in rows)
+    return lines
+
+
+def _secret_table_row(row: SecretRow) -> str:
+    return f"| `{row.waiver_id()}` | {row.file} | {row.line} | {row.rule_id} |"
+
+
+def secret_row(row: SecretRow) -> dict[str, object]:
+    return {"file": row.file, "line": row.line, "rule_id": row.rule_id}
 
 
 def _footer(report: Report, lang: Language) -> list[Text]:

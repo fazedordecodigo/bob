@@ -105,6 +105,10 @@ _EN: dict[str, str] = {
     "secrets.new_many": "{count} new secrets in the diff",
     "secrets.outside_one": "1 secret outside the diff",
     "secrets.outside_many": "{count} secrets outside the diff",
+    "secrets.unreadable": "gitleaks did not return a usable report",
+    "secrets.include_missing": "gitleaks: include path missing: {paths}",
+    "secrets.gitleaksignore": "move .gitleaksignore entries to .bob/waivers.yaml",
+    "secrets.version": "unreadable gitleaks version",
     "dry.no_report": "jscpd did not write the JSON",
     "deps.node_missing": (
         "Node missing: install Node.js for the dependency gate (dependency-cruiser via npx)"
@@ -182,6 +186,10 @@ _EN: dict[str, str] = {
     "report.no_survivors": "No surviving mutants.",
     "report.survivor_header": "| Id | Function | Location | Operator | Waiver |",
     "report.no_coverage": "## Mutants without tests",
+    "report.secrets": "## Secrets",
+    "report.no_secrets": "No new secret in the diff.",
+    "report.secrets_outside": "Outside the diff; does not block.",
+    "report.secrets_header": "| Target | File | Line | Rule |",
     "report.no_uncovered": "No mutants without tests.",
     "report.uncovered_total": "⚠️ Total: {total}. Does not block.",
     "report.uncovered_header": "| Function | File | Mutants |",
@@ -268,6 +276,10 @@ _PT_BR: dict[str, str] = {
     "secrets.new_many": "{count} segredos novos no diff",
     "secrets.outside_one": "1 segredo fora do diff",
     "secrets.outside_many": "{count} segredos fora do diff",
+    "secrets.unreadable": "o gitleaks não devolveu um relatório utilizável",
+    "secrets.include_missing": "gitleaks: caminho include ausente: {paths}",
+    "secrets.gitleaksignore": "mova as entradas de .gitleaksignore para .bob/waivers.yaml",
+    "secrets.version": "versão do gitleaks ilegível",
     "dry.no_report": "jscpd não gravou o JSON",
     "deps.node_missing": (
         "Node ausente: instale Node.js para o gate de dependências (dependency-cruiser via npx)"
@@ -345,6 +357,10 @@ _PT_BR: dict[str, str] = {
     "report.no_survivors": "Nenhum mutante sobrevivente.",
     "report.survivor_header": "| Id | Função | Local | Operador | Waiver |",
     "report.no_coverage": "## Mutantes sem teste",
+    "report.secrets": "## Segredos",
+    "report.no_secrets": "Nenhum segredo novo no diff.",
+    "report.secrets_outside": "Fora do diff; não bloqueia.",
+    "report.secrets_header": "| Alvo | Arquivo | Linha | Regra |",
     "report.no_uncovered": "Nenhum mutante sem teste.",
     "report.uncovered_total": "⚠️ Total: {total}. Não bloqueia.",
     "report.uncovered_header": "| Função | Arquivo | Mutantes |",

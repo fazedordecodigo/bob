@@ -14,9 +14,10 @@ from bob_quality.diff import GitError, changed_lines, current_commit
 from bob_quality.dry_gate import run_dry_gate
 from bob_quality.exit_codes import CONFIG_OR_TOOL, PASSED
 from bob_quality.messages import DEFAULT_LANGUAGE, Language, Text, msg, reason
-from bob_quality.models import Clone, DepViolation, FunctionMetric, GateResult, Report
+from bob_quality.models import Clone, DepViolation, FunctionMetric, GateResult, Report, SecretLedger
 from bob_quality.mutate import MutationOutcome, focus_with_survivors, run_mutation_gate
 from bob_quality.report import metric_row, violation_rows, write_report
+from bob_quality.secrets_gate import run_secrets_gate
 from bob_quality.waivers import WaiverError, load_waivers
 
 DEFAULT_GATES = ("crap", "dry", "deps")
@@ -101,6 +102,7 @@ class _Measured:
     violations: list[DepViolation] = field(default_factory=list)
     exit_code: int = PASSED
     mutation: MutationOutcome | None = None
+    secrets: SecretLedger | None = None
     loaded_waivers: list[dict[str, object]] = field(default_factory=list)
     baseline: int | None = None
 
@@ -176,6 +178,11 @@ def _absorb(
         state.mutation = mutation
         _record(state, mutation.result, mutation.exit_code, mutation.versions)
         return
+    if gate == "secrets":
+        outcome = run_secrets_gate(cwd=cwd, config=config, diff_lines=diff_lines)
+        state.secrets = outcome.ledger
+        _record(state, outcome.result, outcome.exit_code, outcome.versions)
+        return
     _record(
         state,
         GateResult(gate, "not_run", msg("check.gate_not_implemented")),
@@ -241,6 +248,7 @@ def _assemble(
         waivers=waivers,
         survivors=survivors,
         mutation=summary,
+        secrets=measured.secrets,
     )
 
 

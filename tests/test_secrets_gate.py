@@ -2,15 +2,29 @@
 
 from __future__ import annotations
 
+import json
+import os
+import stat
+import sys
 from pathlib import Path
 
 import pytest
+from jsonschema import Draft202012Validator
+from jsonschema.exceptions import ValidationError
 
 from bob_quality.config import Config, ConfigError, load_config
-from bob_quality.messages import reason, render
-from bob_quality.models import SecretRow
+from bob_quality.messages import msg, reason, render
+from bob_quality.models import GateResult, Report, SecretLedger, SecretRow
+from bob_quality.report import to_json, to_markdown
 from bob_quality.secrets_gate import judge_secrets
-from helpers import in_both, run_bob
+from helpers import commit_on_branch, in_both, init_python_repo, run_bob
+
+SCHEMA = json.loads(
+    (Path(__file__).resolve().parents[1] / "src/bob_quality/schemas/report_v1.json").read_text()
+)
+_SENTINEL = "super-secret-value"
+_PATH_SENTINEL = "path-only-sentinel"
+_EXAMPLE = "AKIAIOSFODNN7EXAMPLE"
 
 
 def test_judge_secrets_blocks_only_the_changed_unwaived_line() -> None:
@@ -109,3 +123,274 @@ def test_load_config_rejects_a_secrets_scalar_or_child(
     assert result.stderr == stderr
     assert result.stdout == ""
     assert not (tmp_path / ".bob").exists()
+
+
+def test_report_omits_the_secret_text(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    repo = init_python_repo(tmp_path / "repo")
+    commit_on_branch(repo, "leak", "src/app/added.py", "print('ok')\n", "add file")
+    added = repo / "src/app/added.py"
+    body = json.dumps(
+        [
+            {
+                "File": str(added.resolve()),
+                "StartLine": 1,
+                "RuleID": "aws-access-token",
+                "Secret": _SENTINEL,
+            },
+            {
+                "File": str(added.resolve()),
+                "StartLine": 0,
+                "RuleID": "path-only",
+                "Secret": _PATH_SENTINEL,
+            },
+        ]
+    )
+    _use_stub(tmp_path, monkeypatch, [(body, 1)])
+
+    result = run_bob(repo, "check", "--gates", "secrets", "--base", "main")
+    report_json = (repo / ".bob" / "report.json").read_text()
+    report_md = (repo / ".bob" / "report.md").read_text()
+    payload = json.loads(report_json)
+
+    assert result.returncode == 1
+    assert _SENTINEL not in report_json
+    assert _SENTINEL not in report_md
+    assert _PATH_SENTINEL not in report_json
+    assert _PATH_SENTINEL not in report_md
+    assert sorted(path.name for path in (repo / ".bob").iterdir()) == ["report.json", "report.md"]
+    assert payload["secrets"] == [
+        {"file": "src/app/added.py", "line": 1, "rule_id": "aws-access-token"}
+    ]
+    assert payload["gates"] == [
+        {"name": "secrets", "status": "failed", "reason": "1 new secret in the diff"}
+    ]
+
+
+def test_json_secrets_array_is_the_blocking_rows_only() -> None:
+    payload = to_json(_secrets_report())
+
+    assert payload["secrets"] == [
+        {"file": "src/app.py", "line": 12, "rule_id": "aws-access-token"}
+    ]
+    keys = list(payload)
+    assert keys[keys.index("mutation") + 1] == "secrets"
+    assert keys[keys.index("secrets") + 1] == "reproduce"
+    Draft202012Validator(SCHEMA).validate(payload)
+    leaked = {
+        **payload,
+        "secrets": [
+            {
+                "file": "src/app.py",
+                "line": 12,
+                "rule_id": "aws-access-token",
+                "secret": _SENTINEL,
+            }
+        ],
+    }
+    zero = {
+        **payload,
+        "secrets": [{"file": "src/app.py", "line": 0, "rule_id": "aws-access-token"}],
+    }
+    with pytest.raises(ValidationError):
+        Draft202012Validator(SCHEMA).validate(leaked)
+    with pytest.raises(ValidationError):
+        Draft202012Validator(SCHEMA).validate(zero)
+
+
+def test_markdown_puts_segredos_between_uncovered_mutants_and_reproduce() -> None:
+    markdown = to_markdown(_secrets_report(), "pt-BR")
+    uncovered = markdown.index("## Mutantes sem teste")
+    secrets = markdown.index("## Segredos")
+    outside = markdown.index("Fora do diff; não bloqueia.")
+    old = markdown.index("src/old.py")
+    reproduce = markdown.index("## Como reproduzir")
+
+    assert uncovered < secrets < outside < old < reproduce
+    assert "| `secret:aws-access-token:src/app.py:12` | src/app.py | 12 | aws-access-token |" in markdown
+    assert "| `secret:generic-api-key:src/old.py:2` | src/old.py | 2 | generic-api-key |" in markdown
+
+
+def test_empty_gitleaks_array_is_a_pass(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    repo = init_python_repo(tmp_path / "repo")
+    _use_stub(tmp_path, monkeypatch, [("[]", 1)])
+
+    result = run_bob(repo, "check", "--gates", "secrets", "--base", "main")
+    payload = json.loads((repo / ".bob" / "report.json").read_text())
+
+    assert result.returncode == 0
+    assert payload["exit_code"] == 0
+    assert payload["secrets"] == []
+    assert payload["gates"] == [{"name": "secrets", "status": "passed", "reason": None}]
+    assert "No new secret in the diff." in (repo / ".bob" / "report.md").read_text()
+
+
+def test_gitleaks_null_is_exit_4_and_still_writes_the_report(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    repo = init_python_repo(tmp_path / "repo")
+    _use_stub(tmp_path, monkeypatch, [("null", 0)])
+
+    result = run_bob(repo, "check", "--gates", "secrets", "--base", "main")
+    payload = json.loads((repo / ".bob" / "report.json").read_text())
+
+    assert result.returncode == 4
+    assert payload["exit_code"] == 4
+    assert "secrets" not in payload
+    assert payload["gates"] == [
+        {
+            "name": "secrets",
+            "status": "not_run",
+            "reason": "gitleaks did not return a usable report",
+        }
+    ]
+    assert (repo / ".bob" / "report.md").is_file()
+
+
+def test_gitleaksignore_stops_before_spawn(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    repo = init_python_repo(tmp_path / "repo")
+    (repo / "src" / ".gitleaksignore").write_text("src/app/safe.py\n")
+    marker = tmp_path / "spawned"
+    _use_stub(tmp_path, monkeypatch, [("[]", 0)], marker)
+
+    result = run_bob(repo, "check", "--gates", "secrets", "--base", "main")
+    payload = json.loads((repo / ".bob" / "report.json").read_text())
+
+    assert result.returncode == 4
+    assert not marker.exists()
+    assert "secrets" not in payload
+    assert payload["gates"] == [
+        {
+            "name": "secrets",
+            "status": "not_run",
+            "reason": "move .gitleaksignore entries to .bob/waivers.yaml",
+        }
+    ]
+
+
+def test_a_directory_named_b_stays_in_the_file(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    repo = init_python_repo(tmp_path / "repo")
+    commit_on_branch(repo, "leak", "b/added.py", "print('ok')\n", "add file")
+    _use_stub(
+        tmp_path,
+        monkeypatch,
+        [(json.dumps([{"File": "b/added.py", "StartLine": 1, "RuleID": "aws-access-token"}]), 1)],
+    )
+
+    result = run_bob(repo, "check", "--gates", "secrets", "--base", "main")
+    payload = json.loads((repo / ".bob" / "report.json").read_text())
+
+    assert result.returncode == 1
+    assert payload["secrets"] == [{"file": "b/added.py", "line": 1, "rule_id": "aws-access-token"}]
+
+
+def test_one_bad_include_discards_partial_rows(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    repo = init_python_repo(tmp_path / "repo")
+    (repo / "extra").mkdir()
+    (repo / "bob.yaml").write_text("base: main\npaths:\n  include: [src, extra]\n")
+    commit_on_branch(repo, "leak", "src/app/added.py", "print('ok')\n", "add file")
+    added = (repo / "src/app/added.py").resolve()
+    first = json.dumps(
+        [{"File": str(added), "StartLine": 1, "RuleID": "aws-access-token", "Secret": _SENTINEL}]
+    )
+    _use_stub(tmp_path, monkeypatch, [(first, 1), ("null", 0)])
+
+    result = run_bob(repo, "check", "--gates", "secrets", "--base", "main")
+    report_json = (repo / ".bob" / "report.json").read_text()
+    payload = json.loads(report_json)
+
+    assert result.returncode == 4
+    assert "secrets" not in payload
+    assert _SENTINEL not in report_json
+    assert _SENTINEL not in (repo / ".bob" / "report.md").read_text()
+
+
+def test_real_gitleaks_leaves_the_aws_example_out_of_the_report(tmp_path: Path) -> None:
+    # The 8.30.1 rule aws-access-token allowlists a secret that ends in EXAMPLE.
+    repo = init_python_repo(tmp_path / "repo")
+    commit_on_branch(
+        repo,
+        "leak",
+        "src/app/leak.py",
+        f'token = "{_EXAMPLE}"\n',
+        "add example key",
+    )
+
+    result = run_bob(repo, "check", "--gates", "secrets", "--base", "main")
+    report_json = (repo / ".bob" / "report.json").read_text()
+    report_md = (repo / ".bob" / "report.md").read_text()
+    payload = json.loads(report_json)
+
+    assert _EXAMPLE not in report_json
+    assert _EXAMPLE not in report_md
+    assert result.returncode == 0
+    assert payload["tool_versions"]["gitleaks"] == "8.30.1"
+    assert payload["secrets"] == []
+    assert payload["gates"] == [{"name": "secrets", "status": "passed", "reason": None}]
+
+
+def _secrets_report() -> Report:
+    return Report(
+        schema_version=1,
+        commit="abc",
+        base="main",
+        generated_at="2026-10-11T00:00:00+00:00",
+        tool_versions={"gitleaks": "8.30.1"},
+        gates=[GateResult("secrets", "failed", msg("secrets.new_one"))],
+        focus=[],
+        top_crap=[],
+        reproduce="bob check --gates secrets",
+        exit_code=1,
+        mutation={"no_coverage": {"total": 0, "functions": []}},
+        secrets=SecretLedger(
+            blocking=(SecretRow("src/app.py", 12, "aws-access-token"),),
+            outside_diff=(SecretRow("src/old.py", 2, "generic-api-key"),),
+        ),
+    )
+
+
+def _use_stub(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    reports: list[tuple[str, int]],
+    marker: Path | None = None,
+) -> None:
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    _write_stub(bin_dir, reports, marker)
+    monkeypatch.setenv("PATH", str(bin_dir) + os.pathsep + os.environ["PATH"])
+
+
+def _write_stub(bin_dir: Path, reports: list[tuple[str, int]], marker: Path | None) -> None:
+    payload = json.dumps([{"body": body, "code": code} for body, code in reports])
+    marker_literal = "None" if marker is None else repr(str(marker))
+    script = f"""#!{sys.executable}
+import json
+import sys
+from pathlib import Path
+marker = {marker_literal}
+if marker is not None:
+    Path(marker).write_text("ran")
+if sys.argv[1:2] == ["--version"]:
+    print("8.30.1")
+    raise SystemExit(0)
+state = Path({str(bin_dir / "state")!r})
+index = int(state.read_text()) if state.is_file() else 0
+state.write_text(str(index + 1))
+chosen = json.loads({payload!r})[min(index, {len(reports) - 1})]
+report = ""
+args = sys.argv[1:]
+for offset, arg in enumerate(args):
+    if arg == "--report-path" and offset + 1 < len(args):
+        report = args[offset + 1]
+Path(report).write_text(chosen["body"])
+raise SystemExit(chosen["code"])
+"""
+    path = bin_dir / "gitleaks"
+    path.write_text(script)
+    path.chmod(path.stat().st_mode | stat.S_IEXEC)
