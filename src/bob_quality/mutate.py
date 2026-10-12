@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 from collections.abc import Callable
 from dataclasses import dataclass, replace
 from pathlib import Path
@@ -66,7 +67,7 @@ def run_mutation_gate(
         return prepared
     versions, waivers, waiver_rows, cache, plan = prepared
     if not plan.remutate:
-        _write_cache(cache, dict(plan.reuse))
+        _write_cache(cache, _publish_body(plan, {}))
         return _finish(
             plan.reused_mutants, plan.remutated_labels, plan.reused_labels, versions, waiver_rows
         )
@@ -76,9 +77,7 @@ def run_mutation_gate(
     fresh = _collect_fresh(cwd, config, plan.remutate, max_workers, versions, waiver_rows, waivers)
     if isinstance(fresh, MutationOutcome):
         return fresh
-    body = dict(plan.reuse)
-    body.update(_cache_body(cwd, plan.remutate, fresh))
-    _write_cache(cache, body)
+    _write_cache(cache, _publish_body(plan, _cache_body(cwd, plan.remutate, fresh)))
     return _finish(
         fresh + plan.reused_mutants, plan.remutated_labels, plan.reused_labels, versions, waiver_rows
     )
@@ -91,17 +90,13 @@ class _Cache:
 
 
 @dataclass(frozen=True)
-class _ReusableMap:
-    functions: dict[str, dict[str, object]]
-    survivor_keys: frozenset[str]
+class _CacheView:
+    held: dict[str, dict[str, object]]
+    may_reuse: bool
 
 
-@dataclass(frozen=True)
-class _NamesOnly:
-    survivor_keys: frozenset[str]
-
-
-_CacheView = _ReusableMap | _NamesOnly
+class _CacheLineError(ValueError):
+    pass
 
 
 @dataclass
@@ -111,6 +106,7 @@ class _Plan:
     reused_mutants: list[Mutant]
     remutated_labels: list[str]
     reused_labels: list[str]
+    carried: dict[str, dict[str, object]]
 
 
 def _prepare_mutation(
@@ -133,7 +129,7 @@ def _prepare_mutation(
     if isinstance(suite, MutationOutcome):
         return suite
     cache = _Cache(out_dir / CACHE_NAME, {"mutmut": versions["mutmut"], "suite": suite})
-    cached, broken = _safe_cache(cache, versions, waiver_rows, waivers)
+    cached, broken = _safe_cache(cache, versions, waiver_rows)
     if broken is not None:
         return broken
     return versions, waivers, waiver_rows, cache, _plan_functions(
@@ -188,13 +184,12 @@ def _safe_cache(
     cache: _Cache,
     versions: dict[str, str],
     waiver_rows: list[dict[str, object]],
-    waivers: list[Waiver],
 ) -> tuple[_CacheView, MutationOutcome | None]:
     try:
-        return _read_cache(cache, waivers), None
-    except (OSError, json.JSONDecodeError) as exc:
+        return _read_cache(cache), None
+    except (OSError, json.JSONDecodeError, _CacheLineError) as exc:
         broken = msg("mutate.cache_invalid", detail=str(exc))
-        return _ReusableMap({}, frozenset()), _tool_outcome(broken, versions, waiver_rows)
+        return _CacheView({}, False), _tool_outcome(broken, versions, waiver_rows)
 
 
 def _plan_functions(
@@ -206,12 +201,20 @@ def _plan_functions(
 ) -> _Plan:
     remutate, reuse = _split_functions(measured, diff_lines, view, cwd, waivers)
     by_key = {f"{item.file}::{item.name}": item for item in measured}
+    taken = {f"{item.file}::{item.name}" for item in remutate}
+    taken.update(key for key, _entry in reuse)
+    carried = {
+        name: dict(entry)
+        for name, entry in view.held.items()
+        if name in by_key and name not in taken and _carry(entry, waivers)
+    }
     return _Plan(
         remutate=remutate,
         reuse=reuse,
         reused_mutants=apply_waivers(_mutants_from_cache(reuse, by_key), waivers),
         remutated_labels=[f"{item.file}::{item.name}" for item in remutate],
         reused_labels=[key for key, _entry in reuse],
+        carried=carried,
     )
 
 
@@ -330,19 +333,27 @@ def _split_functions(
     waivers: list[Waiver],
 ) -> tuple[list[CyclomaticFunction], list[tuple[str, dict[str, object]]]]:
     by_key = {f"{item.file}::{item.name}": item for item in measured}
-    keys = _candidate_keys(measured, diff_lines, view.survivor_keys, by_key)
-    held = view.functions if isinstance(view, _ReusableMap) else {}
+    survivor_keys = frozenset(
+        name for name, entry in view.held.items() if _has_unwaived_survivor(entry, waivers)
+    )
+    keys = _candidate_keys(measured, diff_lines, survivor_keys, by_key)
     remutate: list[CyclomaticFunction] = []
     reuse: list[tuple[str, dict[str, object]]] = []
     for key in sorted(keys):
         item = by_key[key]
-        entry = held.get(key)
+        entry = _reusable_entry(view, key)
         digest = _function_hash(cwd, item.file, item.start_line, item.end_line)
-        if isinstance(entry, dict) and not _needs_remutation(entry, digest, waivers):
+        if entry is not None and not _needs_remutation(entry, digest, waivers):
             reuse.append((key, entry))
         else:
             remutate.append(item)
     return remutate, reuse
+
+
+def _reusable_entry(view: _CacheView, key: str) -> dict[str, object] | None:
+    if not view.may_reuse:
+        return None
+    return view.held.get(key)
 
 
 def _candidate_keys(
@@ -367,35 +378,47 @@ def _needs_remutation(entry: dict[str, object], digest: str, waivers: list[Waive
 
 
 def _has_unwaived_survivor(entry: dict[str, object], waivers: list[Waiver]) -> bool:
-    mutants = entry.get("mutants")
-    if not isinstance(mutants, list):
-        return False
-    rows = [item for item in mutants if isinstance(item, dict) and isinstance(item.get("id"), str)]
-    current = apply_waivers([_mutant_from_row(item) for item in rows], waivers)
+    current = apply_waivers(_cached_mutants(entry), waivers)
     return any(item.status == "survived" and not item.waiver for item in current)
 
 
-def _read_cache(cache: _Cache, waivers: list[Waiver]) -> _CacheView:
+def _carry(entry: dict[str, object], waivers: list[Waiver]) -> bool:
+    survived = [
+        item for item in apply_waivers(_cached_mutants(entry), waivers) if item.status == "survived"
+    ]
+    return bool(survived) and all(item.waiver for item in survived)
+
+
+def _cached_mutants(entry: dict[str, object]) -> list[Mutant]:
+    mutants = entry.get("mutants")
+    if not isinstance(mutants, list):
+        return []
+    return [
+        _mutant_from_row(item)
+        for item in mutants
+        if isinstance(item, dict) and isinstance(item.get("id"), str)
+    ]
+
+
+def _read_cache(cache: _Cache) -> _CacheView:
     if not cache.path.is_file():
-        return _ReusableMap({}, frozenset())
-    return _view_cache(json.loads(cache.path.read_text()), cache.key, waivers)
+        return _CacheView({}, True)
+    return _view_cache(json.loads(cache.path.read_text()), cache.key)
 
 
-def _view_cache(raw: object, key: dict[str, str], waivers: list[Waiver]) -> _CacheView:
+def _view_cache(raw: object, key: dict[str, str]) -> _CacheView:
     if not isinstance(raw, dict):
-        return _ReusableMap({}, frozenset())
+        return _CacheView({}, True)
     functions = raw.get("functions")
-    entries = (
+    held = (
         {str(name): value for name, value in functions.items() if isinstance(value, dict)}
         if isinstance(functions, dict)
         else {}
     )
-    survivor_keys = frozenset(
-        name for name, entry in entries.items() if _has_unwaived_survivor(entry, waivers)
-    )
-    if any(raw.get(field) != key[field] for field in key):
-        return _NamesOnly(survivor_keys)
-    return _ReusableMap(entries, survivor_keys)
+    for entry in held.values():
+        _cached_mutants(entry)
+    may_reuse = all(raw.get(field) == key[field] for field in key)
+    return _CacheView(held, may_reuse)
 
 
 def _mutants_from_cache(
@@ -436,7 +459,11 @@ def _cached_start(entry: dict[str, object]) -> int | None:
 
 def _mutant_from_row(row: dict[str, object], file_start: int | None = None) -> Mutant:
     waiver = row.get("waiver")
-    line = int(row.get("line") or 0)
+    raw_line = row.get("line")
+    try:
+        line = int(raw_line or 0)
+    except ValueError as exc:
+        raise _CacheLineError(str(exc)) from exc
     if file_start is not None and line > 0:
         line = file_start + line - 1
     return Mutant(
@@ -584,10 +611,19 @@ def _function_hash(cwd: Path, file: str, start: int, end: int) -> str:
     return hashlib.sha256(text.encode()).hexdigest()
 
 
+def _publish_body(plan: _Plan, fresh: dict[str, object]) -> dict[str, object]:
+    body: dict[str, object] = dict(plan.carried)
+    body.update(dict(plan.reuse))
+    body.update(fresh)
+    return body
+
+
 def _write_cache(cache: _Cache, functions: dict[str, object]) -> None:
     cache.path.parent.mkdir(parents=True, exist_ok=True)
-    payload = {**cache.key, "functions": functions}
-    cache.path.write_text(json.dumps(payload, indent=2) + "\n")
+    payload = json.dumps({**cache.key, "functions": functions}, indent=2) + "\n"
+    temporary = cache.path.with_name(cache.path.name + ".tmp")
+    temporary.write_text(payload)
+    os.replace(temporary, cache.path)
 
 
 def _mutant_row(mutant: Mutant) -> dict[str, object]:
