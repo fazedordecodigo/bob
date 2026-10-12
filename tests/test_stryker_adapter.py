@@ -11,6 +11,7 @@ from pathlib import Path
 
 import pytest
 
+from bob_quality.adapters.stryker import StrykerParseError, mutants_from_report
 from bob_quality.models import CyclomaticFunction
 from helpers import in_both
 
@@ -24,8 +25,6 @@ _SPANS = [
 
 
 def _mapped():
-    from bob_quality.adapters.stryker import mutants_from_report
-
     payload = json.loads((RAW / "stryker-report.json").read_text())
     return mutants_from_report(payload, _SPANS)
 
@@ -65,8 +64,6 @@ def test_no_coverage_keeps_file_and_innermost_function() -> None:
 
 
 def test_pending_outside_every_span_raises() -> None:
-    from bob_quality.adapters.stryker import StrykerParseError, mutants_from_report
-
     payload = {
         "files": {
             "src/untouched.ts": {
@@ -95,8 +92,6 @@ def test_pending_outside_every_span_raises() -> None:
 
 
 def test_unknown_status_raises() -> None:
-    from bob_quality.adapters.stryker import StrykerParseError, mutants_from_report
-
     payload = json.loads((RAW / "stryker-report.json").read_text())
     payload["files"]["src/safe.ts"]["mutants"][0]["status"] = "Exploded"
 
