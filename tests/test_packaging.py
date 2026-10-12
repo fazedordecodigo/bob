@@ -803,3 +803,33 @@ def test_unreadable_retired_notice_stays_and_the_install_finishes(
     assert not gone.exists()
     for name in BOB_SKILLS:
         assert (dest / name / "SKILL.md").read_bytes() == (ROOT / "skills" / name / "SKILL.md").read_bytes()
+
+
+def test_unreadable_retired_folder_stays_and_the_install_finishes(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    if os.geteuid() == 0:
+        pytest.skip("root ignora o chmod 000")
+    dest = tmp_path / ".agents" / "skills"
+    locked = dest / "ask-matt"
+    locked.mkdir(parents=True)
+    (locked / "SKILL.md").write_text("antiga\n")
+    notice = locked / "NOTICE"
+    notice.write_text(OLD_INSTALL_NOTICE)
+    gone = dest / "tdd"
+    gone.mkdir()
+    (gone / "SKILL.md").write_text("sai\n")
+    (gone / "NOTICE").write_text(OLD_INSTALL_NOTICE)
+    locked.chmod(0)
+    try:
+        result = _install(capsys, "--project", str(tmp_path), "agents")
+    finally:
+        locked.chmod(0o755)
+
+    denied = f"[Errno 13] Permission denied: '{notice}'"
+    assert result == (0, _installed(".agents/skills"), _kept(locked, denied) + "\n")
+    assert (locked / "SKILL.md").read_text() == "antiga\n"
+    assert notice.read_text() == OLD_INSTALL_NOTICE
+    assert not gone.exists()
+    for name in BOB_SKILLS:
+        assert (dest / name / "SKILL.md").read_bytes() == (ROOT / "skills" / name / "SKILL.md").read_bytes()
