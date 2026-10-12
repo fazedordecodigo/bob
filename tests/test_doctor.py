@@ -38,6 +38,8 @@ PINS = (
     ("mutmut", "3.8.0", "mutmut", "mutmut, version 3.8.0"),
     ("import-linter", "2.15", "lint-imports", "2.15"),
     ("dependency-cruiser", "18.5.0", "dependency-cruiser", "18.5.0"),
+    ("stryker", "10.0.0", "stryker", "10.0.0"),
+    ("stryker-vitest-runner", "10.0.0", "stryker-vitest-runner", "10.0.0"),
 )
 
 INSTALL = {
@@ -50,6 +52,8 @@ INSTALL = {
     "mutmut": "pip install 'mutmut==3.8.0'",
     "import-linter": "pip install 'import-linter==2.15'",
     "dependency-cruiser": "npm install dependency-cruiser@18.5.0",
+    "stryker": "npm install @stryker-mutator/core@10.0.0",
+    "stryker-vitest-runner": "npm install @stryker-mutator/vitest-runner@10.0.0",
 }
 
 
@@ -321,7 +325,16 @@ def test_doctor_expected_versions_match_pip_and_npm_pins(tmp_path: Path) -> None
     assert npm["vitest"] == expected["vitest"]
     assert npm["jscpd"] == expected["jscpd"]
     assert npm["dependency-cruiser"] == expected["dependency-cruiser"]
-    assert set(npm) == {"c8", "dependency-cruiser", "jscpd", "vitest"}
+    assert npm["@stryker-mutator/core"] == expected["stryker"]
+    assert npm["@stryker-mutator/vitest-runner"] == expected["stryker-vitest-runner"]
+    assert set(npm) == {
+        "@stryker-mutator/core",
+        "@stryker-mutator/vitest-runner",
+        "c8",
+        "dependency-cruiser",
+        "jscpd",
+        "vitest",
+    }
 
 
 def _expected_versions(stdout: str) -> dict[str, str]:

@@ -62,6 +62,20 @@ PINS: tuple[ToolPin, ...] = (
         "npm install dependency-cruiser@18.5.0",
         npm_package="dependency-cruiser",
     ),
+    ToolPin(
+        "stryker",
+        "10.0.0",
+        "stryker",
+        "npm install @stryker-mutator/core@10.0.0",
+        npm_package="@stryker-mutator/core",
+    ),
+    ToolPin(
+        "stryker-vitest-runner",
+        "10.0.0",
+        "stryker-vitest-runner",
+        "npm install @stryker-mutator/vitest-runner@10.0.0",
+        npm_package="@stryker-mutator/vitest-runner",
+    ),
 )
 
 
