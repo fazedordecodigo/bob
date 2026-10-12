@@ -17,6 +17,7 @@ from __future__ import annotations
 import json
 import os
 import re
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -343,7 +344,6 @@ def test_each_skill_bundles_the_nearest_license_inside_the_plugin(
         capsys, "--project", str(project), "--source", str(source), "copilot", "devin"
     )
 
-    solta = source / "skills" / "solta"
     installed = {
         "solta/SKILL.md": b"solta\n",
         "propria/SKILL.md": b"propria\n",
@@ -355,8 +355,8 @@ def test_each_skill_bundles_the_nearest_license_inside_the_plugin(
     assert result == (
         0,
         "3 skills em .github/skills\n3 skills em .agents/skills\n",
-        "aviso: a skill solta não tem LICENSE até a raiz do plugin "
-        f"({solta}); instalada sem licença.\n",
+        "aviso: a skill solta não tem LICENSE entre a pasta dela e a raiz do plugin "
+        f"{source}; instalada sem licença.\n",
     )
     for dest in (project / ".github" / "skills", project / ".agents" / "skills"):
         assert _files(dest) == installed
@@ -364,6 +364,47 @@ def test_each_skill_bundles_the_nearest_license_inside_the_plugin(
 
     real = _install(capsys, "--project", str(tmp_path / "repo"), "copilot")
     assert real == (0, "30 skills em .github/skills\n", "")
+
+
+def test_relative_source_from_the_repo_installs_bob_skills_with_the_root_license(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.chdir(ROOT)
+
+    result = _install(capsys, "--project", str(tmp_path), "--source", ".", "copilot", "devin")
+
+    assert result == (0, "30 skills em .github/skills\n30 skills em .agents/skills\n", "")
+    license_bytes = (ROOT / "LICENSE").read_bytes()
+    for dest in (tmp_path / ".github" / "skills", tmp_path / ".agents" / "skills"):
+        for name in BOB_SKILLS:
+            assert (dest / name / "LICENSE").read_bytes() == license_bytes, name
+
+
+def test_partial_copy_without_root_license_names_the_root_it_searched(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    source = tmp_path / "parcial"
+    shutil.copytree(ROOT / ".claude-plugin", source / ".claude-plugin")
+    shutil.copytree(ROOT / "skills", source / "skills")
+    project = tmp_path / "projeto"
+    source_arg = str(source)
+
+    result = _install(capsys, "--project", str(project), "--source", source_arg, "copilot")
+
+    warnings = "".join(
+        f"aviso: a skill {name} não tem LICENSE entre a pasta dela e a raiz do plugin "
+        f"{source_arg}; instalada sem licença.\n"
+        for name in BOB_SKILLS
+    )
+    assert result == (0, "30 skills em .github/skills\n", warnings)
+    dest = project / ".github" / "skills"
+    for name in BOB_SKILLS:
+        assert not (dest / name / "LICENSE").exists(), name
+    for name in EXPECTED_SKILLS:
+        if name in BOB_SKILLS:
+            continue
+        assert (dest / name / "LICENSE").read_bytes() == (POCOCK / "LICENSE").read_bytes(), name
+        assert (dest / name / "NOTICE").read_bytes() == (POCOCK / "NOTICE").read_bytes(), name
 
 
 def test_project_defaults_to_the_current_directory(

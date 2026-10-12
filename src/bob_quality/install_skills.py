@@ -44,8 +44,8 @@ def main(argv: list[str] | None = None) -> int:
         if attribution:
             continue
         print(
-            f"aviso: a skill {skill.name} não tem LICENSE até a raiz do plugin"
-            f" ({skill}); instalada sem licença.",
+            f"aviso: a skill {skill.name} não tem LICENSE entre a pasta dela e a raiz do plugin "
+            f"{args.source}; instalada sem licença.",
             file=sys.stderr,
         )
     for dest in dict.fromkeys(TARGETS[name] for name in args.targets):
