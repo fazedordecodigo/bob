@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import tempfile
 from collections.abc import Callable
 from dataclasses import dataclass, replace
 from pathlib import Path
@@ -187,7 +188,7 @@ def _safe_cache(
 ) -> tuple[_CacheView, MutationOutcome | None]:
     try:
         return _read_cache(cache), None
-    except (OSError, json.JSONDecodeError, _CacheLineError) as exc:
+    except (OSError, json.JSONDecodeError, UnicodeDecodeError, _CacheLineError) as exc:
         broken = msg("mutate.cache_invalid", detail=str(exc))
         return _CacheView({}, False), _tool_outcome(broken, versions, waiver_rows)
 
@@ -408,7 +409,7 @@ def _cached_mutants(entry: dict[str, object]) -> list[Mutant]:
 def _read_cache(cache: _Cache) -> _CacheView:
     if not cache.path.is_file():
         return _CacheView({}, True)
-    return _view_cache(json.loads(cache.path.read_text()), cache.key)
+    return _view_cache(json.loads(cache.path.read_bytes().decode()), cache.key)
 
 
 def _view_cache(raw: object, key: dict[str, str]) -> _CacheView:
@@ -465,7 +466,7 @@ def _cached_start(entry: dict[str, object]) -> int | None:
 def _mutant_line(row: dict[str, object]) -> int:
     try:
         return int(row.get("line") or 0)
-    except ValueError as exc:
+    except (ValueError, TypeError) as exc:
         raise _CacheLineError(str(exc))
 
 
@@ -629,9 +630,16 @@ def _publish_body(plan: _Plan, fresh: dict[str, object]) -> dict[str, object]:
 def _write_cache(cache: _Cache, functions: dict[str, object]) -> None:
     cache.path.parent.mkdir(parents=True, exist_ok=True)
     payload = json.dumps({**cache.key, "functions": functions}, indent=2) + "\n"
-    temporary = cache.path.with_name(cache.path.name + ".tmp")
-    temporary.write_text(payload)
-    os.replace(temporary, cache.path)
+    fd, name = tempfile.mkstemp(dir=cache.path.parent)
+    temporary = Path(name)
+    try:
+        with os.fdopen(fd, "w") as handle:
+            handle.write(payload)
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.replace(temporary, cache.path)
+    finally:
+        temporary.unlink(missing_ok=True)
 
 
 def _mutant_row(mutant: Mutant) -> dict[str, object]:

@@ -417,11 +417,13 @@ def test_a_failed_publish_leaves_the_previous_file_and_a_successful_publish_repl
     path.write_text('{"mutmut": "3.8.0", "suite": "abc", "functions": {}}\n')
     before = path.read_bytes()
     cache = _Cache(path, {"mutmut": "3.8.0", "suite": "abc"})
-    temporary = path.with_name("mutation-cache.json.tmp")
     stored = {"src/app/safe.py::add": {"hash": "x"}}
     expected = {"mutmut": "3.8.0", "suite": "abc", "functions": stored}
+    spilled: dict[str, object] = {}
 
     def fail_replace(src: str, dst: str) -> None:
+        spilled["text"] = Path(src).read_text()
+        spilled["parent"] = str(Path(src).parent)
         raise OSError("replace failed")
 
     monkeypatch.setattr(os, "replace", fail_replace)
@@ -433,7 +435,9 @@ def test_a_failed_publish_leaves_the_previous_file_and_a_successful_publish_repl
 
     assert path.read_bytes() == before, "write_text truncated the destination"
     assert str(caught) == "replace failed"
-    assert json.loads(temporary.read_text()) == expected
+    assert json.loads(str(spilled["text"])) == expected
+    assert spilled["parent"] == str(path.parent)
+    assert list(path.parent.iterdir()) == [path]
 
     monkeypatch.undo()
     nested = tmp_path / "fresh" / "deeper" / "mutation-cache.json"
