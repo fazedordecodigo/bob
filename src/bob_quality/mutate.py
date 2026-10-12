@@ -493,13 +493,20 @@ def _finish(
 
 
 def no_coverage_summary(mutants: list[Mutant], labels: list[str]) -> dict[str, object]:
-    """`Mutant.file` vem vazio sem `mutmut show`. O arquivo sai do rótulo `arquivo::função`."""
+    """Conta `no_coverage` de um rótulo `arquivo::função`.
+
+    O mutmut deixa `file` vazio sem `show`, então o id casa o prefixo.
+    O Stryker preenche arquivo e função, e o id não tem esse prefixo.
+    """
     counts: list[tuple[int, str, str]] = []
     for label in labels:
         file, function = label.split("::")
         prefix = mutmut_id_prefix(file, function)
         count = sum(
-            1 for item in mutants if item.status == "no_coverage" and item.id.startswith(prefix)
+            1
+            for item in mutants
+            if item.status == "no_coverage"
+            and ((item.file == file and item.function == function) or item.id.startswith(prefix))
         )
         if count:
             counts.append((count, file, function))
