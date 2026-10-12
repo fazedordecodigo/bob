@@ -1,17 +1,3 @@
-"""Contract tests for issue #7 (skills package).
-
-Seams (acceptance criteria of #7 / docs/SPEC.md — the public boundary):
-
-1. Agent Skills: skills/bob-check and skills/review-report expose name +
-   description frontmatter.
-2. CLI surface: bob-check quotes the registered commands and exit codes,
-   and both skills tell the agent to run `bob check --format both`.
-3. review-report: summarizes .bob/report.md into a Summary / Evidence / Merge Danger pull request body.
-4. AGENTS.md: short index pointing at those skills and `bob check`.
-
-Expected values are literals from docs/SPEC.md, not derived from the files under test.
-"""
-
 from __future__ import annotations
 
 import re
@@ -34,10 +20,15 @@ SPEC_CLI_LINES = [
     "bob <comando> [--lang en|pt-BR]  # idioma da saída (padrão: en)",
 ]
 
-# `bob report` stays in the spec. Issue #37 owns that command. The skills
-# must not send an agent to it.
 SKILL_CLI_LINES = [
-    line for line in SPEC_CLI_LINES if not line.startswith("bob report")
+    "bob check   [--base REF] [--gates crap,dry,deps,mutate] [--config bob.yaml] [--format md|json|both] [--out .bob/]",
+    "bob crap    [--base REF] [--threshold N] [--coverage-file PATH]",
+    "bob dry     [--base REF]",
+    "bob deps",
+    "bob mutate  [--base REF] [--since-last-run] [--max-workers N]",
+    'bob waive   <mutant-id|function> --reason "texto de uma linha"',
+    "bob doctor  # verifica ferramentas e versões instaladas",
+    "bob <comando> [--lang en|pt-BR]  # idioma da saída (padrão: en)",
 ]
 REPORT_COMMAND = "bob check --format both"
 
