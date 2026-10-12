@@ -12,6 +12,10 @@ from bob_quality.models import DepViolation
 _BLOCKING = {"error", "warn"}
 
 
+class CruiserParseError(Exception):
+    """JSON do dependency-cruiser fora do contrato da versão pinada."""
+
+
 def parse_dependency_cruiser(raw: str) -> list[DepViolation]:
     data = json.loads(raw)
     found: list[DepViolation] = []
@@ -29,7 +33,7 @@ def _violation_items(data: object) -> list[object]:
     violations = data.get("violations")
     if isinstance(violations, list):
         return list(violations)
-    return []
+    raise CruiserParseError(msg("deps.cruiser_no_list"))
 
 
 def _violations_for(item: object) -> list[DepViolation]:

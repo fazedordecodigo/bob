@@ -13,8 +13,8 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 
-from bob_quality.adapters.dependency_cruiser import parse_dependency_cruiser
-from bob_quality.adapters.import_linter import broken_contract_name, parse_import_linter
+from bob_quality.adapters.dependency_cruiser import CruiserParseError, parse_dependency_cruiser
+from bob_quality.adapters.import_linter import broken_contract_name, is_empty_report, parse_import_linter
 from bob_quality.config import Config
 from bob_quality.core import deps_verdict, unique_violations
 from bob_quality.cycles import strongly_connected
@@ -358,6 +358,8 @@ def _import_linter_violations(completed: subprocess.CompletedProcess[str]) -> li
     if completed.returncode == 1 and not parsed:
         name = broken_contract_name(completed.stdout) or "import-linter"
         raise UnparsedBreak(msg("deps.contract_broken", name=name))
+    if completed.returncode == 0 and not parsed and not is_empty_report(completed.stdout):
+        raise ToolError(msg("deps.linter_not_empty"))
     return parsed
 
 
@@ -491,6 +493,8 @@ def _cruise_violations(completed: subprocess.CompletedProcess[str]) -> list[DepV
         return parse_dependency_cruiser(completed.stdout)
     except json.JSONDecodeError as exc:
         raise ToolError(_short(completed.stderr or completed.stdout)) from exc
+    except CruiserParseError as exc:
+        raise ToolError(reason(exc)) from exc
 
 
 def _cruiser_config(user: Path) -> str:
