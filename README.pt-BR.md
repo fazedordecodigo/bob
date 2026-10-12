@@ -163,7 +163,7 @@ O bob escreve o texto para humanos em inglês (`en`) ou em português do Brasil 
 3. `language` no `bob.yaml`.
 4. `en`.
 
-Um valor vazio conta como ausente, e a caixa importa (`pt-br` é inválido). Quando um `--lang` ou `BOB_LANG` inválido decide o idioma, a execução sai com `4`, imprime `invalid language: <valor> (use en or pt-BR)` no stderr e não grava relatório. Um `language` inválido no `bob.yaml` é um erro de configuração como qualquer outro. O `bob check` sai com `4` e grava o relatório no idioma da flag, do ambiente ou em inglês.
+Um valor vazio conta como ausente, e a caixa importa (`pt-br` é inválido). Quando um `--lang` ou `BOB_LANG` inválido decide o idioma, a execução sai com `4`, imprime `invalid language: <valor> (use en or pt-BR)` no stderr e não grava relatório. Um `language` inválido no `bob.yaml` é um erro de configuração como qualquer outro. O `bob check` sai com `4` e grava o relatório no idioma da flag, do ambiente ou em inglês. Um `language` válido continua valendo quando outra chave do arquivo é inválida, e o relatório desse erro usa esse idioma.
 
 O `.bob/report.json` não depende do idioma. As chaves continuam as mesmas e os textos de `reason` ficam sempre em inglês, então a mesma entrada dá os mesmos bytes nos dois idiomas. Saída de ferramenta e nomes de regra, como `Proibido ciclo de dependência`, passam como vieram.
 

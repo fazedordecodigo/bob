@@ -194,6 +194,23 @@ def test_invalid_yaml_language_is_a_config_error_in_the_report(
     assert f"`nope`: {'not run' if flag == EN else 'não executado'} ({shown})" in markdown
 
 
+def test_valid_yaml_language_survives_another_invalid_key(tmp_path: Path) -> None:
+    repo = _repo(tmp_path, PT)
+    config = repo / "bob.yaml"
+    config.write_text(config.read_text() + "duplication: [1]\n")
+
+    result = run_bob(repo, "check", "--gates", "nope", "--base", "main")
+    payload = json.loads((repo / ".bob" / "report.json").read_text())
+    markdown = (repo / ".bob" / "report.md").read_text()
+
+    assert result.returncode == 4
+    assert payload["gates"] == [
+        {"name": "nope", "status": "not_run", "reason": "duplication must be a mapping"}
+    ]
+    assert markdown.startswith("# Relatório bob\n")
+    assert "duplication deve ser um mapeamento" in markdown
+
+
 @pytest.mark.parametrize(
     ("args", "env", "expected"),
     [

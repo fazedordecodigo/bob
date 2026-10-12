@@ -163,6 +163,12 @@ def test_configured_language_leaves_a_broken_config_to_the_check(tmp_path: Path)
     assert configured_language(None, tmp_path) is None
 
 
+def test_configured_language_keeps_pt_br_when_another_key_is_invalid(tmp_path: Path) -> None:
+    (tmp_path / "bob.yaml").write_text("language: pt-BR\nduplication: [1]\n")
+
+    assert configured_language(None, tmp_path) == "pt-BR"
+
+
 @pytest.mark.parametrize(
     ("flag", "env", "configured", "expected"),
     [

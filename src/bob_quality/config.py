@@ -44,9 +44,15 @@ def load_config(path: Path | None, cwd: Path) -> Config:
 
 
 def configured_language(path: Path | None, cwd: Path) -> Language | None:
-    """O `language` do bob.yaml. Config inválida fica para o check reportar."""
+    """Lê só `language`. Outra chave inválida não pode derrubar um idioma válido."""
+    config_path = path if path is not None else cwd / "bob.yaml"
+    if not config_path.is_file():
+        return None
+    raw = yaml.safe_load(config_path.read_text()) or {}
+    if not isinstance(raw, dict):
+        return None
     try:
-        return load_config(path, cwd).language
+        return _language(raw.get("language"))
     except ConfigError:
         return None
 

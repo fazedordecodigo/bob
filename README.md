@@ -163,7 +163,7 @@ bob writes its text for humans in English (`en`) or Brazilian Portuguese (`pt-BR
 3. `language` in `bob.yaml`.
 4. `en`.
 
-An empty value counts as unset, and the case matters (`pt-br` is invalid). When an invalid `--lang` or `BOB_LANG` decides the language, the run exits with `4`, prints `invalid language: <value> (use en or pt-BR)` to stderr, and writes no report. An invalid `language` in `bob.yaml` is a configuration error like any other. `bob check` exits with `4` and writes the report in the language from the flag, from the environment, or in English.
+An empty value counts as unset, and the case matters (`pt-br` is invalid). When an invalid `--lang` or `BOB_LANG` decides the language, the run exits with `4`, prints `invalid language: <value> (use en or pt-BR)` to stderr, and writes no report. An invalid `language` in `bob.yaml` is a configuration error like any other. `bob check` exits with `4` and writes the report in the language from the flag, from the environment, or in English. A valid `language` still applies when another key in the file is invalid, and that error's report uses it.
 
 `.bob/report.json` does not depend on the language. Its keys stay the same and its `reason` texts are always in English, so the same input gives the same bytes in both languages. Tool output and rule names, such as `Proibido ciclo de dependência`, pass through unchanged.
 
