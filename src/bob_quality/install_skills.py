@@ -158,7 +158,7 @@ def _skip_reason(child: Path) -> str | None:
     if child.is_symlink() or not child.is_dir():
         return "é um arquivo ou um link simbólico"
     notice = child / "NOTICE"
-    if notice.is_file() and notice.read_bytes() == RETIRED_NOTICE:
+    if notice.is_file() and not notice.is_symlink() and notice.read_bytes() == RETIRED_NOTICE:
         return None
     return "o NOTICE não é o da instalação antiga"
 
