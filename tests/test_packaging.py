@@ -419,6 +419,31 @@ def test_reinstall_keeps_a_symlink_named_like_a_retired_skill(
     assert _files(dest) == after_first
 
 
+def test_reinstall_keeps_a_retired_folder_when_its_notice_is_a_symlink(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    dest = tmp_path / ".github" / "skills"
+    folder = dest / "tdd"
+    folder.mkdir(parents=True)
+    (folder / "SKILL.md").write_text("minha\n")
+    original = tmp_path / "notice-real"
+    original.write_text(OLD_INSTALL_NOTICE)
+    notice = folder / "NOTICE"
+    notice.symlink_to(original)
+    warning = _kept(folder, "o NOTICE não é o da instalação antiga") + "\n"
+
+    first = _install(capsys, "--project", str(tmp_path), "copilot")
+    after_first = _files(dest)
+    second = _install(capsys, "--project", str(tmp_path), "copilot")
+
+    assert (folder / "SKILL.md").read_text() == "minha\n"
+    assert notice.is_symlink()
+    assert notice.readlink() == original
+    assert original.read_text() == OLD_INSTALL_NOTICE
+    assert first == second == (0, _installed(".github/skills"), warning)
+    assert _files(dest) == after_first
+
+
 def test_every_installed_skill_carries_the_plugin_license(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
