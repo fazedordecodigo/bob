@@ -3,11 +3,15 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Literal
 
 from bob_quality.crap import calculate_crap
+from bob_quality.diff import function_is_changed
 from bob_quality.exit_codes import GATE_FAILED, PASSED
+from bob_quality.messages import msg
 from bob_quality.models import (
     Clone,
+    CognitiveFunction,
     CyclomaticFunction,
     DepViolation,
     FileCoverage,
@@ -79,6 +83,27 @@ def crap_verdict(
         GateResult("crap", "failed", f"CRAP >= {max_crap}: {names}"),
         GATE_FAILED,
     )
+
+
+def cognitive_verdict(
+    functions: list[CognitiveFunction],
+    limit: int,
+    waived: set[str],
+    diff_lines: dict[str, set[int]],
+) -> tuple[GateResult, list[CognitiveFunction], Literal[0]]:
+    """Funções alteradas com score no limite viram aviso. O exit é 0."""
+    hot = [
+        item
+        for item in functions
+        if item.score >= limit
+        and item.waiver_id() not in waived
+        and function_is_changed(item.file, item.start_line, item.end_line, diff_lines)
+    ]
+    hot.sort(key=lambda item: (item.file, item.start_line, item.name))
+    if not hot:
+        return GateResult("cognitive", "passed", None), [], 0
+    key = "cognitive.over" if len(hot) == 1 else "cognitive.overs"
+    return GateResult("cognitive", "warn", msg(key, count=len(hot))), hot, 0
 
 
 def informational_debt(

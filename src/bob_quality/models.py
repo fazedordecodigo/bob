@@ -3,11 +3,13 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from pathlib import PurePosixPath
 from typing import Literal
 
 from bob_quality.messages import Text
 
 GateStatus = Literal["passed", "warn", "failed", "not_run"]
+CognitiveLanguage = Literal["python", "typescript"]
 
 
 @dataclass(frozen=True)
@@ -84,6 +86,45 @@ class DepViolation:
     destination: str
     rule: Text
     in_diff: bool
+
+
+@dataclass(frozen=True)
+class CognitiveFunction:
+    """Função medida.
+
+    O arquivo é posix relativo ao repositório. start_line e end_line são
+    inclusivos e cobrem a função inteira. O id de waiver é
+    cognitive:<arquivo>:<nome>.
+    """
+
+    file: str
+    name: str
+    start_line: int
+    end_line: int
+    score: int
+    language: CognitiveLanguage
+
+    def __post_init__(self) -> None:
+        path = PurePosixPath(self.file)
+        if path.is_absolute():
+            raise ValueError("file must be repo-relative")
+        if ".." in path.parts:
+            raise ValueError("file must not contain ..")
+        if self.file.startswith("./"):
+            raise ValueError("file must not start with ./")
+        if self.name == "":
+            raise ValueError("name must not be empty")
+        if "\n" in self.name or "\r" in self.name:
+            raise ValueError("name must not contain a newline")
+        if self.start_line < 1:
+            raise ValueError("start_line must be positive")
+        if self.end_line < self.start_line:
+            raise ValueError("end_line must not precede start_line")
+        if self.score < 0:
+            raise ValueError("score must not be negative")
+
+    def waiver_id(self) -> str:
+        return f"cognitive:{self.file}:{self.name}"
 
 
 @dataclass(frozen=True)
