@@ -102,14 +102,14 @@ O JSON segue um schema versionado (`schema_version: 1`). Os títulos e os textos
 **Mutação diferencial**: um cache (`.bob/mutation-cache.json`, artefato do CI) guarda o hash do texto de cada função, a versão do mutmut e uma impressão da suíte. A impressão é o hash dos arquivos versionados ou não ignorados que a suíte lê além das funções (`tests/`, `test/`, `conftest*`, `test_*.py`, `*_test.py`, configuração do pytest, lockfiles e o `also_copy` do mutmut). Só remuta funções alteradas ou com sobreviventes. Se a versão do mutmut ou a impressão da suíte mudar, o cache inteiro é descartado. Para TS usa o `--incremental` nativo do Stryker. Para Python, filtra os mutantes do mutmut pelas funções do diff.
 
 **Skills**:
-- `bob`: quando rodar o check e como interpretar o JSON e iterar.
+- `bob-check`: quando rodar o check e como interpretar o JSON e iterar.
 - `harden`: matar mutantes "dentro do razoável", com waiver justificado; nunca enfraquecer código de produção para matar mutante.
 - `review-report`: gera e resume o relatório para o corpo do PR, no molde Summary / Evidence / Merge Danger.
 - **A implementação do próprio plugin é feita com TDD.**
 
 **Empacotamento**:
 - manifests `.claude-plugin/` (Claude Code; Copilot CLI e Devin também o leem) e `.cursor-plugin/` (Cursor). Não há `.plugin/`: o Copilot o leria antes de `.claude-plugin/`, e um segundo manifesto poderia divergir;
-- o campo `skills` de `.claude-plugin/plugin.json` é a fonte única da lista de skills, com uma entrada por pasta de skill. `.cursor-plugin/plugin.json` repete a mesma lista, e o instalador a lê de lá. Esta spec não repete a lista. Uma pasta que agrupa skills não entra, porque o Copilot a percorre recursivamente e carregaria tudo o que houver abaixo dela;
+- o campo `skills` de `.claude-plugin/plugin.json` é a fonte única da lista de skills, com uma entrada por pasta de skill. `.cursor-plugin/plugin.json` repete a mesma lista. O instalador lê a lista de `.claude-plugin/plugin.json`. Esta spec não repete a lista. Uma pasta que agrupa skills não entra, porque o Copilot a percorre recursivamente e carregaria tudo o que houver abaixo dela;
 - script de instalação que copia as skills listadas, achatadas pelo nome da pasta, para `.github/skills` (Copilot) ou `.agents/skills` (Devin, Cursor e Copilot). Cada uma leva o `LICENSE` mais próximo entre a pasta da skill e a raiz do plugin, e o `NOTICE` ao lado desse `LICENSE` quando o arquivo existe. Pastas do destino que o manifesto não lista ficam;
 - `AGENTS.md`;
 - GitHub Action composta que comenta o relatório no PR (atualizando um único comentário).
