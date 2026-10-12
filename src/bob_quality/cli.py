@@ -31,7 +31,7 @@ class _Parser(argparse.ArgumentParser):
 
     def exit(self, status: int = 0, message: str | None = None) -> NoReturn:
         if message is not None:
-            self._print_message(message, sys.stderr)
+            sys.stderr.write(message)
         if status == 0:
             raise self.Help
         raise self.Usage
@@ -66,11 +66,7 @@ def build_parser(lang: Language = DEFAULT_LANGUAGE) -> _Parser:
 
     check = sub.add_parser("check", help=t(lang, "cli.check"))
     _add_shared(check, lang)
-    check.add_argument(
-        "--gates",
-        default=None,
-        help=t(lang, "cli.gates"),
-    )
+    check.add_argument("--gates", help=t(lang, "cli.gates"))
     check.add_argument(
         "--format",
         default="both",
@@ -79,8 +75,8 @@ def build_parser(lang: Language = DEFAULT_LANGUAGE) -> _Parser:
 
     crap = sub.add_parser("crap", help=t(lang, "cli.crap"))
     _add_shared(crap, lang)
-    crap.add_argument("--threshold", type=float, default=None)
-    crap.add_argument("--coverage-file", default=None)
+    crap.add_argument("--threshold", type=float)
+    crap.add_argument("--coverage-file")
 
     dry = sub.add_parser("dry", help=t(lang, "cli.dry"))
     _add_shared(dry, lang)
@@ -95,11 +91,11 @@ def build_parser(lang: Language = DEFAULT_LANGUAGE) -> _Parser:
         action="store_true",
         help=t(lang, "cli.since_last_run"),
     )
-    mutate.add_argument("--max-workers", type=int, default=None)
+    mutate.add_argument("--max-workers", type=int)
 
     waive = sub.add_parser("waive", help=t(lang, "cli.waive"))
     waive.add_argument("target", help=t(lang, "cli.waive_target"))
-    waive.add_argument("--reason", default=None)
+    waive.add_argument("--reason")
     _add_lang(waive, lang)
 
     doctor = sub.add_parser("doctor", help=t(lang, "cli.doctor"))
@@ -167,9 +163,11 @@ def main(argv: list[str] | None = None) -> int:
 
 def _language(argv: list[str] | None) -> Language:
     """Lido antes do parser completo, para a ajuda já sair no idioma escolhido."""
-    early = _Parser(prog="bob", add_help=False)
-    early.add_argument("--lang", default=None)
-    early.add_argument("--config", default=None)
+    early = _Parser(prog="bob")
+    early._option_string_actions.pop("-h")
+    early._option_string_actions.pop("--help")
+    early.add_argument("--lang")
+    early.add_argument("--config")
     known, _rest = early.parse_known_args(argv)
     cwd = Path.cwd()
     flag = known.lang

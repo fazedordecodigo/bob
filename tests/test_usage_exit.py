@@ -1,22 +1,53 @@
 from __future__ import annotations
 
+import io
+import os
 import re
 import subprocess
+from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
 
 import pytest
 
-from bob_quality.cli import main
-from helpers import run_bob
+from bob_quality.cli import _stop_code, main
+from helpers import init_python_repo, run_bob
 
 _COMMAND_GROUP = re.compile(r"\{([^{}]+)\}")
 
 
 def _usage_4(result: subprocess.CompletedProcess[str], repo: Path) -> None:
     assert result.returncode == 4, result.stderr
-    assert "usage:" in result.stderr, result.stderr
+    assert result.stderr.startswith("usage: bob"), result.stderr
+    assert "error:" in result.stderr, result.stderr
     assert "baseline" not in result.stderr.lower(), result.stderr
     assert not (repo / ".bob").exists(), repo
+
+
+def _invoke(
+    repo: Path, *args: str, bob_lang: str | None = None
+) -> subprocess.CompletedProcess[str]:
+    previous_cwd = Path.cwd()
+    previous_env = os.environ.copy()
+    stdout = io.StringIO()
+    stderr = io.StringIO()
+    try:
+        os.environ.pop("BOB_LANG", None)
+        if bob_lang is not None:
+            os.environ["BOB_LANG"] = bob_lang
+        os.chdir(repo)
+        with redirect_stdout(stdout), redirect_stderr(stderr):
+            code = main(list(args))
+    finally:
+        os.chdir(previous_cwd)
+        os.environ.clear()
+        os.environ.update(previous_env)
+    return subprocess.CompletedProcess(
+        ["bob", *args], code, stdout.getvalue(), stderr.getvalue()
+    )
+
+
+def _flat(text: str) -> str:
+    return " ".join(text.split())
 
 
 def _help_0(result: subprocess.CompletedProcess[str], repo: Path) -> None:
@@ -108,3 +139,275 @@ def test_invalid_lang_masks_a_later_usage_error(tmp_path: Path) -> None:
     assert "xml" not in result.stderr, result.stderr
     assert "baseline" not in result.stderr.lower(), result.stderr
     assert not (tmp_path / ".bob").exists(), tmp_path
+
+
+_COMMANDS = ("check", "crap", "dry", "deps", "mutate", "waive", "doctor")
+
+_TOP_HELP = (
+    "usage: bob",
+    "Quality gates for agents.",
+    "{check,crap,dry,deps,mutate,waive,doctor}",
+    "Run the requested gates and write .bob/",
+    "Measure CRAP of the changed functions",
+    "Report new clones in the diff, without blocking",
+    "Check dependency cycles and rules",
+    "Mutate the changed functions with mutmut",
+    "Record a waiver with a one-line reason",
+    "Check the pinned tools and the installed versions",
+    "Output language: en or pt-BR (default: en)",
+)
+
+_SUB_HELP = {
+    "check": (
+        "usage: bob check",
+        "--gates GATES",
+        "Comma-separated list (default: crap,dry,deps)",
+        "--format {md,json,both}",
+    ),
+    "crap": ("usage: bob crap", "--threshold THRESHOLD", "--coverage-file COVERAGE_FILE"),
+    "dry": ("usage: bob dry",),
+    "deps": ("usage: bob deps",),
+    "mutate": (
+        "usage: bob mutate",
+        "--since-last-run]",
+        "Reuse the cache; already the default behavior",
+        "--max-workers MAX_WORKERS",
+    ),
+    "waive": (
+        "usage: bob waive",
+        "--reason REASON",
+        "target",
+        "mutant id or function name",
+    ),
+    "doctor": (
+        "usage: bob doctor",
+        "--install]",
+        "Install the npm tools with npm ci in the package (or in a user cache)",
+    ),
+}
+
+
+def _usage_argv() -> tuple[tuple[str, ...], ...]:
+    scenarios = [
+        (),
+        ("report",),
+        ("check", "--format", "xml"),
+        ("mutate", "--max-workers", "nope"),
+        ("crap", "--threshold", "nope"),
+        ("waive",),
+        ("waive", "classify", "--reason"),
+        ("doctor", "--config"),
+        ("doctor", "--config", "bob.yaml"),
+        ("doctor", "--base"),
+        ("doctor", "--base", "main"),
+        ("--lang",),
+        ("--config",),
+        ("check", "--lang"),
+        ("check", "--config"),
+    ]
+    for command in _COMMANDS:
+        scenarios.append((command, "--not-a-real-flag"))
+        scenarios.append(("--base", "main", command))
+    return tuple(scenarios)
+
+
+def test_in_process_usage_exits_4_without_a_report(tmp_path: Path) -> None:
+    for args in _usage_argv():
+        _usage_4(_invoke(tmp_path, *args), tmp_path)
+
+
+def test_in_process_help_lists_every_command_and_flag(tmp_path: Path) -> None:
+    top = _invoke(tmp_path, "--help")
+    short = _invoke(tmp_path, "-h")
+    _help_0(top, tmp_path)
+    _help_0(short, tmp_path)
+    shown = _flat(top.stdout)
+    assert [text for text in _TOP_HELP if text not in shown] == []
+    assert _flat(short.stdout) == shown
+
+    for command, phrases in _SUB_HELP.items():
+        result = _invoke(tmp_path, command, "--help")
+        _help_0(result, tmp_path)
+        flattened = _flat(result.stdout)
+        assert [text for text in phrases if text not in flattened] == [], command
+
+
+def _repo(dest: Path, language: str | None = None) -> Path:
+    repo = init_python_repo(dest)
+    if language is not None:
+        config = repo / "bob.yaml"
+        config.write_text(config.read_text() + f"language: {language}\n")
+    return repo
+
+
+def _heading(repo: Path) -> str:
+    return (repo / ".bob" / "report.md").read_text().splitlines()[0]
+
+
+def test_default_format_writes_both_reports(tmp_path: Path) -> None:
+    repo = _repo(tmp_path / "repo")
+
+    result = _invoke(repo, "check", "--gates", "nope", "--base", "main")
+
+    assert result.returncode == 0, result.stderr
+    assert _heading(repo) == "# bob report"
+    assert (repo / ".bob" / "report.json").is_file()
+
+
+def test_format_md_and_json_write_one_file_each(tmp_path: Path) -> None:
+    repo = _repo(tmp_path / "repo")
+
+    markdown = _invoke(
+        repo, "check", "--gates", "nope", "--base", "main", "--format", "md", "--out", "md-out"
+    )
+    data = _invoke(
+        repo,
+        "check",
+        "--gates",
+        "nope",
+        "--base",
+        "main",
+        "--format",
+        "json",
+        "--out",
+        "json-out",
+    )
+
+    assert markdown.returncode == 0, markdown.stderr
+    assert (repo / "md-out" / "report.md").is_file()
+    assert not (repo / "md-out" / "report.json").exists()
+    assert data.returncode == 0, data.stderr
+    assert (repo / "json-out" / "report.json").is_file()
+    assert not (repo / "json-out" / "report.md").exists()
+
+
+_WAIVE_EN = "waiver without a reason: pass --reason with one line\n"
+_WAIVE_PT = "waiver sem motivo: informe --reason com uma linha\n"
+
+
+def _waive_language(repo: Path, *args: str, bob_lang: str | None = None) -> str:
+    result = _invoke(repo, "waive", "classify", *args, bob_lang=bob_lang)
+    assert result.returncode == 4, result.stderr
+    return result.stderr
+
+
+def test_language_follows_flag_then_env_then_yaml_then_config(tmp_path: Path) -> None:
+    assert _waive_language(_repo(tmp_path / "flag"), "--lang", "pt-BR") == _WAIVE_PT
+    assert _waive_language(_repo(tmp_path / "env"), bob_lang="pt-BR") == _WAIVE_PT
+    assert _waive_language(_repo(tmp_path / "yaml", "pt-BR")) == _WAIVE_PT
+
+    from_config = _repo(tmp_path / "config")
+    (from_config / "custom.yaml").write_text("language: pt-BR\n")
+    configured = _invoke(
+        from_config, "check", "--config", "custom.yaml", "--gates", "nope", "--base", "main"
+    )
+    assert configured.returncode == 0, configured.stderr
+    assert _heading(from_config) == "# Relatório bob"
+
+    assert _waive_language(_repo(tmp_path / "override", "pt-BR"), "--lang", "en", bob_lang="pt-BR") == (
+        _WAIVE_EN
+    )
+
+
+def test_missing_config_names_the_file_the_gate_opens(tmp_path: Path) -> None:
+    repo = _repo(tmp_path / "repo")
+    missing = repo / "missing.yaml"
+
+    result = _invoke(repo, "check", "--gates", "nope", "--base", "main", "--config", "missing.yaml")
+
+    assert result.returncode == 4, result.stderr
+    report = (repo / ".bob" / "report.json").read_text()
+    assert missing.as_posix() in report
+    assert "config file not found" in report
+
+
+def test_invalid_language_is_english_on_stderr_and_writes_nothing(tmp_path: Path) -> None:
+    flagged = _invoke(tmp_path, "--lang", "nope", "check", "--format", "xml")
+    repo = tmp_path / "yaml"
+    repo.mkdir()
+    (repo / "bob.yaml").write_text("language: fr\n")
+    configured = _invoke(repo, "check", "--gates", "nope")
+
+    assert flagged.returncode == 4
+    assert flagged.stderr == "invalid language: nope (use en or pt-BR)\n"
+    assert flagged.stdout == ""
+    assert "xml" not in flagged.stderr
+    assert configured.returncode == 4
+    assert configured.stderr == "invalid language: fr (use en or pt-BR)\n"
+    assert configured.stdout == ""
+    assert not (repo / ".bob").exists()
+
+
+def test_bad_config_and_waivers_exit_4_before_a_report(tmp_path: Path) -> None:
+    config_repo = tmp_path / "config"
+    config_repo.mkdir()
+    custom = config_repo / "custom.yaml"
+    custom.write_text("crap: 5\n")
+    config = _invoke(config_repo, "check", "--config", "custom.yaml", "--gates", "nope")
+
+    waiver_repo = tmp_path / "waiver"
+    waiver_repo.mkdir()
+    bob = waiver_repo / ".bob"
+    bob.mkdir()
+    (bob / "waivers.yaml").write_text("- a\n")
+    waiver = _invoke(waiver_repo, "doctor")
+
+    assert config.returncode == 4
+    assert config.stderr == f"{custom.as_posix()}: crap must be a mapping\n"
+    assert config.stdout == ""
+    assert not (config_repo / ".bob").exists()
+    assert waiver.returncode == 4
+    assert waiver.stderr == ".bob/waivers.yaml must be a mapping\n"
+    assert waiver.stdout == ""
+    assert not (bob / "report.md").exists()
+
+
+def test_since_last_run_is_a_flag(tmp_path: Path) -> None:
+    result = _invoke(tmp_path, "mutate", "--since-last-run")
+
+    assert result.returncode == 4, result.stderr
+    assert "usage:" not in result.stderr, result.stderr
+    assert "baseline" not in result.stderr.lower()
+
+
+def test_doctor_speaks_the_selected_language(tmp_path: Path) -> None:
+    result = _invoke(tmp_path, "doctor", "--lang", "pt-BR")
+
+    assert result.returncode in (0, 4), result.stderr
+    assert "esperada" in result.stdout
+    assert "expected" not in result.stdout
+
+
+def test_doctor_install_invokes_npm_ci(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    seen: list[object] = []
+
+    def fake(lang: object) -> int:
+        seen.append(lang)
+        return 4
+
+    monkeypatch.setattr("bob_quality.doctor.install_npm_dependencies", fake)
+
+    result = _invoke(tmp_path, "doctor", "--install")
+
+    assert seen == ["en"]
+    assert result.returncode == 4
+    assert "lizard" not in result.stdout
+
+
+def test_waive_records_the_reason_and_translates_a_missing_one(tmp_path: Path) -> None:
+    saved = _invoke(tmp_path, "waive", "classify", "--reason", "because")
+    missing = _invoke(tmp_path, "waive", "other", "--lang", "pt-BR")
+
+    assert saved.returncode == 0, saved.stderr
+    text = (tmp_path / ".bob" / "waivers.yaml").read_text()
+    assert "classify" in text
+    assert "because" in text
+    assert missing.returncode == 4
+    assert missing.stderr == "waiver sem motivo: informe --reason com uma linha\n"
+
+
+def test_stop_code_names_an_unexpected_result() -> None:
+    with pytest.raises(AssertionError, match="^object$"):
+        _stop_code(object())
