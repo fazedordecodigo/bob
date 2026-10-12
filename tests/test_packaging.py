@@ -6,6 +6,7 @@ Seams:
    Copilot e Devin), `.claude-plugin/marketplace.json` e `.cursor-plugin/plugin.json`.
 2. Instalador `bob_quality.install_skills`: recebe argv e devolve exit code,
    stdout, stderr e a árvore de skills no projeto.
+3. Seção Empacotamento de `docs/SPEC.md`: aponta os manifestos e não cita pasta de skill.
 
 Os nomes esperados são literais: as três skills do bob mais a seleção do
 plugin upstream do Pocock (engineering/ e productivity/), sem misc/ nem in-progress/.
@@ -15,6 +16,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -143,23 +145,82 @@ def test_cursor_and_claude_manifests_list_the_same_skills() -> None:
     assert len(cursor_skills) == 30
 
 
-def test_spec_points_to_the_manifest_instead_of_listing_skills() -> None:
-    lines = (ROOT / "docs" / "SPEC.md").read_text(encoding="utf-8").splitlines()
-    start = lines.index("**Empacotamento**:")
-    end = next(index for index in range(start + 1, len(lines)) if lines[index] == "")
-    section = "\n".join(lines[start:end])
+# Sem isso, `minha-skills/x` e `.skills/x` contam como caminho de skill.
+_SKILL_PATH = re.compile(r"(?<![\w.-])(?:\./)?skills/[\w./-]+")
 
-    for entry in _json(CLAUDE_PLUGIN)["skills"]:
-        assert entry not in section
-    assert "./skills/" not in section
+
+def _packaging_section(text: str) -> str:
+    lines = text.splitlines()
+    start = lines.index("**Empacotamento**:")
+    end = next(index for index in range(start + 1, len(lines)) if lines[index].startswith("#"))
+    return "\n".join(lines[start:end])
+
+
+def _spec_violations(section: str, entries: list[str]) -> list[str]:
+    violations: list[str] = []
+    for entry in entries:
+        if entry in section:
+            violations.append(f"entrada {entry}")
+        bare = entry.removeprefix("./")
+        if bare != entry and bare in section:
+            violations.append(f"entrada {bare}")
+    violations.extend(f"caminho {match}" for match in _SKILL_PATH.findall(section))
+    return violations
+
+
+def test_spec_points_to_the_manifest_instead_of_listing_skills() -> None:
+    text = (ROOT / "docs" / "SPEC.md").read_text(encoding="utf-8")
+    section = _packaging_section(text)
+
+    assert section != ""
+    assert text.split(section, 1)[1].lstrip("\n").startswith("## Testing Decisions")
+    assert _spec_violations(section, _json(CLAUDE_PLUGIN)["skills"]) == []
     assert ".claude-plugin/plugin.json" in section
     assert "fonte única" in section
-    assert (
-        "- o campo `skills` de `.claude-plugin/plugin.json` é a fonte única da lista de skills, "
-        "com uma entrada por pasta de skill. `.cursor-plugin/plugin.json` repete a mesma lista, "
-        "e o instalador a lê de lá. Esta spec não repete a lista. Uma pasta que agrupa skills não entra, "
-        "porque o Copilot a percorre recursivamente e carregaria `misc/` e `in-progress/` do Pocock;"
-    ) in section
+    assert ".cursor-plugin/plugin.json" in section
+    assert "Não há `.plugin/`" in section
+
+
+@pytest.mark.parametrize(
+    ("spec", "entries", "violations"),
+    [
+        (
+            "- skills/bob-check",
+            ["./skills/bob-check"],
+            ["entrada skills/bob-check", "caminho skills/bob-check"],
+        ),
+        (
+            "\n".join(
+                [
+                    "**Empacotamento**:",
+                    "- o campo `skills` de `.claude-plugin/plugin.json` é a fonte única da lista de skills. "
+                    "`.cursor-plugin/plugin.json` repete a mesma lista.",
+                    "",
+                    "- ./skills/vendor/mattpocock/engineering/tdd",
+                    "",
+                    "## Next",
+                ]
+            ),
+            ["./skills/vendor/mattpocock/engineering/tdd"],
+            [
+                "entrada ./skills/vendor/mattpocock/engineering/tdd",
+                "entrada skills/vendor/mattpocock/engineering/tdd",
+                "caminho ./skills/vendor/mattpocock/engineering/tdd",
+            ],
+        ),
+    ],
+    ids=["sem-ponto-barra", "depois-da-linha-em-branco"],
+)
+def test_spec_violations_catch_a_bare_skill_path_and_one_after_a_blank_line(
+    spec: str, entries: list[str], violations: list[str]
+) -> None:
+    if spec.startswith("**Empacotamento**:"):
+        section = _packaging_section(spec)
+        assert "## Next" not in section
+        assert "\n\n- ./skills/vendor/mattpocock/engineering/tdd" in section
+    else:
+        section = spec
+    assert _spec_violations(section, entries) == violations
 
 
 def test_each_manifest_entry_is_a_relative_skill_folder() -> None:
