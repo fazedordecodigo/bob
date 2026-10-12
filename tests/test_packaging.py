@@ -777,6 +777,34 @@ def test_symlink_at_a_current_skill_stays_and_the_install_finishes(
     assert sorted(path.name for path in dest.iterdir()) == sorted(BOB_SKILLS)
 
 
+def test_regular_file_at_each_current_skill_stays_and_the_install_finishes(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    for name in BOB_SKILLS:
+        project = tmp_path / name
+        dest = project / ".agents" / "skills"
+        dest.mkdir(parents=True)
+        kept = dest / name
+        payload = f"arquivo-{name}\n"
+        kept.write_text(payload)
+
+        result = _install(capsys, "--project", str(project), "agents")
+
+        assert result == (
+            0,
+            _installed(".agents/skills"),
+            _kept(kept, "é um arquivo") + "\n",
+        )
+        assert kept.read_text() == payload
+        assert sorted(path.name for path in dest.iterdir()) == sorted(BOB_SKILLS)
+        for other in BOB_SKILLS:
+            if other == name:
+                continue
+            assert (dest / other / "SKILL.md").read_bytes() == (
+                ROOT / "skills" / other / "SKILL.md"
+            ).read_bytes()
+
+
 def test_unreadable_retired_notice_stays_and_the_install_finishes(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:

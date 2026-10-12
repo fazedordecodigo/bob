@@ -189,6 +189,9 @@ def _install(skills: dict[Path, list[Path]], dest: Path) -> None:
         if target.is_symlink():
             print(f"aviso: {target} ficou, porque é um link simbólico.", file=sys.stderr)
             continue
+        if target.is_file():
+            print(f"aviso: {target} ficou, porque é um arquivo.", file=sys.stderr)
+            continue
         if target.exists():
             shutil.rmtree(target)
         shutil.copytree(skill, target)
