@@ -170,6 +170,8 @@ Mudança de spec continua sujeita ao OK do Emerson, como as fatias já dizem.
 
 A prioridade segue o dano para o agente que obedece exit code e skill. P0 mente sobre o resultado ou esconde sobrevivente. P1 frauda um gate ou manda rodar um comando que não existe. P2 é documentação ou pin que um agente pode acertar sem mudar veredito.
 
+Issues desta avaliação: [#61](https://github.com/fazedordecodigo/bob/issues/61), [#62](https://github.com/fazedordecodigo/bob/issues/62), [#63](https://github.com/fazedordecodigo/bob/issues/63), [#64](https://github.com/fazedordecodigo/bob/issues/64), [#65](https://github.com/fazedordecodigo/bob/issues/65), [#66](https://github.com/fazedordecodigo/bob/issues/66), [#67](https://github.com/fazedordecodigo/bob/issues/67), [#68](https://github.com/fazedordecodigo/bob/issues/68), [#69](https://github.com/fazedordecodigo/bob/issues/69).
+
 ### P0. Um conjunto de gates por lugar
 
 O hook, o padrão da CLI, a skill e a Action discordam. Um agente não tem como saber qual comando é o local e qual é o CI.
