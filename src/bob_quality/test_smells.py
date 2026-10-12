@@ -4,11 +4,15 @@ from __future__ import annotations
 
 import ast
 import enum
+import json
+import os
+import subprocess
 from dataclasses import dataclass
 from fnmatch import fnmatch
 from pathlib import Path, PurePosixPath
 from typing import Literal, Mapping, Sequence
 
+from bob_quality.adapters.eslint_tests import EslintParseError, parse_eslint_json
 from bob_quality.config import Config, SourceLanguage
 from bob_quality.messages import Text, msg
 from bob_quality.models import GateResult, TestSmell
@@ -25,6 +29,45 @@ SLEEP_NAMES = frozenset({"sleep"})
 ASSERTION_NAMES = frozenset({"fail", "raises", "warns", "deprecated_call"})
 _PY_TEST_NAMES = ("test_*.py", "*_test.py")
 _NOT_PY_TESTS = frozenset({"conftest.py", "__init__.py"})
+_TS_TEST_SUFFIXES = (
+    ".test.ts",
+    ".test.tsx",
+    ".test.js",
+    ".test.jsx",
+    ".test.mjs",
+    ".test.cjs",
+    ".spec.ts",
+    ".spec.tsx",
+    ".spec.js",
+    ".spec.jsx",
+    ".spec.mjs",
+    ".spec.cjs",
+)
+_TS_SOURCE_SUFFIXES = (".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs")
+_PLUGIN_MARKERS = (
+    "eslint-plugin-jest",
+    "eslint-plugin-vitest",
+    "plugin:jest/",
+    "plugin:vitest/",
+)
+_ESLINT_CONFIG_NAMES = frozenset(
+    {
+        "eslint.config.js",
+        "eslint.config.mjs",
+        "eslint.config.cjs",
+        "eslint.config.ts",
+        "eslint.config.mts",
+        "eslint.config.cts",
+        ".eslintrc",
+        ".eslintrc.js",
+        ".eslintrc.cjs",
+        ".eslintrc.json",
+        ".eslintrc.yml",
+        ".eslintrc.yaml",
+    }
+)
+_WALK_SKIP = frozenset({"node_modules", "dist", ".git", ".bob"})
+_MEASURED_EXITS = frozenset({0, 1})
 _NESTED = (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)
 _TEST_FN = (ast.FunctionDef, ast.AsyncFunctionDef)
 
@@ -158,7 +201,7 @@ def changed_test_paths(
     if language == "python":
         return tuple(sorted(path for path in diff_lines if _is_python_test(path)))
     if language == "typescript":
-        return ()
+        return tuple(sorted(path for path in diff_lines if _is_typescript_test(path)))
     raise AssertionError(language)
 
 
@@ -186,10 +229,59 @@ def python_smells(source: str, file: str, changed: frozenset[int]) -> tuple[Test
 
 
 def measure_typescript(
-    _cwd: Path,
-    _diff_lines: Mapping[str, set[int]],
+    cwd: Path,
+    diff_lines: Mapping[str, set[int]],
 ) -> LanguageOutcome:
-    return LanguageSkipped("typescript")
+    if not eslint_configured(cwd):
+        return LanguageSkipped("typescript")
+    paths = changed_test_paths(diff_lines, "typescript")
+    if not paths:
+        return LanguageMeasured("typescript", ())
+    binary = cwd / "node_modules" / ".bin" / "eslint"
+    version = _eslint_package_version(cwd) if binary.is_file() else None
+    if not binary.is_file():
+        return LanguageBroken("typescript", msg("test_smells.eslint_missing"), version)
+    try:
+        completed = _spawn_eslint(cwd, binary, paths)
+    except OSError:
+        return LanguageBroken("typescript", msg("test_smells.eslint_start"), version)
+    except UnicodeError:
+        return LanguageBroken("typescript", msg("test_smells.eslint_unparsed"), version)
+    if completed.returncode not in _MEASURED_EXITS:
+        return LanguageBroken(
+            "typescript",
+            msg("test_smells.eslint_bad_exit", code=completed.returncode),
+            version,
+        )
+    try:
+        hits = parse_eslint_json(completed.stdout)
+    except EslintParseError:
+        return LanguageBroken("typescript", msg("test_smells.eslint_unparsed"), version)
+    findings: list[TestSmell] = []
+    for hit in hits:
+        relative = _repo_relative(cwd, hit.file)
+        if relative is None:
+            continue
+        smell = test_smell(
+            relative,
+            hit.line,
+            hit.rule,
+            frozenset(diff_lines.get(relative, ())),
+        )
+        if smell is not None:
+            findings.append(smell)
+    return LanguageMeasured("typescript", tuple(findings), version)
+
+
+def eslint_configured(cwd: Path) -> bool:
+    for path in _config_files(cwd):
+        if path.name == "package.json":
+            mentions = _package_mentions_plugin(path)
+        else:
+            mentions = _text_mentions_plugin(path)
+        if mentions:
+            return True
+    return False
 
 
 def _outcomes(
@@ -276,6 +368,90 @@ def _is_python_test(path: str) -> bool:
     if name in _NOT_PY_TESTS:
         return False
     return any(fnmatch(name, pattern) for pattern in _PY_TEST_NAMES)
+
+
+def _is_typescript_test(path: str) -> bool:
+    pure = PurePosixPath(path)
+    name = pure.name
+    if name.endswith(".d.ts"):
+        return False
+    if name.endswith(_TS_TEST_SUFFIXES):
+        return True
+    return "__tests__" in pure.parts and name.endswith(_TS_SOURCE_SUFFIXES)
+
+
+def _spawn_eslint(
+    cwd: Path,
+    binary: Path,
+    paths: tuple[str, ...],
+) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(
+        [str(binary), "--format", "json", *paths],
+        cwd=cwd,
+        capture_output=True,
+        text=True,
+        stdin=subprocess.DEVNULL,
+    )
+
+
+def _eslint_package_version(cwd: Path) -> str | None:
+    path = cwd / "node_modules" / "eslint" / "package.json"
+    try:
+        loaded = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, json.JSONDecodeError):
+        return None
+    if not isinstance(loaded, dict):
+        return None
+    version = loaded.get("version")
+    if isinstance(version, str):
+        return version
+    return None
+
+
+def _config_files(cwd: Path):
+    for root, dirs, files in os.walk(cwd):
+        dirs[:] = [name for name in dirs if name not in _WALK_SKIP]
+        for name in files:
+            if name in _ESLINT_CONFIG_NAMES or name == "package.json":
+                yield Path(root) / name
+
+
+def _text_mentions_plugin(path: Path) -> bool:
+    try:
+        text = path.read_text(encoding="utf-8")
+    except (OSError, UnicodeError):
+        return False
+    return any(marker in text for marker in _PLUGIN_MARKERS)
+
+
+def _package_mentions_plugin(path: Path) -> bool:
+    try:
+        loaded = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, json.JSONDecodeError):
+        return False
+    if not isinstance(loaded, dict) or "eslintConfig" not in loaded:
+        return False
+    blob = json.dumps(loaded["eslintConfig"])
+    return any(marker in blob for marker in _PLUGIN_MARKERS)
+
+
+def _repo_relative(cwd: Path, raw: str) -> str | None:
+    root = cwd.resolve()
+    path = Path(raw)
+    if path.is_absolute():
+        candidate = path
+    else:
+        text = path.as_posix()
+        if text.startswith("./"):
+            text = text[2:]
+        candidate = root / text
+    try:
+        relative = candidate.resolve().relative_to(root)
+    except ValueError:
+        return None
+    if not relative.parts:
+        return None
+    return relative.as_posix()
 
 
 def _is_test_function(node: ast.AST) -> bool:

@@ -438,3 +438,256 @@ def test_cli_rejects_a_bad_waiver_before_writing_a_report(tmp_path: Path) -> Non
     assert result.stdout == ""
     assert not (bob / "report.json").exists()
     assert not (bob / "report.md").exists()
+
+
+_HITS = """\
+#!/usr/bin/env python3
+import json
+import sys
+from pathlib import Path
+
+path = str(Path(sys.argv[-1]).resolve())
+json.dump(
+    [
+        {
+            "filePath": path,
+            "messages": [
+                {"ruleId": "jest/expect-expect", "line": 1},
+                {"ruleId": "vitest/no-commented-out-tests", "line": 1},
+                {"ruleId": "eslint/no-undef", "line": 1},
+                {"ruleId": "jest/no-disabled-tests", "line": 99},
+            ],
+        }
+    ],
+    sys.stdout,
+)
+sys.exit(1)
+"""
+
+
+def _write_eslint(repo: Path, script: str, version: str | None = "9.14.0") -> None:
+    bindir = repo / "node_modules" / ".bin"
+    bindir.mkdir(parents=True)
+    binary = bindir / "eslint"
+    binary.write_text(script)
+    binary.chmod(0o755)
+    if version is None:
+        return
+    package = repo / "node_modules" / "eslint"
+    package.mkdir(parents=True)
+    (package / "package.json").write_text(json.dumps({"version": version}) + "\n")
+
+
+def _gate(repo: Path) -> tuple[object, dict[str, object]]:
+    result = run_bob(repo, "check", "--base", "main", "--gates", "test_smells")
+    payload = json.loads((repo / ".bob" / "report.json").read_text())
+    return result, payload
+
+
+def test_typescript_without_a_plugin_stays_not_run(tmp_path: Path) -> None:
+    repo = init_ts_repo(tmp_path / "repo")
+    nested = repo / "node_modules"
+    nested.mkdir()
+    (nested / "eslint.config.js").write_text("// eslint-plugin-jest\n")
+    (repo / "package.json").write_text(
+        '{"devDependencies": {"eslint-plugin-jest": "1.0.0"}}\n'
+    )
+    commit_on_branch(repo, "tests", "src/gap.test.ts", "export {}\n", "add a test")
+
+    result, payload = _gate(repo)
+
+    assert result.returncode == 0, result.stderr
+    assert payload["exit_code"] == 0
+    assert payload["gates"] == [
+        {
+            "name": "test_smells",
+            "status": "not_run",
+            "reason": "no language measured test smells",
+        }
+    ]
+    assert payload["tool_versions"] == {}
+
+
+def test_a_missing_eslint_binary_is_not_run(tmp_path: Path) -> None:
+    repo = init_ts_repo(tmp_path / "repo")
+    (repo / "eslint.config.js").write_text("// eslint-plugin-jest\n")
+    commit_on_branch(repo, "tests", "src/gap.test.ts", "export {}\n", "add a test")
+
+    result, payload = _gate(repo)
+
+    assert result.returncode == 0, result.stderr
+    assert payload["exit_code"] == 0
+    assert payload["schema_version"] == 1
+    assert payload["gates"] == [
+        {
+            "name": "test_smells",
+            "status": "not_run",
+            "reason": "eslint is not installed in the target repo",
+        }
+    ]
+
+
+def test_eslint_config_in_package_json_counts_only_inside_eslint_config(tmp_path: Path) -> None:
+    repo = init_ts_repo(tmp_path / "repo")
+    (repo / "package.json").write_text(
+        '{"eslintConfig": {"extends": ["plugin:vitest/recommended"]}}\n'
+    )
+    commit_on_branch(repo, "tests", "src/__tests__/gap.ts", "export {}\n", "add a test")
+
+    result, payload = _gate(repo)
+
+    assert result.returncode == 0, result.stderr
+    assert payload["gates"] == [
+        {
+            "name": "test_smells",
+            "status": "not_run",
+            "reason": "eslint is not installed in the target repo",
+        }
+    ]
+
+
+def test_a_configured_repo_with_no_changed_test_does_not_need_eslint(tmp_path: Path) -> None:
+    repo = init_ts_repo(tmp_path / "repo")
+    (repo / "eslint.config.js").write_text("// eslint-plugin-jest\n")
+    commit_on_branch(repo, "types", "src/gap.d.ts", "export {}\n", "add a declaration")
+
+    result, payload = _gate(repo)
+
+    assert result.returncode == 0, result.stderr
+    assert payload["gates"] == [
+        {"name": "test_smells", "status": "passed", "reason": None}
+    ]
+    assert payload["tool_versions"] == {}
+
+
+def test_eslint_json_keeps_jest_and_vitest_hits_on_changed_lines(tmp_path: Path) -> None:
+    repo = init_ts_repo(tmp_path / "repo")
+    (repo / "eslint.config.js").write_text("// eslint-plugin-jest\n")
+    commit_on_branch(repo, "tests", "src/gap.test.ts", "export {}\n", "add a test")
+    _write_eslint(repo, _HITS)
+
+    result, payload = _gate(repo)
+
+    assert result.returncode == 0, result.stderr
+    assert payload["exit_code"] == 0
+    assert payload["tool_versions"] == {"eslint": "9.14.0"}
+    assert payload["gates"] == [
+        {
+            "name": "test_smells",
+            "status": "warn",
+            "reason": "2 test smells in the diff",
+        }
+    ]
+
+
+def test_eslint_exit_2_is_not_run_even_when_stdout_is_json(tmp_path: Path) -> None:
+    repo = init_ts_repo(tmp_path / "repo")
+    (repo / "eslint.config.js").write_text("// plugin:jest/recommended\n")
+    commit_on_branch(repo, "tests", "src/gap.test.ts", "export {}\n", "add a test")
+    _write_eslint(repo, "#!/bin/sh\necho '[]'\nexit 2\n")
+
+    result, payload = _gate(repo)
+
+    assert result.returncode == 0, result.stderr
+    assert payload["gates"] == [
+        {
+            "name": "test_smells",
+            "status": "not_run",
+            "reason": "eslint exited 2",
+        }
+    ]
+
+
+def test_unparsed_eslint_stdout_is_not_run(tmp_path: Path) -> None:
+    repo = init_ts_repo(tmp_path / "repo")
+    (repo / "eslint.config.js").write_text("// eslint-plugin-vitest\n")
+    commit_on_branch(repo, "tests", "src/gap.test.ts", "export {}\n", "add a test")
+    _write_eslint(repo, "#!/bin/sh\necho nope\nexit 0\n")
+
+    result, payload = _gate(repo)
+
+    assert result.returncode == 0, result.stderr
+    assert payload["gates"] == [
+        {
+            "name": "test_smells",
+            "status": "not_run",
+            "reason": "eslint output is not the JSON list this gate parses",
+        }
+    ]
+
+
+def test_an_eslint_binary_that_cannot_start_is_not_run(tmp_path: Path) -> None:
+    repo = init_ts_repo(tmp_path / "repo")
+    (repo / "eslint.config.js").write_text("// eslint-plugin-jest\n")
+    commit_on_branch(repo, "tests", "src/gap.test.ts", "export {}\n", "add a test")
+    bindir = repo / "node_modules" / ".bin"
+    bindir.mkdir(parents=True)
+    binary = bindir / "eslint"
+    binary.write_text("not a program\n")
+    binary.chmod(0o644)
+
+    result, payload = _gate(repo)
+
+    assert result.returncode == 0, result.stderr
+    assert payload["gates"] == [
+        {
+            "name": "test_smells",
+            "status": "not_run",
+            "reason": "eslint failed to start",
+        }
+    ]
+
+
+def test_a_broken_eslint_does_not_change_a_clean_python_result(tmp_path: Path) -> None:
+    repo = init_python_repo(tmp_path / "repo")
+    (repo / "bob.yaml").write_text("base: main\nlanguages: [python, typescript]\n")
+    (repo / "eslint.config.js").write_text("// eslint-plugin-jest\n")
+    commit_on_branch(
+        repo,
+        "both",
+        "tests/test_gap.py",
+        "def test_gap():\n    assert 1 == 1\n",
+        "add an assertion",
+    )
+    commit_on_branch(repo, "both", "src/gap.test.ts", "export {}\n", "add a test")
+    _write_eslint(repo, "#!/bin/sh\necho '[]'\nexit 2\n")
+
+    result, payload = _gate(repo)
+
+    assert result.returncode == 0, result.stderr
+    assert payload["gates"] == [
+        {
+            "name": "test_smells",
+            "status": "passed",
+            "reason": "eslint exited 2",
+        }
+    ]
+    assert payload["tool_versions"] == {"eslint": "9.14.0"}
+
+
+def test_a_broken_eslint_stays_in_the_reason_when_python_warns(tmp_path: Path) -> None:
+    repo = init_python_repo(tmp_path / "repo")
+    (repo / "bob.yaml").write_text("base: main\nlanguages: [python, typescript]\n")
+    (repo / "eslint.config.js").write_text("// eslint-plugin-jest\n")
+    commit_on_branch(
+        repo,
+        "both",
+        "tests/test_gap.py",
+        "def test_gap():\n    value = 1\n",
+        "add a test with no assert",
+    )
+    commit_on_branch(repo, "both", "src/gap.test.ts", "export {}\n", "add a test")
+    _write_eslint(repo, "#!/bin/sh\necho nope\nexit 0\n", version=None)
+
+    result, payload = _gate(repo)
+
+    assert result.returncode == 0, result.stderr
+    assert payload["exit_code"] == 0
+    assert payload["gates"] == [
+        {
+            "name": "test_smells",
+            "status": "warn",
+            "reason": "1 test smell in the diff eslint output is not the JSON list this gate parses",
+        }
+    ]
+    assert payload["tool_versions"] == {}

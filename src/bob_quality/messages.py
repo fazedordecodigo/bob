@@ -108,6 +108,10 @@ _EN: dict[str, str] = {
     "test_smells.many": "{count} test smells in the diff",
     "test_smells.nothing_measured": "no language measured test smells",
     "test_smells.with_detail": "{head} {detail}",
+    "test_smells.eslint_missing": "eslint is not installed in the target repo",
+    "test_smells.eslint_start": "eslint failed to start",
+    "test_smells.eslint_bad_exit": "eslint exited {code}",
+    "test_smells.eslint_unparsed": "eslint output is not the JSON list this gate parses",
     "deps.node_missing": (
         "Node missing: install Node.js for the dependency gate (dependency-cruiser via npx)"
     ),
@@ -274,6 +278,10 @@ _PT_BR: dict[str, str] = {
     "test_smells.many": "{count} cheiros de teste no diff",
     "test_smells.nothing_measured": "nenhuma linguagem mediu os testes",
     "test_smells.with_detail": "{head} {detail}",
+    "test_smells.eslint_missing": "eslint não está instalado no repositório alvo",
+    "test_smells.eslint_start": "eslint não chegou a iniciar",
+    "test_smells.eslint_bad_exit": "eslint saiu com {code}",
+    "test_smells.eslint_unparsed": "a saída do eslint não é a lista JSON que este gate lê",
     "deps.node_missing": (
         "Node ausente: instale Node.js para o gate de dependências (dependency-cruiser via npx)"
     ),
