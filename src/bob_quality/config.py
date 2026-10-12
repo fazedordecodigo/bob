@@ -1,5 +1,3 @@
-"""Carrega `bob.yaml` e escolhe o idioma da saída."""
-
 from __future__ import annotations
 
 from dataclasses import dataclass, field
@@ -44,7 +42,6 @@ def load_config(path: Path | None, cwd: Path) -> Config:
 
 
 def configured_language(path: Path | None, cwd: Path) -> Language | None:
-    """Lê só `language`. Outra chave inválida não pode derrubar um idioma válido."""
     config_path = path if path is not None else cwd / "bob.yaml"
     if not config_path.is_file():
         return None
@@ -60,11 +57,12 @@ def configured_language(path: Path | None, cwd: Path) -> Language | None:
 def resolve_language(
     flag: str | None, env: str | None, configured: Language | None
 ) -> Language:
-    """Precedência: flag, BOB_LANG, bob.yaml, en. Vazio conta como ausente."""
-    chosen = flag or env
-    if chosen:
-        return parse_language(chosen)
-    return configured or DEFAULT_LANGUAGE
+    for candidate in (flag, env):
+        if candidate is not None and candidate != "":
+            return parse_language(candidate)
+    if configured is None:
+        return DEFAULT_LANGUAGE
+    return configured
 
 
 def parse_language(value: str) -> Language:
