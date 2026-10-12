@@ -6,7 +6,7 @@ Dois arquivos. `bob.yaml` na raiz do repositório (ou o caminho de `--config`) d
 
 ## bob.yaml
 
-Se o arquivo não existe e `--config` não foi passado, `load_config` devolve os padrões de `Config` em `src/bob_quality/config.py`. Se `--config` aponta para um arquivo que não existe, a execução sai com `4`, a mensagem em inglês no stderr cita o caminho, e nada é gravado.
+Se o arquivo não existe e `--config` não foi passado, `load_config` devolve os padrões de `Config` em `src/bob_quality/config.py`. Se `--config` aponta para um arquivo que não existe, `check`, `crap`, `dry`, `deps` e `mutate` saem com `4`, gravam `.bob/report.md` e `.bob/report.json`, e deixam o stdout e o stderr vazios. Cada gate pedido fica `not_run`. O `reason` do JSON é `config file not found: <caminho>`, com o caminho que `load_config` recebeu. O `report.md` segue o idioma da saída. `doctor` e `waive` não aceitam `--config`.
 
 Padrões quando não há `bob.yaml`:
 
@@ -48,11 +48,11 @@ O `bob.yaml` deste repositório é mais curto: `base`, `languages: [python]`, `p
 
 Um tipo errado sai com `4`. A mensagem em inglês no stderr cita o arquivo e a chave, por exemplo `bob.yaml: crap must be a mapping` ou `bob.yaml: crap.max_per_function must be a number`. Isso vale para `check`, `doctor`, `waive` e os outros comandos, e nenhum deles grava arquivo nesse caso. Ver [Exit 4](exit-codes.md#exit-4).
 
-`duplication` que não é mapeamento, ou `min_tokens` que não vira inteiro, é o caso do [CHANGELOG](../CHANGELOG.md): o relatório de erro é gravado no idioma já configurado.
+`duplication` que não é mapeamento, ou `min_tokens` que não é um inteiro maior ou igual a 0, sai com `4`. A mensagem em inglês no stderr cita o arquivo e a chave, e nada é gravado. O [CHANGELOG](../CHANGELOG.md) descreve esse caso.
 
 ### languages
 
-A [SPEC](SPEC.md) escreve `languages: [python, typescript]` com o comentário “autodetect se omitido”. Em `config.py`, a chave ausente, nula ou o arquivo ausente viram `["python"]`. Não há função de autodetecção no módulo. Para medir TypeScript é preciso listar `typescript` (e `python` também, num monorepo misto).
+`languages` omitido, nulo (`languages:` ou `languages: null`) ou lista vazia (`languages: []`) vira `["python"]`, o padrão de `Config`. Não há autodetecção. O mesmo vale quando o arquivo `bob.yaml` não existe e `--config` não foi passado. Para medir TypeScript é preciso listar `typescript` (e `python` também, num monorepo misto). A [SPEC](SPEC.md) descreve esse fallback.
 
 O gate DRY mapeia `typescript` para os formatos `typescript` e `javascript` do jscpd (`dry_gate.py`).
 
