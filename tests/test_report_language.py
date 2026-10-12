@@ -351,6 +351,12 @@ def test_json_is_the_schema_with_english_reasons_whatever_the_markdown_language(
     }
 
 
+def test_an_empty_reproduce_command_stays_blank_in_markdown() -> None:
+    report = replace(_empty([GateResult("deps", "passed", None)]), reproduce="")
+
+    assert "```\n\n```" in to_markdown(report, "en")
+
+
 def test_catalog_rule_names_stay_english_in_json_and_follow_the_markdown_language() -> None:
     report = replace(
         _empty([GateResult("deps", "failed", "a → b")]),
