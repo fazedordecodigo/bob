@@ -82,8 +82,8 @@ def test_load_waivers_rejects_a_file_that_is_not_a_mapping(tmp_path: Path) -> No
         load_waivers(tmp_path)
 
     assert in_both(caught.value) == (
-        "waivers.yaml must be a mapping",
-        "waivers.yaml deve ser um mapeamento",
+        ".bob/waivers.yaml must be a mapping",
+        ".bob/waivers.yaml deve ser um mapeamento",
     )
 
 
@@ -94,9 +94,72 @@ def test_load_waivers_rejects_a_waivers_value_that_is_not_a_list(tmp_path: Path)
         load_waivers(tmp_path)
 
     assert in_both(caught.value) == (
-        "waivers.yaml: 'waivers' must be a list",
-        "waivers.yaml: 'waivers' deve ser uma lista",
+        ".bob/waivers.yaml: waivers must be a list",
+        ".bob/waivers.yaml: waivers deve ser uma lista",
     )
+
+
+@pytest.mark.parametrize(
+    ("text", "english", "portuguese"),
+    [
+        (
+            "waivers: [5]\n",
+            ".bob/waivers.yaml: waivers[0] must be a mapping",
+            ".bob/waivers.yaml: waivers[0] deve ser um mapeamento",
+        ),
+        (
+            "waivers:\n  - id: fn\n    author: ada\n    date: '2026-10-11'\n",
+            ".bob/waivers.yaml: waivers[0].reason must be a string",
+            ".bob/waivers.yaml: waivers[0].reason deve ser um texto",
+        ),
+        (
+            "waivers:\n  - reason: because\n    author: ada\n    date: '2026-10-11'\n",
+            ".bob/waivers.yaml: waivers[0].id must be a string",
+            ".bob/waivers.yaml: waivers[0].id deve ser um texto",
+        ),
+        (
+            "waivers:\n  - id: fn\n    reason: because\n    date: '2026-10-11'\n",
+            ".bob/waivers.yaml: waivers[0].author must be a string",
+            ".bob/waivers.yaml: waivers[0].author deve ser um texto",
+        ),
+        (
+            "waivers:\n  - id: fn\n    reason: because\n    author: ada\n",
+            ".bob/waivers.yaml: waivers[0].date must be a string",
+            ".bob/waivers.yaml: waivers[0].date deve ser um texto",
+        ),
+        (
+            "waivers:\n"
+            "  - id: fn\n"
+            "    reason: because\n"
+            "    author: ada\n"
+            "    date: '2026-10-11'\n"
+            "  - 5\n",
+            ".bob/waivers.yaml: waivers[1] must be a mapping",
+            ".bob/waivers.yaml: waivers[1] deve ser um mapeamento",
+        ),
+        (
+            "waivers:\n"
+            "  - id: fn\n"
+            "    reason: because\n"
+            "    author: ada\n"
+            "    date: '2026-10-11'\n"
+            "  - id: other\n"
+            "    author: ada\n"
+            "    date: '2026-10-11'\n",
+            ".bob/waivers.yaml: waivers[1].reason must be a string",
+            ".bob/waivers.yaml: waivers[1].reason deve ser um texto",
+        ),
+    ],
+)
+def test_load_waivers_names_the_bad_field(
+    tmp_path: Path, text: str, english: str, portuguese: str
+) -> None:
+    _write_waivers(tmp_path, text)
+
+    with pytest.raises(WaiverError) as caught:
+        load_waivers(tmp_path)
+
+    assert in_both(caught.value) == (english, portuguese)
 
 
 def _files(repo: Path) -> set[str]:
@@ -140,6 +203,51 @@ def test_explicit_config_names_that_file(tmp_path: Path) -> None:
     assert result.stderr == f"{custom.as_posix()}: crap must be a mapping\n"
     assert result.stdout == ""
     assert not (tmp_path / ".bob").exists()
+
+
+_SHAPE_COMMANDS = (
+    ("check",),
+    ("doctor",),
+    ("waive", "fn", "--reason", "because"),
+)
+
+_BAD_WAIVER_SHAPE = (
+    ("- a\n", ".bob/waivers.yaml must be a mapping\n"),
+    ("waivers: x\n", ".bob/waivers.yaml: waivers must be a list\n"),
+    ("waivers: [5]\n", ".bob/waivers.yaml: waivers[0] must be a mapping\n"),
+    (
+        "waivers:\n  - id: fn\n    author: ada\n    date: '2026-10-11'\n",
+        ".bob/waivers.yaml: waivers[0].reason must be a string\n",
+    ),
+)
+
+
+@pytest.mark.parametrize("command", _SHAPE_COMMANDS)
+@pytest.mark.parametrize(("text", "stderr"), _BAD_WAIVER_SHAPE)
+@pytest.mark.parametrize("lang", [None, "pt-BR"])
+def test_wrong_waiver_shape_exits_4_in_english_and_writes_no_report(
+    tmp_path: Path,
+    command: tuple[str, ...],
+    text: str,
+    stderr: str,
+    lang: str | None,
+) -> None:
+    bob = tmp_path / ".bob"
+    bob.mkdir()
+    waiver = bob / "waivers.yaml"
+    waiver.write_text(text)
+    before = waiver.read_bytes()
+    args = ("--lang", lang, *command) if lang is not None else command
+
+    result = run_bob(tmp_path, *args)
+
+    assert result.returncode == 4
+    assert result.stderr == stderr
+    assert result.stdout == ""
+    assert "Traceback" not in result.stderr
+    assert waiver.read_bytes() == before
+    assert not (bob / "report.md").exists()
+    assert not (bob / "report.json").exists()
 
 
 @pytest.mark.parametrize("command", _COMMANDS)
