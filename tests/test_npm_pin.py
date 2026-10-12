@@ -6,6 +6,8 @@ import json
 import sys
 from pathlib import Path
 
+from bob_quality.doctor import unconditional_exact_pins
+
 if sys.version_info >= (3, 11):
     import tomllib
 else:
@@ -42,39 +44,23 @@ def test_import_linter_and_mutmut_are_pinned_in_pyproject() -> None:
     assert importlib.metadata.version("mutmut") == "3.8.0"
 
 
-def test_every_library_bob_imports_is_an_exact_pin() -> None:
-    """O grafo do ciclo importa grimp dentro de um `python -c`.
-
-    Uma biblioteca importada no topo de um módulo, ou num código-fonte guardado numa constante
-    de módulo, tem pin `==` no pyproject.toml.
-    """
-    pins = _exact_pins()
+def test_top_level_imports_have_an_exact_pin() -> None:
+    project = tomllib.loads((ROOT / "pyproject.toml").read_text())
+    pins = unconditional_exact_pins(project["project"]["dependencies"])
     owners = importlib.metadata.packages_distributions()
-    pinned = {module: pins.get(owners[module][0]) for module in _third_party_imports()}
+    pinned = {
+        module: pins.get(owners[module][0]) for module in _top_level_third_party_imports()
+    }
     assert pinned == {"grimp": "3.17", "importlinter": "2.15", "yaml": "6.0.3"}
 
 
-def _exact_pins() -> dict[str, str]:
-    """`{distribution: version}` do pyproject.toml em disco, sem reinstalar."""
-    project = tomllib.loads((ROOT / "pyproject.toml").read_text())
-    return {
-        name: version
-        for name, sep, version in (
-            spec.partition("==")
-            for spec in project["project"]["dependencies"]
-            if ";" not in spec
-        )
-        if sep
-    }
-
-
-def _third_party_imports() -> set[str]:
+def _top_level_third_party_imports() -> set[str]:
     names: set[str] = set()
     for path in (ROOT / "src" / "bob_quality").rglob("*.py"):
         if "node_modules" in path.parts:
             continue
         body = ast.parse(path.read_text()).body
-        names |= _imports(body)
+        names |= _top_level_imports(body)
         names |= _imports_in_constants(body)
     return {name for name in names if name not in sys.stdlib_module_names and name != "bob_quality"}
 
@@ -86,12 +72,11 @@ def _imports_in_constants(body: list[ast.stmt]) -> set[str]:
             continue
         source = node.value.value
         if isinstance(source, str):
-            names |= _imports(_parsed_or_empty(source))
+            names |= _top_level_imports(_parsed_or_empty(source))
     return names
 
 
-def _imports(body: list[ast.stmt]) -> set[str]:
-    # Só o corpo. Função aninhada e `if` de módulo ficam de fora.
+def _top_level_imports(body: list[ast.stmt]) -> set[str]:
     names: set[str] = set()
     for node in body:
         if isinstance(node, ast.Import):

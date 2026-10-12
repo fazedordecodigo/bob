@@ -21,22 +21,13 @@ _SELF = "bob-quality"
 
 
 @dataclass(frozen=True)
-class PipPin:
-    """Distribuição com `==` em `[project].dependencies`. A versão mora só lá.
-
-    O doctor lê a esperada no Requires-Dist instalado do bob-quality e a encontrada
-    no interpretador que roda os gates. Não há executável, porque nenhum gate chama
-    ferramenta pip pelo PATH.
-    """
-
+class RequiresDist:
     name: str
     distribution: str
 
 
 @dataclass(frozen=True)
 class ToolPin:
-    """Pacote npm ou o Node. A versão é literal aqui. Os testes conferem o package.json."""
-
     name: str
     expected: str
     executable: str
@@ -44,13 +35,12 @@ class ToolPin:
     npm_package: str | None = None
 
 
-Pin = PipPin | ToolPin
+Pin = RequiresDist | ToolPin
 
 
-# Ordem da issue #11. grimp vem depois do import-linter, que o puxa.
 PINS: tuple[Pin, ...] = (
-    PipPin("lizard", "lizard"),
-    PipPin("coverage.py", "coverage"),
+    RequiresDist("lizard", "lizard"),
+    RequiresDist("coverage.py", "coverage"),
     ToolPin(
         "node",
         "22.14.0",
@@ -60,9 +50,9 @@ PINS: tuple[Pin, ...] = (
     ToolPin("c8", "12.0.0", "c8", "npm install c8@12.0.0", npm_package="c8"),
     ToolPin("vitest", "5.0.3", "vitest", "npm install vitest@5.0.3", npm_package="vitest"),
     ToolPin("jscpd", "5.4.1", "jscpd", "npm install jscpd@5.4.1", npm_package="jscpd"),
-    PipPin("mutmut", "mutmut"),
-    PipPin("import-linter", "import-linter"),
-    PipPin("grimp", "grimp"),
+    RequiresDist("mutmut", "mutmut"),
+    RequiresDist("import-linter", "import-linter"),
+    RequiresDist("grimp", "grimp"),
     ToolPin(
         "dependency-cruiser",
         "18.5.0",
@@ -101,20 +91,14 @@ def _report_pins(lang: Language) -> int:
 
 
 def _rows() -> list[_PinRow]:
-    declared = declared_pins(_own_requirements())
+    declared = unconditional_exact_pins(_own_requirements())
     rows: list[_PinRow] = []
     for pin in PINS:
         rows.append(_assess(pin, declared))
     return rows
 
 
-def declared_pins(requirements: Iterable[str]) -> dict[str, str]:
-    """`{distribuição: versão}` de cada linha `nome==versão` sem marcador de ambiente.
-
-    Linha com marcador (`; extra == "dev"`, `; python_version < "3.11"`) não é pin
-    incondicional de runtime, então nenhuma linha do doctor pode depender dela.
-    Intervalo não tem `==` e fica de fora.
-    """
+def unconditional_exact_pins(requirements: Iterable[str]) -> dict[str, str]:
     return {
         name: version
         for name, sep, version in (
@@ -125,7 +109,6 @@ def declared_pins(requirements: Iterable[str]) -> dict[str, str]:
 
 
 def _own_requirements() -> list[str]:
-    """Requires-Dist do bob-quality. Vazio quando o pip nunca instalou o pacote."""
     try:
         return importlib.metadata.requires(_SELF) or []
     except importlib.metadata.PackageNotFoundError:
@@ -184,24 +167,24 @@ def _any_npm_missing(rows: list[_PinRow]) -> bool:
 
 
 def _assess(pin: Pin, declared: Mapping[str, str]) -> _PinRow:
-    if isinstance(pin, PipPin):
-        return _assess_pip(pin, declared.get(pin.distribution))
+    if isinstance(pin, RequiresDist):
+        return _assess_requires_dist(pin, declared.get(pin.distribution))
     return _assess_tool(pin)
 
 
-def _assess_pip(pin: PipPin, expected: str | None) -> _PinRow:
-    """`expected` é None quando o bob não declara pin incondicional para esta linha.
-
-    A linha falha e imprime `expected missing`, sem comando de instalação, porque
-    não há versão para nomear.
-    """
+def _assess_requires_dist(pin: RequiresDist, expected: str | None) -> _PinRow:
     found = _distribution_version(pin.distribution)
     line = msg("doctor.version", name=pin.name, expected=_shown(expected), found=_shown(found))
     if expected is None:
-        return _PinRow(line, False, None, False)
+        return _PinRow(line=line, ok=False, install=None, npm_missing=False)
     if found == expected:
-        return _PinRow(line, True, None, False)
-    return _PinRow(line, False, f"pip install '{pin.distribution}=={expected}'", False)
+        return _PinRow(line=line, ok=True, install=None, npm_missing=False)
+    return _PinRow(
+        line=line,
+        ok=False,
+        install=f"pip install '{pin.distribution}=={expected}'",
+        npm_missing=False,
+    )
 
 
 def _assess_tool(pin: ToolPin) -> _PinRow:

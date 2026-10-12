@@ -19,7 +19,7 @@ else:
     import tomli as tomllib
 
 from bob_quality.doctor import PINS as DOCTOR_PINS
-from bob_quality.doctor import PipPin, ToolPin, declared_pins
+from bob_quality.doctor import RequiresDist, ToolPin, unconditional_exact_pins
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -69,10 +69,7 @@ def _c8_package(parent: Path, *, cli_banner: str) -> Path:
     return script
 
 
-def _stub(bin_dir: Path, name: str | None, banner: str | None) -> None:
-    """grimp não tem executável. A linha não ganha stub."""
-    if name is None:
-        return
+def _stub(bin_dir: Path, name: str, banner: str) -> None:
     path = bin_dir / name
     path.write_text(f"#!/bin/sh\nprintf '%s\\n' '{banner}'\n")
     path.chmod(path.stat().st_mode | stat.S_IEXEC)
@@ -105,6 +102,8 @@ def test_doctor_lists_import_linter_and_dependency_cruiser(tmp_path: Path) -> No
     bin_dir = tmp_path / "bin"
     bin_dir.mkdir()
     for _name, _expected, executable, banner in PINS:
+        if executable is None or banner is None:
+            continue
         _stub(bin_dir, executable, banner)
 
     repo = tmp_path / "repo"
@@ -120,6 +119,8 @@ def test_doctor_exits_0_and_lists_pinned_versions_when_tools_match(tmp_path: Pat
     bin_dir = tmp_path / "bin"
     bin_dir.mkdir()
     for _name, _expected, executable, banner in PINS:
+        if executable is None or banner is None:
+            continue
         _stub(bin_dir, executable, banner)
 
     repo = tmp_path / "repo"
@@ -138,6 +139,8 @@ def test_doctor_exits_4_and_prints_install_when_a_tool_is_missing(tmp_path: Path
     for name, _expected, executable, banner in PINS:
         if name == "node":
             continue
+        if executable is None or banner is None:
+            continue
         _stub(bin_dir, executable, banner)
 
     repo = tmp_path / "repo"
@@ -154,6 +157,8 @@ def test_doctor_follows_language_in_bob_yaml(tmp_path: Path) -> None:
     bin_dir = tmp_path / "bin"
     bin_dir.mkdir()
     for _name, _expected, executable, banner in PINS:
+        if executable is None or banner is None:
+            continue
         _stub(bin_dir, executable, banner)
 
     repo = tmp_path / "repo"
@@ -171,6 +176,8 @@ def test_doctor_speaks_portuguese_with_lang_pt_br(tmp_path: Path) -> None:
     bin_dir.mkdir()
     for name, _expected, executable, banner in PINS:
         if name == "node":
+            continue
+        if executable is None or banner is None:
             continue
         _stub(bin_dir, executable, banner)
 
@@ -190,6 +197,8 @@ def test_doctor_exits_4_and_prints_install_when_version_differs(tmp_path: Path) 
     for name, _expected, executable, banner in PINS:
         if name == "node":
             banner = "v1.2.3"
+        if executable is None or banner is None:
+            continue
         _stub(bin_dir, executable, banner)
 
     repo = tmp_path / "repo"
@@ -212,6 +221,8 @@ def test_doctor_reports_c8_package_version_when_cli_prints_another(tmp_path: Pat
     for name, _expected, executable, banner in PINS:
         if executable == "c8":
             continue
+        if executable is None or banner is None:
+            continue
         _stub(bin_dir, executable, banner)
 
     repo = tmp_path / "repo"
@@ -227,6 +238,8 @@ def test_doctor_finds_npm_tool_installed_in_the_project(tmp_path: Path) -> None:
     bin_dir.mkdir()
     for name, _expected, executable, banner in PINS:
         if executable == "c8":
+            continue
+        if executable is None or banner is None:
             continue
         _stub(bin_dir, executable, banner)
 
@@ -247,6 +260,8 @@ def test_doctor_reads_c8_manifest_when_bin_shim_is_not_a_symlink(tmp_path: Path)
     bin_dir.mkdir()
     for _name, _expected, executable, banner in PINS:
         if executable == "c8":
+            continue
+        if executable is None or banner is None:
             continue
         _stub(bin_dir, executable, banner)
 
@@ -272,6 +287,8 @@ def test_doctor_reports_interpreter_lizard_not_a_path_shadow(tmp_path: Path) -> 
     for _name, _expected, executable, banner in PINS:
         if executable == "lizard":
             banner = "9.9.9"
+        if executable is None or banner is None:
+            continue
         _stub(bin_dir, executable, banner)
 
     repo = tmp_path / "repo"
@@ -283,7 +300,6 @@ def test_doctor_reports_interpreter_lizard_not_a_path_shadow(tmp_path: Path) -> 
 
 
 def test_doctor_pins_match_pyproject_and_package_json() -> None:
-    """Cada PipPin tem a distribuição no pyproject.toml. Cada pacote npm tem a versão do package.json."""
     project = tomllib.loads((ROOT / "pyproject.toml").read_text())
     requirements = {
         spec.split("==", 1)[0]: spec.split("==", 1)[1]
@@ -294,7 +310,7 @@ def test_doctor_pins_match_pyproject_and_package_json() -> None:
     npm = package["dependencies"]
 
     for pin in DOCTOR_PINS:
-        if isinstance(pin, PipPin):
+        if isinstance(pin, RequiresDist):
             assert pin.distribution in requirements
         elif pin.npm_package is not None:
             assert npm[pin.npm_package] == pin.expected
@@ -312,6 +328,8 @@ def test_doctor_expected_versions_match_pip_and_npm_pins(tmp_path: Path) -> None
     bin_dir = tmp_path / "bin"
     bin_dir.mkdir()
     for _name, _expected, executable, banner in PINS:
+        if executable is None or banner is None:
+            continue
         _stub(bin_dir, executable, banner)
     repo = tmp_path / "repo"
     repo.mkdir()
@@ -348,6 +366,8 @@ def test_doctor_expects_the_grimp_version_bob_declares(tmp_path: Path) -> None:
     bin_dir = tmp_path / "bin"
     bin_dir.mkdir()
     for _name, _expected, executable, banner in PINS:
+        if executable is None or banner is None:
+            continue
         _stub(bin_dir, executable, banner)
     repo = tmp_path / "repo"
     repo.mkdir()
@@ -364,6 +384,8 @@ def test_doctor_fails_grimp_when_bob_pins_it_only_for_dev(tmp_path: Path) -> Non
     bin_dir = tmp_path / "bin"
     bin_dir.mkdir()
     for _name, _expected, executable, banner in PINS:
+        if executable is None or banner is None:
+            continue
         _stub(bin_dir, executable, banner)
     repo = tmp_path / "repo"
     repo.mkdir()
@@ -376,9 +398,8 @@ def test_doctor_fails_grimp_when_bob_pins_it_only_for_dev(tmp_path: Path) -> Non
     assert "import-linter expected 2.15 found 2.15" in result.stdout
 
 
-def test_declared_pins_keeps_unconditional_exact_pins() -> None:
-    """No processo. Os testes de subprocesso zeram MUTANT_UNDER_TEST e não matam mutante."""
-    assert declared_pins(
+def test_unconditional_exact_pins_keeps_exact_lines() -> None:
+    assert unconditional_exact_pins(
         [
             "lizard==1.24.1",
             'pytest==9.1.1; extra == "dev"',
@@ -390,7 +411,6 @@ def test_declared_pins_keeps_unconditional_exact_pins() -> None:
 
 
 def _bob_metadata(parent: Path, *requires: str) -> Path:
-    """Diretório com bob_quality-0.1.0.dist-info/METADATA e estas linhas Requires-Dist."""
     dist = parent / "bob_quality-0.1.0.dist-info"
     dist.mkdir(parents=True)
     lines = [
