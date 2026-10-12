@@ -11,6 +11,7 @@ from typing import NoReturn
 
 from bob_quality.check import run_check
 from bob_quality.config import (
+    Config,
     ConfigError,
     configured_language,
     reject_config_types,
@@ -75,7 +76,7 @@ def build_parser(lang: Language = DEFAULT_LANGUAGE) -> _Parser:
 
     crap = sub.add_parser("crap", help=t(lang, "cli.crap"))
     _add_shared(crap, lang)
-    crap.add_argument("--threshold", type=float)
+    crap.add_argument("--threshold", type=_max_crap)
     crap.add_argument("--coverage-file")
 
     dry = sub.add_parser("dry", help=t(lang, "cli.dry"))
@@ -91,7 +92,7 @@ def build_parser(lang: Language = DEFAULT_LANGUAGE) -> _Parser:
         action="store_true",
         help=t(lang, "cli.since_last_run"),
     )
-    mutate.add_argument("--max-workers", type=int)
+    mutate.add_argument("--max-workers", type=_max_workers)
 
     waive = sub.add_parser("waive", help=t(lang, "cli.waive"))
     waive.add_argument("target", help=t(lang, "cli.waive_target"))
@@ -107,6 +108,32 @@ def build_parser(lang: Language = DEFAULT_LANGUAGE) -> _Parser:
     _add_lang(doctor, lang)
 
     return parser
+
+
+# O mutmut abre um Pool com esse número de processos, e cada um segura dois
+# descritores no processo pai. Com 256 arquivos abertos, o padrão do macOS, 128 já falham.
+_WORKER_CEILING = 64
+
+
+def _max_crap(text: str) -> float:
+    try:
+        return Config(max_crap=float(text)).max_crap
+    except ValueError:
+        raise argparse.ArgumentTypeError(
+            f"invalid value: {text!r} (use a finite number greater than 0)"
+        ) from None
+
+
+def _max_workers(text: str) -> int:
+    try:
+        count = int(text)
+        if 1 <= count <= _WORKER_CEILING:
+            return count
+    except ValueError:
+        pass
+    raise argparse.ArgumentTypeError(
+        f"invalid value: {text!r} (use an integer from 1 to {_WORKER_CEILING})"
+    )
 
 
 def _add_shared(parser: argparse.ArgumentParser, lang: Language) -> None:

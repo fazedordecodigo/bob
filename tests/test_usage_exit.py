@@ -194,6 +194,7 @@ def _usage_argv() -> tuple[tuple[str, ...], ...]:
         ("check", "--format", "xml"),
         ("mutate", "--max-workers", "nope"),
         ("crap", "--threshold", "nope"),
+        ("crap", "--threshold", "-inf"),
         ("waive",),
         ("waive", "classify", "--reason"),
         ("doctor", "--config"),
@@ -411,3 +412,138 @@ def test_waive_records_the_reason_and_translates_a_missing_one(tmp_path: Path) -
 def test_stop_code_names_an_unexpected_result() -> None:
     with pytest.raises(AssertionError, match="^object$"):
         _stop_code(object())
+
+
+def test_numeric_flags_reject_out_of_range_values(tmp_path: Path) -> None:
+    _usage_4(run_bob(tmp_path, "crap", "--threshold=nan"), tmp_path)
+    _usage_4(run_bob(tmp_path, "mutate", "--max-workers", "65"), tmp_path)
+
+
+@pytest.mark.parametrize(
+    "value",
+    [
+        "nan",
+        "NaN",
+        "-nan",
+        "+nan",
+        "inf",
+        "Infinity",
+        "-inf",
+        "1e309",
+        "-1e309",
+        "-1",
+        "-0.5",
+        "0",
+        "-0",
+        "0.0",
+        "+0",
+        "-0.0",
+        "1e-324",
+        "nope",
+        "",
+    ],
+)
+def test_threshold_outside_the_crap_limit_exits_4(tmp_path: Path, value: str) -> None:
+    result = _invoke(tmp_path, "crap", f"--threshold={value}")
+
+    _usage_4(result, tmp_path)
+    assert result.stdout == ""
+    assert result.stderr.splitlines()[-1] == (
+        "bob crap: error: argument --threshold: "
+        f"invalid value: '{value}' (use a finite number greater than 0)"
+    )
+
+
+@pytest.mark.parametrize(
+    "value",
+    [
+        "0",
+        "-1",
+        "-0",
+        "00",
+        "+0",
+        "65",
+        "1000",
+        "1_000",
+        "100000000000000000000",
+        "4.0",
+        "1e3",
+        "nope",
+        "",
+    ],
+)
+def test_max_workers_outside_1_to_64_exits_4(tmp_path: Path, value: str) -> None:
+    result = _invoke(tmp_path, "mutate", f"--max-workers={value}")
+
+    _usage_4(result, tmp_path)
+    assert result.stdout == ""
+    assert result.stderr.splitlines()[-1] == (
+        "bob mutate: error: argument --max-workers: "
+        f"invalid value: '{value}' (use an integer from 1 to 64)"
+    )
+
+
+def _dispatched(repo: Path, monkeypatch: pytest.MonkeyPatch, *args: str) -> dict[str, object]:
+    seen: dict[str, object] = {}
+
+    def fake(**kwargs: object) -> int:
+        seen.update(kwargs)
+        return 0
+
+    monkeypatch.setattr("bob_quality.cli.run_check", fake)
+    result = _invoke(repo, *args)
+    assert result.returncode == 0, result.stderr
+    return seen
+
+
+@pytest.mark.parametrize(
+    ("value", "limit"),
+    [
+        ("5e-324", float("5e-324")),
+        ("0.5", 0.5),
+        ("10", 10.0),
+        ("1e308", float("1e308")),
+    ],
+)
+def test_threshold_inside_the_crap_limit_reaches_the_gate(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, value: str, limit: float
+) -> None:
+    assert _dispatched(tmp_path, monkeypatch, "crap", "--threshold", value)["threshold"] == limit
+
+
+@pytest.mark.parametrize(("value", "count"), [("1", 1), ("64", 64)])
+def test_max_workers_inside_1_to_64_reaches_the_gate(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, value: str, count: int
+) -> None:
+    assert _dispatched(tmp_path, monkeypatch, "mutate", "--max-workers", value)["max_workers"] == count
+
+
+def test_numeric_flag_errors_stay_english_under_pt_br(tmp_path: Path) -> None:
+    threshold = _invoke(tmp_path, "crap", "--lang", "pt-BR", "--threshold=nan")
+    workers = _invoke(tmp_path, "mutate", "--max-workers=65", bob_lang="pt-BR")
+
+    _usage_4(threshold, tmp_path)
+    _usage_4(workers, tmp_path)
+    assert threshold.stdout == ""
+    assert workers.stdout == ""
+    assert threshold.stderr.splitlines()[-1] == (
+        "bob crap: error: argument --threshold: "
+        "invalid value: 'nan' (use a finite number greater than 0)"
+    )
+    assert workers.stderr.splitlines()[-1] == (
+        "bob mutate: error: argument --max-workers: "
+        "invalid value: '65' (use an integer from 1 to 64)"
+    )
+
+
+def test_cli_doc_states_the_worker_ceiling(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    doc = (Path(__file__).resolve().parents[1] / "docs" / "cli.md").read_text(encoding="utf-8")
+    match = re.search(r"`--max-workers` aceita um inteiro de 1 a (\d+)", doc)
+    assert match is not None, "docs/cli.md must state the --max-workers ceiling"
+    ceiling = int(match.group(1))
+
+    _usage_4(_invoke(tmp_path, "mutate", f"--max-workers={ceiling + 1}"), tmp_path)
+    seen = _dispatched(tmp_path, monkeypatch, "mutate", "--max-workers", str(ceiling))
+    assert seen["max_workers"] == ceiling
