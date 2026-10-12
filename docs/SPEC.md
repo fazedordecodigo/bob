@@ -44,7 +44,7 @@ As ferramentas de mercado (lizard, coverage.py, c8, mutmut, StrykerJS, jscpd, im
 
 **Módulos (seams)**
 - **Núcleo (domínio)**: modelo `FunctionMetric {lang, module, name, file, start_line, end_line, cc, coverage, crap}`, `Mutant {id, function, file, line, operator, status: killed|survived|timeout|no_coverage, waiver?}`, `Clone`, `DepViolation`. Calcula CRAP (`CC² × (1 − cov)³ + CC`), aplica limiares, delta contra a base e veredito. Não conhece ferramentas.
-- **Adaptadores** (um por ferramenta): `lizard` (radon opcional) → CC por função; `coverage.py` (JSON) e `c8`/istanbul (`coverage-final.json`/lcov) → cobertura por linha e branch; `mutmut` e `StrykerJS` (mutation-testing-report-schema JSON) → mutantes; `jscpd` (JSON) → clones; `import-linter` e `dependency-cruiser` (JSON) → violações. Cada adaptador recebe a saída bruta e devolve o modelo do núcleo.
+- **Adaptadores** (um por ferramenta): `lizard` → CC por função; `coverage.py` (JSON) e `c8`/istanbul (`coverage-final.json`/lcov) → cobertura por linha e branch; `mutmut` e `StrykerJS` (mutation-testing-report-schema JSON) → mutantes; `jscpd` (JSON) → clones; `import-linter` e `dependency-cruiser` (JSON) → violações. Cada adaptador recebe a saída bruta e devolve o modelo do núcleo.
 - **Escopo de diff**: `git diff <base>...HEAD` → linhas e funções alteradas.
 - **Renderização do relatório**: modelo → `report.md` + `report.json`.
 - **CLI**: orquestra adaptador → núcleo → relatório → exit code.
@@ -164,7 +164,7 @@ O JSON segue um schema versionado (`schema_version: 1`). Os títulos e os textos
 ## Decisões fechadas (rodada 1, aceitas pelo Emerson em 10/10/2026)
 
 1. **Linguagem da CLI**: núcleo e CLI em Python, distribuídos via pip (`bob-quality`). As ferramentas npm ficam fixadas num `package.json` do próprio plugin e são chamadas via `npx`.
-2. **Complexidade**: lizard para Python e TS, para contar o CC do mesmo jeito nas duas. Radon fica como adaptador opcional.
+2. **Complexidade**: lizard para Python e TS, para contar o CC do mesmo jeito nas duas.
 3. **Escopo**: os gates bloqueiam só pelas funções alteradas no diff. A dívida antiga aparece apenas como informação.
 4. **Duplicação**: clones novos geram só aviso (⚠️) e nunca bloqueiam no MVP.
 5. **Waivers**: o agente cria o waiver com justificativa de uma linha e o humano aprova no review do PR. Os waivers aparecem no topo do relatório.

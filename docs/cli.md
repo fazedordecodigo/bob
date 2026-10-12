@@ -31,6 +31,8 @@ Roda os gates pedidos e grava `.bob/` (ou `--out`).
 | `--format` | `both` | `md`, `json` ou `both` |
 | `--lang` | ver [Idioma](#idioma---lang) | `en` ou `pt-BR` |
 
+Um `--config` que aponta para um arquivo inexistente sai com `4` e grava `.bob/report.md` e `.bob/report.json`. O stdout e o stderr ficam vazios. Detalhe em [Exit 4](exit-codes.md#exit-4).
+
 Um nome de gate que o código não trata vira status `not_run`, com o motivo `gate não implementado nesta fatia` em `pt-BR`, e esse gate contribui exit `0` (`check.py`, ramo final de `_absorb`). Os quatro nomes implementados são `crap`, `dry`, `deps` e `mutate`.
 
 `bob check` sem `mutate` na lista não roda mutação. `bob check --gates mutate` e `bob mutate` rodam.
@@ -83,7 +85,9 @@ A caixa importa. `pt-br` é inválido. Os valores aceitos são os de `LANGUAGES`
 
 Um `--lang` ou `BOB_LANG` vazio é inválido. A CLI sai com `4`, imprime `invalid language: "" (use en or pt-BR)` no stderr e não grava relatório. Uma chave `language` vazia no YAML conta como ausente (`_language` devolve `None`).
 
-Idioma inválido, `language` que não é string, YAML que não é mapeamento, erro de sintaxe no `bob.yaml` e chave com tipo errado também saem com `4` em inglês no stderr, mesmo que se pretendesse `pt-BR`, e não gravam relatório. O mesmo vale para `paths`, `languages`, `base`, `dependencies`, `duplication` e as listas `include` e `exclude`, em `check`, `doctor`, `waive` e nos outros comandos. Uma chave desconhecida segue o mesmo caminho. Ver [Exit codes](exit-codes.md#exit-4).
+Idioma inválido, `language` que não é string, YAML que não é mapeamento, erro de sintaxe no `bob.yaml` e chave com tipo errado também saem com `4` em inglês no stderr, mesmo que se pretendesse `pt-BR`, e não gravam relatório. O mesmo vale para `paths`, `languages`, `base`, `dependencies` e as listas `include` e `exclude`, em `check`, `doctor`, `waive` e nos outros comandos.
+
+Uma chave `duplication` inválida também sai com `4`, em inglês no stderr, sem gravar relatório. `reject_config_types` percorre o schema inteiro, inclusive `duplication`. O [CHANGELOG.md](../CHANGELOG.md) descreve esse caso. Uma chave desconhecida segue o mesmo caminho. Ver [Exit codes](exit-codes.md#exit-4).
 
 O que muda com o idioma: mensagens da CLI, texto do `--help`, `bob doctor`, o hook (porque ele chama a CLI), `.bob/report.md` e a nota de truncamento do comentário da Action. O `.bob/report.json` é o mesmo arquivo nos dois idiomas (`JSON_LANGUAGE = "en"` em `report.py`). Detalhe em [Relatórios](relatorios.md#o-que-não-muda-com-o-idioma).
 
@@ -97,7 +101,7 @@ No CI, `language: pt-BR` no `bob.yaml` ou `BOB_LANG: pt-BR` no `env` do job. O i
 | Hook `pre-push` | `crap,dry,deps` | `src/bob_quality/hooks/pre-push` |
 | GitHub Action, input `gates` omitido | `crap,dry,deps,mutate` | `.github/actions/bob/action.yml` |
 
-O hook, a SPEC e o padrão da CLI usam `crap,dry,deps`. O CI pede `mutate` pelo input da Action, não porque o padrão da CLI tenha mudado. A skill `skills/bob-check/SKILL.md` também mostra a interface da spec, inclusive `bob report`.
+A [SPEC](SPEC.md) diz que o hook local executa `crap,dry,deps` e que no CI o `check` executa todos. O script do hook passa `crap,dry,deps`. O padrão da CLI é o mesmo trio; o CI pede `mutate` pelo input da Action, não porque o padrão da CLI tenha mudado. A skill `skills/bob-check/SKILL.md` cita esses dois comandos.
 
 ## Comandos que a spec lista e a CLI ainda não tem
 
