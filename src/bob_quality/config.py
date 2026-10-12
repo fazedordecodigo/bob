@@ -13,9 +13,11 @@ DEFAULT_EXCLUDE = ["tests", "node_modules", "dist"]
 
 SourceLanguage = Literal["python", "typescript"]
 CrapScope = Literal["changed", "all"]
+NewClonesMode = Literal["warn", "fail"]
 
 SOURCE_LANGUAGES: tuple[SourceLanguage, ...] = ("python", "typescript")
 CRAP_SCOPES: tuple[CrapScope, ...] = ("changed", "all")
+NEW_CLONES_MODES: tuple[NewClonesMode, ...] = ("warn", "fail")
 
 _CheckKind = Literal[
     "string",
@@ -27,7 +29,7 @@ _CheckKind = Literal[
     "members",
     "language",
 ]
-_BoundKind = Literal["gt", "at_least"]
+_BoundKind = Literal["gt", "at_least", "at_most"]
 _Failure = tuple[str, str, dict[str, object]]
 
 
@@ -115,6 +117,28 @@ _SCHEMA = _Node(
                     (_Check("integer"), _Bound("at_least", 0)),
                     null_is_default=False,
                 ),
+                _Node(
+                    "new_clones",
+                    "new_clones",
+                    (_Check("string"), _Check("one_of", choices=NEW_CLONES_MODES)),
+                    empty_is_default=True,
+                ),
+                _Node(
+                    "max_new_clones",
+                    "max_new_clones",
+                    (_Check("integer"), _Bound("at_least", 0)),
+                ),
+                _Node(
+                    "min_similarity",
+                    "min_similarity",
+                    (
+                        _Check("number"),
+                        _Check("finite"),
+                        _Bound("at_least", 0),
+                        _Bound("at_most", 100),
+                    ),
+                ),
+                _Node("min_lines", "min_lines", (_Check("integer"), _Bound("at_least", 0))),
             ),
         ),
         _Node(
@@ -146,6 +170,10 @@ class Config:
     python_deps_config: str = ".importlinter"
     typescript_deps_config: str = ".dependency-cruiser.cjs"
     min_tokens: int = 50
+    new_clones: NewClonesMode = "warn"
+    max_new_clones: int = 0
+    min_similarity: float = 0.0
+    min_lines: int = 0
     language: Language | None = None
 
     def __post_init__(self) -> None:
@@ -312,14 +340,8 @@ def _reject(child: _Node, value: object, label: str, dotted: str) -> None:
 
 def _failure_for(rule: _Rule, value: object) -> _Failure | None:
     if isinstance(rule, _Bound):
-        return _bound_failure(rule, value)
+        return _BOUNDED[rule.kind](value, rule.bound)
     return _UNBOUND[rule.kind](rule, value)
-
-
-def _bound_failure(rule: _Bound, value: object) -> _Failure | None:
-    if rule.kind == "gt":
-        return _greater(value, rule.bound)
-    return _at_least(value, rule.bound)
 
 
 def _greater(value: object, bound: int | float) -> _Failure | None:
@@ -332,6 +354,12 @@ def _at_least(value: object, bound: int | float) -> _Failure | None:
     if value >= bound:
         return None
     return ("config.key_at_least", "", {"bound": bound})
+
+
+def _at_most(value: object, bound: int | float) -> _Failure | None:
+    if value <= bound:
+        return None
+    return ("config.key_at_most", "", {"bound": bound})
 
 
 def _text(check: _Check, value: object) -> _Failure | None:
@@ -406,6 +434,13 @@ def _language(check: _Check, value: object) -> _Failure | None:
 
 
 _FailFn = Callable[[_Check, object], _Failure | None]
+_BoundFn = Callable[[object, int | float], _Failure | None]
+
+_BOUNDED: dict[_BoundKind, _BoundFn] = {
+    "gt": _greater,
+    "at_least": _at_least,
+    "at_most": _at_most,
+}
 
 _UNBOUND: dict[_CheckKind, _FailFn] = {
     "string": _text,
