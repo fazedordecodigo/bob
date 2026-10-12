@@ -408,6 +408,7 @@ def test_unconditional_exact_pins_keeps_exact_lines() -> None:
             "rich>=14.2.0",
         ]
     ) == {"lizard": "1.24.1", "grimp": "3.17"}
+    assert unconditional_exact_pins(["pkg===1.0"]) == {"pkg": "=1.0"}
 
 
 def _bob_metadata(parent: Path, *requires: str) -> Path:
