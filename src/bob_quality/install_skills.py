@@ -116,11 +116,17 @@ def _read_manifest(manifest: Path) -> object:
 def _install(skills: dict[Path, list[Path]], dest: Path) -> None:
     for skill, attribution in skills.items():
         target = dest / skill.name
-        if target.exists():
-            shutil.rmtree(target)
-        shutil.copytree(skill, target)
-        for path in attribution:
-            shutil.copy2(path, target / path.name)
+        if target.is_symlink():
+            print(f"aviso: {target} ficou, porque é um link simbólico.", file=sys.stderr)
+            continue
+        try:
+            if target.exists():
+                shutil.rmtree(target)
+            shutil.copytree(skill, target)
+            for path in attribution:
+                shutil.copy2(path, target / path.name)
+        except OSError as exc:
+            print(f"aviso: {target} ficou, porque {exc}.", file=sys.stderr)
 
 
 if __name__ == "__main__":
