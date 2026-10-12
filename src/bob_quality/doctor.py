@@ -7,6 +7,7 @@ import json
 import re
 import shutil
 import subprocess
+from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -16,28 +17,40 @@ from bob_quality.npm_tools import install_npm_dependencies, npm_prefix, npm_setu
 from bob_quality.tools import ToolError
 
 _VERSION = re.compile(r"\d+\.\d+(?:\.\d+)?")
+_SELF = "bob-quality"
+
+
+@dataclass(frozen=True)
+class PipPin:
+    """Distribuição com `==` em `[project].dependencies`. A versão mora só lá.
+
+    O doctor lê a esperada no Requires-Dist instalado do bob-quality e a encontrada
+    no interpretador que roda os gates. Não há executável, porque nenhum gate chama
+    ferramenta pip pelo PATH.
+    """
+
+    name: str
+    distribution: str
 
 
 @dataclass(frozen=True)
 class ToolPin:
+    """Pacote npm ou o Node. A versão é literal aqui. Os testes conferem o package.json."""
+
     name: str
     expected: str
     executable: str
     install: Text
-    distribution: str | None = None
     npm_package: str | None = None
 
 
-# Ordem da issue #11. Versões iguais às pinadas em pyproject.toml e package.json.
-PINS: tuple[ToolPin, ...] = (
-    ToolPin("lizard", "1.24.1", "lizard", "pip install 'lizard==1.24.1'", distribution="lizard"),
-    ToolPin(
-        "coverage.py",
-        "7.16.2",
-        "coverage",
-        "pip install 'coverage==7.16.2'",
-        distribution="coverage",
-    ),
+Pin = PipPin | ToolPin
+
+
+# Ordem da issue #11. grimp vem depois do import-linter, que o puxa.
+PINS: tuple[Pin, ...] = (
+    PipPin("lizard", "lizard"),
+    PipPin("coverage.py", "coverage"),
     ToolPin(
         "node",
         "22.14.0",
@@ -47,14 +60,9 @@ PINS: tuple[ToolPin, ...] = (
     ToolPin("c8", "12.0.0", "c8", "npm install c8@12.0.0", npm_package="c8"),
     ToolPin("vitest", "5.0.3", "vitest", "npm install vitest@5.0.3", npm_package="vitest"),
     ToolPin("jscpd", "5.4.1", "jscpd", "npm install jscpd@5.4.1", npm_package="jscpd"),
-    ToolPin("mutmut", "3.8.0", "mutmut", "pip install 'mutmut==3.8.0'", distribution="mutmut"),
-    ToolPin(
-        "import-linter",
-        "2.15",
-        "lint-imports",
-        "pip install 'import-linter==2.15'",
-        distribution="import-linter",
-    ),
+    PipPin("mutmut", "mutmut"),
+    PipPin("import-linter", "import-linter"),
+    PipPin("grimp", "grimp"),
     ToolPin(
         "dependency-cruiser",
         "18.5.0",
@@ -93,10 +101,35 @@ def _report_pins(lang: Language) -> int:
 
 
 def _rows() -> list[_PinRow]:
+    declared = declared_pins(_own_requirements())
     rows: list[_PinRow] = []
     for pin in PINS:
-        rows.append(_assess(pin))
+        rows.append(_assess(pin, declared))
     return rows
+
+
+def declared_pins(requirements: Iterable[str]) -> dict[str, str]:
+    """`{distribuição: versão}` de cada linha `nome==versão` sem marcador de ambiente.
+
+    Linha com marcador (`; extra == "dev"`, `; python_version < "3.11"`) não é pin
+    incondicional de runtime, então nenhuma linha do doctor pode depender dela.
+    Intervalo não tem `==` e fica de fora.
+    """
+    return {
+        name: version
+        for name, sep, version in (
+            line.partition("==") for line in requirements if ";" not in line
+        )
+        if sep
+    }
+
+
+def _own_requirements() -> list[str]:
+    """Requires-Dist do bob-quality. Vazio quando o pip nunca instalou o pacote."""
+    try:
+        return importlib.metadata.requires(_SELF) or []
+    except importlib.metadata.PackageNotFoundError:
+        return []
 
 
 def _lines(rows: list[_PinRow]) -> list[Text]:
@@ -150,7 +183,28 @@ def _any_npm_missing(rows: list[_PinRow]) -> bool:
     return False
 
 
-def _assess(pin: ToolPin) -> _PinRow:
+def _assess(pin: Pin, declared: Mapping[str, str]) -> _PinRow:
+    if isinstance(pin, PipPin):
+        return _assess_pip(pin, declared.get(pin.distribution))
+    return _assess_tool(pin)
+
+
+def _assess_pip(pin: PipPin, expected: str | None) -> _PinRow:
+    """`expected` é None quando o bob não declara pin incondicional para esta linha.
+
+    A linha falha e imprime `expected missing`, sem comando de instalação, porque
+    não há versão para nomear.
+    """
+    found = _distribution_version(pin.distribution)
+    line = msg("doctor.version", name=pin.name, expected=_shown(expected), found=_shown(found))
+    if expected is None:
+        return _PinRow(line, False, None, False)
+    if found == expected:
+        return _PinRow(line, True, None, False)
+    return _PinRow(line, False, f"pip install '{pin.distribution}=={expected}'", False)
+
+
+def _assess_tool(pin: ToolPin) -> _PinRow:
     found = _found_version(pin)
     line = msg("doctor.version", name=pin.name, expected=pin.expected, found=_shown(found))
     if found == pin.expected:
@@ -185,8 +239,6 @@ def _found_version(pin: ToolPin) -> str | None:
 
 
 def _packaged_version(pin: ToolPin) -> str | None:
-    if pin.distribution is not None:
-        return _distribution_version(pin.distribution)
     if pin.npm_package is not None:
         return _npm_package_version(pin.npm_package, pin.executable)
     return None

@@ -19,6 +19,7 @@ else:
     import tomli as tomllib
 
 from bob_quality.doctor import PINS as DOCTOR_PINS
+from bob_quality.doctor import PipPin, ToolPin, declared_pins
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -37,6 +38,7 @@ PINS = (
     ("jscpd", "5.4.1", "jscpd", "jscpd 5.4.1"),
     ("mutmut", "3.8.0", "mutmut", "mutmut, version 3.8.0"),
     ("import-linter", "2.15", "lint-imports", "2.15"),
+    ("grimp", "3.17", None, None),
     ("dependency-cruiser", "18.5.0", "dependency-cruiser", "18.5.0"),
 )
 
@@ -49,6 +51,7 @@ INSTALL = {
     "jscpd": "npm install jscpd@5.4.1",
     "mutmut": "pip install 'mutmut==3.8.0'",
     "import-linter": "pip install 'import-linter==2.15'",
+    "grimp": "pip install 'grimp==3.17'",
     "dependency-cruiser": "npm install dependency-cruiser@18.5.0",
 }
 
@@ -66,17 +69,26 @@ def _c8_package(parent: Path, *, cli_banner: str) -> Path:
     return script
 
 
-def _stub(bin_dir: Path, name: str, banner: str) -> None:
+def _stub(bin_dir: Path, name: str | None, banner: str | None) -> None:
+    """grimp não tem executável. A linha não ganha stub."""
+    if name is None:
+        return
     path = bin_dir / name
     path.write_text(f"#!/bin/sh\nprintf '%s\\n' '{banner}'\n")
     path.chmod(path.stat().st_mode | stat.S_IEXEC)
 
 
-def _run_doctor(cwd: Path, bin_dir: Path, *args: str) -> subprocess.CompletedProcess[str]:
+def _run_doctor(
+    cwd: Path, bin_dir: Path, *args: str, metadata: Path | None = None
+) -> subprocess.CompletedProcess[str]:
     env = os.environ.copy()
     env.pop("BOB_LANG", None)
     env["PATH"] = str(bin_dir)
-    env["PYTHONPATH"] = str(ROOT / "src")
+    # O dist-info falso vem antes de src, senão o egg-info do editável ganha.
+    pythonpath = [str(ROOT / "src")]
+    if metadata is not None:
+        pythonpath.insert(0, str(metadata))
+    env["PYTHONPATH"] = os.pathsep.join(pythonpath)
     # O trampoline do mutmut procura source_paths no cwd do subprocesso.
     # O doctor roda num repo vazio; sem isto a coleta de stats morre.
     env["MUTANT_UNDER_TEST"] = ""
@@ -271,7 +283,7 @@ def test_doctor_reports_interpreter_lizard_not_a_path_shadow(tmp_path: Path) -> 
 
 
 def test_doctor_pins_match_pyproject_and_package_json() -> None:
-    """doctor.PINS e os manifestos são a mesma pinagem. Qualquer versão diferente falha."""
+    """Cada PipPin tem a distribuição no pyproject.toml. Cada pacote npm tem a versão do package.json."""
     project = tomllib.loads((ROOT / "pyproject.toml").read_text())
     requirements = {
         spec.split("==", 1)[0]: spec.split("==", 1)[1]
@@ -282,13 +294,17 @@ def test_doctor_pins_match_pyproject_and_package_json() -> None:
     npm = package["dependencies"]
 
     for pin in DOCTOR_PINS:
-        if pin.distribution is not None:
-            assert requirements[pin.distribution] == pin.expected
+        if isinstance(pin, PipPin):
+            assert pin.distribution in requirements
         elif pin.npm_package is not None:
             assert npm[pin.npm_package] == pin.expected
         else:
             assert pin.name == "node"
-    npm_pins = {pin.npm_package: pin.expected for pin in DOCTOR_PINS if pin.npm_package}
+    npm_pins = {
+        pin.npm_package: pin.expected
+        for pin in DOCTOR_PINS
+        if isinstance(pin, ToolPin) and pin.npm_package is not None
+    }
     assert npm_pins == npm
 
 
@@ -313,6 +329,7 @@ def test_doctor_expected_versions_match_pip_and_npm_pins(tmp_path: Path) -> None
     assert requirements["coverage"] == expected["coverage.py"]
     assert requirements["mutmut"] == expected["mutmut"]
     assert requirements["import-linter"] == expected["import-linter"]
+    assert requirements["grimp"] == expected["grimp"]
 
     package = json.loads((ROOT / "package.json").read_text())
     assert package["private"] is True
@@ -322,6 +339,68 @@ def test_doctor_expected_versions_match_pip_and_npm_pins(tmp_path: Path) -> None
     assert npm["jscpd"] == expected["jscpd"]
     assert npm["dependency-cruiser"] == expected["dependency-cruiser"]
     assert set(npm) == {"c8", "dependency-cruiser", "jscpd", "vitest"}
+
+
+_DECLARED = ("lizard==1.24.1", "coverage==7.16.2", "import-linter==2.15", "mutmut==3.8.0")
+
+
+def test_doctor_expects_the_grimp_version_bob_declares(tmp_path: Path) -> None:
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    for _name, _expected, executable, banner in PINS:
+        _stub(bin_dir, executable, banner)
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    meta = _bob_metadata(tmp_path / "meta", *_DECLARED, "grimp==9.9.9")
+    result = _run_doctor(repo, bin_dir, metadata=meta)
+
+    assert result.returncode == 4
+    assert "grimp expected 9.9.9 found 3.17" in result.stdout
+    assert "pip install 'grimp==9.9.9'" in result.stdout
+    assert "lizard expected 1.24.1 found 1.24.1" in result.stdout
+
+
+def test_doctor_fails_grimp_when_bob_pins_it_only_for_dev(tmp_path: Path) -> None:
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    for _name, _expected, executable, banner in PINS:
+        _stub(bin_dir, executable, banner)
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    meta = _bob_metadata(tmp_path / "meta", *_DECLARED, 'grimp==3.17; extra == "dev"')
+    result = _run_doctor(repo, bin_dir, metadata=meta)
+
+    assert result.returncode == 4
+    assert "grimp expected missing found 3.17" in result.stdout
+    assert "pip install 'grimp" not in result.stdout
+    assert "import-linter expected 2.15 found 2.15" in result.stdout
+
+
+def test_declared_pins_keeps_unconditional_exact_pins() -> None:
+    """No processo. Os testes de subprocesso zeram MUTANT_UNDER_TEST e não matam mutante."""
+    assert declared_pins(
+        [
+            "lizard==1.24.1",
+            'pytest==9.1.1; extra == "dev"',
+            "grimp==3.17",
+            'tomli==2.5.0; python_version < "3.11" and extra == "dev"',
+            "rich>=14.2.0",
+        ]
+    ) == {"lizard": "1.24.1", "grimp": "3.17"}
+
+
+def _bob_metadata(parent: Path, *requires: str) -> Path:
+    """Diretório com bob_quality-0.1.0.dist-info/METADATA e estas linhas Requires-Dist."""
+    dist = parent / "bob_quality-0.1.0.dist-info"
+    dist.mkdir(parents=True)
+    lines = [
+        "Metadata-Version: 2.1",
+        "Name: bob-quality",
+        "Version: 0.1.0",
+    ]
+    lines.extend(f"Requires-Dist: {requirement}" for requirement in requires)
+    (dist / "METADATA").write_text("\n".join(lines) + "\n")
+    return parent
 
 
 def _expected_versions(stdout: str) -> dict[str, str]:
