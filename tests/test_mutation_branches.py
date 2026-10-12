@@ -1,5 +1,3 @@
-"""Contratos que o mutmut distingue: argumento, versão, waiver e mensagem."""
-
 from __future__ import annotations
 
 import json
@@ -77,7 +75,15 @@ def test_python_only_forwards_workers_and_does_not_invent_a_skip(
         seen.update(kwargs)
         return outcome
 
+    original_merge = mutate_gate._merge
+
+    def spy(python: MutationOutcome | None, typescript: MutationOutcome | None, skip: object):
+        seen["typescript"] = typescript
+        seen["skip"] = skip
+        return original_merge(python, typescript, skip)
+
     monkeypatch.setattr(mutate_gate, "run_mutation_gate", fake)
+    monkeypatch.setattr(mutate_gate, "_merge", spy)
 
     got = mutate_gate.run_mutate_gate(
         tmp_path,
@@ -89,7 +95,10 @@ def test_python_only_forwards_workers_and_does_not_invent_a_skip(
     )
 
     assert got is outcome
-    assert seen == {"max_workers": 3, "baseline": 2}
+    assert seen["max_workers"] == 3
+    assert seen["baseline"] == 2
+    assert seen["typescript"] is None
+    assert seen["skip"] is None
 
 
 def test_merge_keeps_the_worse_exit_and_both_sides() -> None:
@@ -135,8 +144,17 @@ def test_merge_keeps_the_worse_exit_and_both_sides() -> None:
     skip = msg("npm.deps_missing", hint="npm ci")
 
     merged = _merge(python, typescript, skip)
+    bare = _merge(python, typescript, None)
 
     assert merged.exit_code == 3
+    assert merged.result.name == "mutate"
+    assert merged.result.status == "failed"
+    assert bare.result.name == "mutate"
+    assert bare.result.status == "failed"
+    assert in_both(bare.result.reason) == (
+        "survivor without waiver: beta@b.py:2, gamma@c.ts:3",
+        "sobrevivente sem waiver: beta@b.py:2, gamma@c.ts:3",
+    )
     assert merged.versions == {"mutmut": "3.8.0", "stryker": "10.0.0"}
     assert merged.waivers == [{"id": "py"}]
     assert merged.survivors == [*python.survivors, *typescript.survivors]
@@ -169,6 +187,24 @@ def test_merge_reports_the_side_that_hit_the_worse_hard_exit() -> None:
 
     assert merged is not python
     assert merged.exit_code == 4
+    assert merged.result.name == "mutate"
+    assert merged.result.status == "not_run"
+    assert in_both(merged.result.reason) == (
+        "Stryker did not write the report",
+        "o Stryker não gravou o relatório",
+    )
+
+
+def test_merge_reports_typescript_when_only_that_side_hit_the_hard_exit() -> None:
+    from bob_quality.mutate_gate import _merge
+
+    python = _outcome(2, status="failed", reason=msg("probe.baseline_failed"))
+    typescript = _outcome(4, status="not_run", reason=msg("stryker.no_report"))
+
+    merged = _merge(python, typescript, None)
+
+    assert merged.exit_code == 4
+    assert merged.result.name == "mutate"
     assert merged.result.status == "not_run"
     assert in_both(merged.result.reason) == (
         "Stryker did not write the report",
@@ -188,6 +224,7 @@ def test_a_missing_language_is_returned_unchanged_until_a_skip_is_noted() -> Non
     noted = _merge(python, None, msg("npm.deps_missing", hint="npm ci"))
     assert noted.exit_code == 0
     assert noted.waivers == [{"id": "py"}]
+    assert noted.result.name == "mutate"
     assert noted.result.status == "warn"
     assert in_both(noted.result.reason) == (
         "TypeScript skipped: plugin npm dependencies missing: npm ci",
@@ -195,10 +232,132 @@ def test_a_missing_language_is_returned_unchanged_until_a_skip_is_noted() -> Non
     )
 
 
+def test_merge_joins_both_hard_failures_and_warns_for_uncovered_mutants() -> None:
+    from bob_quality.mutate_gate import _merge, _merge_no_coverage
+
+    python = _outcome(2, status="not_run", reason=msg("probe.baseline_failed"))
+    typescript = _outcome(2, status="failed", reason=msg("stryker.no_report"))
+    joined = _merge(python, typescript, None)
+
+    assert joined.exit_code == 2
+    assert joined.result.name == "mutate"
+    assert joined.result.status == "not_run"
+    assert in_both(joined.result.reason) == (
+        "baseline tests failed before measuring; Stryker did not write the report",
+        "testes da baseline falharam antes de medir; o Stryker não gravou o relatório",
+    )
+
+    quiet = {
+        "remutated": [],
+        "reused": [],
+        "no_coverage": {
+            "total": 1,
+            "functions": [{"file": "a.py", "function": "add", "count": 1}],
+        },
+    }
+    warned = _merge(
+        _outcome(0, status="passed", summary=quiet),
+        _outcome(
+            0,
+            status="passed",
+            summary={
+                "remutated": [],
+                "reused": [],
+                "no_coverage": {
+                    "total": 1,
+                    "functions": [{"file": "a.py", "function": "add", "count": 2}],
+                },
+            },
+        ),
+        None,
+    )
+
+    assert warned.exit_code == 0
+    assert warned.result.name == "mutate"
+    assert warned.result.status == "warn"
+    assert in_both(warned.result.reason) == (
+        "3 mutants without a test",
+        "3 mutantes sem teste",
+    )
+    assert warned.summary["no_coverage"] == {
+        "total": 3,
+        "functions": [{"file": "a.py", "function": "add", "count": 3}],
+    }
+    assert _merge_no_coverage(
+        [
+            "nope",
+            {"functions": None},
+            {
+                "functions": [
+                    None,
+                    {"count": None},
+                    {"file": "a.py", "function": "zeta", "count": 1},
+                    {"file": "b.py", "function": "scale", "count": 1},
+                    {"file": "a.py", "function": "add", "count": 4},
+                ]
+            },
+        ]
+    ) == {
+        "total": 6,
+        "functions": [
+            {"file": "a.py", "function": "add", "count": 4},
+            {"file": "a.py", "function": "zeta", "count": 1},
+            {"file": "b.py", "function": "scale", "count": 1},
+            {"file": "", "function": "", "count": 0},
+        ],
+    }
+
+
+def test_equal_exit_codes_keep_the_first_value() -> None:
+    from bob_quality.mutate_gate import _worse
+
+    class _Code(int):
+        pass
+
+    python = _Code(2)
+    typescript = _Code(2)
+
+    assert _worse(python, typescript) is python
+    assert _worse(python, _Code(4)) == 4
+    assert _worse(_Code(4), typescript) == 4
+
+
+def test_a_label_that_is_not_a_list_counts_as_empty() -> None:
+    from bob_quality.mutate_gate import _merge
+
+    summary = {
+        "remutated": "nope",
+        "reused": [],
+        "no_coverage": {"total": 0, "functions": []},
+    }
+
+    merged = _merge(_outcome(0, status="passed", summary=summary), _outcome(0, status="passed"), None)
+
+    assert merged.summary["remutated"] == []
+    assert merged.summary["reused"] == []
+
+
+def test_typescript_mutation_ignores_a_repo_without_that_language(tmp_path: Path) -> None:
+    from bob_quality.stryker_gate import run_typescript_mutation
+
+    assert run_typescript_mutation(
+        tmp_path, Config(), {}, tmp_path, python_measured=False
+    ) == (None, None)
+
+
+def test_a_summary_without_its_label_list_is_a_bug() -> None:
+    from bob_quality.mutate_gate import _merge
+
+    broken = _outcome(0, status="passed", summary={"reused": [], "no_coverage": {"total": 0, "functions": []}})
+
+    with pytest.raises(KeyError, match="remutated"):
+        _merge(broken, _outcome(0, status="passed"), None)
+
+
 def test_merge_without_either_language_names_the_bug() -> None:
     from bob_quality.mutate_gate import _merge
 
-    with pytest.raises(RuntimeError, match="mutate gate had neither language"):
+    with pytest.raises(RuntimeError, match="^mutate gate had neither language$"):
         _merge(None, None, None)
 
 

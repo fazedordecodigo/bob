@@ -1,9 +1,3 @@
-"""Adaptador Stryker: relatório JSON gravado → Mutant.
-
-O arquivo é a forma do mutation-testing-report-schema que o reporter json
-do @stryker-mutator/core 10.0.0 grava. O adaptador não importa o Stryker.
-"""
-
 from __future__ import annotations
 
 import json
@@ -185,6 +179,7 @@ def test_ignored_and_out_of_span_do_not_drop_the_next_mutant() -> None:
             "src/kept.ts": {
                 "mutants": [
                     _mutant(status="Ignored", mutant_id="0"),
+                    _mutant(mutant_id="9", line=50),
                     _mutant(mutant_id="1", line=2),
                 ]
             },
@@ -234,8 +229,10 @@ def test_file_identity_accepts_a_dot_slash_and_a_backslash() -> None:
 
     dotted = _one("src/safe.ts", _mutant(line=2), [spans[0]])
     slashed = _one("src\\safe.ts", _mutant(line=2), [CyclomaticFunction("src/safe.ts", "plain", 1, 8, 1)])
+    span_slashed = _one("src/safe.ts", _mutant(line=2), [spans[1]])
     marked = _one("Xsrc/safe.ts", _mutant(line=2), [spans[2]])
 
     assert dotted[0].function == "dotted"
     assert slashed[0].function == "plain"
+    assert span_slashed[0].function == "slashed"
     assert marked[0].function == "marked"

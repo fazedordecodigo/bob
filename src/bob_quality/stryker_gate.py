@@ -1,9 +1,3 @@
-"""Mutação TypeScript: Stryker incremental em cima do diff.
-
-O cache `.bob/mutation-cache.json` não é escrito aqui. O arquivo
-incremental é do processo do Stryker.
-"""
-
 from __future__ import annotations
 
 import json
@@ -50,26 +44,67 @@ def run_typescript_mutation(
     *,
     python_measured: bool,
 ) -> tuple[MutationOutcome | None, Text | None]:
-    """`(outcome, None)` quando o TypeScript rodou. `(None, motivo)` é skip."""
     if "typescript" not in config.languages:
         return None, None
     missing = _missing_tool()
     if missing is not None:
-        if python_measured:
-            return None, missing
-        return _not_run(missing, {}), None
+        return _tool_skipped(missing, python_measured)
+    return _with_loaded_waivers(cwd, config, diff_lines, out_dir)
+
+
+def _tool_skipped(
+    missing: Text, python_measured: bool
+) -> tuple[MutationOutcome | None, Text | None]:
+    if python_measured:
+        return None, missing
+    return _not_run(missing, {}), None
+
+
+def _with_loaded_waivers(
+    cwd: Path,
+    config: Config,
+    diff_lines: dict[str, set[int]],
+    out_dir: Path,
+) -> tuple[MutationOutcome | None, Text | None]:
     try:
-        versions = _versions()
-        waivers = load_waivers(cwd)
+        versions, waivers, waiver_rows = _loaded(cwd)
     except (ToolError, WaiverError) as exc:
         return _not_run(reason(exc), {}), None
-    waiver_rows = [item.as_dict() for item in waivers]
+    return _with_spans(cwd, config, diff_lines, out_dir, versions, waivers, waiver_rows)
+
+
+def _loaded(cwd: Path) -> tuple[dict[str, str], list[Waiver], list[dict[str, object]]]:
+    versions = _versions()
+    waivers = load_waivers(cwd)
+    return versions, waivers, [item.as_dict() for item in waivers]
+
+
+def _with_spans(
+    cwd: Path,
+    config: Config,
+    diff_lines: dict[str, set[int]],
+    out_dir: Path,
+    versions: dict[str, str],
+    waivers: list[Waiver],
+    waiver_rows: list[dict[str, object]],
+) -> tuple[MutationOutcome | None, Text | None]:
     try:
         spans = _changed_spans(cwd, config, diff_lines)
     except (ToolError, OSError, LizardParseError) as exc:
         return _not_run(reason(exc), versions, waiver_rows), None
     if not spans:
         return _finish([], [], [], versions, waiver_rows), None
+    return _with_stryker(cwd, out_dir, spans, versions, waivers, waiver_rows)
+
+
+def _with_stryker(
+    cwd: Path,
+    out_dir: Path,
+    spans: list[CyclomaticFunction],
+    versions: dict[str, str],
+    waivers: list[Waiver],
+    waiver_rows: list[dict[str, object]],
+) -> tuple[MutationOutcome | None, Text | None]:
     try:
         return _run(cwd, out_dir, spans, versions, waiver_rows, waivers), None
     except (OSError, json.JSONDecodeError, StrykerParseError) as exc:
@@ -146,19 +181,54 @@ def _run(
         _relative(cwd, incremental_path),
         spans,
     )
+    return _report_or_retry(
+        cwd,
+        report_path,
+        incremental_path,
+        argv,
+        spans,
+        versions,
+        waiver_rows,
+        waivers,
+    )
+
+
+def _report_or_retry(
+    cwd: Path,
+    report_path: Path,
+    incremental_path: Path,
+    argv: list[str],
+    spans: list[CyclomaticFunction],
+    versions: dict[str, str],
+    waiver_rows: list[dict[str, object]],
+    waivers: list[Waiver],
+) -> MutationOutcome:
+    found = _read_report(cwd, report_path, argv, spans, versions, waiver_rows, waivers)
+    if found is not None:
+        return found
+    if incremental_path.is_file():
+        incremental_path.unlink()
+        found = _read_report(cwd, report_path, argv, spans, versions, waiver_rows, waivers)
+        if found is not None:
+            return found
+    return _not_run(msg("stryker.no_report"), versions, waiver_rows)
+
+
+def _read_report(
+    cwd: Path,
+    report_path: Path,
+    argv: list[str],
+    spans: list[CyclomaticFunction],
+    versions: dict[str, str],
+    waiver_rows: list[dict[str, object]],
+    waivers: list[Waiver],
+) -> MutationOutcome | None:
     completed = _invoke(cwd, report_path, argv)
     if report_path.is_file():
         return _from_report(report_path, spans, versions, waiver_rows, waivers)
     if _dry_run_failed(completed):
         return _baseline(versions, waiver_rows)
-    if incremental_path.is_file():
-        incremental_path.unlink()
-        completed = _invoke(cwd, report_path, argv)
-        if report_path.is_file():
-            return _from_report(report_path, spans, versions, waiver_rows, waivers)
-        if _dry_run_failed(completed):
-            return _baseline(versions, waiver_rows)
-    return _not_run(msg("stryker.no_report"), versions, waiver_rows)
+    return None
 
 
 def _write_config(

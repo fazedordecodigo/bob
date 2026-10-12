@@ -1,9 +1,3 @@
-"""Adaptador Stryker: relatório JSON da versão pinada → Mutant.
-
-Não importa o Stryker. O contrato é o mutation-testing-report-schema
-que `@stryker-mutator/core` 10.0.0 grava no reporter json.
-"""
-
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
@@ -30,12 +24,7 @@ def mutants_from_report(
     payload: Mapping[str, object],
     spans: Sequence[CyclomaticFunction],
 ) -> list[Mutant]:
-    """Mapeia o status antes do filtro de span.
-
-    Um status desconhecido num arquivo fora do diff ainda é exit 4.
-    `Ignored` some. O id é `{arquivo}:{id do Stryker}` para não colidir
-    quando o Stryker recomeça a contagem em cada arquivo.
-    """
+    """O id é `{arquivo}:{id do Stryker}` para não colidir quando o Stryker recomeça a contagem em cada arquivo."""
     files = _files(payload)
     mutants: list[Mutant] = []
     for report_file, file_entry in files.items():

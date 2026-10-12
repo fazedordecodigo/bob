@@ -1,5 +1,3 @@
-"""Braço do gate mutate. Python segue no cache; TypeScript volta um outcome."""
-
 from __future__ import annotations
 
 from dataclasses import replace
@@ -20,7 +18,6 @@ def run_mutate_gate(
     max_workers: int | None = None,
     baseline: int | None = None,
 ) -> MutationOutcome:
-    """Uma saída. `max_workers` e `baseline` ficam no braço Python."""
     python = None
     if "python" in config.languages:
         python = run_mutation_gate(
@@ -78,19 +75,19 @@ def _merge(
 def _with_skip(outcome: MutationOutcome | None, skip: Text | None) -> MutationOutcome:
     if outcome is None:
         raise RuntimeError("mutate gate had neither language")
-    noted, code = _note_skip(outcome.result, outcome.exit_code, skip)
+    noted = _note_skip(outcome.result, skip)
     if noted is outcome.result:
         return outcome
     return replace(outcome, result=noted)
 
 
-def _note_skip(result: GateResult, code: int, skip: Text | None) -> tuple[GateResult, int]:
+def _note_skip(result: GateResult, skip: Text | None) -> GateResult:
     if not skip:
-        return result, code
+        return result
     note = msg("probe.typescript_skipped", reason=skip)
     if result.status == "passed":
-        return GateResult("mutate", "warn", note), code
-    return GateResult("mutate", result.status, msg("probe.joined", first=result.reason, second=note)), code
+        return GateResult("mutate", "warn", note)
+    return GateResult("mutate", result.status, msg("probe.joined", first=result.reason, second=note))
 
 
 def _merged_result(
@@ -101,54 +98,84 @@ def _merged_result(
     summary: dict[str, object],
 ) -> GateResult:
     if code == 3:
-        mutants = ", ".join(
-            f"{item['function']}@{item['file']}:{item['line']}"
-            for item in survivors
-            if not item.get("waiver")
-        )
-        return GateResult("mutate", "failed", msg("mutate.unwaived", mutants=mutants))
+        return _unwaived_result(survivors)
     if code in {2, 4}:
         return _hard_result(python, typescript, code)
     uncovered = summary["no_coverage"]
-    total = int(uncovered["total"]) if isinstance(uncovered, dict) else 0
-    return _passing_result(total)
+    return _passing_result(int(uncovered["total"]))
+
+
+def _unwaived_result(survivors: list[dict[str, object]]) -> GateResult:
+    mutants = ", ".join(_unwaived_label(item) for item in survivors if not item.get("waiver"))
+    return GateResult("mutate", "failed", msg("mutate.unwaived", mutants=mutants))
+
+
+def _unwaived_label(item: dict[str, object]) -> str:
+    return f"{item['function']}@{item['file']}:{item['line']}"
 
 
 def _hard_result(python: MutationOutcome, typescript: MutationOutcome, code: int) -> GateResult:
     sides = [side for side in (python, typescript) if side.exit_code == code]
     if len(sides) == 2:
-        return GateResult(
-            "mutate",
-            sides[0].result.status,
-            msg("probe.joined", first=sides[0].result.reason, second=sides[1].result.reason),
-        )
-    side = typescript if typescript.exit_code == code else python
+        return _joined_hard(sides[0], sides[1])
+    return _one_hard(typescript if typescript.exit_code == code else python)
+
+
+def _joined_hard(first: MutationOutcome, second: MutationOutcome) -> GateResult:
+    return GateResult(
+        "mutate",
+        first.result.status,
+        msg("probe.joined", first=first.result.reason, second=second.result.reason),
+    )
+
+
+def _one_hard(side: MutationOutcome) -> GateResult:
     return GateResult("mutate", side.result.status, side.result.reason)
 
 
 def _merge_no_coverage(parts: list[object]) -> dict[str, object]:
     totals: dict[tuple[str, str], int] = {}
     for part in parts:
-        if not isinstance(part, dict):
-            continue
-        rows = part.get("functions")
-        if not isinstance(rows, list):
-            continue
-        for row in rows:
-            if not isinstance(row, dict):
-                continue
-            key = (str(row.get("file") or ""), str(row.get("function") or ""))
-            totals[key] = totals.get(key, 0) + int(row.get("count") or 0)
-    ordered = sorted(totals.items(), key=lambda item: (-item[1], item[0][0], item[0][1]))
+        _add_coverage_part(totals, part)
+    return _coverage_body(totals)
+
+
+def _add_coverage_part(totals: dict[tuple[str, str], int], part: object) -> None:
+    if not isinstance(part, dict):
+        return
+    rows = part.get("functions")
+    if not isinstance(rows, list):
+        return
+    for row in rows:
+        _add_coverage_row(totals, row)
+
+
+def _add_coverage_row(totals: dict[tuple[str, str], int], row: object) -> None:
+    if not isinstance(row, dict):
+        return
+    key = (_coverage_text(row.get("file")), _coverage_text(row.get("function")))
+    totals[key] = totals.get(key, 0) + _coverage_count(row.get("count"))
+
+
+def _coverage_text(value: object) -> str:
+    return str(value or "")
+
+
+def _coverage_count(value: object) -> int:
+    return int(value or 0)
+
+
+def _coverage_body(totals: dict[tuple[str, str], int]) -> dict[str, object]:
+    ordered = sorted(totals, key=lambda key: (-totals[key], key[0], key[1]))
     functions = [
-        {"file": file, "function": function, "count": count}
-        for (file, function), count in ordered
+        {"file": file, "function": function, "count": totals[(file, function)]}
+        for file, function in ordered
     ]
     return {"total": sum(totals.values()), "functions": functions}
 
 
 def _labels(outcome: MutationOutcome, key: str) -> list[object]:
-    value = outcome.summary.get(key, [])
+    value = outcome.summary[key]
     if isinstance(value, list):
         return list(value)
     return []
