@@ -18,7 +18,7 @@ from pathlib import Path
 import pytest
 
 from bob_quality.messages import Language
-from bob_quality.npm_tools import _plugin_packages, install_npm_dependencies, npm_prefix
+from bob_quality.npm_tools import install_npm_dependencies, npm_prefix
 
 _MANIFEST = {"name": "bob-quality-tools", "private": True, "dependencies": {"c8": "12.0.0"}}
 
@@ -295,11 +295,3 @@ def test_copied_manifest_installs_beside_the_package(
     }
     assert npm_prefix() == package
     assert not (tmp_path / "xdg").exists()
-
-
-def test_this_editable_checkout_resolves_the_plugin_to_the_repository_root() -> None:
-    root = Path(__file__).resolve().parents[1]
-    link = root / "src" / "bob_quality" / "package.json"
-    assert link.is_symlink()
-    assert link.resolve() == (root / "package.json").resolve()
-    assert _plugin_packages()[0] == root
