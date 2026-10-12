@@ -228,12 +228,12 @@ def test_hand_written_waiver_without_author_is_rejected(tmp_path: Path) -> None:
     )
 
     result = run_bob(repo, "mutate", "--base", "main")
-    payload = json.loads((repo / ".bob" / "report.json").read_text())
-    mutate = next(gate for gate in payload["gates"] if gate["name"] == "mutate")
 
     assert result.returncode == 4
-    assert mutate["status"] == "not_run"
-    assert mutate["reason"]
+    assert result.stderr == ".bob/waivers.yaml: waivers[0].author must be a string\n"
+    assert result.stdout == ""
+    assert not (bob / "report.md").exists()
+    assert not (bob / "report.json").exists()
 
 
 def test_check_lists_an_existing_waiver_at_the_top(tmp_path: Path) -> None:

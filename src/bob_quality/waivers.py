@@ -10,7 +10,7 @@ from pathlib import Path
 
 import yaml
 
-from bob_quality.messages import Message, msg
+from bob_quality.messages import msg
 from bob_quality.models import Mutant
 
 
@@ -47,26 +47,31 @@ def normalize_reason(reason: str | None) -> str:
     return text
 
 
+_WAIVER_FILE = ".bob/waivers.yaml"
+
+
 def load_waivers(cwd: Path) -> list[Waiver]:
     path = waivers_path(cwd)
     if not path.is_file():
         return []
-    return [_waiver_from_entry(entry) for entry in _waiver_entries(path)]
+    return [
+        _waiver_from_entry(entry, index)
+        for index, entry in enumerate(_waiver_entries(path))
+    ]
 
 
 def reject_waiver_syntax(cwd: Path) -> None:
-    path = waivers_path(cwd)
-    if path.is_file():
-        _load_yaml(path)
+    if waivers_path(cwd).is_file():
+        load_waivers(cwd)
 
 
 def _waiver_entries(path: Path) -> list[object]:
     raw = _load_yaml(path) or {}
     if not isinstance(raw, dict):
-        raise WaiverError(msg("waiver.file_not_mapping"))
+        raise WaiverError(msg("waiver.file_not_mapping", path=_WAIVER_FILE))
     entries = raw.get("waivers") or []
     if not isinstance(entries, list):
-        raise WaiverError(msg("waiver.list_required"))
+        raise WaiverError(msg("waiver.list_required", path=_WAIVER_FILE, field="waivers"))
     return entries
 
 
@@ -76,28 +81,46 @@ def _load_yaml(path: Path) -> object:
     except yaml.YAMLError as exc:
         detail = str(exc).strip().splitlines()[0].strip()
         raise WaiverError(
-            msg("waiver.invalid_yaml", path=".bob/waivers.yaml", detail=detail)
+            msg("waiver.invalid_yaml", path=_WAIVER_FILE, detail=detail)
         ) from exc
 
 
-def _waiver_from_entry(entry: object) -> Waiver:
+def _waiver_from_entry(entry: object, index: int) -> Waiver:
     if not isinstance(entry, dict):
-        raise WaiverError(msg("waiver.invalid"))
-    reason_raw = entry.get("reason")
-    reason = normalize_reason(reason_raw if isinstance(reason_raw, str) else None)
+        raise WaiverError(
+            msg("waiver.entry_mapping", path=_WAIVER_FILE, field=_item_field(index))
+        )
     return Waiver(
-        id=_required_text(entry, "id", msg("waiver.no_target")),
-        reason=reason,
-        author=_required_text(entry, "author", msg("waiver.no_author")),
-        date=_required_text(entry, "date", msg("waiver.no_date")),
+        id=_required_text(entry, "id", index),
+        reason=_reason_text(entry, index),
+        author=_required_text(entry, "author", index),
+        date=_required_text(entry, "date", index),
     )
 
 
-def _required_text(entry: dict[str, object], key: str, message: Message) -> str:
+def _reason_text(entry: dict[str, object], index: int) -> str:
+    value = entry.get("reason")
+    if not isinstance(value, str):
+        raise WaiverError(
+            msg("waiver.field_string", path=_WAIVER_FILE, field=_item_field(index, "reason"))
+        )
+    return normalize_reason(value)
+
+
+def _required_text(entry: dict[str, object], key: str, index: int) -> str:
     value = entry.get(key)
     if not isinstance(value, str) or not value.strip():
-        raise WaiverError(message)
+        raise WaiverError(
+            msg("waiver.field_string", path=_WAIVER_FILE, field=_item_field(index, key))
+        )
     return value.strip()
+
+
+def _item_field(index: int, key: str | None = None) -> str:
+    field = f"waivers[{index}]"
+    if key is None:
+        return field
+    return f"{field}.{key}"
 
 
 def add_waiver(cwd: Path, target: str, reason: str | None) -> Waiver:
