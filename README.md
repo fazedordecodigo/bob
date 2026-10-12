@@ -193,7 +193,11 @@ dependencies:
   typescript: .dependency-cruiser.cjs
 ```
 
-With `crap.scope: changed`, only changed functions block. `all` counts every measured function. The value is `changed` or `all`. If `--config` points to a file that does not exist, the YAML is not a mapping, the YAML has a syntax error, or a key has the wrong type, the run exits with `4`. The message goes to stderr in English and names the file. A wrong type also names the key, as in `bob.yaml: crap must be a mapping` or `bob.yaml: crap.max_per_function must be a number`. `check`, `doctor`, `waive`, and the other commands do this the same way. None of them writes a file.
+With `crap.scope: changed`, only changed functions block. `all` counts every measured function. The value is `changed` or `all`. Omitting `languages`, setting it to null, or using an empty list selects `[python]`. There is no autodetection.
+
+If the YAML is not a mapping, the YAML has a syntax error, or a key has the wrong type, the run exits with `4`. The message goes to stderr in English and names the file. A wrong type also names the key, as in `bob.yaml: crap must be a mapping` or `bob.yaml: crap.max_per_function must be a number`. `check`, `doctor`, `waive`, and the other commands do this the same way. None of them writes a file.
+
+If `--config` points to a file that does not exist, `check`, `crap`, `dry`, `deps`, and `mutate` exit with `4`, write `.bob/report.md` and `.bob/report.json`, and leave stdout and stderr empty. Each requested gate is not run. The JSON reason is `config file not found: <path>`, using the path `load_config` received. The Markdown follows the output language. `doctor` and `waive` do not accept `--config`.
 
 ### Output language
 
