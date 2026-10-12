@@ -144,7 +144,7 @@ RICH_EN = """# bob report
 ## How to reproduce
 
 ```
-bob check --base main
+bob check --base main --lang en
 ```
 """
 
@@ -215,7 +215,7 @@ RICH_PT_BR = """# Relatório bob
 ## Como reproduzir
 
 ```
-bob check --base main
+bob check --base main --lang pt-BR
 ```
 """
 
@@ -262,7 +262,7 @@ No mutants without tests.
 ## How to reproduce
 
 ```
-bob check
+bob check --lang en
 ```
 """
 

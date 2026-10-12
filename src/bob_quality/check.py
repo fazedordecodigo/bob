@@ -51,7 +51,6 @@ def run_check(
         chosen_gates,
         chosen_out,
         max_workers,
-        lang,
     )
     if measured.mutation is None:
         loaded = _load_idle_waivers(cwd, chosen_base, command, chosen_gates)
@@ -115,7 +114,6 @@ def _measure(
     gates: list[str],
     out_dir: Path,
     max_workers: int | None,
-    lang: Language,
 ) -> _Measured:
     state = _Measured()
     for gate in gates:
@@ -129,7 +127,6 @@ def _measure(
             coverage_file,
             out_dir,
             max_workers,
-            lang,
         )
     return state
 
@@ -144,7 +141,6 @@ def _absorb(
     coverage_file: Path | None,
     out_dir: Path,
     max_workers: int | None,
-    lang: Language,
 ) -> None:
     if gate == "crap":
         result, metrics, code, versions, baseline = run_crap_gate(
@@ -166,7 +162,7 @@ def _absorb(
         _record(state, result, code, versions)
         return
     if gate == "deps":
-        _absorb_deps(state, cwd, config, diff_lines, lang)
+        _absorb_deps(state, cwd, config, diff_lines)
         return
     if gate == "mutate":
         mutation = run_mutation_gate(
@@ -193,9 +189,8 @@ def _absorb_deps(
     cwd: Path,
     config: Config,
     diff_lines: dict[str, set[int]],
-    lang: Language,
 ) -> None:
-    result, code, versions, found = run_deps_gate(cwd, config, set(diff_lines), lang)
+    result, code, versions, found = run_deps_gate(cwd, config, set(diff_lines))
     state.violations = found
     _record(state, result, code, versions)
 

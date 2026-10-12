@@ -250,7 +250,7 @@ _MARKDOWN_WITH_ROWS = (
     + "|---|---|---:|\n"
     + "| z | src/app/b.py | 2 |\n"
     + "| add | src/app/a.py | 1 |\n\n"
-    + "## Como reproduzir\n\n```\nbob mutate --base main\n```\n"
+    + "## Como reproduzir\n\n```\nbob mutate --base main --lang pt-BR\n```\n"
 )
 
 _MARKDOWN_EMPTY = (
@@ -258,5 +258,5 @@ _MARKDOWN_EMPTY = (
     + "- ✅ `mutate`: passou\n"
     + _BODY
     + "## Mutantes sem teste\n\nNenhum mutante sem teste.\n\n"
-    + "## Como reproduzir\n\n```\nbob mutate --base main\n```\n"
+    + "## Como reproduzir\n\n```\nbob mutate --base main --lang pt-BR\n```\n"
 )

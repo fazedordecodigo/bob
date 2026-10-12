@@ -180,7 +180,7 @@ def _run_check(
         config_path=config_path,
         out_dir=out_dir,
         fmt=args.format,
-        reproduce=_reproduce("check", args, lang),
+        reproduce=_reproduce("check", args),
         lang=lang,
     )
 
@@ -202,7 +202,7 @@ def _run_crap(
         fmt="both",
         threshold=args.threshold,
         coverage_file=coverage,
-        reproduce=_reproduce("crap", args, lang),
+        reproduce=_reproduce("crap", args),
         lang=lang,
     )
 
@@ -221,7 +221,7 @@ def _run_dry(
         config_path=config_path,
         out_dir=out_dir,
         fmt="both",
-        reproduce=_reproduce("dry", args, lang),
+        reproduce=_reproduce("dry", args),
         lang=lang,
     )
 
@@ -240,7 +240,7 @@ def _run_deps(
         config_path=config_path,
         out_dir=out_dir,
         fmt="both",
-        reproduce=_reproduce("deps", args, lang),
+        reproduce=_reproduce("deps", args),
         lang=lang,
     )
 
@@ -260,12 +260,12 @@ def _run_mutate(
         out_dir=out_dir,
         fmt="both",
         max_workers=args.max_workers,
-        reproduce=_reproduce("mutate", args, lang),
+        reproduce=_reproduce("mutate", args),
         lang=lang,
     )
 
 
-def _reproduce(command: str, args: argparse.Namespace, lang: Language) -> str:
+def _reproduce(command: str, args: argparse.Namespace) -> str:
     parts = ["bob", command]
     _append_flag(parts, "--base", getattr(args, "base", None))
     _append_flag(parts, "--gates", getattr(args, "gates", None))
@@ -277,7 +277,6 @@ def _reproduce(command: str, args: argparse.Namespace, lang: Language) -> str:
     _append_flag(parts, "--max-workers", getattr(args, "max_workers", None))
     if getattr(args, "since_last_run", False):
         parts.append("--since-last-run")
-    parts.extend(["--lang", lang])
     return " ".join(parts)
 
 

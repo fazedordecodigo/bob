@@ -167,7 +167,7 @@ The case matters (`pt-br` is invalid). An empty `--lang` or `BOB_LANG` is invali
 
 An invalid `language` value, a numeric `language`, a `bob.yaml` that is not a mapping, or YAML with a syntax error exits with `4`. The message goes to stderr. The run writes no report and no `waivers.yaml`. `check`, `doctor`, `waive`, and the other commands do this the same way. A valid `language` still applies when another key in the file is invalid, and that error's report uses it.
 
-`.bob/report.json` keeps the same keys. Every gate `reason` is English, so a tool can match it without knowing the output language. The cycle rule name follows the output language. English uses `Forbidden dependency cycle`. `pt-BR` uses `Proibido ciclo de dependência`. The reproduce command includes the `--lang` that produced the report.
+`.bob/report.json` is the same bytes in both languages. Every gate `reason`, the cycle rule name, and `reproduce` stay English, so a tool can match them without knowing the output language. `reproduce` in the JSON omits `--lang`. English calls the cycle rule `Forbidden dependency cycle`. `pt-BR` calls it `Proibido ciclo de dependência` in `report.md` and in the pull request comment. A dependency-cruiser rule with no name is `dependency` in the JSON and `dependência` in the Markdown. The reproduce line in `report.md` includes the `--lang` that produced it.
 
 In CI, set `language: pt-BR` in `bob.yaml`, or `BOB_LANG: pt-BR` in the job `env`. The GitHub Action input `language` sets the same choice for `bob check` and for the pull request comment. An empty input leaves `BOB_LANG` and `bob.yaml` in charge. The comment's truncation note and its own errors use that language.
 
@@ -201,7 +201,7 @@ A waiver without a one-line reason is rejected with exit `4`. A new waiver with 
 7. `Dependency violations and cycles`, and `Information (dependencies outside the diff)`.
 8. `New clones`.
 9. `Surviving mutants`.
-10. `How to reproduce`, the exact command to run locally, including `--lang`.
+10. `How to reproduce`, the exact command to run locally, including `--lang`. The same command in `report.json` omits `--lang`.
 
 ## Concepts
 

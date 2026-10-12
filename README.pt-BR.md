@@ -167,7 +167,7 @@ A caixa importa (`pt-br` é inválido). Um `--lang` ou `BOB_LANG` vazio é invá
 
 Um valor de `language` inválido, um `language` numérico, um `bob.yaml` que não é um mapeamento, ou um YAML com erro de sintaxe, sai com `4`. A mensagem vai para o stderr. A execução não grava relatório nem `waivers.yaml`. `check`, `doctor`, `waive` e os outros comandos fazem isso do mesmo jeito. Um `language` válido continua valendo quando outra chave do arquivo é inválida, e o relatório desse erro usa esse idioma.
 
-O `.bob/report.json` mantém as mesmas chaves. Todo `reason` de gate fica em inglês, então uma ferramenta pode casar esse texto sem saber o idioma da saída. O nome da regra de ciclo segue o idioma da saída. Em inglês é `Forbidden dependency cycle`. Em `pt-BR` é `Proibido ciclo de dependência`. O comando de reprodução inclui o `--lang` que produziu o relatório.
+O `.bob/report.json` tem os mesmos bytes nos dois idiomas. Todo `reason` de gate, o nome da regra de ciclo e o `reproduce` ficam em inglês, então uma ferramenta pode casar esse texto sem saber o idioma da saída. O `reproduce` do JSON não leva `--lang`. Em inglês a regra de ciclo se chama `Forbidden dependency cycle`. Em `pt-BR` ela se chama `Proibido ciclo de dependência` no `report.md` e no comentário do pull request. Uma regra do dependency-cruiser sem nome é `dependency` no JSON e `dependência` no Markdown. A linha de reprodução do `report.md` inclui o `--lang` que produziu o relatório.
 
 No CI, defina `language: pt-BR` no `bob.yaml`, ou `BOB_LANG: pt-BR` no `env` do job. O input `language` da GitHub Action define a mesma escolha para o `bob check` e para o comentário do pull request. Um input vazio deixa `BOB_LANG` e o `bob.yaml` decidirem. A nota de truncamento do comentário e os erros do próprio comentário usam esse idioma.
 
@@ -201,7 +201,7 @@ Um waiver sem motivo de uma linha é rejeitado com exit `4`. Um waiver novo com 
 7. `Violações e ciclos de dependência`, e `Informação (dependências fora do diff)`.
 8. `Clones novos`.
 9. `Mutantes sobreviventes`.
-10. `Como reproduzir`, o comando exato para rodar localmente, incluindo `--lang`.
+10. `Como reproduzir`, o comando exato para rodar localmente, incluindo `--lang`. O mesmo comando no `report.json` não leva `--lang`.
 
 ## Conceitos
 

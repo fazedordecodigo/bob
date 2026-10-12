@@ -82,7 +82,7 @@ class DepViolation:
 
     origin: str
     destination: str
-    rule: str
+    rule: Text
     in_diff: bool
 
 

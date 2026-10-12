@@ -54,8 +54,8 @@ def to_json(report: Report) -> dict[str, object]:
         "focus": report.focus,
         "top_crap": report.top_crap,
         "old_debt": report.old_debt,
-        "dependencies": report.dependencies,
-        "old_dependencies": report.old_dependencies,
+        "dependencies": _json_dependencies(report.dependencies),
+        "old_dependencies": _json_dependencies(report.old_dependencies),
         "clones": [clone_row(clone) for clone in report.clones],
         "waivers": report.waivers,
         "survivors": report.survivors,
@@ -69,6 +69,18 @@ def _json_reason(reason: Text | None) -> str | None:
     if reason is None:
         return None
     return render(reason, JSON_LANGUAGE)
+
+
+def _json_dependencies(items: list[dict[str, object]]) -> list[dict[str, object]]:
+    return [_json_dependency(item) for item in items]
+
+
+def _json_dependency(item: dict[str, object]) -> dict[str, object]:
+    row = dict(item)
+    rule = row.get("rule")
+    if isinstance(rule, Message):
+        row["rule"] = render(rule, JSON_LANGUAGE)
+    return row
 
 
 def to_markdown(report: Report, lang: Language) -> str:
@@ -85,7 +97,7 @@ def to_markdown(report: Report, lang: Language) -> str:
     lines.extend(_clone_lines(report))
     lines.extend(_survivor_lines(report))
     lines.extend(_no_coverage_lines(report))
-    lines.extend(_footer(report))
+    lines.extend(_footer(report, lang))
     return "\n".join(render(line, lang) for line in lines)
 
 
@@ -209,8 +221,9 @@ def _waiver_section(waivers: list[dict[str, object]]) -> list[Text]:
     return lines
 
 
-def _footer(report: Report) -> list[Text]:
-    return ["", msg("report.reproduce"), "", "```", report.reproduce, "```", ""]
+def _footer(report: Report, lang: Language) -> list[Text]:
+    command = f"{report.reproduce} --lang {lang}" if report.reproduce else ""
+    return ["", msg("report.reproduce"), "", "```", command, "```", ""]
 
 
 def clone_row(clone: Clone) -> dict[str, object]:
@@ -246,8 +259,13 @@ def _dependency_items(report: Report) -> list[Text]:
     return [_dependency_item(item) for item in report.dependencies]
 
 
-def _dependency_item(item: dict[str, object]) -> str:
-    return f"- `{item['origin']} → {item['destination']}` ({item['rule']})"
+def _dependency_item(item: dict[str, object]) -> Message:
+    return msg(
+        "report.dependency_edge",
+        origin=item["origin"],
+        destination=item["destination"],
+        rule=item["rule"],
+    )
 
 
 def _gate_named(report: Report, name: str) -> GateResult | None:

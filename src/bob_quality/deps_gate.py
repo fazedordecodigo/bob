@@ -19,7 +19,7 @@ from bob_quality.config import Config
 from bob_quality.core import deps_verdict, unique_violations
 from bob_quality.cycles import strongly_connected
 from bob_quality.exit_codes import CONFIG_OR_TOOL, GATE_FAILED, PASSED
-from bob_quality.messages import DEFAULT_LANGUAGE, Language, Text, msg, reason, t
+from bob_quality.messages import DEFAULT_LANGUAGE, Text, msg, reason, t
 from bob_quality.models import DepViolation, GateResult
 from bob_quality.npm_tools import node_missing_message, npm_prefix
 from bob_quality.tools import ToolError
@@ -63,7 +63,6 @@ def run_deps_gate(
     cwd: Path,
     config: Config,
     changed_files: set[str] | None = None,
-    lang: Language = DEFAULT_LANGUAGE,
 ) -> tuple[GateResult, int, dict[str, str], list[DepViolation]]:
     violations: list[DepViolation] = []
     versions: dict[str, str] = {}
@@ -71,7 +70,11 @@ def run_deps_gate(
     try:
         components = _cycle_components(cwd, config) if python_measured else []
         if python_measured:
-            violations.extend(_python_violations(cwd, config, versions, t(lang, "deps.cycle_rule")))
+            violations.extend(
+                _python_violations(
+                    cwd, config, versions, t(DEFAULT_LANGUAGE, "deps.cycle_rule")
+                )
+            )
         skip = _collect_typescript(
             enabled="typescript" in config.languages,
             python_measured=python_measured,
@@ -321,7 +324,7 @@ def _lint_cycles(
     with tempfile.TemporaryDirectory(prefix="bob-import-linter-") as tmp:
         path = Path(tmp) / ".importlinter"
         path.write_text(_cycle_ini(roots, cycle_rule), encoding="utf-8")
-        return _lint(cwd, config, path)
+        return [_cycle_named(item) for item in _lint(cwd, config, path)]
 
 
 def _run_linter(cwd: Path, config: Config, config_path: Path) -> subprocess.CompletedProcess[str]:
@@ -414,6 +417,10 @@ def _packages_under(root: Path) -> list[_Package]:
         for child in sorted(root.iterdir())
         if child.is_dir() and (child / "__init__.py").is_file()
     ]
+
+
+def _cycle_named(item: DepViolation) -> DepViolation:
+    return DepViolation(item.origin, item.destination, msg("deps.cycle_rule"), item.in_diff)
 
 
 def _cycle_ini(roots: list[str], cycle_rule: str) -> str:

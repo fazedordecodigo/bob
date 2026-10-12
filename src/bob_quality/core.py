@@ -137,7 +137,7 @@ def deps_verdict(violations: list[DepViolation]) -> tuple[GateResult, int]:
 
 
 def unique_violations(items: list[DepViolation]) -> list[DepViolation]:
-    seen: set[tuple[str, str, str]] = set()
+    seen: set[tuple[str, str, object]] = set()
     unique: list[DepViolation] = []
     for item in items:
         key = (item.origin, item.destination, item.rule)
