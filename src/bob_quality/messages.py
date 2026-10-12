@@ -205,6 +205,12 @@ _EN: dict[str, str] = {
     "action.required": "repo, pr, and token are required",
     "action.report_missing": "`{path}` was not generated.",
     "action.comments_invalid": "invalid comment list",
+    "supply.block_missing": "missing {index} package {name} at {file}:{line}",
+    "supply.block_undeclared": "undeclared import {module} at {file}:{line}",
+    "supply.block_advisory": "{severity} advisory {advisory} on {name} at {file}:{line}",
+    "supply.warn_one": "1 warning",
+    "supply.warn_many": "{count} warnings",
+    "supply.unmeasured": "no configured language produced a measurement",
 }
 
 _PT_BR: dict[str, str] = {
@@ -366,6 +372,12 @@ _PT_BR: dict[str, str] = {
     "action.required": "repo, pr e token são obrigatórios",
     "action.report_missing": "`{path}` não foi gerado.",
     "action.comments_invalid": "lista de comentários inválida",
+    "supply.block_missing": "pacote {name} ausente no {index} em {file}:{line}",
+    "supply.block_undeclared": "import não declarado {module} em {file}:{line}",
+    "supply.block_advisory": "advisory {severity} {advisory} em {name} em {file}:{line}",
+    "supply.warn_one": "1 aviso",
+    "supply.warn_many": "{count} avisos",
+    "supply.unmeasured": "nenhuma linguagem configurada produziu medição",
 }
 
 CATALOG: dict[Language, dict[str, str]] = {"en": _EN, "pt-BR": _PT_BR}
