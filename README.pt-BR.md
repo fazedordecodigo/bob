@@ -40,7 +40,7 @@ O agente altera o código. O hook pre-push roda os gates rápidos na máquina de
 ```mermaid
 flowchart TD
     agent["Agente altera o código"]
-    agent --> hook["hook pre-push<br/>bob check --gates crap,deps"]
+    agent --> hook["hook pre-push<br/>bob check --gates crap,dry,deps"]
     agent --> pr["Pull request"]
     pr --> action["GitHub Action<br/>bob check --gates crap,dry,deps,mutate"]
     hook --> diff["Os gates medem só as funções do diff"]
@@ -296,7 +296,7 @@ O limite é zero violações no diff. Uma violação só bloqueia quando a orige
 
 ## Hook pre-push
 
-O script `src/bob_quality/hooks/pre-push` roda `bob check --gates crap,deps`, os gates rápidos. Ele segue o `BOB_LANG` e o `language` do `bob.yaml`. `tests/test_hook.py` confere que ele termina em menos de 60 s no fixture.
+O script `src/bob_quality/hooks/pre-push` roda `bob check --gates crap,dry,deps`, os gates rápidos. Ele segue o `BOB_LANG` e o `language` do `bob.yaml`. `tests/test_hook.py` confere que ele termina em menos de 60 s no fixture.
 
 ```bash
 cp src/bob_quality/hooks/pre-push .git/hooks/pre-push

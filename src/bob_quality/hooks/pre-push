@@ -1,6 +1,5 @@
 #!/bin/sh
-# Hook local (pre-push): gates rápidos. deps só bloqueia aresta no diff.
 set -e
 unset PYTEST_ADDOPTS
 unset PYTEST_PLUGINS
-exec bob check --gates crap,deps </dev/null
+exec bob check --gates crap,dry,deps </dev/null
