@@ -24,7 +24,7 @@ SCHEMA = json.loads(
 )
 _SENTINEL = "super-secret-value"
 _PATH_SENTINEL = "path-only-sentinel"
-_EXAMPLE = "AKIAIOSFODNN7EXAMPLE"
+_FAKE_KEY = "AKIABOBFAKEKEY2W3X4Y"
 
 
 def test_judge_secrets_blocks_only_the_changed_unwaived_line() -> None:
@@ -310,15 +310,14 @@ def test_one_bad_include_discards_partial_rows(
     assert _SENTINEL not in (repo / ".bob" / "report.md").read_text()
 
 
-def test_real_gitleaks_leaves_the_aws_example_out_of_the_report(tmp_path: Path) -> None:
-    # The 8.30.1 rule aws-access-token allowlists a secret that ends in EXAMPLE.
+def test_real_gitleaks_fails_a_new_synthetic_key_and_hides_it(tmp_path: Path) -> None:
     repo = init_python_repo(tmp_path / "repo")
     commit_on_branch(
         repo,
         "leak",
         "src/app/leak.py",
-        f'token = "{_EXAMPLE}"\n',
-        "add example key",
+        f'token = "{_FAKE_KEY}"\n',
+        "add synthetic key",
     )
 
     result = run_bob(repo, "check", "--gates", "secrets", "--base", "main")
@@ -326,12 +325,15 @@ def test_real_gitleaks_leaves_the_aws_example_out_of_the_report(tmp_path: Path) 
     report_md = (repo / ".bob" / "report.md").read_text()
     payload = json.loads(report_json)
 
-    assert _EXAMPLE not in report_json
-    assert _EXAMPLE not in report_md
-    assert result.returncode == 0
+    assert _FAKE_KEY not in report_json
+    assert _FAKE_KEY not in report_md
+    assert result.returncode == 1
     assert payload["tool_versions"]["gitleaks"] == "8.30.1"
-    assert payload["secrets"] == []
-    assert payload["gates"] == [{"name": "secrets", "status": "passed", "reason": None}]
+    assert payload["secrets"] == [
+        {"file": "src/app/leak.py", "line": 1, "rule_id": "aws-access-token"}
+    ]
+    assert payload["gates"][0]["name"] == "secrets"
+    assert payload["gates"][0]["status"] == "failed"
 
 
 def _secrets_report() -> Report:

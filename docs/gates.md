@@ -2,7 +2,7 @@
 
 [Índice](README.md) · [Visão geral](visao-geral.md) · [CLI](cli.md) · [Configuração](configuracao.md) · [Exit codes](exit-codes.md) · [Relatórios](relatorios.md) · [SPEC](SPEC.md)
 
-Quatro gates. Cada um devolve um status `passed`, `warn`, `failed` ou `not_run`. O Markdown traduz para passou, aviso, falhou e não executado, com ✅ ⚠️ ❌ ⏭️ (`GATE_MARK` em `src/bob_quality/report.py`). Um gate que não rodou fica ⏭️ com motivo. Ele não aparece como ✅.
+Cinco gates. Cada um devolve um status `passed`, `warn`, `failed` ou `not_run`. O Markdown traduz para passou, aviso, falhou e não executado, com ✅ ⚠️ ❌ ⏭️ (`GATE_MARK` em `src/bob_quality/report.py`). Um gate que não rodou fica ⏭️ com motivo. Ele não aparece como ✅.
 
 O exit code do `bob check` é o maior entre os gates que rodaram. Aviso não aumenta o código. Ver [Exit codes](exit-codes.md).
 
@@ -12,8 +12,9 @@ O exit code do `bob check` é o maior entre os gates que rodaram. Aviso não aum
 | [DRY](#dry) | jscpd | nada; clone novo é aviso | `0` |
 | [Mutação](#mutação) | mutmut (Python) | sobrevivente sem waiver | `3` |
 | [Dependências](#dependências) | import-linter, dependency-cruiser, mais a regra de ciclo | violação cuja origem, destino ou outro módulo do ciclo está no diff | `1` |
+| [Segredos](#segredos) | gitleaks | segredo novo no diff | `1` |
 
-Versões pinadas: lizard 1.24.1, coverage 7.16.2, c8 12.0.0, vitest 5.0.3, jscpd 5.4.1, mutmut 3.8.0, import-linter 2.15, dependency-cruiser 18.5.0. Node 22.14.0. Fonte: `pyproject.toml`, `package.json` e `doctor.py`.
+Versões pinadas: lizard 1.24.1, coverage 7.16.2, c8 12.0.0, vitest 5.0.3, jscpd 5.4.1, mutmut 3.8.0, import-linter 2.15, dependency-cruiser 18.5.0, gitleaks 8.30.1. Node 22.14.0. Fonte: `pyproject.toml`, `package.json` e `doctor.py`.
 
 ## CRAP
 
