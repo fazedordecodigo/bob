@@ -1,5 +1,3 @@
-"""Adaptador eslint: JSON `--format json` → hits `jest/` e `vitest/`."""
-
 from __future__ import annotations
 
 import json
@@ -11,7 +9,7 @@ _PREFIXES = ("jest/", "vitest/")
 
 
 class EslintParseError(Exception):
-    """A saída não é a lista JSON deste gate."""
+    pass
 
 
 @dataclass(frozen=True)

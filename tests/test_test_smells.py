@@ -1,5 +1,3 @@
-"""Gate test_smells: aviso no diff, exit 0."""
-
 import json
 from pathlib import Path
 

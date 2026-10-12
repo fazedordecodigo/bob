@@ -62,8 +62,6 @@ class Mutant:
 
 @dataclass(frozen=True)
 class TestSmell:
-    """Cheiro num teste alterado. `test_smell` é quem constrói a linha."""
-
     file: str
     line: int
     rule: str

@@ -1,5 +1,3 @@
-"""Gate de cheiros em testes alterados. A contribuição de exit é sempre 0."""
-
 from __future__ import annotations
 
 import ast
