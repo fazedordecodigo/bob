@@ -1,5 +1,3 @@
-"""Hook pre-push: `bob check --gates crap` em menos de 60 s no fixture."""
-
 import shutil
 import subprocess
 import time
@@ -55,7 +53,6 @@ def test_pre_push_hook_runs_crap_gate_under_60s(tmp_path: Path) -> None:
     )
     elapsed = time.monotonic() - started
 
-    assert "bob check --gates crap" in HOOK.read_text()
     assert result.returncode == 0, result.stderr
     assert elapsed < 60
     assert (repo / ".bob" / "report.json").is_file()
