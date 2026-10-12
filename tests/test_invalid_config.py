@@ -285,6 +285,36 @@ _SEMANTIC_YAML = (
     ("duplication: false\n", "bob.yaml: duplication must be a mapping\n"),
     ('duplication: ""\n', "bob.yaml: duplication must be a mapping\n"),
     ("duplication: [1]\n", "bob.yaml: duplication must be a mapping\n"),
+    (
+        "cognitive:\n  max_per_function: true\n",
+        "bob.yaml: cognitive.max_per_function must be an integer\n",
+    ),
+    (
+        'cognitive:\n  max_per_function: "1"\n',
+        "bob.yaml: cognitive.max_per_function must be an integer\n",
+    ),
+    (
+        "cognitive:\n  max_per_function: 1.5\n",
+        "bob.yaml: cognitive.max_per_function must be an integer\n",
+    ),
+    (
+        "cognitive:\n  max_per_function: .inf\n",
+        "bob.yaml: cognitive.max_per_function must be an integer\n",
+    ),
+    (
+        "cognitive:\n  max_per_function: null\n",
+        "bob.yaml: cognitive.max_per_function must be an integer\n",
+    ),
+    (
+        "cognitive:\n  max_per_function: -1\n",
+        "bob.yaml: cognitive.max_per_function must be greater than 0\n",
+    ),
+    (
+        "cognitive:\n  max_per_function: 0\n",
+        "bob.yaml: cognitive.max_per_function must be greater than 0\n",
+    ),
+    ("cognitive: 0\n", "bob.yaml: cognitive must be a mapping\n"),
+    ("cognitive:\n  scope: changed\n", "bob.yaml: unknown key cognitive.scope\n"),
     ("0\n", "bob.yaml must be a mapping\n"),
     ("false\n", "bob.yaml must be a mapping\n"),
     ('""\n', "bob.yaml must be a mapping\n"),

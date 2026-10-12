@@ -103,6 +103,8 @@ _EN: dict[str, str] = {
     "dry.clones": "{count} new clones in the diff",
     "dry.include_missing": "jscpd: include path missing: {paths}",
     "dry.no_report": "jscpd did not write the JSON",
+    "cognitive.over": "{count} function at or above the cognitive limit",
+    "cognitive.overs": "{count} functions at or above the cognitive limit",
     "deps.node_missing": (
         "Node missing: install Node.js for the dependency gate (dependency-cruiser via npx)"
     ),
@@ -264,6 +266,8 @@ _PT_BR: dict[str, str] = {
     "dry.clones": "{count} clones novos no diff",
     "dry.include_missing": "jscpd: caminho de include ausente: {paths}",
     "dry.no_report": "jscpd não gravou o JSON",
+    "cognitive.over": "{count} função no limite de complexidade cognitiva ou acima",
+    "cognitive.overs": "{count} funções no limite de complexidade cognitiva ou acima",
     "deps.node_missing": (
         "Node ausente: instale Node.js para o gate de dependências (dependency-cruiser via npx)"
     ),

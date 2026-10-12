@@ -6,6 +6,7 @@ import pytest
 
 from bob_quality.config import SOURCE_LANGUAGES
 from bob_quality.core import cognitive_verdict
+from bob_quality.messages import render
 from bob_quality.models import CognitiveFunction, CognitiveLanguage
 
 
@@ -77,6 +78,33 @@ def test_bare_save_does_not_waive_class_method() -> None:
     assert cleared.status == "passed"
     assert waived_code == 0
     assert [item.name for item in waived] == []
+
+
+def test_warning_reason_counts_functions_in_both_languages() -> None:
+    one, found, code = cognitive_verdict(
+        [_function("edge", score=15)], 15, set(), {"src/app.py": {1}}
+    )
+
+    assert code == 0
+    assert [item.name for item in found] == ["edge"]
+    assert render(one.reason, "en") == "1 function at or above the cognitive limit"
+    assert render(one.reason, "pt-BR") == (
+        "1 função no limite de complexidade cognitiva ou acima"
+    )
+
+    two, found, code = cognitive_verdict(
+        [_function("a", score=15), _function("b", score=16, file="src/b.py")],
+        15,
+        set(),
+        {"src/app.py": {1}, "src/b.py": {1}},
+    )
+
+    assert code == 0
+    assert [item.name for item in found] == ["a", "b"]
+    assert render(two.reason, "en") == "2 functions at or above the cognitive limit"
+    assert render(two.reason, "pt-BR") == (
+        "2 funções no limite de complexidade cognitiva ou acima"
+    )
 
 
 def test_warnings_sort_by_file_then_line_then_name() -> None:
