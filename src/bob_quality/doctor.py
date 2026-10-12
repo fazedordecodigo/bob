@@ -62,6 +62,16 @@ PINS: tuple[ToolPin, ...] = (
         "npm install dependency-cruiser@18.5.0",
         npm_package="dependency-cruiser",
     ),
+    ToolPin(
+        "gitleaks",
+        "8.30.1",
+        "gitleaks",
+        msg(
+            "doctor.install_gitleaks",
+            version="8.30.1",
+            url="https://github.com/gitleaks/gitleaks/releases/tag/v8.30.1",
+        ),
+    ),
 )
 
 

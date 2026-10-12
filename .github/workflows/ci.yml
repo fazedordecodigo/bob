@@ -27,5 +27,13 @@ jobs:
         run: python -m pip install -e ".[dev]"
       - name: Ferramentas npm
         run: npm ci
+      - name: Instalar gitleaks 8.30.1
+        run: |
+          mkdir -p "$HOME/.local/bin"
+          curl -fsSL -o /tmp/gitleaks_8.30.1_linux_x64.tar.gz \
+            https://github.com/gitleaks/gitleaks/releases/download/v8.30.1/gitleaks_8.30.1_linux_x64.tar.gz
+          tar -xzf /tmp/gitleaks_8.30.1_linux_x64.tar.gz -C "$HOME/.local/bin" gitleaks
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+          "$HOME/.local/bin/gitleaks" --version
       - name: Testes
         run: python -m pytest

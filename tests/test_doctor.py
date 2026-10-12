@@ -38,6 +38,7 @@ PINS = (
     ("mutmut", "3.8.0", "mutmut", "mutmut, version 3.8.0"),
     ("import-linter", "2.15", "lint-imports", "2.15"),
     ("dependency-cruiser", "18.5.0", "dependency-cruiser", "18.5.0"),
+    ("gitleaks", "8.30.1", "gitleaks", "8.30.1"),
 )
 
 INSTALL = {
@@ -287,7 +288,7 @@ def test_doctor_pins_match_pyproject_and_package_json() -> None:
         elif pin.npm_package is not None:
             assert npm[pin.npm_package] == pin.expected
         else:
-            assert pin.name == "node"
+            assert pin.name in {"node", "gitleaks"}
     npm_pins = {pin.npm_package: pin.expected for pin in DOCTOR_PINS if pin.npm_package}
     assert npm_pins == npm
 
