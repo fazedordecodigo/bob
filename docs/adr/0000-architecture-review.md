@@ -12,6 +12,7 @@ As ADRs desta pasta registram decisões que a spec ou um PR já tomou, e que a p
 - [0002](0002-o-diff-filtra-o-veredito.md) separa medição da árvore e bloqueio pelo diff.
 - [0003](0003-exit-codes.md) fixa os cinco exit codes e as exceções já aprovadas.
 - [0004](0004-empacotamento-quatro-agentes.md) fixa os quatro agentes e a lista única de skills.
+- [0005](0005-modelo-de-gate-das-analises-novas.md) fixa o veredito, o waiver, a chave e o relatório das análises novas. Aceita em 12/10/2026, às 17h55 (São Paulo).
 
 ## Visão geral
 

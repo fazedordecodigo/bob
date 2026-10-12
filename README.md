@@ -149,6 +149,8 @@ The commands write `.bob/report.md` and `.bob/report.json`. The exit codes are:
 | `3` | A surviving mutant has no waiver. |
 | `4` | Missing or different tool, or invalid configuration. The message goes to stderr in English, and the run writes nothing. |
 
+Invalid command-line usage exits `4`, writes no report, and the stderr does not mention baseline. Help (`-h`, `--help`) stays `0`.
+
 When more than one gate fails, `bob check` exits with the highest code.
 
 A local `bob check` does not run mutation. `bob check --gates mutate` and `bob mutate` run it, only on the changed functions and on the functions that still have survivors.
@@ -319,7 +321,7 @@ The CI (`.github/workflows/ci.yml`) runs this suite on Python 3.10 and 3.12 with
 
 ## GitHub Action
 
-The composite action in `.github/actions/bob` installs `bob` and runs `bob check` with `crap,dry,deps,mutate`. It installs Node 22.14.0 and jscpd 5.4.1 first, so the dry gate runs when the caller did not install them. It restores and publishes the `bob-mutation-cache` artifact (`.bob/mutation-cache.json`, kept for 7 days), and it creates or updates a single pull request comment with `.bob/report.md`. The job exit code is the one from `bob`.
+The composite action in `.github/actions/bob` installs `bob` and runs `bob check` with `crap,dry,deps,mutate`. It installs Node 22.14.0 and jscpd 5.4.1 first, so the dry gate runs when the caller did not install them. It restores and publishes the `bob-mutation-cache` artifact (`.bob/mutation-cache.json`, kept for 7 days), and it creates or updates a single pull request comment with `.bob/report.md`. The job exit code is the one from `bob`, including `4` for an invalid command line.
 
 The action accepts the inputs `base`, `gates`, `pip-spec`, and `token`. This repository uses it in `.github/workflows/bob.yml`. `bob-quality` is not on PyPI yet, so in a checkout of this repository the action runs `pip install -e ".[dev]"`, and in another repository it installs the action's git source. Publication on the GitHub Marketplace is not part of this slice.
 

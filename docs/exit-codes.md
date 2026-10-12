@@ -54,7 +54,11 @@ Há dois jeitos de chegar no `4`.
 
 ### Antes de medir, sem gravar relatório
 
-`cli.main` devolve `4` e imprime inglês no stderr, sem escrever `report.md`, `report.json` nem alterar `waivers.yaml`, quando:
+`cli.main` devolve `4` sem escrever `report.md`, `report.json` nem alterar `waivers.yaml` em dois casos distintos.
+
+Um uso inválido da linha de comando (comando ausente, comando desconhecido, flag ilegal, valor fora das escolhas) imprime o texto de uso do argparse no stderr. Esse texto não menciona baseline. A ajuda (`-h`, `--help`) sai com `0`. Isso não é o exit `2`.
+
+A configuração inválida imprime inglês no stderr quando:
 
 - `--lang` ou `BOB_LANG` é vazio ou não é `en` nem `pt-BR`;
 - `language` no YAML não é string ou não é um desses dois valores;
@@ -66,7 +70,7 @@ Há dois jeitos de chegar no `4`.
 
 Erro de sintaxe, tipo errado e waiver inválido são barrados em `_language` ou `_blocked_config`, que imprimem no stderr e retornam `4` sem chamar `write_report`.
 
-`duplication` inválida entra na mesma barreira que as outras chaves: `reject_config_types` chama `_config_from_file`, o stderr fica em inglês e nenhum relatório é gravado. O [CHANGELOG.md](../CHANGELOG.md) descreve esse caso.
+`duplication` inválida entra na mesma barreira que as outras chaves: `reject_config_types` chama `_config_from_file`, o stderr fica em inglês e nenhum relatório é gravado. A recusa cobre um valor que não é mapeamento, um `min_tokens` que não é inteiro e um `min_tokens` negativo. Uma chave desconhecida, inclusive `mutation`, `duplication.tool`, `duplication.new_clones` e `dependencies.violation`, sai do mesmo jeito. O [CHANGELOG.md](../CHANGELOG.md) descreve esses casos.
 
 Um `--reason` ausente no `bob waive` também é `4`, e essa frase segue o idioma da CLI, porque acontece dentro de `_waive_command` depois da barreira do arquivo.
 
