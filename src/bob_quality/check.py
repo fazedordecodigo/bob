@@ -9,7 +9,7 @@ from pathlib import Path
 from bob_quality.config import Config, ConfigError, load_config
 from bob_quality.core import files_by_risk, informational_debt, top_changed_crap
 from bob_quality.crap_gate import run_crap_gate
-from bob_quality.dead_code import WarningOnly
+from bob_quality.dead_code import WarningOnly, run_dead_code_gate
 from bob_quality.deps_gate import run_deps_gate
 from bob_quality.diff import GitError, changed_lines, current_commit
 from bob_quality.dry_gate import run_dry_gate
@@ -185,6 +185,9 @@ def _absorb(
         state.mutation = mutation
         _record(state, mutation.result, mutation.exit_code, mutation.versions)
         return
+    if gate == "dead_code":
+        _record_dead(state, run_dead_code_gate(cwd, config, diff_lines))
+        return
     _record(
         state,
         GateResult(gate, "not_run", msg("check.gate_not_implemented")),
@@ -256,6 +259,7 @@ def _assemble(
         waivers=waivers,
         survivors=survivors,
         mutation=summary,
+        dead_code=measured.dead_code,
     )
 
 

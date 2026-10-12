@@ -33,7 +33,7 @@ Roda os gates pedidos e grava `.bob/` (ou `--out`).
 
 Um `--config` que aponta para um arquivo inexistente sai com `4` e grava `.bob/report.md` e `.bob/report.json`. O stdout e o stderr ficam vazios. Detalhe em [Exit 4](exit-codes.md#exit-4).
 
-Um nome de gate que o código não trata vira status `not_run`, com o motivo `gate não implementado nesta fatia` em `pt-BR`, e esse gate contribui exit `0` (`check.py`, ramo final de `_absorb`). Os quatro nomes implementados são `crap`, `dry`, `deps` e `mutate`.
+Um nome de gate que o código não trata vira status `not_run`, com o motivo `gate não implementado nesta fatia` em `pt-BR`, e esse gate contribui exit `0` (`check.py`, ramo final de `_absorb`). Os nomes implementados são `crap`, `dry`, `deps`, `mutate` e `dead_code`. `dead_code` só existe como nome de `--gates`.
 
 `bob check` sem `mutate` na lista não roda mutação. `bob check --gates mutate` e `bob mutate` rodam.
 
@@ -56,7 +56,7 @@ Quando mais de um gate devolve código, fica o maior (`_worse` em `check.py`).
 
 Lista cada pino de `src/bob_quality/doctor.py` com a versão esperada e a encontrada. Sai com `0` quando todas coincidem e com `4` quando alguma falta ou diverge, e imprime o comando de instalação. Não grava `.bob/report.md`.
 
-Pinos, na ordem do código: lizard 1.24.1, coverage.py 7.16.2, node 22.14.0, c8 12.0.0, vitest 5.0.3, jscpd 5.4.1, mutmut 3.8.0, import-linter 2.15, grimp 3.17, dependency-cruiser 18.5.0. A versão esperada de uma ferramenta Python vem do Requires-Dist instalado do `bob-quality`.
+Pinos, na ordem do código: lizard 1.24.1, coverage.py 7.16.2, node 22.14.0, c8 12.0.0, vitest 5.0.3, jscpd 5.4.1, mutmut 3.8.0, import-linter 2.15, grimp 3.17, dependency-cruiser 18.5.0, vulture 2.16, knip 6.41.0. A versão esperada de uma ferramenta Python vem do Requires-Dist instalado do `bob-quality`.
 
 `bob doctor --install` roda `npm ci` no pacote instalado e depois imprime o mesmo relatório. Ver [Instalação](instalacao.md#pacote-pip-bob-quality).
 

@@ -60,6 +60,8 @@ PINS: tuple[Pin, ...] = (
         "npm install dependency-cruiser@18.5.0",
         npm_package="dependency-cruiser",
     ),
+    RequiresDist("vulture", "vulture"),
+    ToolPin("knip", "6.41.0", "knip", "npm install knip@6.41.0", npm_package="knip"),
 )
 
 

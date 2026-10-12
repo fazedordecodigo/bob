@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+import json
 import sys
 from pathlib import Path
+
+from jsonschema import Draft202012Validator
 
 from bob_quality.check import _Measured, _record_dead
 from bob_quality.config import Config
@@ -25,8 +28,10 @@ from bob_quality.models import (
     LedgerRow,
     Mutant,
     PythonDead,
+    Report,
     TypeScriptDead,
 )
+from bob_quality.report import to_json, to_markdown
 from bob_quality.waivers import Waiver, apply_waivers
 
 ORPHAN = PythonDead("src/app/orphan.py", 3, "orphan", "function", 60)
@@ -274,6 +279,145 @@ def test_vulture_argv_omits_min_confidence_until_the_value_is_present() -> None:
         "--min-confidence",
         "0",
     ]
+
+
+ROOT = Path(__file__).resolve().parents[1]
+SCHEMA = json.loads((ROOT / "src" / "bob_quality" / "schemas" / "report_v1.json").read_text())
+
+
+def _plain() -> Report:
+    return Report(
+        schema_version=1,
+        commit="abc",
+        base="main",
+        generated_at="2026-10-12T00:00:00+00:00",
+        tool_versions={},
+        gates=[GateResult("crap", "passed", None)],
+        focus=[],
+        top_crap=[],
+        reproduce="bob check",
+        exit_code=0,
+    )
+
+
+def test_json_omits_dead_code_until_the_gate_runs() -> None:
+    report = _plain()
+
+    assert report.dead_code is None
+    assert "dead_code" not in to_json(report)
+    assert "## Dead code" not in to_markdown(report, "en")
+    assert "## Código morto" not in to_markdown(report, "pt-BR")
+    Draft202012Validator(SCHEMA).validate(to_json(report))
+
+
+def test_the_dead_section_sits_between_untested_mutants_and_reproduce() -> None:
+    symbol = TypeScriptDead("src/app/orphan.ts", 3, "orphan", "export")
+    report = Report(
+        schema_version=1,
+        commit="abc",
+        base="main",
+        generated_at="2026-10-12T00:00:00+00:00",
+        tool_versions={"vulture": "2.16", "knip": "6.41.0"},
+        gates=[GateResult("dead_code", "warn", msg("dead.many", count=2))],
+        focus=[],
+        top_crap=[],
+        reproduce="bob check --gates dead_code",
+        exit_code=0,
+        mutation={"no_coverage": {"total": 0, "functions": []}},
+        dead_code=DeadSection(
+            (
+                LedgerRow(ORPHAN, "dead:src/app/orphan.py:3:orphan"),
+                LedgerRow(symbol, None),
+            )
+        ),
+    )
+
+    english = to_markdown(report, "en")
+    portuguese = to_markdown(report, "pt-BR")
+    block = (
+        "## Mutants without tests\n\n"
+        "No mutants without tests.\n\n"
+        "## Dead code\n\n"
+        "- `src/app/orphan.py:3` function `orphan` 60% "
+        "waiver `dead:src/app/orphan.py:3:orphan`\n"
+        "- `src/app/orphan.ts:3` export `orphan`\n\n"
+        "## How to reproduce"
+    )
+    assert block in english
+    assert (
+        "## Mutantes sem teste\n\n"
+        "Nenhum mutante sem teste.\n\n"
+        "## Código morto\n\n"
+        "- `src/app/orphan.py:3` function `orphan` 60% "
+        "waiver `dead:src/app/orphan.py:3:orphan`\n"
+        "- `src/app/orphan.ts:3` export `orphan`\n\n"
+        "## Como reproduzir"
+    ) in portuguese
+    payload = to_json(report)
+    Draft202012Validator(SCHEMA).validate(payload)
+    assert payload["exit_code"] == 0
+    assert payload["gates"] == [
+        {"name": "dead_code", "status": "warn", "reason": "2 unused symbols in the diff"}
+    ]
+    assert payload["dead_code"] == {
+        "symbols": [
+            {
+                "file": "src/app/orphan.py",
+                "line": 3,
+                "name": "orphan",
+                "kind": "function",
+                "language": "python",
+                "confidence": 60,
+                "waiver": "dead:src/app/orphan.py:3:orphan",
+            },
+            {
+                "file": "src/app/orphan.ts",
+                "line": 3,
+                "name": "orphan",
+                "kind": "export",
+                "language": "typescript",
+                "confidence": None,
+                "waiver": None,
+            },
+        ]
+    }
+
+
+def test_not_run_and_a_clean_skip_render_the_reason() -> None:
+    skipped = Report(
+        schema_version=1,
+        commit="abc",
+        base="main",
+        generated_at="2026-10-12T00:00:00+00:00",
+        tool_versions={},
+        gates=[GateResult("dead_code", "not_run", msg("tool.missing", tool="vulture"))],
+        focus=[],
+        top_crap=[],
+        reproduce="bob check --gates dead_code",
+        dead_code=DeadSection(),
+    )
+    clean = Report(
+        schema_version=1,
+        commit="abc",
+        base="main",
+        generated_at="2026-10-12T00:00:00+00:00",
+        tool_versions={"vulture": "2.16"},
+        gates=[GateResult("dead_code", "passed", msg("dead.node_missing"))],
+        focus=[],
+        top_crap=[],
+        reproduce="bob check --gates dead_code",
+        dead_code=DeadSection(),
+    )
+
+    assert "Not run (missing tool: vulture)." in to_markdown(skipped, "en")
+    assert "Não executado (ferramenta ausente: vulture)." in to_markdown(skipped, "pt-BR")
+    assert "No unused symbol" not in to_markdown(skipped, "en")
+    assert (
+        "No unused symbol in the diff.\n"
+        "Node missing: install Node.js to run knip"
+    ) in to_markdown(clean, "en")
+    assert to_json(skipped)["dead_code"] == {"symbols": []}
+    assert to_json(skipped)["gates"][0]["reason"] == "missing tool: vulture"
 
 
 def test_knip_argv_never_receives_min_confidence(tmp_path: Path) -> None:

@@ -2,15 +2,20 @@
 
 from __future__ import annotations
 
+import importlib.metadata
+import os
+import subprocess
 import sys
 from collections.abc import Mapping, Sequence, Set
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 from typing import Literal
 
+from bob_quality.adapters.knip import KnipParseError, typescript_symbols
+from bob_quality.adapters.vulture import VultureParseError, python_symbols
 from bob_quality.config import Config
 from bob_quality.diff import line_is_changed
-from bob_quality.messages import Text, msg
+from bob_quality.messages import Text, msg, reason
 from bob_quality.models import (
     DeadSection,
     DeadSymbol,
@@ -19,7 +24,9 @@ from bob_quality.models import (
     PythonDead,
     TypeScriptDead,
 )
-from bob_quality.waivers import Waiver
+from bob_quality.npm_tools import installed_npm_version, node_missing_message, npm_prefix
+from bob_quality.tools import ToolError
+from bob_quality.waivers import Waiver, load_waivers
 
 DeadStatus = Literal["passed", "warn", "not_run"]
 
@@ -120,6 +127,100 @@ def knip_command(prefix: Path) -> list[str]:
         "json",
         "--no-progress",
     ]
+
+
+def run_dead_code_gate(
+    cwd: Path,
+    config: Config,
+    changed: Mapping[str, Set[int]],
+) -> WarningOnly:
+    return settle(
+        read_vulture(cwd, config),
+        read_knip(cwd, config),
+        changed,
+        config,
+        load_waivers(cwd),
+    )
+
+
+def read_vulture(cwd: Path, config: Config) -> MeasuredPython | Dark | Quiet:
+    if "python" not in config.languages:
+        return Quiet()
+    if _vulture_version() is None:
+        return Dark(msg("tool.missing", tool="vulture"))
+    missing = [path for path in config.include if not (cwd / path).is_dir()]
+    if missing:
+        return Dark(
+            msg("dead.include_missing", tool="vulture", paths=", ".join(missing))
+        )
+    try:
+        completed = _spawn(cwd, vulture_command(config, config.include))
+    except OSError:
+        return Dark(msg("tool.missing", tool="vulture"))
+    version = _vulture_version()
+    if version is None:
+        return Dark(msg("tool.missing", tool="vulture"))
+    if completed.returncode == 0 and completed.stdout.strip() == "":
+        return MeasuredPython((), version)
+    if completed.returncode != 3:
+        return Dark(msg("dead.unreadable", tool="vulture"))
+    try:
+        symbols = python_symbols(completed.stdout, cwd)
+    except VultureParseError as exc:
+        return Dark(reason(exc))
+    return MeasuredPython(symbols, version)
+
+
+def read_knip(cwd: Path, config: Config) -> MeasuredTypeScript | Dark | Quiet:
+    if "typescript" not in config.languages:
+        return Quiet()
+    if node_missing_message() is not None:
+        return Dark(msg("dead.node_missing"))
+    try:
+        prefix = npm_prefix()
+    except ToolError as exc:
+        return Dark(reason(exc))
+    if not (prefix / "node_modules" / "knip" / "package.json").is_file():
+        return Dark(msg("tool.missing", tool="knip"))
+    try:
+        completed = _spawn(cwd, knip_command(prefix), prefix)
+    except OSError:
+        return Dark(msg("tool.missing", tool="knip"))
+    if completed.returncode not in {0, 1} or completed.stdout.strip() == "":
+        return Dark(msg("dead.unreadable", tool="knip"))
+    try:
+        symbols = typescript_symbols(completed.stdout, cwd)
+    except KnipParseError as exc:
+        return Dark(reason(exc))
+    try:
+        version = installed_npm_version(prefix, "knip")
+    except ToolError as exc:
+        return Dark(reason(exc))
+    return MeasuredTypeScript(symbols, version)
+
+
+def _vulture_version() -> str | None:
+    try:
+        return importlib.metadata.version("vulture")
+    except importlib.metadata.PackageNotFoundError:
+        return None
+
+
+def _spawn(
+    cwd: Path, args: Sequence[str], prefix: Path | None = None
+) -> subprocess.CompletedProcess[str]:
+    env = {key: value for key, value in os.environ.items() if not key.startswith("PYTEST_")}
+    if prefix is not None:
+        bindir = prefix / "node_modules" / ".bin"
+        env["PATH"] = str(bindir) + os.pathsep + env.get("PATH", "")
+    return subprocess.run(
+        args,
+        cwd=cwd,
+        capture_output=True,
+        text=True,
+        stdin=subprocess.DEVNULL,
+        env=env,
+    )
 
 
 def _any_measured(
