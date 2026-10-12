@@ -15,20 +15,21 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 def test_npm_tools_are_pinned_in_package_json_and_lock() -> None:
-    package = json.loads((ROOT / "package.json").read_text())
-    lock = json.loads((ROOT / "package-lock.json").read_text())
-    dependencies = package["dependencies"]
-
-    assert dependencies == {
+    pins = {
         "c8": "12.0.0",
         "dependency-cruiser": "18.5.0",
         "jscpd": "5.4.1",
         "vitest": "5.0.3",
     }
-    assert lock["packages"]["node_modules/c8"]["version"] == "12.0.0"
-    assert lock["packages"]["node_modules/dependency-cruiser"]["version"] == "18.5.0"
-    assert lock["packages"]["node_modules/jscpd"]["version"] == "5.4.1"
-    assert lock["packages"]["node_modules/vitest"]["version"] == "5.0.3"
+    root = json.loads((ROOT / "package.json").read_text())
+    plugin = json.loads((ROOT / "src" / "bob_quality" / "package.json").read_text())
+    assert root["dependencies"] == pins
+    assert plugin["dependencies"] == pins
+
+    lock = json.loads((ROOT / "package-lock.json").read_text())
+    packages = lock["packages"]
+    for name, version in pins.items():
+        assert packages[f"node_modules/{name}"]["version"] == version
 
 
 def test_import_linter_and_mutmut_are_pinned_in_pyproject() -> None:

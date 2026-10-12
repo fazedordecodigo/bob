@@ -32,6 +32,4 @@ O texto destes guias foi conferido nestas fontes, nesta ordem quando elas discor
 ## Notas que atravessam os guias
 
 - A CLI ainda não tem o comando `bob report` que a [SPEC](SPEC.md) lista. Ver [CLI](cli.md#comandos-que-a-spec-lista-e-a-cli-ainda-não-tem).
-- Sem a chave `languages`, a configuração fica `python`. A spec fala em autodetecção. Ver [Configuração](configuracao.md#languages).
-- O hook `pre-push` roda `crap,deps`. O padrão de `bob check` é `crap,dry,deps`. Ver [CLI](cli.md#o-que-cada-superfície-roda).
 - Mutação em TypeScript (StrykerJS) não aparece no código. Ver [Gates](gates.md#mutação).

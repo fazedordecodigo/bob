@@ -129,4 +129,4 @@ cp src/bob_quality/hooks/pre-push .git/hooks/pre-push
 chmod +x .git/hooks/pre-push
 ```
 
-O script executa `bob check --gates crap,deps`. Ele segue `BOB_LANG` e `language` no `bob.yaml` porque esses dois entram na resolução de idioma da CLI. `tests/test_hook.py` confere que o hook termina em menos de 60 s no fixture, como o critério 7 da spec pede para `crap,dry,deps` no repo-fixture. O script em si passa só `crap,deps`. Ver [o que cada superfície roda](cli.md#o-que-cada-superfície-roda).
+O script executa `bob check --gates crap,dry,deps`. Ele segue `BOB_LANG` e `language` no `bob.yaml` porque esses dois entram na resolução de idioma da CLI. `tests/test_hook.py` confere que o hook termina em menos de 60 s no fixture, como o critério 7 da spec pede para `crap,dry,deps` no repo-fixture. Ver [o que cada superfície roda](cli.md#o-que-cada-superfície-roda).
