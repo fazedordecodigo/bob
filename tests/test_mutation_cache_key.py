@@ -10,6 +10,7 @@ Seams:
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 from collections.abc import Callable
 from pathlib import Path
@@ -17,7 +18,7 @@ from pathlib import Path
 import pytest
 
 from bob_quality.adapters.mutmut import mutmut_stats_key
-from bob_quality.mutate import MutationOutcome, _safe_fingerprint
+from bob_quality.mutate import MutationOutcome, _Cache, _safe_fingerprint, _write_cache
 from bob_quality.suite_fingerprint import suite_fingerprint
 from bob_quality.tools import ToolError
 from helpers import commit_on_branch, commit_on_main, in_both, init_python_repo, run_bob
@@ -60,6 +61,10 @@ CLAMP_WAIVER = """\
 waivers:
   - id: src/app/safe.py::clamp
     reason: o limite já está coberto
+    author: ada
+    date: '2026-10-11'
+  - id: src/app/safe.py::removed
+    reason: a função não está mais no arquivo
     author: ada
     date: '2026-10-11'
 """
@@ -196,17 +201,87 @@ def test_a_new_suite_file_remutates_an_unwaived_survivor_outside_the_diff(
     assert code == 0
     assert report["mutation"]["remutated"] == [ADD, SCALE]
     assert report["mutation"]["reused"] == []
-    assert sorted(cache["functions"]) == [ADD, SCALE]
+    assert sorted(cache["functions"]) == [ADD, CLAMP, SCALE]
     assert _operators(cache, ADD) == [""]
     assert "SENTINEL" not in _operators(cache, SCALE)
+    assert cache["functions"][CLAMP] == _cached_row("clamp", "survived")
     assert cache["suite"] == suite_fingerprint(repo)
     assert cache["mutmut"] == first_cache["mutmut"]
     assert OFFSET not in report["mutation"]["remutated"]
     assert CLAMP not in report["mutation"]["remutated"]
+    assert CLAMP not in report["mutation"]["reused"]
     assert REMOVED not in report["mutation"]["remutated"]
     assert OFFSET not in cache["functions"]
-    assert CLAMP not in cache["functions"]
     assert REMOVED not in cache["functions"]
+
+    again_code, again_report, again_cache = _mutate(repo)
+
+    assert again_code == 0
+    assert again_report["mutation"]["remutated"] == []
+    assert again_report["mutation"]["reused"] == [ADD]
+    assert sorted(again_cache["functions"]) == [ADD, CLAMP]
+    assert again_cache["functions"][CLAMP] == _cached_row("clamp", "survived")
+    assert _operators(again_cache, ADD) == [""]
+    assert OFFSET not in again_cache["functions"]
+    assert SCALE not in again_cache["functions"]
+    assert REMOVED not in again_cache["functions"]
+
+
+def test_a_non_numeric_mutant_line_exits_4_and_leaves_the_cache_file(tmp_path: Path) -> None:
+    repo = _repo(tmp_path)
+    assert _mutate(repo)[0] == 0
+    path = repo / ".bob" / "mutation-cache.json"
+
+    def corrupt(cache: dict) -> None:
+        cache["functions"][ADD]["mutants"][0]["line"] = "nope"
+
+    _edit_cache(repo, corrupt)
+    before = path.read_bytes()
+
+    result = run_bob(repo, "mutate", "--base", "main")
+    assert result.returncode == 4, result.stderr
+    report = json.loads((repo / ".bob" / "report.json").read_text())
+    mutate = next(gate for gate in report["gates"] if gate["name"] == "mutate")
+
+    assert report["exit_code"] == 4
+    assert mutate["status"] == "not_run"
+    assert mutate["reason"] == (
+        "invalid mutation cache: invalid literal for int() with base 10: 'nope'"
+    )
+    assert path.read_bytes() == before
+    assert sorted(path.parent.glob("mutation-cache.json*")) == [path]
+
+
+def test_a_failed_publish_leaves_the_previous_file_and_a_successful_publish_replaces_it(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    path = tmp_path / "mutation-cache.json"
+    path.write_text('{"mutmut": "3.8.0", "suite": "abc", "functions": {}}\n')
+    before = path.read_bytes()
+    cache = _Cache(path, {"mutmut": "3.8.0", "suite": "abc"})
+    temporary = path.with_name("mutation-cache.json.tmp")
+    stored = {"src/app/safe.py::add": {"hash": "x"}}
+    expected = {"mutmut": "3.8.0", "suite": "abc", "functions": stored}
+
+    def fail_replace(src: str, dst: str) -> None:
+        raise OSError("replace failed")
+
+    monkeypatch.setattr(os, "replace", fail_replace)
+    caught: OSError | None = None
+    try:
+        _write_cache(cache, stored)
+    except OSError as exc:
+        caught = exc
+
+    assert path.read_bytes() == before, "write_text truncated the destination"
+    assert str(caught) == "replace failed"
+    assert json.loads(temporary.read_text()) == expected
+
+    monkeypatch.undo()
+    _write_cache(cache, stored)
+
+    assert json.loads(path.read_text()) == expected
+    assert list(path.parent.iterdir()) == [path]
 
 
 def test_an_unrelated_source_change_keeps_the_cached_function(tmp_path: Path) -> None:
