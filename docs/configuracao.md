@@ -52,7 +52,7 @@ Um tipo errado sai com `4`. A mensagem em inglês no stderr cita o arquivo e a c
 
 ### languages
 
-`languages` omitido, nulo (`languages:` ou `languages: null`) ou lista vazia (`languages: []`) vira `["python"]`, o padrão de `Config`. Não há autodetecção. O mesmo vale quando o arquivo `bob.yaml` não existe e `--config` não foi passado. Para medir TypeScript é preciso listar `typescript` (e `python` também, num monorepo misto). A [SPEC](SPEC.md) descreve esse fallback.
+`languages` omitido, nulo (`languages:` ou `languages: null`) ou lista vazia (`languages: []`) vira `["python"]`, o padrão de `Config`. Não há autodetecção. O mesmo vale quando o arquivo `bob.yaml` não existe e `--config` não foi passado. Para medir TypeScript é preciso listar `typescript` (e `python` também, num monorepo misto). A [SPEC](SPEC.md) não descreve esse fallback.
 
 O gate DRY mapeia `typescript` para os formatos `typescript` e `javascript` do jscpd (`dry_gate.py`).
 

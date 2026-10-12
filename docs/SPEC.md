@@ -86,10 +86,6 @@ dependencies: { python: .importlinter, typescript: .dependency-cruiser.cjs }
 
 `crap.scope` é `changed` ou `all`. Cada item de `languages` é `python` ou `typescript`. `crap.max_per_function` é um número finito maior que 0. Um inteiro que não cabe em float também não é finito. `duplication.min_tokens` é um inteiro maior ou igual a 0. Uma chave desconhecida sai com 4.
 
-`languages` omitido, nulo ou lista vazia vale `[python]`. O mesmo vale quando não há `bob.yaml` e `--config` não foi passado. Não há autodetecção.
-
-Um `--config` que aponta para um arquivo que não existe sai com 4 em `check`, `crap`, `dry`, `deps` e `mutate`. O stdout e o stderr ficam vazios. `.bob/report.md` e `.bob/report.json` são gravados. Cada gate pedido fica não executado. O `reason` do JSON é `config file not found: <caminho>`, com o caminho que `load_config` recebeu. O `report.md` traduz esse motivo para o idioma da saída. `doctor` e `waive` não aceitam `--config`.
-
 **Formato do relatório (`.bob/report.md`, espelhado em `report.json`)**
 1. Cabeçalho: commit, base, data, versões das ferramentas.
 2. Veredito por gate: ✅ passou / ⚠️ aviso / ❌ falhou / ⏭️ não executado (com motivo).

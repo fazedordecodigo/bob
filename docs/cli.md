@@ -99,7 +99,7 @@ No CI, `language: pt-BR` no `bob.yaml` ou `BOB_LANG: pt-BR` no `env` do job. O i
 | Hook `pre-push` | `crap,dry,deps` | `src/bob_quality/hooks/pre-push` |
 | GitHub Action, input `gates` omitido | `crap,dry,deps,mutate` | `.github/actions/bob/action.yml` |
 
-A [SPEC](SPEC.md) diz que o hook local executa `crap,dry,deps` e que no CI o `check` executa todos. O script do hook passa `crap,dry,deps`. O padrão da CLI é o mesmo trio; o CI pede `mutate` pelo input da Action, não porque o padrão da CLI tenha mudado. A skill `skills/bob-check/SKILL.md` cita os dois comandos (`bob check --gates crap,dry,deps` no hook e `bob check --gates crap,dry,deps,mutate` no CI) e também mostra a interface da spec, inclusive `bob report`.
+A [SPEC](SPEC.md) diz que o hook local executa `crap,dry,deps` e que no CI o `check` executa todos. O script do hook passa `crap,dry,deps`. O padrão da CLI é o mesmo trio; o CI pede `mutate` pelo input da Action, não porque o padrão da CLI tenha mudado. A skill `skills/bob-check/SKILL.md` cita esses dois comandos.
 
 ## Comandos que a spec lista e a CLI ainda não tem
 
