@@ -62,6 +62,11 @@ class _Node:
     children: tuple[_Node, ...] = ()
     empty_is_default: bool = False
     null_is_default: bool = True
+    empty_mapping: bool = False
+
+    def __post_init__(self) -> None:
+        if self.empty_mapping and (self.children or self.attr or self.checks):
+            raise ValueError(self.key)
 
 
 _SCHEMA = _Node(
@@ -135,6 +140,7 @@ _SCHEMA = _Node(
                 ),
             ),
         ),
+        _Node("typing", "", (), empty_mapping=True),
     ),
 )
 
@@ -276,7 +282,7 @@ def _skipped(child: _Node, value: object) -> bool:
 
 
 def _read_present(child: _Node, value: object, label: str, dotted: str) -> dict[str, object]:
-    if child.children:
+    if child.children or child.empty_mapping:
         return _read_nested(child, value, label, dotted)
     return {child.attr: _apply(child, value, label, dotted)}
 
@@ -432,6 +438,8 @@ def _guard_value(node: _Node, value: object, attr: str) -> None:
 
 
 def _leaves(node: _Node):
+    if node.empty_mapping:
+        return
     if node.children:
         for child in node.children:
             yield from _leaves(child)
