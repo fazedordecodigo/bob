@@ -25,12 +25,12 @@ class _ParseState:
 
 
 def is_empty_report(raw: str) -> bool:
-    broken: str | None = None
-    for line in _ANSI.sub("", raw).splitlines():
-        match = _SUMMARY_LINE.match(line.strip())
-        if match:
-            broken = match.group(1)
-    return broken == "0"
+    broken = [
+        match.group(1)
+        for line in _ANSI.sub("", raw).splitlines()
+        if (match := _SUMMARY_LINE.match(line.strip()))
+    ]
+    return bool(broken) and broken[-1] == "0"
 
 
 def broken_contract_name(raw: str) -> str | None:
