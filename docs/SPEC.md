@@ -108,7 +108,7 @@ O JSON segue um schema versionado (`schema_version: 1`).
 
 **Empacotamento**:
 - manifests `.claude-plugin/` (Claude Code; Copilot CLI e Devin também o leem) e `.cursor-plugin/` (Cursor). Não há `.plugin/`: o Copilot o leria antes de `.claude-plugin/`, e um segundo manifesto poderia divergir;
-- o campo `skills` dos dois manifestos lista uma entrada por pasta de skill (`./skills/bob-check`, `./skills/vendor/mattpocock/engineering/tdd`...), igual nos dois. Uma pasta que agrupa skills não entra, porque o Copilot a percorre recursivamente e carregaria `misc/` e `in-progress/` do Pocock;
+- o campo `skills` de `.claude-plugin/plugin.json` é a fonte única da lista de skills, com uma entrada por pasta de skill. `.cursor-plugin/plugin.json` repete a mesma lista, e o instalador a lê de lá. Esta spec não repete a lista. Uma pasta que agrupa skills não entra, porque o Copilot a percorre recursivamente e carregaria `misc/` e `in-progress/` do Pocock;
 - script de instalação que copia as skills listadas, achatadas, para `.github/skills` (Copilot) ou `.agents/skills` (Devin, Cursor e Copilot), cada uma com o `LICENSE` e o `NOTICE` da sua origem;
 - `AGENTS.md`;
 - GitHub Action composta que comenta o relatório no PR (atualizando um único comentário).

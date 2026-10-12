@@ -143,6 +143,25 @@ def test_cursor_and_claude_manifests_list_the_same_skills() -> None:
     assert len(cursor_skills) == 30
 
 
+def test_spec_points_to_the_manifest_instead_of_listing_skills() -> None:
+    lines = (ROOT / "docs" / "SPEC.md").read_text(encoding="utf-8").splitlines()
+    start = lines.index("**Empacotamento**:")
+    end = next(index for index in range(start + 1, len(lines)) if lines[index] == "")
+    section = "\n".join(lines[start:end])
+
+    for entry in _json(CLAUDE_PLUGIN)["skills"]:
+        assert entry not in section
+    assert "./skills/" not in section
+    assert ".claude-plugin/plugin.json" in section
+    assert "fonte única" in section
+    assert (
+        "- o campo `skills` de `.claude-plugin/plugin.json` é a fonte única da lista de skills, "
+        "com uma entrada por pasta de skill. `.cursor-plugin/plugin.json` repete a mesma lista, "
+        "e o instalador a lê de lá. Esta spec não repete a lista. Uma pasta que agrupa skills não entra, "
+        "porque o Copilot a percorre recursivamente e carregaria `misc/` e `in-progress/` do Pocock;"
+    ) in section
+
+
 def test_each_manifest_entry_is_a_relative_skill_folder() -> None:
     for entry in _json(CLAUDE_PLUGIN)["skills"]:
         assert entry.startswith("./"), entry
