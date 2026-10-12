@@ -234,7 +234,7 @@ def test_spec_violations_catch_a_bare_skill_path_and_one_after_a_blank_line(
         ("Skills/", ["caminho Skills/"]),
         ("SKILLS/", ["caminho SKILLS/"]),
         ("skills\\bob-check", ["caminho skills\\bob-check"]),
-        (".\\skills\\vendor\\mattpocock", ["caminho .\\skills\\vendor\\mattpocock"]),
+        (".\\Skills\\example\\SKILL.md", ["caminho .\\Skills\\example\\SKILL.md"]),
         ("minha-skills/x", []),
         (".skills/x", []),
         (".github/skills", []),
