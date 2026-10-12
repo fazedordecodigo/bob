@@ -47,7 +47,7 @@ Um ou mais clones novos deixam o gate em `warn` e o exit em `0`. A linha do rela
 
 Sem Node, ou sem o jscpd instalado, o status é `not_run` e o exit continua `0` (o retorno de `_skipped` é `PASSED`). O jscpd precisa de Node também num repositório só Python, se `dry` estiver na lista.
 
-A spec marca clones novos como aviso no MVP. O código faz isso. A chave `duplication.new_clones` não é lida: no YAML ela é chave desconhecida e sai com `4`. Ver [Configuração](configuracao.md#chaves-da-spec-que-este-yaml-de-exemplo-não-liga-a-um-campo).
+A spec marca clones novos como aviso no MVP. O código faz isso no gate. `duplication.new_clones` não está no schema: sai com `4`. Ver [Configuração](configuracao.md#chaves-que-o-loader-recusa).
 
 ## Mutação
 
