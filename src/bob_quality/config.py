@@ -26,6 +26,7 @@ _CheckKind = Literal[
     "one_of",
     "members",
     "language",
+    "only_true",
 ]
 _BoundKind = Literal["gt"]
 _Failure = tuple[str, str, dict[str, object]]
@@ -135,6 +136,7 @@ _SCHEMA = _Node(
                 ),
             ),
         ),
+        _Node("test_smells", "test_smells", (_Check("only_true"),)),
     ),
 )
 
@@ -150,6 +152,7 @@ class Config:
     python_deps_config: str = ".importlinter"
     typescript_deps_config: str = ".dependency-cruiser.cjs"
     min_tokens: int = 50
+    test_smells: bool = True
     language: Language | None = None
 
     def __post_init__(self) -> None:
@@ -392,6 +395,13 @@ def _member_at(check: _Check, value: list[str] | tuple[str, ...]) -> _Failure | 
     return None
 
 
+def _only_true(check: _Check, value: object) -> _Failure | None:
+    # `1 == True` in Python, so identity is the whole check.
+    if value is True:
+        return None
+    return ("config.key_only_true", "", {})
+
+
 def _language(check: _Check, value: object) -> _Failure | None:
     if value is None:
         return None
@@ -417,6 +427,7 @@ _UNBOUND: dict[_CheckKind, _FailFn] = {
     "one_of": _one_of,
     "members": _members,
     "language": _language,
+    "only_true": _only_true,
 }
 
 
