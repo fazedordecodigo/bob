@@ -13,6 +13,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+import pytest
+
 if sys.version_info >= (3, 11):
     import tomllib
 else:
@@ -20,6 +22,8 @@ else:
 
 from bob_quality.doctor import PINS as DOCTOR_PINS
 from bob_quality.doctor import RequiresDist, ToolPin, unconditional_exact_pins
+from bob_quality.doctor import _assess, _assess_requires_dist, _assess_tool, _own_requirements
+from bob_quality.messages import msg
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -409,6 +413,74 @@ def test_unconditional_exact_pins_keeps_exact_lines() -> None:
         ]
     ) == {"lizard": "1.24.1", "grimp": "3.17"}
     assert unconditional_exact_pins(["pkg===1.0"]) == {"pkg": "=1.0"}
+
+
+def test_own_requirements_keeps_the_grimp_pin() -> None:
+    assert "grimp==3.17" in _own_requirements()
+
+
+def test_assess_requires_dist_matches_the_installed_grimp() -> None:
+    row = _assess_requires_dist(RequiresDist("grimp", "grimp"), "3.17")
+    assert row.line == msg("doctor.version", name="grimp", expected="3.17", found="3.17")
+    assert row.ok is True
+    assert row.install is None
+    assert row.npm_missing is False
+
+
+def test_assess_requires_dist_rejects_a_missing_pin() -> None:
+    row = _assess_requires_dist(RequiresDist("grimp", "grimp"), None)
+    assert row.line == msg(
+        "doctor.version",
+        name="grimp",
+        expected=msg("doctor.missing"),
+        found="3.17",
+    )
+    assert row.ok is False
+    assert row.install is None
+    assert row.npm_missing is False
+
+
+def test_assess_requires_dist_names_the_install() -> None:
+    row = _assess_requires_dist(RequiresDist("grimp", "grimp"), "9.9.9")
+    assert row.line == msg("doctor.version", name="grimp", expected="9.9.9", found="3.17")
+    assert row.ok is False
+    assert row.install == "pip install 'grimp==9.9.9'"
+    assert row.npm_missing is False
+
+
+def test_assess_reads_the_declared_distribution() -> None:
+    row = _assess(RequiresDist("grimp", "grimp"), {"grimp": "3.17"})
+    assert row.ok is True
+    assert row.line == msg("doctor.version", name="grimp", expected="3.17", found="3.17")
+
+
+def test_assess_tool_matches(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr("bob_quality.doctor._found_version", lambda pin: pin.expected)
+    row = _assess_tool(ToolPin("node", "22.14.0", "node", "install node"))
+    assert row.line == msg(
+        "doctor.version", name="node", expected="22.14.0", found="22.14.0"
+    )
+    assert row.ok is True
+    assert row.install is None
+    assert row.npm_missing is False
+
+
+def test_assess_tool_mismatch_prints_the_install(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr("bob_quality.doctor._found_version", lambda pin: "0")
+    row = _assess_tool(ToolPin("node", "22.14.0", "node", "install node"))
+    assert row.line == msg("doctor.version", name="node", expected="22.14.0", found="0")
+    assert row.ok is False
+    assert row.install == "install node"
+    assert row.npm_missing is False
+
+
+def test_assess_tool_npm_mismatch_has_no_install_line(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr("bob_quality.doctor._found_version", lambda pin: "0")
+    row = _assess_tool(ToolPin("c8", "12.0.0", "c8", "npm install c8@12.0.0", npm_package="c8"))
+    assert row.line == msg("doctor.version", name="c8", expected="12.0.0", found="0")
+    assert row.ok is False
+    assert row.install is None
+    assert row.npm_missing is True
 
 
 def _bob_metadata(parent: Path, *requires: str) -> Path:
