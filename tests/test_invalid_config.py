@@ -33,10 +33,14 @@ _BROKEN_YAML = (
 )
 
 
-def test_load_waivers_rejects_invalid_yaml_in_both_languages(tmp_path: Path) -> None:
+def _write_waivers(tmp_path: Path, text: str) -> None:
     bob = tmp_path / ".bob"
     bob.mkdir()
-    (bob / "waivers.yaml").write_text("waivers: [\n")
+    (bob / "waivers.yaml").write_text(text)
+
+
+def test_load_waivers_rejects_invalid_yaml_in_both_languages(tmp_path: Path) -> None:
+    _write_waivers(tmp_path, "waivers: [\n")
 
     with pytest.raises(WaiverError) as caught:
         load_waivers(tmp_path)
@@ -44,6 +48,56 @@ def test_load_waivers_rejects_invalid_yaml_in_both_languages(tmp_path: Path) -> 
     assert in_both(caught.value) == (
         "invalid YAML in .bob/waivers.yaml: while parsing a flow node",
         "YAML inválido em .bob/waivers.yaml: while parsing a flow node",
+    )
+
+
+def test_load_waivers_reads_one_entry(tmp_path: Path) -> None:
+    _write_waivers(
+        tmp_path,
+        "waivers:\n"
+        "  - id: fn\n"
+        "    reason: because\n"
+        "    author: ada\n"
+        "    date: '2026-10-11'\n",
+    )
+
+    loaded = load_waivers(tmp_path)
+
+    assert [(item.id, item.reason, item.author, item.date) for item in loaded] == [
+        ("fn", "because", "ada", "2026-10-11")
+    ]
+
+
+@pytest.mark.parametrize("text", ["", "null\n", "{}\n", "waivers:\n", "waivers: []\n"])
+def test_load_waivers_treats_missing_entries_as_an_empty_list(
+    tmp_path: Path, text: str
+) -> None:
+    _write_waivers(tmp_path, text)
+
+    assert load_waivers(tmp_path) == []
+
+
+def test_load_waivers_rejects_a_file_that_is_not_a_mapping(tmp_path: Path) -> None:
+    _write_waivers(tmp_path, "- 1\n")
+
+    with pytest.raises(WaiverError) as caught:
+        load_waivers(tmp_path)
+
+    assert in_both(caught.value) == (
+        "waivers.yaml must be a mapping",
+        "waivers.yaml deve ser um mapeamento",
+    )
+
+
+def test_load_waivers_rejects_a_waivers_value_that_is_not_a_list(tmp_path: Path) -> None:
+    _write_waivers(tmp_path, "waivers: 1\n")
+
+    with pytest.raises(WaiverError) as caught:
+        load_waivers(tmp_path)
+
+    assert in_both(caught.value) == (
+        "waivers.yaml: 'waivers' must be a list",
+        "waivers.yaml: 'waivers' deve ser uma lista",
     )
 
 

@@ -187,6 +187,11 @@ def test_load_config_rejects_min_tokens_that_is_not_an_integer(tmp_path: Path) -
             "bob.yaml: dependencies.python deve ser um texto",
         ),
         (
+            "dependencies:\n  typescript: 1\n",
+            "bob.yaml: dependencies.typescript must be a string",
+            "bob.yaml: dependencies.typescript deve ser um texto",
+        ),
+        (
             "base: [main]\n",
             "bob.yaml: base must be a string",
             "bob.yaml: base deve ser um texto",
