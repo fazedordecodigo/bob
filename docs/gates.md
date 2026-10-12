@@ -82,6 +82,22 @@ Uma violação bloqueia quando a origem, o destino, ou outro módulo do mesmo co
 
 Ferramenta ausente que impede a medição pedida deixa o gate `not_run` e o exit `4` (`ToolError` em `run_deps_gate`).
 
+## Segredos
+
+Este gate não entra na lista padrão do `bob check`. O comando é `bob check --gates secrets`. Ele roda `gitleaks detect --no-git` com o gitleaks 8.30.1 nas raízes de `paths.include`.
+
+Um segredo numa linha nova do diff, sem waiver, deixa o gate `failed` e o exit `1`. O id do waiver é a string inteira `secret:<regra>:<arquivo>:<linha>`. O id não leva o valor. `bob waive` grava esse id em `.bob/waivers.yaml`.
+
+Um achado fora do diff aparece no Markdown e não muda o exit. O status fica `passed` e o exit fica `0`. Um achado com waiver não entra em nenhuma das duas listas.
+
+A chave `secrets` no `bob.yaml` fica vazia. Ausente, `secrets:`, `secrets: null` e `secrets: {}` são o mesmo mapeamento e não ligam o gate.
+
+O JSON inclui `secrets` só quando o gate mediu. O array traz os achados que bloqueiam. Cada objeto tem `file`, `line` e `rule_id`. Sem medição, a chave não aparece.
+
+A seção `## Segredos` fica depois de `## Mutantes sem teste` e antes de `## Como reproduzir`. Sem medição, a seção não aparece. A saída bruta do gitleaks fica fora de `.bob/`.
+
+Um arquivo `.gitleaksignore` numa raiz de include deixa o gate `not_run` e o exit `4`, antes de chamar o binário. As entradas vão para `.bob/waivers.yaml`.
+
 ## Monorepo e Node ausente
 
 Decisão 10 da [SPEC](SPEC.md), implementada em `crap_gate.py` e `deps_gate.py`:
