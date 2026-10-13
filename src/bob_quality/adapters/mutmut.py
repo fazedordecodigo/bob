@@ -84,8 +84,24 @@ def mutmut_id_prefix(file: str, name: str) -> str:
 
 
 def id_matches_function(mutant_id: str, file: str, name: str) -> bool:
-    prefix = mutmut_id_prefix(file, name)
+    if _prefix_match(mutant_id, mutmut_id_prefix(file, name)):
+        return True
+    return _prefix_match(mutant_id, _method_id_prefix(file, name))
+
+
+def _prefix_match(mutant_id: str, prefix: str) -> bool:
+    if not prefix:
+        return False
     return mutant_id == prefix or mutant_id.startswith(f"{prefix}_")
+
+
+def _method_id_prefix(file: str, name: str) -> str:
+    if "." not in name:
+        return ""
+    owner, method = name.rsplit(".", 1)
+    prefix = mutmut_id_prefix(file, method)
+    needle = f".x_{method}__mutmut"
+    return prefix[: -len(needle)] + f".xǁ{owner}ǁ{method}__mutmut"
 
 
 def mutmut_stats_key(file: str, name: str) -> str:

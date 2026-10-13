@@ -92,6 +92,24 @@ def test_id_matches_function_stops_after_the_function_name() -> None:
     assert id_matches_function("app.a.x_foo__mutmut_1", "src/app/a.py", "foo_bar") is False
 
 
+def test_id_matches_function_accepts_a_method_id() -> None:
+    assert id_matches_function(
+        "app.box.xǁBoxǁopen__mutmut_1", "src/app/box.py", "Box.open"
+    ) is True
+    assert id_matches_function(
+        "app.box.xǁBox.Innerǁopen__mutmut_1", "src/app/box.py", "Box.Inner.open"
+    ) is True
+    assert id_matches_function(
+        "app.box.xǁBoxǁopen__mutmut", "src/app/box.py", "Box.open"
+    ) is True
+    assert id_matches_function(
+        "app.box.xǁBoxǁopen_extra__mutmut_1", "src/app/box.py", "Box.open"
+    ) is False
+    assert id_matches_function(
+        "app.box.xǁBoxǁopen__mutmut_1", "src/app/box.py", "Box.open_extra"
+    ) is False
+
+
 def test_summary_does_not_count_foo_bar_as_foo() -> None:
     mutants = [
         Mutant("app.a.x_foo__mutmut_1", "foo", "", 0, "", "no_coverage"),

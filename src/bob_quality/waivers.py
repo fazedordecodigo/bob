@@ -169,7 +169,7 @@ def add_waiver(cwd: Path, target: str, reason: str | None) -> Waiver:
     path = waivers_path(cwd)
     path.parent.mkdir(parents=True, exist_ok=True)
     payload = {"waivers": [item.as_dict() for item in replaced]}
-    path.write_text(yaml.safe_dump(payload, allow_unicode=True))
+    path.write_text(yaml.safe_dump(payload, allow_unicode=True, sort_keys=False))
     return waiver
 
 
@@ -240,23 +240,45 @@ def _cache_mutants(cwd: Path) -> list[Mutant] | None:
     if not isinstance(functions, dict):
         return []
     found: list[Mutant] = []
-    for entry in functions.values():
-        found.extend(_entry_mutants(entry))
+    for key, entry in functions.items():
+        found.extend(_entry_mutants(entry, _label_from_key(key)))
     return found
 
 
-def _entry_mutants(entry: object) -> list[Mutant]:
+def _label_from_key(key: object) -> tuple[str, str]:
+    if not isinstance(key, str) or "::" not in key:
+        return "", ""
+    file, function = key.split("::", 1)
+    return file, function
+
+
+def _entry_mutants(entry: object, label: tuple[str, str] = ("", "")) -> list[Mutant]:
     if not isinstance(entry, dict):
         return []
     rows = entry.get("mutants")
     if not isinstance(rows, list):
         return []
+    file, function = label
     found: list[Mutant] = []
     for row in rows:
         mutant = _row_mutant(row)
         if mutant is not None:
-            found.append(mutant)
+            found.append(_with_label(mutant, file, function))
     return found
+
+
+def _with_label(mutant: Mutant, file: str, function: str) -> Mutant:
+    if mutant.file and mutant.function:
+        return mutant
+    return Mutant(
+        id=mutant.id,
+        function=mutant.function or function,
+        file=mutant.file or file,
+        line=mutant.line,
+        operator=mutant.operator,
+        status=mutant.status,
+        waiver=mutant.waiver,
+    )
 
 
 def _row_mutant(row: object) -> Mutant | None:

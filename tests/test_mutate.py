@@ -14,11 +14,20 @@ import json
 from datetime import datetime, timezone
 from pathlib import Path
 
+import yaml
+
 from jsonschema import Draft202012Validator
 from pytest import MonkeyPatch
 
 from bob_quality.models import Mutant
-from bob_quality.waivers import Waiver, _matching_reason, _row_mutant, _status, add_waiver
+from bob_quality.waivers import (
+    Waiver,
+    _label_from_key,
+    _matching_reason,
+    _row_mutant,
+    _status,
+    add_waiver,
+)
 
 from helpers import (
     commit_on_branch,
@@ -352,6 +361,37 @@ def test_waive_rejects_an_id_that_is_not_a_survivor(tmp_path: Path) -> None:
     assert "keep" in (bob / "waivers.yaml").read_text(encoding="utf-8")
 
 
+def test_waive_of_a_file_label_is_not_a_test_when_the_row_has_no_file(tmp_path: Path) -> None:
+    bob = tmp_path / ".bob"
+    bob.mkdir()
+    (bob / "mutation-cache.json").write_text(
+        json.dumps(
+            {
+                "functions": {
+                    "src/app/calc.py::lonely": {
+                        "mutants": [
+                            {
+                                "id": "app.calc.x_lonely__mutmut_1",
+                                "function": "lonely",
+                                "status": "no_coverage",
+                            }
+                        ]
+                    },
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    result = run_bob(tmp_path, "waive", "src/app/calc.py::lonely", "--reason", "because")
+
+    assert result.returncode == 4
+    assert result.stderr == (
+        "waiver does not cover a mutant without a test: src/app/calc.py::lonely\n"
+    )
+    assert not (bob / "waivers.yaml").exists()
+
+
 def test_waive_rejects_a_cache_without_a_survivor_list(tmp_path: Path) -> None:
     bob = tmp_path / ".bob"
     bob.mkdir()
@@ -420,17 +460,26 @@ def test_a_new_waiver_records_the_repo_author_the_utc_date_and_the_yaml_order(
             return real(2026, 1, 2, 15, tzinfo=timezone.utc)
 
     monkeypatch.setattr("bob_quality.waivers.datetime", DateTime)
+    seen: dict[str, object] = {}
+    real_dump = yaml.safe_dump
+
+    def spy_dump(payload: object, *args: object, **kwargs: object) -> str:
+        seen["sort_keys"] = kwargs.get("sort_keys", "missing")
+        return real_dump(payload, *args, **kwargs)
+
+    monkeypatch.setattr("bob_quality.waivers.yaml.safe_dump", spy_dump)
 
     waiver = add_waiver(repo, "keep", "não")
 
     assert waiver.author == "bob-test"
     assert waiver.date == "2026-01-02"
+    assert seen["sort_keys"] is False
     assert (repo / ".bob" / "waivers.yaml").read_text(encoding="utf-8") == (
         "waivers:\n"
-        "- author: bob-test\n"
-        "  date: '2026-01-02'\n"
-        "  id: keep\n"
+        "- id: keep\n"
         "  reason: não\n"
+        "  author: bob-test\n"
+        "  date: '2026-01-02'\n"
     )
 
 
@@ -440,6 +489,9 @@ def test_a_cache_row_keeps_string_fields_and_drops_an_unknown_status() -> None:
     )
     blank = _row_mutant({"id": "app.a.x_add__mutmut_1", "status": "timeout", "function": 1, "file": 2})
 
+    assert _label_from_key("src/app/calc.py::lonely") == ("src/app/calc.py", "lonely")
+    assert _label_from_key("notes") == ("", "")
+    assert _label_from_key(None) == ("", "")
     assert kept == Mutant("app.a.x_add__mutmut_1", "add", "src/a.py", 0, "", "killed")
     assert blank == Mutant("app.a.x_add__mutmut_1", "", "", 0, "", "timeout")
     assert _row_mutant({"id": "app.a.x_add__mutmut_1", "status": "nope"}) is None
