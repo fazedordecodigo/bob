@@ -22,6 +22,7 @@ from pytest import MonkeyPatch
 from bob_quality.models import Mutant
 from bob_quality.waivers import (
     Waiver,
+    _entry_mutants,
     _label_from_key,
     _matching_reason,
     _row_mutant,
@@ -377,19 +378,52 @@ def test_waive_of_a_file_label_is_not_a_test_when_the_row_has_no_file(tmp_path: 
                             }
                         ]
                     },
+                    "src/app/calc.py::lonely::part": {
+                        "mutants": [
+                            {
+                                "id": "app.calc.x_lonely_part__mutmut_1",
+                                "status": "no_coverage",
+                            }
+                        ]
+                    },
+                    "src/app/calc.py::kept": {
+                        "mutants": [
+                            {
+                                "id": "app.calc.x_kept__mutmut_1",
+                                "function": "kept",
+                                "file": "src/other.py",
+                                "status": "no_coverage",
+                            }
+                        ]
+                    },
                 }
             }
         ),
         encoding="utf-8",
     )
 
-    result = run_bob(tmp_path, "waive", "src/app/calc.py::lonely", "--reason", "because")
+    lonely = run_bob(tmp_path, "waive", "src/app/calc.py::lonely", "--reason", "because")
+    nested = run_bob(tmp_path, "waive", "lonely::part", "--reason", "because")
+    nested_file = run_bob(
+        tmp_path, "waive", "src/app/calc.py::lonely::part", "--reason", "because"
+    )
+    kept = run_bob(tmp_path, "waive", "src/other.py::kept", "--reason", "because")
 
-    assert result.returncode == 4
-    assert result.stderr == (
+    assert lonely.returncode == 4
+    assert lonely.stderr == (
         "waiver does not cover a mutant without a test: src/app/calc.py::lonely\n"
     )
+    assert nested.returncode == 4
+    assert nested.stderr == "waiver does not cover a mutant without a test: lonely::part\n"
+    assert nested_file.returncode == 4
+    assert nested_file.stderr == (
+        "waiver does not cover a mutant without a test: src/app/calc.py::lonely::part\n"
+    )
+    assert kept.returncode == 4
+    assert kept.stderr == "waiver does not cover a mutant without a test: src/other.py::kept\n"
     assert not (bob / "waivers.yaml").exists()
+    assert _entry_mutants("nope") == []
+    assert _entry_mutants({"mutants": "nope"}) == []
 
 
 def test_waive_rejects_a_cache_without_a_survivor_list(tmp_path: Path) -> None:

@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 import os
 import subprocess
-from dataclasses import dataclass, fields
+from dataclasses import dataclass, fields, replace
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -268,17 +268,11 @@ def _entry_mutants(entry: object, label: tuple[str, str] = ("", "")) -> list[Mut
 
 
 def _with_label(mutant: Mutant, file: str, function: str) -> Mutant:
-    if mutant.file and mutant.function:
+    if mutant.file or not file:
         return mutant
-    return Mutant(
-        id=mutant.id,
-        function=mutant.function or function,
-        file=mutant.file or file,
-        line=mutant.line,
-        operator=mutant.operator,
-        status=mutant.status,
-        waiver=mutant.waiver,
-    )
+    if mutant.function:
+        return replace(mutant, file=file)
+    return replace(mutant, file=file, function=function)
 
 
 def _row_mutant(row: object) -> Mutant | None:
