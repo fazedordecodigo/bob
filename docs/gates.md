@@ -2,7 +2,7 @@
 
 [Índice](README.md) · [Visão geral](visao-geral.md) · [CLI](cli.md) · [Configuração](configuracao.md) · [Exit codes](exit-codes.md) · [Relatórios](relatorios.md) · [SPEC](SPEC.md)
 
-Quatro gates. Cada um devolve um status `passed`, `warn`, `failed` ou `not_run`. O Markdown traduz para passou, aviso, falhou e não executado, com ✅ ⚠️ ❌ ⏭️ (`GATE_MARK` em `src/bob_quality/report.py`). Um gate que não rodou fica ⏭️ com motivo. Ele não aparece como ✅.
+Cinco gates. Cada um devolve um status `passed`, `warn`, `failed` ou `not_run`. O Markdown traduz para passou, aviso, falhou e não executado, com ✅ ⚠️ ❌ ⏭️ (`GATE_MARK` em `src/bob_quality/report.py`). Um gate que não rodou fica ⏭️ com motivo. Ele não aparece como ✅.
 
 O exit code do `bob check` é o maior entre os gates que rodaram. Aviso não aumenta o código. Ver [Exit codes](exit-codes.md).
 
@@ -12,8 +12,9 @@ O exit code do `bob check` é o maior entre os gates que rodaram. Aviso não aum
 | [DRY](#dry) | jscpd | nada; clone novo é aviso | `0` |
 | [Mutação](#mutação) | mutmut (Python), StrykerJS (TypeScript) | sobrevivente sem waiver | `3` |
 | [Dependências](#dependências) | import-linter, dependency-cruiser, mais a regra de ciclo | violação cuja origem, destino ou outro módulo do ciclo está no diff | `1` |
+| [Código morto](#código-morto) | vulture e knip | nada; símbolo morto cuja definição está no diff é aviso | `0` |
 
-Versões pinadas: lizard 1.24.1, coverage 7.16.2, c8 12.0.0, vitest 5.0.3, jscpd 5.4.1, mutmut 3.8.0, `@stryker-mutator/core` 10.0.0, `@stryker-mutator/vitest-runner` 10.0.0, import-linter 2.15, grimp 3.17, dependency-cruiser 18.5.0. Node `>=22.14.0 <23`. Fonte: `pyproject.toml`, `package.json` e `doctor.py`. O doctor lê os pinos pip do Requires-Dist instalado.
+Versões pinadas: lizard 1.24.1, coverage 7.16.2, c8 12.0.0, vitest 5.0.3, jscpd 5.4.1, mutmut 3.8.0, `@stryker-mutator/core` 10.0.0, `@stryker-mutator/vitest-runner` 10.0.0, import-linter 2.15, grimp 3.17, dependency-cruiser 18.5.0, vulture 2.16, knip 6.41.0. Node `>=22.14.0 <23`. Fonte: `pyproject.toml`, `package.json` e `doctor.py`. O doctor lê os pinos pip do Requires-Dist instalado.
 
 ## CRAP
 
@@ -65,7 +66,7 @@ Se a versão do mutmut ou a impressão da suíte diferir da chave do arquivo, `_
 
 A Action restaura e publica o artefato `bob-mutation-cache` com esse JSON (`.github/actions/bob/action.yml`) e o guarda por 7 dias (`retention-days: 7`). Falha ao restaurar não interrompe o check (`restore_cache.py || echo ...` no workflow da action). A action também instala o Node `22.14.0` e o jscpd `5.4.1` antes do check, senão o dry fica `not_run`.
 
-O limite efetivo é zero sobreviventes sem waiver. Qualquer um deixa o gate `failed` e o exit `3`. `killed`, `timeout` e `no_coverage` não entram nessa lista. Sobrevivente com waiver continua na tabela de sobreviventes, com a justificativa, e não conta para o `3`.
+O limite efetivo é zero sobreviventes sem waiver numa linha do lado novo do diff (`git diff --unified=0`, âncora de hunk vazio incluída). Um desses deixa o gate `failed` e o exit `3`. Sobrevivente sem waiver fora dessas linhas continua na tabela, com a nota `fora do diff; não bloqueia`, e não muda o exit. Sem arquivo, ou com linha menor ou igual a zero, o sobrevivente sem waiver ainda bloqueia. `killed`, `timeout` e `no_coverage` não entram nessa lista. Sobrevivente com waiver continua na tabela de sobreviventes, com a justificativa, e não conta para o `3`. A seleção do que mutar continua por função (`_candidate_keys`).
 
 `no_coverage` muda o status do gate para `warn` quando não há sobrevivente sem waiver, e o relatório ganha a seção “Mutantes sem teste”, com total e contagem por função e arquivo (`no_coverage_summary`, `_no_coverage_lines`). O exit code não muda. `tests/test_mutate.py` cobre “warn without changing the exit code”. O [README.pt-BR.md](../README.pt-BR.md), na seção Status, ainda chama esse aviso de planejado. A decisão 11 da [SPEC](SPEC.md) separa o aviso (já no código) da fase 2, em que `no_coverage` nas funções do diff falharia com exit `3`. Essa fase 2 não está em `_finish`.
 
@@ -81,6 +82,26 @@ O nome da regra de ciclo no JSON (sempre inglês) é `Forbidden dependency cycle
 Uma violação bloqueia quando a origem, o destino, ou outro módulo do mesmo componente fortemente conexo, está no diff (`_edge_in_diff`). As outras aparecem em “Informação (dependências fora do diff)” e não mudam o exit code. Zero violações no diff: `passed` e exit `0`. Uma no diff: `failed` e exit `1`.
 
 Ferramenta ausente que impede a medição pedida deixa o gate `not_run` e o exit `4` (`ToolError` em `run_deps_gate`). O mesmo exit `4` vale para um JSON do dependency-cruiser que não é objeto ou não traz a lista `violations`, e para o import-linter com exit 0 cuja última linha `Contracts:` não é `N kept, 0 broken.`
+
+## Código morto
+
+O nome em `--gates` é `dead_code`. Ele não entra em `DEFAULT_GATES` (`crap,dry,deps`), no hook `pre-push` nem no default da Action. Não há subcomando `bob dead_code`.
+
+O gate avisa e não muda o exit code. Python roda `python -m vulture` com o vulture 2.16. TypeScript roda `npx --no-install --prefix <pacote do bob> knip --reporter json --no-progress` com o knip 6.41.0. O knip não recebe `dead_code.min_confidence`.
+
+Entra no ledger o símbolo cuja linha de definição está no lado novo do diff. Uma edição só do corpo, que não toca essa linha, não avisa. Símbolo fora de `paths.include`, ou com um componente de `paths.exclude` no caminho, fica de fora. O relatório lista os símbolos que restam, um por linha. No Markdown em `pt-BR` o tipo sai traduzido (`função`, `exportação`, `código inalcançável`). O campo `kind` do JSON guarda o token em inglês.
+
+`dead_code.min_confidence` ausente ou nulo não passa `--min-confidence`. O vulture usa o próprio default, inclusive `[tool.vulture]` do repositório. Em `vulture.config.DEFAULTS` da versão pinada esse default é 0. O valor `0`, quando a chave está presente, passa `--min-confidence 0` e vale mais que o `pyproject.toml`. A chave é um inteiro de 0 a 100. `101`, `-1`, `true` e `1.5` fazem `check`, `doctor` e `waive` saírem com `4`, em inglês no stderr, sem gravar relatório.
+
+Um waiver com o id exato `dead:<arquivo>:<linha>:<nome>` tira esse símbolo do aviso. O mesmo id não dispensa um mutante.
+
+Exit 3 do vulture, com o relatório parseado, é medição. O bob não copia esse 3. Exit 0 com stdout só de espaço em branco é medição vazia. Exit 0 com outra saída, exit 1, exit 2, outro exit ou uma linha ilegível deixam a metade Python sem medição.
+
+Exit 0 ou 1 do knip com JSON válido é medição, inclusive quando o knip sai 1 porque achou algo. O bob não copia esse 1. Exit 1 sem JSON, exit 2, crash ou documento inválido deixam a metade TypeScript sem medição. Arquivo, dependência e as outras chaves que não são símbolo ficam de fora. As listas de símbolo são `exports`, `types`, `enumMembers`, `namespaceMembers`, `nsExports` e `nsTypes`.
+
+Se uma linguagem mediu e a outra não, o status segue o ledger medido. Ledger limpo é `passed`. Símbolo no diff sem waiver é `warn`. O motivo da linguagem que faltou continua na linha do gate. Isso não força `warn` e não usa exit `4`. Sem nenhuma medição, o status é `not_run` e o exit continua `0`. O relatório é gravado nos dois casos.
+
+A seção `## Código morto` sai só quando o gate foi pedido, depois de `## Mutantes sem teste` e antes de `## Rotatividade`. O JSON traz `dead_code.symbols` nesse caso e omite a chave quando o gate não rodou. `schema_version` continua 1. O `reason` do JSON fica em inglês.
 
 ## Monorepo e Node ausente
 

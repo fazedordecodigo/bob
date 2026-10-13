@@ -14,15 +14,16 @@ O schema está em `src/bob_quality/schemas/report_v1.json`. `schema_version` é 
 2. `## Waivers`, só quando já há waivers ou a mutação rodou. Sem entradas, o texto é `Nenhum waiver.` A tabela tem alvo, motivo, autor e data. O título `## Waivers` é fixo nos dois idiomas (string literal em `_waiver_section`).
 3. Cabeçalho: commit, base, data e versões das ferramentas. As linhas `Commit:` e `Base:` ficam em inglês no código (`_header`).
 4. `## Veredito`: uma linha por gate, ✅ passou, ⚠️ aviso, ❌ falhou ou ⏭️ não executado. Com motivo, ele vai entre parênteses.
-5. `## Onde focar o review`: arquivos alterados ordenados pelo maior CRAP, com clones e, se a mutação rodou, um acréscimo de risco para sobrevivente sem waiver (`focus_with_survivors` soma 100). Arquivo com clone ganha o sufixo `, clone`.
+5. `## Onde focar o review`: arquivos alterados ordenados pelo maior CRAP, com clones e, se a mutação rodou, um acréscimo de risco para cada sobrevivente que bloqueia (`focus_with_survivors` soma 100 quando `blocking` é verdadeiro). Sobrevivente com waiver, ou fora do diff, não soma e não coloca arquivo novo no foco. Arquivo com clone ganha o sufixo `, clone`.
 6. `## Top 5 funções por CRAP (diff)`: função, arquivo:linha, CC, cobertura em percentual inteiro, CRAP e delta. Delta ausente vira `—`.
 7. `## Informação (dívida antiga)`, só se existir função fora do diff no limite ou acima. O item termina com `fora do diff; não bloqueia`.
 8. `## Violações e ciclos de dependência`, e em seguida `## Informação (dependências fora do diff)` quando há violações fora do diff.
 9. `## Clones novos`. Cada par traz arquivos, linhas, tokens e similaridade.
-10. `## Mutantes sobreviventes`, só se a mutação rodou. Colunas: id, função, local, operador, waiver.
+10. `## Mutantes sobreviventes`, só se a mutação rodou. Colunas: id, função, local, operador, waiver. Sobrevivente sem waiver que não bloqueia leva, no local, `fora do diff; não bloqueia`. O JSON guarda `blocking` em cada linha. O cache de mutação não guarda esse campo.
 11. `## Mutantes sem teste`, só se o resumo de mutação traz `no_coverage`. Total, e tabela por função e arquivo. A linha do total diz que não bloqueia.
-12. `## Rotatividade` (`## Churn` em `en`), sempre, inclusive na falha precoce e quando a contagem não existe. Com números: a janela de `churn.window_days` dias terminando na data do commit, a difusão (arquivos e módulos), os módulos quando há arquivo, a tabela de commits e o hotspot das funções alteradas (commits vezes o CC). Sem números: uma frase, sem difusão zero. A seção não muda o exit code.
-13. `## Como reproduzir`: o comando, dentro de uma cerca, com `--lang` do idioma que gerou o arquivo.
+12. `## Código morto` (`## Dead code` em `en`), só quando o gate `dead_code` foi pedido. Sem símbolo, a frase de nenhum. Aviso, sem mudar o exit code.
+13. `## Rotatividade` (`## Churn` em `en`), sempre, inclusive na falha precoce e quando a contagem não existe. Com números: a janela de `churn.window_days` dias terminando na data do commit, a difusão (arquivos e módulos), os módulos quando há arquivo, a tabela de commits e o hotspot das funções alteradas (commits vezes o CC). Sem números: uma frase, sem difusão zero. A seção não muda o exit code.
+14. `## Como reproduzir`: o comando, dentro de uma cerca, com `--lang` do idioma que gerou o arquivo.
 
 Seções vazias de dívida e de mutação somem. Foco, top 5, clones, veredito e rotatividade aparecem mesmo vazios. A rotatividade vazia de verdade diz que não há arquivo incluído. A rotatividade indisponível não mostra zero.
 
@@ -30,7 +31,7 @@ A [SPEC](SPEC.md) descreve a ordem começando pelo cabeçalho e pelo veredito, e
 
 ## report.json
 
-Campos obrigatórios no schema: `schema_version`, `commit`, `base`, `generated_at`, `tool_versions`, `gates`, `focus`, `top_crap`, `reproduce`, `exit_code`. O render também escreve `old_debt`, `dependencies`, `old_dependencies`, `clones`, `waivers`, `survivors` e `mutation`. `churn` sai sempre e não é obrigatório no schema. `schema_version` continua `1`. Indisponível é `{"kind": "unavailable"}`. Medido traz `kind`, `window_days`, `ends_on`, `files`, `hotspots` e `diffusion`.
+Campos obrigatórios no schema: `schema_version`, `commit`, `base`, `generated_at`, `tool_versions`, `gates`, `focus`, `top_crap`, `reproduce`, `exit_code`. O render também escreve `old_debt`, `dependencies`, `old_dependencies`, `clones`, `waivers`, `survivors` e `mutation`. `churn` sai sempre e não é obrigatório no schema. `schema_version` continua `1`. Indisponível é `{"kind": "unavailable"}`. Medido traz `kind`, `window_days`, `ends_on`, `files`, `hotspots` e `diffusion`. `dead_code` sai só quando o gate rodou, com `symbols`, e some quando o gate não foi pedido.
 
 `gates[].status` é `passed`, `warn`, `failed` ou `not_run`. O `reason` no JSON é renderizado em inglês (`JSON_LANGUAGE`).
 

@@ -245,6 +245,7 @@ def test_max_workers_and_mutation_fields_reach_the_report(
                     "line": 1,
                     "operator": "x",
                     "status": "survived",
+                    "blocking": True,
                 }
             ],
             summary={
@@ -278,6 +279,7 @@ def test_max_workers_and_mutation_fields_reach_the_report(
             "line": 1,
             "operator": "x",
             "status": "survived",
+            "blocking": True,
         }
     ]
     assert payload["focus"] == [{"file": "src/new.py", "risk": 100.0}]
@@ -352,6 +354,7 @@ def test_assemble_copies_every_measured_field() -> None:
                     "line": 1,
                     "operator": "x",
                     "status": "survived",
+                    "blocking": True,
                 }
             ],
             summary={"remutated": ["src/new.py:fresh"], "reused": [], "no_coverage": {}},
@@ -454,6 +457,7 @@ def test_assemble_copies_every_measured_field() -> None:
                 "line": 1,
                 "operator": "x",
                 "status": "survived",
+                "blocking": True,
             }
         ],
         "mutation": {"remutated": ["src/new.py:fresh"], "reused": [], "no_coverage": {}},
