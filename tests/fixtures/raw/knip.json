@@ -1,0 +1,18 @@
+{
+  "issues": [
+    {
+      "file": "src/app.ts",
+      "unlisted": [{ "name": "left-pad", "line": 4, "col": 20 }],
+      "unresolved": [
+        { "name": "missing-pkg", "line": 8, "col": 1 },
+        { "name": "./local", "line": 9, "col": 1 }
+      ],
+      "dependencies": [{ "name": "unused-dep", "line": 1, "col": 1 }],
+      "duplicates": [[{ "name": "twin", "line": 2, "col": 1 }]]
+    },
+    {
+      "file": "src/bare.ts",
+      "unlisted": [{ "name": "lodash" }]
+    }
+  ]
+}

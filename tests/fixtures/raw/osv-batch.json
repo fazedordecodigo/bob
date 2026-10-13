@@ -1,0 +1,42 @@
+{
+  "results": [
+    {
+      "vulns": [
+        {
+          "id": "CVE-2024-0001",
+          "aliases": ["GHSA-1111-2222-3333"],
+          "severity": [
+            {
+              "type": "CVSS_V3",
+              "score": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H"
+            }
+          ]
+        },
+        {
+          "id": "GHSA-aaaa-bbbb-cccc",
+          "database_specific": { "severity": "MODERATE" },
+          "severity": [
+            {
+              "type": "CVSS_V3",
+              "score": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H"
+            }
+          ]
+        },
+        {
+          "id": "PYSEC-1",
+          "severity": [
+            {
+              "type": "CVSS_V2",
+              "score": "AV:N/AC:L/Au:N/C:P/I:P/A:P"
+            }
+          ]
+        },
+        {
+          "id": "GHSA-0000-0000-0000",
+          "severity": [{ "type": "CVSS_V3", "score": "0.0" }]
+        }
+      ]
+    },
+    { "vulns": [] }
+  ]
+}
