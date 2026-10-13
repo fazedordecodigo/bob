@@ -10,6 +10,7 @@ from pathlib import Path
 import pytest
 
 from bob_quality.cli import main
+from bob_quality.report import load_saved_report
 
 
 def _invoke(repo: Path, *args: str) -> subprocess.CompletedProcess[str]:
@@ -131,6 +132,7 @@ def test_report_renders_the_saved_json_and_keeps_the_exit_code(tmp_path: Path) -
     assert result.stderr == ""
     assert result.stdout == ""
     assert (tmp_path / ".bob" / "report.md").read_text() == _EN
+    assert load_saved_report(tmp_path / ".bob").schema_version == 1
     assert saved.read_bytes() == before
     assert not (tmp_path / ".bob" / "report.md.tmp").exists()
 
@@ -167,10 +169,10 @@ def test_report_help_follows_the_language(tmp_path: Path) -> None:
 def test_report_reads_another_directory_and_writes_another_file(tmp_path: Path) -> None:
     _save(tmp_path, _MINIMAL, folder="saved")
 
-    result = _invoke(tmp_path, "report", "--in", "saved", "--out", "out/summary.md")
+    result = _invoke(tmp_path, "report", "--in", "saved", "--out", "out/nested/summary.md")
 
     assert result.returncode == 0
-    assert (tmp_path / "out" / "summary.md").read_text() == _EN
+    assert (tmp_path / "out" / "nested" / "summary.md").read_text() == _EN
     assert not (tmp_path / ".bob").exists()
     assert not (tmp_path / "saved" / "report.md").exists()
 
@@ -217,7 +219,7 @@ def test_report_renders_a_failed_gate_a_clone_and_a_metric(tmp_path: Path) -> No
             "coverage": 0.5,
             "cc": 2,
             "crap": 2.25,
-            "delta": None,
+            "delta": 1.5,
         }
     ]
     payload["clones"] = [
@@ -250,7 +252,7 @@ def test_report_renders_a_failed_gate_a_clone_and_a_metric(tmp_path: Path) -> No
     assert "- ❌ `deps`: failed (tool missing)" in markdown
     assert "- ⏭️ `mutate`: not run" in markdown
     assert "- `app.py` (risk 12, clone)" in markdown
-    assert "| add | app.py:4 | 2 | 50% | 2.25 | — |" in markdown
+    assert "| add | app.py:4 | 2 | 50% | 2.25 | 1.5 |" in markdown
     assert (
         "- `a.py:1-2` ↔ `b.py:3-4` — 2 lines, 10 tokens, similarity 100%" in markdown
     )
@@ -274,7 +276,17 @@ def test_report_renders_an_exact_clone_and_old_debt(tmp_path: Path) -> None:
             "lines": 2,
             "tokens": 10,
             "kind": "exact",
-        }
+        },
+        {
+            "first_file": "c.py",
+            "first_start": 1,
+            "first_end": 2,
+            "second_file": "d.py",
+            "second_start": 3,
+            "second_end": 4,
+            "lines": 2,
+            "tokens": 10,
+        },
     ]
     payload["mutation"] = {
         "no_coverage": {"total": 1, "functions": [{"file": "app.py", "function": "add", "count": 1}]}
@@ -294,6 +306,7 @@ def test_report_renders_an_exact_clone_and_old_debt(tmp_path: Path) -> None:
     assert "legacy" in markdown
     assert "old.py:9" in markdown
     assert "similarity exact" in markdown
+    assert "similarity —" in markdown
     assert "`app.add__mutmut_1`" in markdown
     assert "| `fn` | because | ada | 2026-10-11 |" in markdown
     assert "| add | app.py | 1 |" in markdown
@@ -389,6 +402,46 @@ def _metric(**overrides: object) -> dict[str, object]:
         {**_MINIMAL, "mutation": {"no_coverage": {"total": 1, "functions": [{"file": "a.py"}]}}},
         {**_MINIMAL, "survivors": [{"id": "x", "function": "add", "file": "app.py"}]},
         {**_MINIMAL, "tool_versions": []},
+        {**_MINIMAL, "commit": 1},
+        {**_MINIMAL, "base": 1},
+        {**_MINIMAL, "generated_at": 1},
+        {**_MINIMAL, "reproduce": 1},
+        {**_MINIMAL, "waivers": "nope"},
+        {**_MINIMAL, "focus": "nope"},
+        {**_MINIMAL, "top_crap": "nope"},
+        {**_MINIMAL, "top_crap": [_metric(name=1)]},
+        {**_MINIMAL, "old_debt": "nope"},
+        {**_MINIMAL, "old_debt": [{"name": 1, "file": "old.py", "start_line": 9, "crap": 30}]},
+        {
+            **_MINIMAL,
+            "old_debt": [{"name": "legacy", "file": "old.py", "start_line": "9", "crap": 30}],
+        },
+        {**_MINIMAL, "dependencies": "nope"},
+        {**_MINIMAL, "dependencies": [{"origin": 1, "destination": "core", "rule": "cycle"}]},
+        {**_MINIMAL, "old_dependencies": "nope"},
+        {**_MINIMAL, "clones": "nope"},
+        {**_MINIMAL, "survivors": "nope"},
+        {**_MINIMAL, "survivors": [{"id": 1, "function": "add", "file": "app.py", "line": 4}]},
+        {
+            **_MINIMAL,
+            "survivors": [{"id": "x", "function": "add", "file": 1, "line": 4}],
+        },
+        {**_MINIMAL, "mutation": {"no_coverage": {"total": 1, "functions": "nope"}}},
+        {
+            **_MINIMAL,
+            "mutation": {
+                "no_coverage": {"total": 1, "functions": [{"file": 1, "function": "add", "count": 1}]}
+            },
+        },
+        {
+            **_MINIMAL,
+            "mutation": {
+                "no_coverage": {
+                    "total": 1,
+                    "functions": [{"file": "a.py", "function": "add", "count": "1"}],
+                }
+            },
+        },
     ],
 )
 def test_invalid_saved_report_exits_4(tmp_path: Path, payload: object) -> None:
@@ -451,6 +504,8 @@ def test_report_does_not_replace_a_directory_at_the_output_path(tmp_path: Path) 
     _save(tmp_path, _MINIMAL, folder="saved")
     blocked = tmp_path / "out"
     blocked.mkdir()
+    sentinel = tmp_path / "out.tmp"
+    sentinel.write_text("sentinel\n")
 
     result = _invoke(tmp_path, "report", "--in", "saved", "--out", "out")
 
@@ -458,4 +513,4 @@ def test_report_does_not_replace_a_directory_at_the_output_path(tmp_path: Path) 
     assert result.stderr == f"could not write report: {blocked}\n"
     assert blocked.is_dir()
     assert list(blocked.iterdir()) == []
-    assert not (tmp_path / "out.tmp").exists()
+    assert not sentinel.exists()

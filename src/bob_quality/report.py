@@ -464,7 +464,7 @@ def _gates(value: object, path: Path) -> list[GateResult]:
 
 
 def _gate(row: dict[str, object], path: Path) -> GateResult:
-    reason = row.get("reason", None)
+    reason = row.get("reason")
     if reason is not None and not isinstance(reason, str):
         raise _invalid_saved(path)
     return GateResult(_text(row.get("name"), path), _status(row.get("status"), path), reason)
@@ -629,7 +629,7 @@ def _replace_text(destination: Path, text: str) -> None:
         os.replace(temporary, destination)
     except OSError:
         try:
-            temporary.unlink(missing_ok=True)
+            os.unlink(temporary)
         except OSError:
             pass
         raise ConfigError(msg("report.output_failed", path=destination)) from None
