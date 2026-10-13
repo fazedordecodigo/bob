@@ -10,6 +10,10 @@ Um relatório do Stryker que não é UTF-8 sai com `4`, com o gate mutate em `no
 
 O `extract_cache` imprime `restored mutmut`, `restored incremental` ou `restored both` depois de gravar esses arquivos do zip `bob-mutation-cache`. Não imprime nada quando o zip não traz nenhum dos dois.
 
+`bob check --gates secrets` scans `paths.include` with gitleaks 8.30.1. A secret on a new diff line fails with exit `1`. The report lists the file, the line, and the rule id. It does not print the secret. Waive a finding in `.bob/waivers.yaml` with the id `secret:<rule>:<file>:<line>`. `secrets` in `bob.yaml` is an empty mapping and does not turn the gate on. The gate stays out of the default list, the pre-push hook, and the Action default. `bob doctor` pins gitleaks 8.30.1. A `.gitleaksignore` file under an include root exits `4` before the scan.
+
+`bob check --gates secrets` varre `paths.include` com o gitleaks 8.30.1. Um segredo numa linha nova do diff falha com exit `1`. O relatório lista o arquivo, a linha e o id da regra. Ele não imprime o segredo. O waiver em `.bob/waivers.yaml` usa o id `secret:<regra>:<arquivo>:<linha>`. `secrets` no `bob.yaml` é um mapeamento vazio e não liga o gate. O gate fica fora da lista padrão, do hook pre-push e do padrão da Action. O `bob doctor` pina o gitleaks 8.30.1. Um `.gitleaksignore` numa raiz de include sai com `4` antes da varredura.
+
 `bob --config ci.yaml check` exits `4` and writes no report. The last stderr line is `bob: error: --config goes after the command: bob check --config ci.yaml`. A path with a space is quoted, as in `bob crap --config 'my ci.yaml'`. `doctor` and `waive` do not accept `--config`. `bob --help` does not list `--config`.
 
 `bob --config ci.yaml check` sai com `4` e não grava relatório. A última linha do stderr é `bob: error: --config goes after the command: bob check --config ci.yaml`. Um caminho com espaço sai entre aspas, como em `bob crap --config 'my ci.yaml'`. `doctor` e `waive` não aceitam `--config`. O `bob --help` não lista `--config`.
