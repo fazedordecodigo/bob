@@ -6,7 +6,6 @@ import hashlib
 import json
 import os
 import tempfile
-from collections.abc import Callable
 from dataclasses import dataclass, replace
 from pathlib import Path
 
@@ -42,6 +41,8 @@ from bob_quality.tools import ToolError, run_lizard_csv
 from bob_quality.waivers import Waiver, WaiverError, apply_waivers, load_waivers
 
 CACHE_NAME = "mutation-cache.json"
+_WORKDIR = "mutmut"
+_NEVER_LINKED = frozenset({".git", "mutants"})
 
 
 @dataclass
@@ -75,7 +76,9 @@ def run_mutation_gate(
     blocked = _baseline_outcome(cwd, baseline, versions, waiver_rows)
     if blocked is not None:
         return blocked
-    fresh = _collect_fresh(cwd, config, plan.remutate, max_workers, versions, waiver_rows, waivers)
+    fresh = _collect_fresh(
+        cwd, config, out_dir, plan.remutate, max_workers, versions, waiver_rows, waivers
+    )
     if isinstance(fresh, MutationOutcome):
         return fresh
     _write_cache(cache, _publish_body(plan, _cache_body(cwd, plan.remutate, fresh)))
@@ -247,18 +250,19 @@ def _baseline_outcome(
 def _collect_fresh(
     cwd: Path,
     config: Config,
+    out_dir: Path,
     remutate: list[CyclomaticFunction],
     max_workers: int | None,
     versions: dict[str, str],
     waiver_rows: list[dict[str, object]],
     waivers: list[Waiver],
 ) -> list[Mutant] | MutationOutcome:
-    cleanup = _install_mutmut_config(cwd, config.include)
-    prepare_mutmut_workspace(cwd)
     try:
-        parsed, failed = _run_and_parse(cwd, remutate, max_workers, versions, waiver_rows)
-    finally:
-        cleanup()
+        work = _mutmut_workdir(cwd, out_dir, config.include)
+    except OSError as exc:
+        failed = msg("mutate.workdir_failed", path=str(out_dir / _WORKDIR), detail=str(exc))
+        return _tool_outcome(failed, versions, waiver_rows)
+    parsed, failed = _run_and_parse(work, remutate, max_workers, versions, waiver_rows)
     if failed is not None:
         return failed
     return apply_waivers([item for item in parsed if _belongs(item, remutate)], waivers)
@@ -691,29 +695,49 @@ def prepare_mutmut_workspace(cwd: Path) -> None:
     dest.symlink_to(source.resolve(), target_is_directory=True)
 
 
-def _install_mutmut_config(cwd: Path, source_paths: list[str]) -> Callable[[], None]:
+def _mutmut_workdir(cwd: Path, out_dir: Path, source_paths: list[str]) -> Path:
+    """O mutmut grava `mutants/` e lê `setup.cfg` no cwd.
+
+    Com o cwd aqui, o repo só é lido, e um kill não deixa nada para restaurar.
+    """
+    work = out_dir / _WORKDIR
+    work.mkdir(parents=True, exist_ok=True)
+    config = _mutmut_setup_cfg(cwd, source_paths)
+    skip = _NEVER_LINKED | _holder(cwd, work)
+    if config is not None:
+        skip = skip | {"setup.cfg"}
+    for entry in work.iterdir():
+        if entry.is_symlink() or entry.name == "setup.cfg":
+            entry.unlink()
+    for entry in cwd.resolve().iterdir():
+        if entry.name not in skip:
+            (work / entry.name).symlink_to(entry)
+    if config is not None:
+        (work / "setup.cfg").write_text(config)
+    prepare_mutmut_workspace(work)
+    return work
+
+
+def _holder(cwd: Path, work: Path) -> frozenset[str]:
+    """A entrada de topo do repo que contém `work`. O link dela faria um ciclo."""
+    try:
+        return frozenset({work.resolve().relative_to(cwd.resolve()).parts[0]})
+    except ValueError:
+        return frozenset()
+
+
+def _mutmut_setup_cfg(cwd: Path, source_paths: list[str]) -> str | None:
     if _has_mutmut_config(cwd):
-        return lambda: None
+        return None
     setup = cwd / "setup.cfg"
-    created = not setup.exists()
-    original = setup.read_text() if setup.exists() else None
-    paths = source_paths or ["src"]
+    original = setup.read_text() if setup.is_file() else ""
     lines = ["[mutmut]", "source_paths ="]
-    lines.extend(f"    {path}" for path in paths)
+    lines.extend(f"    {path}" for path in source_paths or ["src"])
     lines.extend(["also_copy =", "    pytest.ini", ""])
     block = "\n".join(lines)
     if original:
-        setup.write_text(original.rstrip() + "\n\n" + block)
-    else:
-        setup.write_text(block)
-
-    def cleanup() -> None:
-        if created:
-            setup.unlink(missing_ok=True)
-        elif original is not None:
-            setup.write_text(original)
-
-    return cleanup
+        return original.rstrip() + "\n\n" + block
+    return block
 
 
 def _has_mutmut_config(cwd: Path) -> bool:

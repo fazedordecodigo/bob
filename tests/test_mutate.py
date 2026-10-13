@@ -11,6 +11,9 @@ Seams combinados em docs/SPEC.md (aceite da issue #3):
 from __future__ import annotations
 
 import json
+import signal
+import subprocess
+import sys
 from pathlib import Path
 
 from jsonschema import Draft202012Validator
@@ -272,6 +275,40 @@ def test_removed_waiver_fails_the_survivor_again(tmp_path: Path) -> None:
 
     assert result.returncode == 3
     assert reason not in markdown.split("## Verdict")[0]
+
+
+def test_a_killed_mutation_run_leaves_setup_cfg_and_mutants_untouched(tmp_path: Path) -> None:
+    repo = init_python_repo(tmp_path / "repo")
+    commit_on_main(repo, "setup.cfg", "[metadata]\nname = app\n", "add setup.cfg")
+    commit_on_branch(repo, "weak", "src/app/weak.py", CLASSIFY, "add classify")
+    commit_on_branch(repo, "weak", "tests/test_classify.py", WEAK_TEST, "weak classify test")
+    before = (repo / "setup.cfg").read_bytes()
+    script = (
+        "import os, runpy, signal, sys\n"
+        "from pathlib import Path\n"
+        "import bob_quality.mutate as mutate\n"
+        "def die(cwd, patterns, max_workers):\n"
+        "    assert '[mutmut]' in (Path(cwd) / 'setup.cfg').read_text()\n"
+        "    os.kill(os.getpid(), signal.SIGKILL)\n"
+        "mutate.run_mutmut = die\n"
+        "sys.argv = ['bob', 'mutate', '--base', 'main']\n"
+        "runpy.run_module('bob_quality', run_name='__main__')\n"
+    )
+
+    killed = subprocess.run(
+        [sys.executable, "-c", script], cwd=repo, capture_output=True, text=True
+    )
+
+    assert killed.returncode == -signal.SIGKILL, killed.stderr
+    assert (repo / "setup.cfg").read_bytes() == before
+    assert not (repo / "mutants").exists()
+
+    rerun = run_bob(repo, "mutate", "--base", "main")
+
+    assert rerun.returncode == 3, rerun.stderr
+    assert (repo / "setup.cfg").read_bytes() == before
+    assert not (repo / "mutants").exists()
+    assert (repo / ".bob" / "mutmut" / "mutants").is_dir()
 
 
 def test_harden_skill_kills_mutants_without_weakening_production_code() -> None:
