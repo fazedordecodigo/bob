@@ -157,7 +157,9 @@ def test_composite_action_comments_uploads_cache_and_keeps_bob_status() -> None:
     with_block = upload["with"]
     assert isinstance(with_block, dict)
     assert with_block["name"] == "bob-mutation-cache"
-    assert with_block["path"] == ".bob/mutation-cache.json"
+    uploaded = str(with_block["path"])
+    assert ".bob/mutation-cache.json" in uploaded
+    assert ".bob/stryker-incremental.json" in uploaded
     assert with_block["if-no-files-found"] == "ignore"
     assert with_block["include-hidden-files"] is True
     assert with_block["retention-days"] == 7

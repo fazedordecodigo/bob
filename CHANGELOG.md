@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+A Stryker report that is not UTF-8 exits `4` with the mutate gate `not_run`, and the run writes the report instead of a traceback. The `bob-mutation-cache` artifact uploads and restores `.bob/stryker-incremental.json` next to `.bob/mutation-cache.json`.
+
+Um relatório do Stryker que não é UTF-8 sai com `4`, com o gate mutate em `not_run`, e a execução grava o relatório em vez de um traceback. O artefato `bob-mutation-cache` sobe e restaura `.bob/stryker-incremental.json` junto de `.bob/mutation-cache.json`.
+
 `grimp==3.17` is a direct pin in `pyproject.toml`, and `bob doctor` lists it. `bob doctor` no longer treats a PATH binary as a pip tool. The version it expects is the one `bob-quality` declares.
 
 `grimp==3.17` é um pin direto no `pyproject.toml`, e o `bob doctor` lista essa versão. O `bob doctor` não trata mais um binário do PATH como ferramenta pip. A versão que ele espera é a que o `bob-quality` declara.

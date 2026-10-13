@@ -287,7 +287,7 @@ Coverage shows that a line ran. It does not show that a test checks the result. 
 
 For example, a mutant changes `if total > limit:` to `if total >= limit:`. If no test uses `total == limit`, the mutant survives. Write that test, or run `bob waive` with a reason.
 
-bob mutates Python with mutmut and TypeScript with Stryker. It runs the baseline tests first and exits with `2` if they fail. It mutates the changed functions, plus the functions that still have survivors without a waiver. The cache `.bob/mutation-cache.json` stores a hash of each function's text. Reuse also requires the mutmut version and the suite fingerprint to match. A mismatch still remutates an unwaived survivor outside the diff. The GitHub Action restores and publishes the cache as the `bob-mutation-cache` artifact. TypeScript keeps Stryker's incremental file at `.bob/stryker-incremental.json`. That file is local. The Action does not restore it.
+bob mutates Python with mutmut and TypeScript with Stryker. It runs the baseline tests first and exits with `2` if they fail. It mutates the changed functions, plus the functions that still have survivors without a waiver. The cache `.bob/mutation-cache.json` stores a hash of each function's text. Reuse also requires the mutmut version and the suite fingerprint to match. A mismatch still remutates an unwaived survivor outside the diff. The GitHub Action restores and publishes the cache as the `bob-mutation-cache` artifact. TypeScript keeps Stryker's incremental file at `.bob/stryker-incremental.json`. The Action restores and publishes that file in the same artifact.
 
 The limit is zero survivors without a waiver. Any such survivor fails the gate with exit `3`. The report lists only survivors. Mutants with `killed`, `timeout`, and `no_coverage` do not block. A warning for `no_coverage` mutants is planned ([#31](https://github.com/fazedordecodigo/bob/issues/31)).
 
@@ -320,7 +320,7 @@ The CI (`.github/workflows/ci.yml`) runs this suite on Python 3.10 and 3.12 with
 
 ## GitHub Action
 
-The composite action in `.github/actions/bob` installs `bob` and runs `bob check` with `crap,dry,deps,mutate`. It installs Node 22.14.0 and jscpd 5.4.1 first, so the dry gate runs when the caller did not install them. It restores and publishes the `bob-mutation-cache` artifact (`.bob/mutation-cache.json`, kept for 7 days), and it creates or updates a single pull request comment with `.bob/report.md`. The job exit code is the one from `bob`, including `4` for an invalid command line.
+The composite action in `.github/actions/bob` installs `bob` and runs `bob check` with `crap,dry,deps,mutate`. It installs Node 22.14.0 and jscpd 5.4.1 first, so the dry gate runs when the caller did not install them. It restores and publishes the `bob-mutation-cache` artifact (`.bob/mutation-cache.json` and `.bob/stryker-incremental.json`, kept for 7 days), and it creates or updates a single pull request comment with `.bob/report.md`. The job exit code is the one from `bob`, including `4` for an invalid command line.
 
 The action accepts the inputs `base`, `gates`, `pip-spec`, and `token`. This repository uses it in `.github/workflows/bob.yml`. `bob-quality` is not on PyPI yet, so in a checkout of this repository the action runs `pip install -e ".[dev]"`, and in another repository it installs the action's git source. Publication on the GitHub Marketplace is not part of this slice.
 
