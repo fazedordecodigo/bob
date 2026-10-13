@@ -33,10 +33,12 @@ bob doctor  # verifica ferramentas e versões instaladas
 - `2` baseline quebrado (testes falham antes de medir)
 - `3` mutante sobrevivente sem waiver
 - `4` erro de configuração ou ferramenta ausente
+O `4` é erro de configuração ou ferramenta ausente, ou uso inválido da CLI.
+Uso inválido: o stderr começa com `usage: bob`, contém `error:` e não menciona baseline. Essa execução não grava relatório. Um arquivo `.bob/` já presente não é desta execução. Não é o exit `2`. A ajuda (`-h`, `--help`) sai com `0`. Catálogo em docs/exit-codes.md#exit-4.
 
 ## Passos
 
-1. Confirmar `.bob/report.md`. Se faltar, gerar com `bob check --format both`. Feito quando `.bob/report.md` existe.
+1. Confirmar `.bob/report.md`. Se a execução que acabou de rodar saiu `4` e o stderr começa com `usage: bob`, contém `error:` e não menciona baseline, não escrever o PR a partir do arquivo e não chamar `bob check` de novo com o mesmo argv. Não é o exit `2`. Seguir a skill `bob-check`. Fora esse caso, se `.bob/report.md` falta, gerar com `bob check --format both`. Feito quando `.bob/report.md` existe e a execução não caiu no uso inválido acima.
 2. Ler o relatório na ordem da spec (abaixo). Feito quando as oito seções foram lidas.
 3. Colocar os vereditos e **Onde focar o review** em Evidence (antes/depois: último `bob check` que falhou vs a corrida que passou).
 4. Apontar o caminho `.bob/report.md` para a página completa. O corpo do PR fica o resumo de uma página.
