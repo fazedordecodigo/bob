@@ -29,6 +29,7 @@ from bob_quality.doctor import (
     _assess_node,
     _assess_npm,
     _assess_requires_dist,
+    _found_version,
     _own_requirements,
 )
 from bob_quality.messages import msg
@@ -494,6 +495,33 @@ def test_assess_npm_mismatch_has_no_install_line(monkeypatch: pytest.MonkeyPatch
     assert row.ok is False
     assert row.install is None
     assert row.npm_missing is True
+
+
+def test_found_version_uses_the_installed_package_ahead_of_the_cli(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        "bob_quality.doctor._npm_package_version",
+        lambda package_name, executable: "12.0.0",
+    )
+    monkeypatch.setattr("bob_quality.doctor._cli_version", lambda executable: "9.9.9")
+    pin = NpmPin("c8", "12.0.0", "c8", npm_package="c8")
+    assert _found_version(pin) == "12.0.0"
+
+
+def test_found_version_reads_the_cli_of_the_named_executable(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        "bob_quality.doctor._npm_package_version",
+        lambda package_name, executable: None,
+    )
+    monkeypatch.setattr(
+        "bob_quality.doctor._cli_version",
+        lambda executable: "12.0.0" if executable == "c8" else None,
+    )
+    pin = NpmPin("c8", "12.0.0", "c8", npm_package="c8")
+    assert _found_version(pin) == "12.0.0"
 
 
 @pytest.mark.parametrize(

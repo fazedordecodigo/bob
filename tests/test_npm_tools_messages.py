@@ -194,7 +194,7 @@ def test_installed_npm_version_returns_the_declared_version(tmp_path: Path) -> N
     assert installed_npm_version(tmp_path, "c8") == "12.0.0"
 
 
-@pytest.mark.parametrize("body", ["{", "[]"])
+@pytest.mark.parametrize("body", ["{", "[]", "{}"])
 def test_illegible_npm_version_names_the_package(tmp_path: Path, body: str) -> None:
     pkg = tmp_path / "node_modules" / "c8"
     pkg.mkdir(parents=True)
