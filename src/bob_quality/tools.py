@@ -6,6 +6,7 @@ import os
 import re
 import subprocess
 import sys
+from collections.abc import Sequence
 from pathlib import Path
 
 from bob_quality.exit_codes import pytest_passed
@@ -14,6 +15,25 @@ from bob_quality.messages import msg
 
 class ToolError(Exception):
     """Ferramenta pinada ausente ou falhou de forma inesperada."""
+
+
+def spawn_clean(
+    cwd: Path,
+    args: Sequence[str],
+    prefix: Path | None = None,
+) -> subprocess.CompletedProcess[str]:
+    env = {key: value for key, value in os.environ.items() if not key.startswith("PYTEST_")}
+    if prefix is not None:
+        bindir = prefix / "node_modules" / ".bin"
+        env["PATH"] = str(bindir) + os.pathsep + env.get("PATH", "")
+    return subprocess.run(
+        args,
+        cwd=cwd,
+        capture_output=True,
+        text=True,
+        stdin=subprocess.DEVNULL,
+        env=env,
+    )
 
 
 def tool_version(module: str, pattern: str) -> str:

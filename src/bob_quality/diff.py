@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import re
 import subprocess
+from collections.abc import Mapping, Set
 from pathlib import Path
 
 HUNK_RE = re.compile(r"^@@ -\d+(?:,\d+)? \+(\d+)(?:,(\d+))? @@")
@@ -56,6 +57,28 @@ def function_is_changed(file: str, start: int, end: int, lines: dict[str, set[in
     if not touched:
         return False
     return any(start <= line <= end for line in touched)
+
+
+def line_is_changed(file: str, line: int, changed: Mapping[str, Set[int]]) -> bool:
+    return line in changed.get(file, ())
+
+
+def as_diff_path(cwd: Path, raw: str) -> str | None:
+    if raw == "":
+        return None
+    path = Path(raw)
+    if ".." in path.parts:
+        return None
+    root = cwd.resolve()
+    if path.is_absolute():
+        candidate = path
+    else:
+        candidate = root / path
+    try:
+        relative = candidate.resolve().relative_to(root)
+    except ValueError:
+        return None
+    return relative.as_posix()
 
 
 def _git(cwd: Path, *args: str) -> str:

@@ -2,6 +2,18 @@
 
 ## Unreleased
 
+`bob --config ci.yaml check` exits `4` and writes no report. The last stderr line is `bob: error: --config goes after the command: bob check --config ci.yaml`. A path with a space is quoted, as in `bob crap --config 'my ci.yaml'`. `doctor` and `waive` do not accept `--config`. `bob --help` does not list `--config`.
+
+`bob --config ci.yaml check` sai com `4` e não grava relatório. A última linha do stderr é `bob: error: --config goes after the command: bob check --config ci.yaml`. Um caminho com espaço sai entre aspas, como em `bob crap --config 'my ci.yaml'`. `doctor` e `waive` não aceitam `--config`. O `bob --help` não lista `--config`.
+
+A repeated key in one YAML mapping exits `4` and writes no report. The English stderr names the key and the line, as in `invalid YAML in bob.yaml: found duplicate key 'base' on line 2`. A repeated key in `.bob/waivers.yaml` names the key and the line the same way. A key written in the mapping can still override a value merged with `<<`.
+
+Uma chave repetida num mapeamento YAML sai com `4` e não grava relatório. O stderr em inglês cita a chave e a linha, como em `invalid YAML in bob.yaml: found duplicate key 'base' on line 2`. Uma chave repetida no `.bob/waivers.yaml` cita a chave e a linha do mesmo jeito. Uma chave escrita no mapeamento ainda pode substituir um valor mesclado com `<<`.
+
+The mutate gate exits `3` only for an unwaived survivor on a changed line. An unwaived survivor on a line the diff did not change stays in the report, marked outside the diff, and does not change the exit or the review focus. A survivor with no file, or with a line at or below zero, still exits `3`. Remutation is unchanged: a changed function, and a cached function that still has an unwaived survivor, are still mutated. The cache does not store `blocking`.
+
+O gate mutate sai com `3` só para um sobrevivente sem waiver numa linha alterada. Sobrevivente sem waiver numa linha que o diff não mudou fica no relatório, marcado fora do diff, e não muda o exit nem o foco do review. Sobrevivente sem arquivo, ou com linha menor ou igual a zero, continua saindo com `3`. A remutação não muda: função alterada, e função do cache que ainda tem sobrevivente sem waiver, continuam sendo mutadas. O cache não guarda `blocking`.
+
 `grimp==3.17` is a direct pin in `pyproject.toml`, and `bob doctor` lists it. `bob doctor` no longer treats a PATH binary as a pip tool. The version it expects is the one `bob-quality` declares.
 
 `grimp==3.17` é um pin direto no `pyproject.toml`, e o `bob doctor` lista essa versão. O `bob doctor` não trata mais um binário do PATH como ferramenta pip. A versão que ele espera é a que o `bob-quality` declara.
