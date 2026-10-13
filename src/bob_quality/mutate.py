@@ -40,6 +40,7 @@ from bob_quality.probe import relative_path
 from bob_quality.suite_fingerprint import suite_fingerprint
 from bob_quality.tools import ToolError, run_lizard_csv
 from bob_quality.waivers import (
+    SurvivorTargets,
     Waiver,
     WaiverError,
     apply_waivers,
@@ -537,13 +538,7 @@ def _finish(
     visible = [item for item in mutants if item.status == "survived"]
     targets = survivor_targets(mutants)
     judged = [(item, _blocks(item, diff_lines)) for item in visible]
-    rows = [
-        {
-            **_reported_survivor(item, blocking),
-            "target": targets[item.id].exact if item.id in targets else None,
-        }
-        for item, blocking in judged
-    ]
+    rows = [_reported_survivor(item, blocking, targets) for item, blocking in judged]
     blockers = [item for item, blocking in judged if blocking]
     uncovered = no_coverage_summary(mutants, [*remutated, *reused])
     summary = {"remutated": remutated, "reused": reused, "no_coverage": uncovered}
@@ -747,8 +742,12 @@ def _cache_mutants(raw: dict[str, object]) -> list[Mutant]:
     return [item for entry in _view_cache(raw, {}).held.values() for item in _cached_mutants(entry)]
 
 
-def _reported_survivor(mutant: Mutant, blocking: bool) -> dict[str, object]:
-    return {**_mutant_row(mutant), "blocking": blocking}
+def _reported_survivor(
+    mutant: Mutant, blocking: bool, targets: dict[str, SurvivorTargets]
+) -> dict[str, object]:
+    found = targets.get(mutant.id)
+    exact = None if found is None else found.exact
+    return {**_mutant_row(mutant), "blocking": blocking, "target": exact}
 
 
 def _mutant_row(mutant: Mutant) -> dict[str, object]:
