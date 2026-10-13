@@ -487,6 +487,61 @@ def test_invalid_semantic_config_exits_4_in_english_and_writes_nothing(
     assert _files(tmp_path) == before
 
 
+_MISSING_INCLUDE = (
+    (
+        "paths:\n  include: [missing-root]\n",
+        "bob.yaml: paths.include does not exist: missing-root\n",
+    ),
+)
+
+
+@pytest.mark.parametrize("command", _COMMANDS)
+@pytest.mark.parametrize(("text", "stderr"), _MISSING_INCLUDE)
+@pytest.mark.parametrize("lang", [None, "pt-BR"])
+def test_missing_include_exits_4_in_english_and_writes_nothing(
+    tmp_path: Path,
+    command: tuple[str, ...],
+    text: str,
+    stderr: str,
+    lang: str | None,
+) -> None:
+    (tmp_path / "bob.yaml").write_text(text)
+    before = _files(tmp_path)
+    args = ("--lang", lang, *command) if lang is not None else command
+
+    result = run_bob(tmp_path, *args)
+
+    assert result.returncode == 4
+    assert result.stderr == stderr
+    assert result.stdout == ""
+    assert "Traceback" not in result.stderr
+    assert _files(tmp_path) == before
+
+
+def test_missing_include_names_each_absent_entry(tmp_path: Path) -> None:
+    (tmp_path / "src").mkdir()
+    (tmp_path / "bob.yaml").write_text("paths:\n  include: [src, gone, also-gone]\n")
+
+    result = run_bob(tmp_path, "check", "--lang", "pt-BR")
+
+    assert result.returncode == 4
+    assert result.stderr == "bob.yaml: paths.include does not exist: gone, also-gone\n"
+    assert result.stdout == ""
+    assert not (tmp_path / ".bob").exists()
+
+
+def test_explicit_config_names_a_missing_include(tmp_path: Path) -> None:
+    custom = tmp_path / "custom.yaml"
+    custom.write_text("paths:\n  include: [nope]\n")
+
+    result = run_bob(tmp_path, "crap", "--config", "custom.yaml")
+
+    assert result.returncode == 4
+    assert result.stderr == f"{custom.as_posix()}: paths.include does not exist: nope\n"
+    assert result.stdout == ""
+    assert not (tmp_path / ".bob").exists()
+
+
 @pytest.mark.parametrize("command", _COMMANDS)
 @pytest.mark.parametrize(("text", "stderr"), _BAD_WAIVER_VALUES)
 @pytest.mark.parametrize("lang", [None, "pt-BR"])

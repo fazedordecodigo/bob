@@ -42,6 +42,7 @@ def _config_error(path: Path) -> tuple[str, str]:
 
 
 def test_load_config_reads_every_key(tmp_path: Path) -> None:
+    (tmp_path / "lib").mkdir()
     (tmp_path / "bob.yaml").write_text(FULL_YAML)
 
     loaded = load_config(None, tmp_path)
@@ -446,6 +447,7 @@ def test_load_config_treats_null_and_empty_collections_as_defaults(tmp_path: Pat
 
 
 def test_load_config_keeps_numeric_thresholds_and_string_lists(tmp_path: Path) -> None:
+    (tmp_path / "lib").mkdir()
     (tmp_path / "bob.yaml").write_text(
         "base: trunk\n"
         "languages: [python, typescript]\n"
@@ -470,6 +472,46 @@ def test_load_config_keeps_numeric_thresholds_and_string_lists(tmp_path: Path) -
     assert loaded.crap_scope == "all"
     assert loaded.python_deps_config == "deps.ini"
     assert loaded.typescript_deps_config == "deps.cjs"
+
+
+def test_load_config_rejects_a_missing_include_path(tmp_path: Path) -> None:
+    (tmp_path / "bob.yaml").write_text("paths:\n  include: [missing-root]\n")
+
+    assert _config_error(tmp_path) == (
+        "bob.yaml: paths.include does not exist: missing-root",
+        "bob.yaml: paths.include não existe: missing-root",
+    )
+
+
+def test_load_config_names_every_missing_include_in_order(tmp_path: Path) -> None:
+    (tmp_path / "bob.yaml").write_text(
+        "paths:\n  include: [missing-root, also-gone]\n"
+    )
+
+    assert _config_error(tmp_path) == (
+        "bob.yaml: paths.include does not exist: missing-root, also-gone",
+        "bob.yaml: paths.include não existe: missing-root, also-gone",
+    )
+
+
+def test_load_config_names_only_the_missing_include(tmp_path: Path) -> None:
+    (tmp_path / "src").mkdir()
+    (tmp_path / "bob.yaml").write_text("paths:\n  include: [src, gone]\n")
+
+    assert _config_error(tmp_path) == (
+        "bob.yaml: paths.include does not exist: gone",
+        "bob.yaml: paths.include não existe: gone",
+    )
+
+
+def test_load_config_keeps_an_include_entry_that_exists(tmp_path: Path) -> None:
+    (tmp_path / "lib").mkdir()
+    (tmp_path / "one.py").write_text("x = 1\n")
+    (tmp_path / "bob.yaml").write_text("paths:\n  include: [lib, one.py]\n")
+
+    loaded = load_config(None, tmp_path)
+
+    assert loaded.include == ("lib", "one.py")
 
 
 def test_load_config_rejects_invalid_yaml(tmp_path: Path) -> None:
