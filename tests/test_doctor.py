@@ -20,7 +20,7 @@ if sys.version_info >= (3, 11):
 else:
     import tomli as tomllib
 
-from bob_quality.doctor import NODE, NodePin, NpmPin, RequiresDist, node_admits, node_range
+from bob_quality.doctor import NODE, BinaryPin, NodePin, NpmPin, RequiresDist, node_admits, node_range
 from bob_quality.doctor import PINS as DOCTOR_PINS
 from bob_quality.doctor import unconditional_exact_pins
 from bob_quality.doctor import (
@@ -28,6 +28,7 @@ from bob_quality.doctor import (
     _assess,
     _assess_node,
     _assess_npm,
+    _assess_binary,
     _assess_requires_dist,
     _found_version,
     _own_requirements,
@@ -54,6 +55,7 @@ PINS = (
     ("import-linter", "2.15", "lint-imports", "2.15"),
     ("grimp", "3.17", None, None),
     ("dependency-cruiser", "18.5.0", "dependency-cruiser", "18.5.0"),
+    ("gitleaks", "8.30.1", "gitleaks", "8.30.1"),
     ("vulture", "2.16", "vulture", "vulture 2.16"),
     ("knip", "6.41.0", "knip", "knip 6.41.0"),
     ("stryker", "10.0.0", "stryker", "10.0.0"),
@@ -338,14 +340,19 @@ def test_doctor_pins_match_pyproject_and_package_json() -> None:
             assert pin.distribution in requirements
         elif isinstance(pin, NpmPin):
             assert npm[pin.npm_package] == pin.expected
-        else:
+        elif isinstance(pin, NodePin):
             assert pin == NODE
+        else:
+            assert isinstance(pin, BinaryPin)
+            assert (pin.name, pin.expected, pin.executable) == ("gitleaks", "8.30.1", "gitleaks")
+            assert pin.sha256 == "551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb"
     npm_pins = {
         pin.npm_package: pin.expected for pin in DOCTOR_PINS if isinstance(pin, NpmPin)
     }
     assert npm_pins == npm
     assert "node" not in npm_pins
     assert [pin for pin in DOCTOR_PINS if isinstance(pin, NodePin)] == [NODE]
+    assert [pin.name for pin in DOCTOR_PINS if isinstance(pin, BinaryPin)] == ["gitleaks"]
 
 
 def test_doctor_expected_versions_match_pip_and_npm_pins(tmp_path: Path) -> None:
@@ -484,6 +491,69 @@ def test_assess_reads_the_declared_distribution() -> None:
     row = _assess(RequiresDist("grimp", "grimp"), {"grimp": "3.17"})
     assert row.ok is True
     assert row.line == msg("doctor.version", name="grimp", expected="3.17", found="3.17")
+
+
+
+def test_assess_binary_matches_the_cli(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(
+        "bob_quality.doctor._cli_version",
+        lambda executable: "8.30.1" if executable == "gitleaks" else None,
+    )
+    pin = BinaryPin(
+        "gitleaks",
+        "8.30.1",
+        "gitleaks",
+        "https://example.test/gitleaks.tar.gz",
+        "abc",
+    )
+    row = _assess(pin, {})
+    assert row.line == msg("doctor.version", name="gitleaks", expected="8.30.1", found="8.30.1")
+    assert row.ok is True
+    assert row.install is None
+    assert row.npm_missing is False
+
+
+def test_assess_binary_mismatch_names_the_url_and_sha256(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr("bob_quality.doctor._cli_version", lambda executable: None)
+    pin = next(item for item in DOCTOR_PINS if isinstance(item, BinaryPin))
+    row = _assess_binary(pin)
+    assert row.line == msg(
+        "doctor.version",
+        name="gitleaks",
+        expected="8.30.1",
+        found=msg("doctor.missing"),
+    )
+    assert row.ok is False
+    assert row.npm_missing is False
+    assert row.install == msg(
+        "doctor.install_gitleaks",
+        version=pin.expected,
+        url=pin.url,
+        sha256=pin.sha256,
+    )
+
+
+def test_gitleaks_checksum_is_the_one_the_workflows_check() -> None:
+    pin = next(item for item in DOCTOR_PINS if isinstance(item, BinaryPin))
+    for name in (
+        ".github/workflows/ci.yml",
+        ".github/workflows/bob.yml",
+        ".github/workflows/package.yml",
+    ):
+        text = (ROOT / name).read_text()
+        assert pin.url in text
+        assert f"{pin.sha256}  /tmp/gitleaks_8.30.1_linux_x64.tar.gz" in text
+        assert "sha256sum -c" in text
+
+
+def test_assess_sends_an_npm_pin_to_the_npm_row(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr("bob_quality.doctor._found_version", lambda pin: "0")
+    row = _assess(NpmPin("c8", "12.0.0", "c8", npm_package="c8"), {})
+    assert row.ok is False
+    assert row.install is None
+    assert row.npm_missing is True
 
 
 def test_assess_npm_matches(monkeypatch: pytest.MonkeyPatch) -> None:

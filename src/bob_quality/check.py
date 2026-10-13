@@ -22,11 +22,13 @@ from bob_quality.models import (
     FunctionMetric,
     GateResult,
     Report,
+    SecretLedger,
     SupplyReport,
 )
 from bob_quality.mutate import MutationOutcome, focus_with_survivors
 from bob_quality.mutate_gate import run_mutate_gate
 from bob_quality.report import metric_row, violation_rows, write_report
+from bob_quality.secrets_gate import run_secrets_gate
 from bob_quality.supply import run_supply_gate
 from bob_quality.waivers import WaiverError, load_waivers
 
@@ -113,6 +115,7 @@ class _Measured:
     violations: list[DepViolation] = field(default_factory=list)
     exit_code: int = PASSED
     mutation: MutationOutcome | None = None
+    secrets: SecretLedger | None = None
     loaded_waivers: list[dict[str, object]] = field(default_factory=list)
     baseline: int | None = None
     supply: SupplyReport | None = None
@@ -198,6 +201,11 @@ def _absorb(
         state.supply = supply
         _record(state, result, code, versions)
         return
+    if gate == "secrets":
+        outcome = run_secrets_gate(cwd=cwd, config=config, diff_lines=diff_lines)
+        state.secrets = outcome.ledger
+        _record(state, outcome.result, outcome.exit_code, outcome.versions)
+        return
     if gate == "dead_code":
         _record_dead(state, run_dead_code_gate(cwd, config, diff_lines))
         return
@@ -273,6 +281,7 @@ def _assemble(
         survivors=survivors,
         mutation=summary,
         supply=measured.supply,
+        secrets=measured.secrets,
         dead_code=measured.dead_code,
     )
 

@@ -65,6 +65,7 @@ class _Node:
     children: tuple[_Node, ...] = ()
     empty_is_default: bool = False
     null_is_default: bool = True
+    mapping: bool = False
 
 
 _SCHEMA = _Node(
@@ -138,6 +139,7 @@ _SCHEMA = _Node(
                 ),
             ),
         ),
+        _Node("secrets", "", (), mapping=True),
         _Node(
             "supply",
             "",
@@ -306,8 +308,12 @@ def _skipped(child: _Node, value: object) -> bool:
     return False
 
 
+def _is_mapping(node: _Node) -> bool:
+    return node.mapping or bool(node.children)
+
+
 def _read_present(child: _Node, value: object, label: str, dotted: str) -> dict[str, object]:
-    if child.children:
+    if _is_mapping(child):
         return _read_nested(child, value, label, dotted)
     return {child.attr: _apply(child, value, label, dotted)}
 
@@ -474,7 +480,7 @@ def _guard_value(node: _Node, value: object, attr: str) -> None:
 
 
 def _leaves(node: _Node):
-    if node.children:
+    if _is_mapping(node):
         for child in node.children:
             yield from _leaves(child)
         return
