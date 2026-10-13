@@ -359,6 +359,16 @@ def test_installed_checks_name_the_distribution(monkeypatch: pytest.MonkeyPatch)
     assert _semgrep_installed() is False
 
 
+def test_vocabulary_rejects_a_non_list_with_the_string_list_key() -> None:
+    from bob_quality.config import _Check, _vocabulary
+
+    assert _vocabulary(_Check("vocabulary", choices=("HIGH", "CRITICAL")), 4) == (
+        "config.key_string_list",
+        "",
+        {},
+    )
+
+
 def test_fail_severities_that_are_not_strings_name_the_key(tmp_path: Path) -> None:
     (tmp_path / "bob.yaml").write_text("security:\n  fail_severities: 4\n")
     with pytest.raises(ConfigError) as caught:
@@ -384,11 +394,12 @@ def test_security_section_keeps_the_blank_lines_and_the_separator() -> None:
         top_crap=[],
         security=SecurityReport((Fail(finding),), ()),
     )
-    english = to_markdown(report, "en")
-    assert (
-        "\n## Security\n\n| Tool | Rule | Location | Severity | Disposition | Waiver |\n"
-        "|---|---|---|---|---|---|\n"
-    ) in english
+    lines = to_markdown(report, "en").splitlines()
+    index = lines.index("## Security")
+    assert lines[index - 1] == ""
+    assert lines[index + 1] == ""
+    assert lines[index + 2] == "| Tool | Rule | Location | Severity | Disposition | Waiver |"
+    assert lines[index + 3] == "|---|---|---|---|---|---|"
 
     gap = Report(
         schema_version=1,

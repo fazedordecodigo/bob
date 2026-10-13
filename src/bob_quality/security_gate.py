@@ -205,17 +205,16 @@ def _in_place(cwd: Path) -> Iterator[Path]:
 def _detached(cwd: Path) -> Iterator[Path]:
     parent = Path(tempfile.mkdtemp(prefix="bob-semgrep-"))
     root = parent / "head"
-    added = False
     try:
         completed = _git(cwd, "worktree", "add", "--detach", str(root), "HEAD")
         if completed.returncode != 0:
             raise _PrepError(_git_detail(completed))
-        added = True
-        yield root
-    finally:
-        if added:
+        try:
+            yield root
+        finally:
             _git(cwd, "worktree", "remove", "--force", str(root))
             _git(cwd, "worktree", "prune")
+    finally:
         shutil.rmtree(parent, ignore_errors=True)
 
 
