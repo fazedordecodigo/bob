@@ -90,6 +90,7 @@ def _init(tmp_path: Path, languages: str) -> Path:
     _git(repo, "init", "-b", "main")
     _git(repo, "config", "user.email", "bob-test@example.com")
     _git(repo, "config", "user.name", "bob-test")
+    _git(repo, "config", "commit.gpgsign", "false")
     (repo / "bob.yaml").write_text(
         f"languages: [{languages}]\npaths:\n  include: [src]\n  exclude: [tests]\n"
     )
