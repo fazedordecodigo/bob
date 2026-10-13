@@ -795,7 +795,7 @@ def test_assemble_copies_each_measurement_into_the_report() -> None:
         3,
         {"mutmut": "3.8.0"},
         [{"id": "w", "reason": "because"}],
-        [{"file": "src/survivor.py", "waiver": None}],
+        [{"file": "src/survivor.py", "waiver": None, "blocking": True}],
         {"remutated": ["kept"]},
     )
     measured = _Measured(
@@ -822,7 +822,7 @@ def test_assemble_copies_each_measurement_into_the_report() -> None:
     assert report.clones == [clone]
     assert report.dead_code == section
     assert report.waivers == [{"id": "w", "reason": "because"}]
-    assert report.survivors == [{"file": "src/survivor.py", "waiver": None}]
+    assert report.survivors == [{"file": "src/survivor.py", "waiver": None, "blocking": True}]
     assert report.mutation == {"remutated": ["kept"]}
     assert report.focus[0]["file"] == "src/app.py"
     assert all(item["file"] != "src/survivor.py" for item in report.focus)
