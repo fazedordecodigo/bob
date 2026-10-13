@@ -3,21 +3,24 @@
 from __future__ import annotations
 
 import hashlib
+import json
 from pathlib import Path
 
 import pytest
 
-from bob_quality.adapters.mutmut import id_matches_function
+from bob_quality.adapters.mutmut import _prefix_match, id_matches_function
 from bob_quality.messages import Language, render
 from bob_quality.models import CyclomaticFunction, GateResult, Mutant, Report
 from bob_quality.mutate import (
     _belongs,
     _cache_body,
     _finish,
+    _label_from_key,
     _start_line,
     _with_file_lines,
     focus_with_survivors,
     no_coverage_summary,
+    untested_targets,
 )
 from bob_quality.report import to_markdown
 
@@ -130,6 +133,39 @@ def test_id_matches_function_accepts_a_method_id() -> None:
     assert id_matches_function(
         "app.box.xǁBoxǁopen__mutmut_1", "src/app/box.py", "Box.open_extra"
     ) is False
+
+
+def test_prefix_match_rejects_an_empty_prefix() -> None:
+    assert _prefix_match("app.a.x_foo__mutmut_1", "") is False
+
+
+def test_label_from_key_splits_once_on_the_left() -> None:
+    assert _label_from_key("notes") == ("", "")
+    assert _label_from_key("src/app/calc.py::lonely::part") == (
+        "src/app/calc.py",
+        "lonely::part",
+    )
+
+
+def test_untested_targets_reads_a_stryker_mutant_without_a_test(tmp_path: Path) -> None:
+    out = tmp_path / ".bob"
+    out.mkdir()
+    (out / "stryker-mutants.json").write_text(
+        json.dumps(
+            {
+                "mutants": [
+                    {
+                        "id": "src/app/calc.ts:4",
+                        "function": "add",
+                        "file": "src/app/calc.ts",
+                        "status": "no_coverage",
+                    }
+                ]
+            }
+        )
+    )
+
+    assert untested_targets(out) == frozenset({"src/app/calc.ts::add"})
 
 
 def test_summary_does_not_count_foo_bar_as_foo() -> None:
