@@ -10,7 +10,7 @@ from fnmatch import fnmatch
 from pathlib import Path, PurePosixPath
 from typing import Literal, Mapping, Sequence
 
-from bob_quality.adapters.eslint_tests import EslintParseError, parse_eslint_json
+from bob_quality.adapters.eslint_tests import EslintHit, EslintParseError, parse_eslint_json
 from bob_quality.config import Config, SourceLanguage
 from bob_quality.messages import Text, msg
 from bob_quality.models import GateResult, TestSmell
@@ -137,34 +137,12 @@ def apply_test_waivers(
 def fold_outcomes(
     outcomes: tuple[LanguageOutcome, ...],
 ) -> tuple[GateResult, tuple[TestSmell, ...]]:
-    measured: list[LanguageMeasured] = []
-    broken: list[LanguageBroken] = []
-    for outcome in outcomes:
-        if isinstance(outcome, LanguageMeasured):
-            measured.append(outcome)
-            continue
-        if isinstance(outcome, LanguageBroken):
-            broken.append(outcome)
-            continue
-        if isinstance(outcome, LanguageSkipped):
-            continue
-        raise AssertionError(type(outcome))
+    measured, broken = _split_outcomes(outcomes)
     detail = _join_details(tuple(item.detail for item in broken))
     if not measured:
-        reason = detail if detail is not None else msg("test_smells.nothing_measured")
-        return GateResult("test_smells", "not_run", reason), ()
-    findings = tuple(
-        sorted(
-            (smell for item in measured for smell in item.findings),
-            key=_by_location,
-        )
-    )
-    unwaived = sum(1 for smell in findings if smell.waiver is None)
-    if unwaived == 0:
-        return GateResult("test_smells", "passed", detail), findings
-    count = msg(_count_key(unwaived), count=unwaived)
-    reason = count if detail is None else msg("test_smells.with_detail", head=count, detail=detail)
-    return GateResult("test_smells", "warn", reason), findings
+        return _unmeasured(detail)
+    findings = _sorted_findings(measured)
+    return _verdict(findings, detail), findings
 
 
 def run_test_smells_gate(
@@ -235,40 +213,7 @@ def measure_typescript(
     paths = changed_test_paths(diff_lines, "typescript")
     if not paths:
         return LanguageMeasured("typescript", ())
-    binary = cwd / "node_modules" / ".bin" / "eslint"
-    version = _eslint_package_version(cwd) if binary.is_file() else None
-    if not binary.is_file():
-        return LanguageBroken("typescript", msg("test_smells.eslint_missing"), version)
-    try:
-        completed = _spawn_eslint(cwd, binary, paths)
-    except OSError:
-        return LanguageBroken("typescript", msg("test_smells.eslint_start"), version)
-    except UnicodeError:
-        return LanguageBroken("typescript", msg("test_smells.eslint_unparsed"), version)
-    if completed.returncode not in _MEASURED_EXITS:
-        return LanguageBroken(
-            "typescript",
-            msg("test_smells.eslint_bad_exit", code=completed.returncode),
-            version,
-        )
-    try:
-        hits = parse_eslint_json(completed.stdout)
-    except EslintParseError:
-        return LanguageBroken("typescript", msg("test_smells.eslint_unparsed"), version)
-    findings: list[TestSmell] = []
-    for hit in hits:
-        relative = _repo_relative(cwd, hit.file)
-        if relative is None:
-            continue
-        smell = test_smell(
-            relative,
-            hit.line,
-            hit.rule,
-            frozenset(diff_lines.get(relative, ())),
-        )
-        if smell is not None:
-            findings.append(smell)
-    return LanguageMeasured("typescript", tuple(findings), version)
+    return _measure_eslint(cwd, diff_lines, paths)
 
 
 def eslint_configured(cwd: Path) -> bool:
@@ -316,6 +261,140 @@ def _waive_one(outcome: LanguageOutcome, waivers: Sequence[Waiver]) -> LanguageO
     if isinstance(outcome, (LanguageBroken, LanguageSkipped)):
         return outcome
     raise AssertionError(type(outcome))
+
+
+def _split_outcomes(
+    outcomes: tuple[LanguageOutcome, ...],
+) -> tuple[tuple[LanguageMeasured, ...], tuple[LanguageBroken, ...]]:
+    measured: list[LanguageMeasured] = []
+    broken: list[LanguageBroken] = []
+    for outcome in outcomes:
+        _collect_outcome(outcome, measured, broken)
+    return tuple(measured), tuple(broken)
+
+
+def _collect_outcome(
+    outcome: LanguageOutcome,
+    measured: list[LanguageMeasured],
+    broken: list[LanguageBroken],
+) -> None:
+    if isinstance(outcome, LanguageMeasured):
+        measured.append(outcome)
+        return
+    if isinstance(outcome, LanguageBroken):
+        broken.append(outcome)
+        return
+    if isinstance(outcome, LanguageSkipped):
+        return
+    raise AssertionError(type(outcome))
+
+
+def _unmeasured(detail: Text | None) -> tuple[GateResult, tuple[TestSmell, ...]]:
+    reason = detail if detail is not None else msg("test_smells.nothing_measured")
+    return GateResult("test_smells", "not_run", reason), ()
+
+
+def _sorted_findings(measured: tuple[LanguageMeasured, ...]) -> tuple[TestSmell, ...]:
+    smells = [smell for item in measured for smell in item.findings]
+    return tuple(sorted(smells, key=_by_location))
+
+
+def _verdict(findings: tuple[TestSmell, ...], detail: Text | None) -> GateResult:
+    unwaived = _unwaived_count(findings)
+    if unwaived == 0:
+        return GateResult("test_smells", "passed", detail)
+    return GateResult("test_smells", "warn", _warn_reason(unwaived, detail))
+
+
+def _unwaived_count(findings: tuple[TestSmell, ...]) -> int:
+    return sum(1 for smell in findings if smell.waiver is None)
+
+
+def _warn_reason(unwaived: int, detail: Text | None) -> Text:
+    count = msg(_count_key(unwaived), count=unwaived)
+    if detail is None:
+        return count
+    return msg("test_smells.with_detail", head=count, detail=detail)
+
+
+def _measure_eslint(
+    cwd: Path,
+    diff_lines: Mapping[str, set[int]],
+    paths: tuple[str, ...],
+) -> LanguageOutcome:
+    binary = cwd / "node_modules" / ".bin" / "eslint"
+    version = _version_when_present(cwd, binary)
+    if not binary.is_file():
+        return LanguageBroken("typescript", msg("test_smells.eslint_missing"), version)
+    completed = _completed_eslint(cwd, binary, paths, version)
+    if isinstance(completed, LanguageBroken):
+        return completed
+    return _hits_to_measured(cwd, diff_lines, completed.stdout, version)
+
+
+def _version_when_present(cwd: Path, binary: Path) -> str | None:
+    if binary.is_file():
+        return _eslint_package_version(cwd)
+    return None
+
+
+def _completed_eslint(
+    cwd: Path,
+    binary: Path,
+    paths: tuple[str, ...],
+    version: str | None,
+) -> subprocess.CompletedProcess[str] | LanguageBroken:
+    try:
+        completed = _spawn_eslint(cwd, binary, paths)
+    except OSError:
+        return LanguageBroken("typescript", msg("test_smells.eslint_start"), version)
+    except UnicodeError:
+        return LanguageBroken("typescript", msg("test_smells.eslint_unparsed"), version)
+    if completed.returncode not in _MEASURED_EXITS:
+        return _bad_exit(completed.returncode, version)
+    return completed
+
+
+def _bad_exit(code: int, version: str | None) -> LanguageBroken:
+    return LanguageBroken("typescript", msg("test_smells.eslint_bad_exit", code=code), version)
+
+
+def _hits_to_measured(
+    cwd: Path,
+    diff_lines: Mapping[str, set[int]],
+    stdout: str,
+    version: str | None,
+) -> LanguageOutcome:
+    try:
+        hits = parse_eslint_json(stdout)
+    except EslintParseError:
+        return LanguageBroken("typescript", msg("test_smells.eslint_unparsed"), version)
+    return LanguageMeasured("typescript", _smells_from_hits(cwd, diff_lines, hits), version)
+
+
+def _smells_from_hits(
+    cwd: Path,
+    diff_lines: Mapping[str, set[int]],
+    hits: tuple[EslintHit, ...],
+) -> tuple[TestSmell, ...]:
+    findings: list[TestSmell] = []
+    for hit in hits:
+        smell = _smell_on_diff(cwd, diff_lines, hit)
+        if smell is not None:
+            findings.append(smell)
+    return tuple(findings)
+
+
+def _smell_on_diff(
+    cwd: Path,
+    diff_lines: Mapping[str, set[int]],
+    hit: EslintHit,
+) -> TestSmell | None:
+    relative = _repo_relative(cwd, hit.file)
+    if relative is None:
+        return None
+    changed = frozenset(diff_lines.get(relative, ()))
+    return test_smell(relative, hit.line, hit.rule, changed)
 
 
 def _versions(outcomes: tuple[LanguageOutcome, ...]) -> dict[str, str]:
