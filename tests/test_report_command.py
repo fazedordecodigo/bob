@@ -467,6 +467,18 @@ def test_report_renders_dead_code_that_did_not_run(tmp_path: Path) -> None:
     assert "Not run (no files)." in markdown
 
 
+def test_report_renders_a_dead_symbol_on_the_first_line(tmp_path: Path) -> None:
+    payload = dict(_MINIMAL)
+    payload["dead_code"] = {"symbols": [_dead(line=1)]}
+    _save(tmp_path, payload)
+
+    result = _invoke(tmp_path, "report")
+    markdown = (tmp_path / ".bob" / "report.md").read_text()
+
+    assert result.returncode == 0
+    assert "- `app.py:1` function `add` 60%" in markdown
+
+
 def test_report_renders_a_dead_symbol_without_a_waiver_key(tmp_path: Path) -> None:
     payload = dict(_MINIMAL)
     symbol = _dead()
@@ -526,6 +538,8 @@ def test_report_renders_a_dead_symbol_without_a_waiver_key(tmp_path: Path) -> No
         {**_MINIMAL, "dead_code": {}},
         {**_MINIMAL, "dead_code": {"symbols": "nope"}},
         {**_MINIMAL, "dead_code": {"symbols": [1]}},
+        {**_MINIMAL, "dead_code": {"symbols": [_dead(file=1)]}},
+        {**_MINIMAL, "dead_code": {"symbols": [_dead(kind=1)]}},
         {**_MINIMAL, "dead_code": {"symbols": [_dead(line=0)]}},
         {**_MINIMAL, "dead_code": {"symbols": [_dead(line="4")]}},
         {**_MINIMAL, "dead_code": {"symbols": [_dead(name=1)]}},
