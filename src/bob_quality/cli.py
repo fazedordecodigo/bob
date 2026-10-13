@@ -14,6 +14,7 @@ from bob_quality.config import Config, ConfigError, reject_config_types, resolve
 from bob_quality.doctor import run_doctor
 from bob_quality.exit_codes import CONFIG_OR_TOOL, PASSED
 from bob_quality.messages import DEFAULT_LANGUAGE, Language, reason, render, t
+from bob_quality.mutate import waivable_targets
 from bob_quality.waivers import WaiverError, add_waiver, reject_waiver_syntax
 
 
@@ -239,7 +240,7 @@ def _blocked_config(cwd: Path, config: str | None) -> int | None:
 
 def _waive_command(cwd: Path, args: argparse.Namespace, lang: Language) -> int:
     try:
-        add_waiver(cwd, args.target, args.reason)
+        add_waiver(cwd, args.target, args.reason, waivable_targets(cwd / ".bob"))
     except WaiverError as exc:
         print(render(reason(exc), lang), file=sys.stderr)
         return CONFIG_OR_TOOL

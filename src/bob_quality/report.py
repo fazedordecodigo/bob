@@ -104,7 +104,7 @@ def to_markdown(report: Report, lang: Language) -> str:
     lines.extend(_dependency_lines(report))
     lines.extend(["", msg("report.clones"), ""])
     lines.extend(_clone_lines(report))
-    lines.extend(_survivor_lines(report))
+    lines.extend(_survivor_lines(report, lang))
     lines.extend(_no_coverage_lines(report))
     lines.extend(_secrets_lines(report))
     lines.extend(_dead_lines(report))
@@ -178,7 +178,7 @@ def _debt_lines(report: Report) -> list[Text]:
     return lines
 
 
-def _survivor_lines(report: Report) -> list[Text]:
+def _survivor_lines(report: Report, lang: Language) -> list[Text]:
     if report.mutation is None:
         return []
     lines: list[Text] = ["", msg("report.survivors"), ""]
@@ -188,7 +188,7 @@ def _survivor_lines(report: Report) -> list[Text]:
     lines.append(msg("report.survivor_header"))
     lines.append("|---|---|---|---|---|")
     for item in report.survivors:
-        lines.append(_survivor_row(item))
+        lines.append(_survivor_row(item, lang))
     return lines
 
 
@@ -207,16 +207,13 @@ def _no_coverage_lines(report: Report) -> list[Text]:
     return lines
 
 
-def _survivor_row(item: dict[str, object]) -> Text:
+def _survivor_row(item: dict[str, object], lang: Language) -> str:
+    target = item.get("target")
+    first = "`" + str(target).replace("|", "\\|") + "`" if target else "—"
     waiver = item.get("waiver") or "—"
     operator = str(item.get("operator") or "—").replace("|", "\\|")
-    return msg(
-        "report.survivor_row",
-        id=item["id"],
-        function=item["function"],
-        location=_survivor_location(item),
-        operator=operator,
-        waiver=waiver,
+    return (
+        f"| {first} | {item['function']} | {render(_survivor_location(item), lang)} | {operator} | {waiver} |"
     )
 
 
