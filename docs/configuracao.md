@@ -56,9 +56,11 @@ Uma chave repetida no mesmo mapeamento sai com `4`. O stderr fica em inglês e c
 
 ### languages
 
-`languages` omitido ou nulo (`languages:` ou `languages: null`) vira `["python"]`, o padrão de `Config`. Não há autodetecção. O mesmo vale quando o arquivo `bob.yaml` não existe e `--config` não foi passado. Para medir TypeScript é preciso listar `typescript` (e `python` também, num monorepo misto).
+`languages` omitido ou nulo (`languages:` ou `languages: null`) é autodetectado. O mesmo vale quando o arquivo `bob.yaml` não existe e `--config` não foi passado. A varredura lê `paths.include` e ignora `paths.exclude`. `.py` escolhe `python`. `.ts`, `.tsx`, `.js`, `.jsx`, `.mjs` e `.cjs` escolhem `typescript`. O resultado sai nessa ordem. Sem nenhum desses arquivos, o resultado é `["python"]`. Uma lista explícita permanece como foi escrita.
 
-Uma lista vazia ou um item repetido sai com 4. Uma chave ausente ou nula continua `[python]`.
+Um item de `paths.exclude` casa com o caminho inteiro, com o prefixo `item/`, ou com um componente do caminho. `tests` deixa de fora `tests/a.py` e `src/tests/a.py`. `node_modules` deixa de fora `src/node_modules`.
+
+Uma lista vazia ou um item repetido sai com 4.
 
 O gate DRY mapeia `typescript` para os formatos `typescript` e `javascript` do jscpd (`dry_gate.py`).
 

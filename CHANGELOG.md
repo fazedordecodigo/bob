@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+Omitting `languages`, or setting it to null, detects the list from files under `paths.include` and outside `paths.exclude`. `.py` selects `python`. `.ts`, `.tsx`, `.js`, `.jsx`, `.mjs`, and `.cjs` select `typescript`, in that order. If none of those files exist, the result stays `[python]`. An explicit list is kept as written. A missing `bob.yaml`, with no `--config`, uses the same detection. A `--config` path that is not a file still exits `4` and writes nothing.
+
+`languages` omitido ou nulo é autodetectado pelos arquivos em `paths.include`, fora de `paths.exclude`. `.py` escolhe `python`. `.ts`, `.tsx`, `.js`, `.jsx`, `.mjs` e `.cjs` escolhem `typescript`, nessa ordem. Sem nenhum desses arquivos, o resultado continua `[python]`. Uma lista explícita permanece como foi escrita. Um `bob.yaml` ausente, sem `--config`, usa a mesma detecção. Um `--config` que não é arquivo continua saindo com `4` e não grava nada.
+
 A missing `--config` file exits `4` on `check`, `crap`, `dry`, `deps`, and `mutate`. English stderr names the path, as in `config file not found: <path>`, and the run writes no report. A missing `bob.yaml`, with no `--config`, still uses the defaults.
 
 Um `--config` inexistente sai com `4` em `check`, `crap`, `dry`, `deps` e `mutate`. O stderr em inglês cita o caminho, como em `config file not found: <caminho>`, e a execução não grava relatório. Um `bob.yaml` ausente, sem `--config`, continua nos padrões.

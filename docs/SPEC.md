@@ -86,7 +86,7 @@ duplication: { min_tokens: 50 }
 dependencies: { python: .importlinter, typescript: .dependency-cruiser.cjs }
 ```
 
-`crap.scope` é `changed` ou `all`. Cada item de `languages` é `python` ou `typescript`. Uma lista `languages` presente não é vazia e não repete item. A chave `languages` omitida continua `python`. `crap.max_per_function` é um número finito maior que 0. Um inteiro que não cabe em float também não é finito. `duplication.min_tokens` é um inteiro maior que 0. Uma chave desconhecida sai com 4.
+`crap.scope` é `changed` ou `all`. Cada item de `languages` é `python` ou `typescript`. Uma lista `languages` presente não é vazia, não repete item e não é reescrita pela detecção. A chave `languages` omitida ou nula é autodetectada pelos arquivos em `paths.include`, fora de `paths.exclude`. `.py` escolhe `python`. `.ts`, `.tsx`, `.js`, `.jsx`, `.mjs` e `.cjs` escolhem `typescript`. O resultado sai nessa ordem. Sem nenhum desses arquivos, o resultado é `python`. `crap.max_per_function` é um número finito maior que 0. Um inteiro que não cabe em float também não é finito. `duplication.min_tokens` é um inteiro maior que 0. Uma chave desconhecida sai com 4.
 
 **Formato do relatório (`.bob/report.md`, espelhado em `report.json`)**
 1. Cabeçalho: commit, base, data, versões das ferramentas.

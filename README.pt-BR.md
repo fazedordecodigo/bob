@@ -177,7 +177,7 @@ As ferramentas npm precisam do Node, e o jscpd precisa dele também num reposit�
 
 ### `bob.yaml`
 
-O bob lê estas chaves. Os valores abaixo são os padrões que valem quando o `bob.yaml` não existe:
+O bob lê estas chaves. Os valores abaixo valem quando a chave é omitida. `languages` é detectado na árvore quando o `bob.yaml` não existe ou a chave é omitida, e `[python]` fica só quando não há arquivo de fonte correspondente:
 
 ```yaml
 base: origin/main
@@ -196,7 +196,7 @@ dependencies:
   typescript: .dependency-cruiser.cjs
 ```
 
-Com `crap.scope: changed`, só funções alteradas bloqueiam. `all` faz toda função medida contar. O valor é `changed` ou `all`. `languages` omitido ou nulo vale `[python]`. Uma lista vazia sai com `4`. Não há autodetecção.
+Com `crap.scope: changed`, só funções alteradas bloqueiam. `all` faz toda função medida contar. O valor é `changed` ou `all`. `languages` omitido ou nulo é detectado pelos arquivos em `paths.include`, fora de `paths.exclude`. `.py` escolhe `python`. `.ts`, `.tsx`, `.js`, `.jsx`, `.mjs` e `.cjs` escolhem `typescript`, nessa ordem. Sem nenhum desses arquivos, o resultado é `[python]`. A mesma detecção roda quando o `bob.yaml` não existe e `--config` não foi passado. Uma lista explícita permanece como foi escrita. Uma lista vazia sai com `4`.
 
 Se o YAML não é um mapeamento, se o YAML tem erro de sintaxe, se um mapeamento repete uma chave, ou se uma chave tem o tipo errado, a execução sai com `4`. A mensagem vai para o stderr em inglês e cita o arquivo. Um tipo errado também cita a chave, como em `bob.yaml: crap must be a mapping` ou `bob.yaml: crap.max_per_function must be a number`. Uma chave repetida cita a chave e a linha, como em `invalid YAML in bob.yaml: found duplicate key 'base' on line 2`. `check`, `doctor`, `waive` e os outros comandos fazem isso do mesmo jeito. Nenhum deles grava um arquivo.
 
