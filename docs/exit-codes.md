@@ -74,6 +74,8 @@ Erro de sintaxe, chave repetida, tipo errado e waiver inválido são barrados em
 
 `duplication` inválida entra na mesma barreira que as outras chaves: `reject_config_types` chama `_config_from_file`, o stderr fica em inglês e nenhum relatório é gravado. A recusa cobre um valor que não é mapeamento e um `min_tokens` que não é um inteiro maior que 0. Uma chave desconhecida, inclusive `mutation`, `duplication.tool`, `duplication.new_clones` e `dependencies.violation`, sai do mesmo jeito. O [CHANGELOG.md](../CHANGELOG.md) descreve esses casos.
 
+Uma entrada de `paths.include` que não existe no disco entra na mesma barreira. O stderr fica em inglês e cita o arquivo e cada entrada ausente, como `bob.yaml: paths.include does not exist: missing-root`. Nada é gravado. Um `paths.include` omitido ou vazio continua `src` e não é verificado. `run_check` chamado direto, sem a CLI, grava o relatório precoce com esse motivo e o mesmo exit `4`.
+
 Um `--reason` ausente no `bob waive` também é `4`, e essa frase segue o idioma da CLI, porque acontece dentro de `_waive_command` depois da barreira do arquivo. Um alvo que nenhum sobrevivente de `.bob/mutation-cache.json` ou `.bob/stryker-mutants.json` tem também sai com `4`, no idioma da CLI, e `waivers.yaml` não muda.
 
 ### Durante a medição, com relatório
