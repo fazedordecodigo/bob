@@ -6,6 +6,7 @@ import subprocess
 import sys
 from pathlib import Path
 
+from bob_quality.check import run_check
 from helpers import (
     commit_on_branch,
     commit_on_main,
@@ -40,6 +41,21 @@ def test_changed_function_at_15_warns_and_an_unchanged_one_does_not(tmp_path: Pa
     assert gate["status"] == "warn"
     assert gate["reason"] == "1 function at or above the cognitive limit"
     assert rows == [("edge", 15, "src/app/edge.py")]
+    assert payload["tool_versions"]["complexipy"] == "8.0.1"
+
+
+def test_in_process_check_records_the_exit_and_the_tool_version(tmp_path: Path) -> None:
+    repo = init_python_repo(tmp_path / "repo")
+    commit_on_branch(repo, "hot", "src/app/edge.py", _fifteen("edge"), "add changed edge")
+
+    code = run_check(repo, base="main", gates=["cognitive"])
+    payload = json.loads((repo / ".bob" / "report.json").read_text())
+    gate = next(item for item in payload["gates"] if item["name"] == "cognitive")
+
+    assert code == 0
+    assert payload["exit_code"] == 0
+    assert gate["status"] == "warn"
+    assert payload["cognitive"][0]["file"] == "src/app/edge.py"
     assert payload["tool_versions"]["complexipy"] == "8.0.1"
 
 

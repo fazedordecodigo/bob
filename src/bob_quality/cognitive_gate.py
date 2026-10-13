@@ -92,7 +92,7 @@ def _python_functions(cwd: Path, config: Config, module: object) -> list[Cogniti
     for path in _python_files(cwd, config):
         measure_file = getattr(module, "file_complexity")
         measured = measure_file(str(path), check_script=False, no_ignore=True)
-        relative = _relative(cwd, _text(getattr(measured, "path", None), "path"))
+        relative = path.resolve().relative_to(cwd.resolve()).as_posix()
         for item in _items(getattr(measured, "functions", None)):
             name, score, start, end = _function_fields(item)
             found.append(
@@ -150,12 +150,6 @@ def _items(value: object) -> list[object]:
     if isinstance(value, list):
         return value
     return list(value)
-
-
-def _text(value: object, label: str) -> str:
-    if isinstance(value, str) and value != "":
-        return value
-    raise ValueError(f"function is missing {label}")
 
 
 def _relative(cwd: Path, raw: str) -> str:

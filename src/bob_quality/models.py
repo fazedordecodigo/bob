@@ -105,26 +105,38 @@ class CognitiveFunction:
     language: CognitiveLanguage
 
     def __post_init__(self) -> None:
-        path = PurePosixPath(self.file)
-        if path.is_absolute():
-            raise ValueError("file must be repo-relative")
-        if ".." in path.parts:
-            raise ValueError("file must not contain ..")
-        if self.file.startswith("./"):
-            raise ValueError("file must not start with ./")
-        if self.name == "":
-            raise ValueError("name must not be empty")
-        if "\n" in self.name or "\r" in self.name:
-            raise ValueError("name must not contain a newline")
-        if self.start_line < 1:
-            raise ValueError("start_line must be positive")
-        if self.end_line < self.start_line:
-            raise ValueError("end_line must not precede start_line")
-        if self.score < 0:
-            raise ValueError("score must not be negative")
+        _reject_cognitive_file(self.file)
+        _reject_cognitive_name(self.name)
+        _reject_cognitive_span(self.start_line, self.end_line, self.score)
 
     def waiver_id(self) -> str:
         return f"cognitive:{self.file}:{self.name}"
+
+
+def _reject_cognitive_file(file: str) -> None:
+    path = PurePosixPath(file)
+    if path.is_absolute():
+        raise ValueError("file must be repo-relative")
+    if ".." in path.parts:
+        raise ValueError("file must not contain ..")
+    if file.startswith("./"):
+        raise ValueError("file must not start with ./")
+
+
+def _reject_cognitive_name(name: str) -> None:
+    if name == "":
+        raise ValueError("name must not be empty")
+    if "\n" in name or "\r" in name:
+        raise ValueError("name must not contain a newline")
+
+
+def _reject_cognitive_span(start_line: int, end_line: int, score: int) -> None:
+    if start_line < 1:
+        raise ValueError("start_line must be positive")
+    if end_line < start_line:
+        raise ValueError("end_line must not precede start_line")
+    if score < 0:
+        raise ValueError("score must not be negative")
 
 
 @dataclass(frozen=True)

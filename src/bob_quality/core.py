@@ -100,7 +100,7 @@ def cognitive_verdict(
     ]
     hot.sort(key=lambda item: (item.file, item.start_line, item.name))
     if not hot:
-        return GateResult("cognitive", "passed", None), [], 0
+        return GateResult("cognitive", "passed"), [], 0
     key = "cognitive.over" if len(hot) == 1 else "cognitive.overs"
     return GateResult("cognitive", "warn", msg(key, count=len(hot))), hot, 0
 

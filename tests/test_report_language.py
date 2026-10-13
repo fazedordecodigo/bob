@@ -503,3 +503,10 @@ def test_cognitive_section_explains_a_skip_and_stays_out_of_other_runs() -> None
     assert "cognitive" not in SCHEMA["required"]
     assert SCHEMA["properties"]["schema_version"]["const"] == 1
     Draft202012Validator(SCHEMA).validate(to_json(_rich()))
+
+
+def test_cognitive_skip_without_a_reason_stays_empty() -> None:
+    skipped = _cognitive("not_run", None, [])
+
+    assert "Not run ()." in to_markdown(skipped, "en")
+    assert "Não executado ()." in to_markdown(skipped, "pt-BR")
