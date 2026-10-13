@@ -9,6 +9,41 @@ from bob_quality.messages import Text
 
 GateStatus = Literal["passed", "warn", "failed", "not_run"]
 
+SECRET_PREFIX = "secret:"
+
+
+@dataclass(frozen=True)
+class SecretRow:
+    file: str
+    line: int
+    rule_id: str
+
+    def waiver_id(self) -> str:
+        return f"{SECRET_PREFIX}{self.rule_id}:{self.file}:{self.line}"
+
+
+@dataclass(frozen=True)
+class SecretLedger:
+    blocking: tuple[SecretRow, ...] = ()
+    outside_diff: tuple[SecretRow, ...] = ()
+
+    def __post_init__(self) -> None:
+        rows = (*self.blocking, *self.outside_diff)
+        ids = [row.waiver_id() for row in rows]
+        if len(ids) != len(set(ids)):
+            raise ValueError("duplicate secret row")
+        _require_sorted(self.blocking)
+        _require_sorted(self.outside_diff)
+        for row in rows:
+            if row.line < 1:
+                raise ValueError("secret line")
+
+
+def _require_sorted(rows: tuple[SecretRow, ...]) -> None:
+    ordered = tuple(sorted(rows, key=lambda row: (row.file, row.line, row.rule_id)))
+    if ordered != rows:
+        raise ValueError("secret rows are unsorted")
+
 
 @dataclass(frozen=True)
 class CyclomaticFunction:
@@ -168,4 +203,5 @@ class Report:
     waivers: list[dict[str, object]] = field(default_factory=list)
     survivors: list[dict[str, object]] = field(default_factory=list)
     mutation: dict[str, object] | None = None
+    secrets: SecretLedger | None = None
     dead_code: DeadSection | None = None
