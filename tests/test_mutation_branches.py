@@ -432,6 +432,8 @@ def test_absorb_records_every_gate_argument_and_result(
         ["crap", "dry", "deps", "mutate", "test_smells", "nope"],
         out,
         4,
+        True,
+        0,
     )
 
     assert seen["crap"] == {
@@ -441,7 +443,13 @@ def test_absorb_records_every_gate_argument_and_result(
         "max_crap": 10.0,
         "coverage_file": coverage,
     }
-    assert seen["dry"] == {"cwd": tmp_path, "config": config, "diff_lines": diff}
+    assert seen["dry"] == {
+        "cwd": tmp_path,
+        "config": config,
+        "diff_lines": diff,
+        "dry_fail": True,
+        "max_new_clones": 0,
+    }
     assert seen["deps"] == (tmp_path, config, set(diff))
     assert seen["mutate"] == {
         "cwd": tmp_path,

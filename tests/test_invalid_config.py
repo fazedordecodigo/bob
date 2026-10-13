@@ -272,7 +272,6 @@ _HUGE_THRESHOLD = "1" + "0" * 400
 _SEMANTIC_YAML = (
     ("mutation: {}\n", "bob.yaml: unknown key mutation\n"),
     ("duplication:\n  tool: jscpd\n", "bob.yaml: unknown key duplication.tool\n"),
-    ("duplication:\n  new_clones: warn\n", "bob.yaml: unknown key duplication.new_clones\n"),
     ("dependencies:\n  violation: fail\n", "bob.yaml: unknown key dependencies.violation\n"),
     ("crap:\n  max_per_functon: 10\n", "bob.yaml: unknown key crap.max_per_functon\n"),
     ("crap:\n  scope: Changed\n", "bob.yaml: crap.scope must be changed or all\n"),
@@ -326,6 +325,41 @@ _SEMANTIC_YAML = (
     (
         "duplication:\n  min_tokens: 0\n",
         "bob.yaml: duplication.min_tokens must be greater than 0\n",
+    ),
+    (
+        "duplication:\n  new_clones: block\n",
+        "bob.yaml: duplication.new_clones must be warn or fail\n",
+    ),
+    ("duplication:\n  new_clones: 5\n", "bob.yaml: duplication.new_clones must be a string\n"),
+    (
+        "duplication:\n  max_new_clones: -1\n",
+        "bob.yaml: duplication.max_new_clones must be at least 0\n",
+    ),
+    (
+        "duplication:\n  max_new_clones: 1.5\n",
+        "bob.yaml: duplication.max_new_clones must be an integer\n",
+    ),
+    (
+        "duplication:\n  max_new_clones: true\n",
+        "bob.yaml: duplication.max_new_clones must be an integer\n",
+    ),
+    ("duplication:\n  min_lines: -1\n", "bob.yaml: duplication.min_lines must be at least 0\n"),
+    ("duplication:\n  min_lines: true\n", "bob.yaml: duplication.min_lines must be an integer\n"),
+    (
+        "duplication:\n  min_similarity: 101\n",
+        "bob.yaml: duplication.min_similarity must be at most 100\n",
+    ),
+    (
+        "duplication:\n  min_similarity: -1\n",
+        "bob.yaml: duplication.min_similarity must be at least 0\n",
+    ),
+    (
+        "duplication:\n  min_similarity: .nan\n",
+        "bob.yaml: duplication.min_similarity must be finite\n",
+    ),
+    (
+        'duplication:\n  min_similarity: "90"\n',
+        "bob.yaml: duplication.min_similarity must be a number\n",
     ),
     ("duplication: 0\n", "bob.yaml: duplication must be a mapping\n"),
     ("duplication: false\n", "bob.yaml: duplication must be a mapping\n"),
