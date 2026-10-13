@@ -8,6 +8,7 @@ from typing import Any, Callable, Literal, TypeGuard
 import yaml
 
 from bob_quality.messages import DEFAULT_LANGUAGE, LANGUAGES, Language, msg
+from bob_quality.yaml_text import parse_yaml
 
 DEFAULT_EXCLUDE = ["tests", "node_modules", "dist"]
 
@@ -223,7 +224,7 @@ def _config_from_file(config_path: Path, cwd: Path) -> Config:
 
 def _read_mapping(config_path: Path, cwd: Path) -> dict[str, Any]:
     try:
-        loaded = yaml.safe_load(config_path.read_text())
+        loaded = parse_yaml(config_path.read_text())
     except yaml.YAMLError as exc:
         detail = str(exc).strip().splitlines()[0].strip()
         raise ConfigError(
