@@ -129,6 +129,9 @@ _EN: dict[str, str] = {
     "mutmut.unreadable_version": "unreadable mutmut version: {raw}",
     "mutmut.timeout": "mutmut timed out",
     "mutmut.unknown_status": "unknown mutmut status: {label!r}",
+    "stryker.unknown_status": "unknown Stryker status: {label!r}",
+    "stryker.bad_report": "invalid Stryker report: {detail}",
+    "stryker.no_report": "Stryker did not write the report",
     "mutmut.bad_id": "mutant id outside the contract: {mutant_id}",
     "mutmut.suite_fails_in_mutants": (
         "the suite passes in the repository and fails inside mutants/;"
@@ -301,6 +304,9 @@ _PT_BR: dict[str, str] = {
     "mutmut.unreadable_version": "versão do mutmut ilegível: {raw}",
     "mutmut.timeout": "mutmut excedeu o tempo limite",
     "mutmut.unknown_status": "status desconhecido do mutmut: {label!r}",
+    "stryker.unknown_status": "status desconhecido do Stryker: {label!r}",
+    "stryker.bad_report": "relatório do Stryker inválido: {detail}",
+    "stryker.no_report": "o Stryker não gravou o relatório",
     "mutmut.bad_id": "id de mutante fora do contrato: {mutant_id}",
     "mutmut.suite_fails_in_mutants": (
         "a suíte passa no repositório e falha dentro de mutants/;"

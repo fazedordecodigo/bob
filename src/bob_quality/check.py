@@ -23,7 +23,8 @@ from bob_quality.models import (
     GateResult,
     Report,
 )
-from bob_quality.mutate import MutationOutcome, focus_with_survivors, run_mutation_gate
+from bob_quality.mutate import MutationOutcome, focus_with_survivors
+from bob_quality.mutate_gate import run_mutate_gate
 from bob_quality.report import metric_row, violation_rows, write_report
 from bob_quality.waivers import WaiverError, load_waivers
 
@@ -174,7 +175,7 @@ def _absorb(
         _absorb_deps(state, cwd, config, diff_lines)
         return
     if gate == "mutate":
-        mutation = run_mutation_gate(
+        mutation = run_mutate_gate(
             cwd=cwd,
             config=config,
             diff_lines=diff_lines,

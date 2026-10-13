@@ -62,6 +62,20 @@ PINS: tuple[Pin, ...] = (
     ),
     RequiresDist("vulture", "vulture"),
     ToolPin("knip", "6.41.0", "knip", "npm install knip@6.41.0", npm_package="knip"),
+    ToolPin(
+        "stryker",
+        "10.0.0",
+        "stryker",
+        "npm install @stryker-mutator/core@10.0.0",
+        npm_package="@stryker-mutator/core",
+    ),
+    ToolPin(
+        "stryker-vitest-runner",
+        "10.0.0",
+        "stryker-vitest-runner",
+        "npm install @stryker-mutator/vitest-runner@10.0.0",
+        npm_package="@stryker-mutator/vitest-runner",
+    ),
 )
 
 
