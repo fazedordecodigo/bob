@@ -18,7 +18,7 @@ from pathlib import Path
 import pytest
 
 from bob_quality.messages import Language
-from bob_quality.npm_tools import install_npm_dependencies, npm_prefix
+from bob_quality.npm_tools import _plugin_packages, install_npm_dependencies, npm_prefix
 
 _MANIFEST = {"name": "bob-quality-tools", "private": True, "dependencies": {"c8": "12.0.0"}}
 
@@ -272,6 +272,7 @@ def test_editable_checkout_installs_at_the_repository_root(
         "name": "c8",
         "version": "12.0.0",
     }
+    assert _plugin_packages() == [repo]
     assert npm_prefix() == repo
 
 
@@ -295,3 +296,39 @@ def test_copied_manifest_installs_beside_the_package(
     }
     assert npm_prefix() == package
     assert not (tmp_path / "xdg").exists()
+
+
+def test_real_manifest_keeps_the_unresolved_directory_path(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    real = tmp_path / "real" / "bob_quality"
+    real.mkdir(parents=True)
+    (real / "package.json").write_text(json.dumps(_MANIFEST))
+    (real / "npm_tools.py").write_text("")
+    alias = tmp_path / "alias"
+    alias.symlink_to(real, target_is_directory=True)
+    _point_install_at(monkeypatch, alias / "npm_tools.py", tmp_path / "xdg")
+    _fake_npm(tmp_path, monkeypatch, {})
+
+    assert install_npm_dependencies("en") == 0
+
+    assert npm_prefix() == alias
+
+
+def test_repeated_manifest_does_not_hide_a_later_package(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    top = tmp_path / "top"
+    mid = top / "mid"
+    package = mid / "bob_quality"
+    package.mkdir(parents=True)
+    (top / "package.json").write_text(json.dumps(_MANIFEST))
+    (mid / "package.json").write_text(json.dumps(_MANIFEST))
+    (package / "package.json").symlink_to("../package.json")
+    (package / "npm_tools.py").write_text("")
+    (top / "node_modules").mkdir()
+    _point_install_at(monkeypatch, package / "npm_tools.py", tmp_path / "xdg")
+
+    assert npm_prefix() == top

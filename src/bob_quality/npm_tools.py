@@ -164,7 +164,7 @@ def user_npm_cache() -> Path:
 def _plugin_packages() -> list[Path]:
     matches: list[Path] = []
     seen: set[Path] = set()
-    for parent in Path(__file__).resolve().parents:
+    for parent in Path(os.path.abspath(__file__)).parents:
         manifest = parent / "package.json"
         if not _is_plugin_manifest(manifest):
             continue
