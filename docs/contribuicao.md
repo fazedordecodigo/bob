@@ -58,7 +58,7 @@ Essas skills citam a interface da spec, inclusive `bob report`, que a CLI ainda 
 | Exit codes | `exit_codes.py` |
 | Skills do plugin | `skills/*/SKILL.md` e a lista em `.claude-plugin/plugin.json` e `.cursor-plugin/plugin.json` |
 
-A spec pede que uma linguagem nova entre por adaptador, sem mudar o núcleo. Hoje os probes concretos são `python_probe.py` e `typescript_probe.py`, e `languages` é uma lista explícita. Ver a nota em [languages](configuracao.md#languages).
+A spec pede que uma linguagem nova entre por adaptador, sem mudar o núcleo. Hoje os probes concretos são `python_probe.py` e `typescript_probe.py`. Uma lista `languages` explícita vale como foi escrita. A chave omitida ou nula é autodetectada. Ver a nota em [languages](configuracao.md#languages).
 
 ## Documentação
 

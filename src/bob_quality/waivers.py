@@ -2,17 +2,19 @@
 
 from __future__ import annotations
 
-import json
+import math
 import os
 import subprocess
+from collections import Counter
 from dataclasses import dataclass, fields, replace
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import NamedTuple
 
 import yaml
 
 from bob_quality.messages import msg
-from bob_quality.models import Mutant, MutantStatus
+from bob_quality.models import Mutant
 from bob_quality.yaml_text import parse_yaml
 
 
@@ -151,157 +153,97 @@ def _item_field(index: int, key: str | None = None) -> str:
     return f"{field}.{key}"
 
 
-def add_waiver(cwd: Path, target: str, reason: str | None) -> Waiver:
+def add_waiver(
+    cwd: Path,
+    target: str,
+    reason: str | None,
+    known: frozenset[str],
+    untested: frozenset[str] = frozenset(),
+) -> Waiver:
+    """`known` são os alvos dos sobreviventes do último relatório de mutação.
+
+    `untested` são os `arquivo::função` sem teste. Cada recusa acontece antes de
+    abrir o `.bob/waivers.yaml` para escrita.
+    """
     text = normalize_reason(reason)
-    target_id = target.strip()
-    if not target_id:
+    wanted = target.strip()
+    if not wanted:
         raise WaiverError(msg("waiver.no_target"))
-    _reject_orphan(cwd, target_id)
+    if wanted not in known and wanted in untested:
+        raise WaiverError(msg("waiver.not_a_test", target=wanted))
+    if wanted not in known:
+        raise WaiverError(msg("waiver.unknown_target", target=wanted))
     waiver = Waiver(
-        id=target_id,
+        id=wanted,
         reason=text,
         author=_author(cwd),
         date=datetime.now(timezone.utc).date().isoformat(),
     )
-    current = load_waivers(cwd)
-    replaced = [item for item in current if item.id != waiver.id]
-    replaced.append(waiver)
-    path = waivers_path(cwd)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    payload = {"waivers": [item.as_dict() for item in replaced]}
-    path.write_text(yaml.safe_dump(payload, allow_unicode=True, sort_keys=False))
+    write_waivers(cwd, [item for item in load_waivers(cwd) if item.id != wanted] + [waiver])
     return waiver
 
 
+class _WaiverDumper(yaml.SafeDumper):
+    """A ordem dos campos é a do dataclass. O dump padrão do PyYAML ordenaria as chaves."""
+
+
+def _represent_ordered_dict(dumper: yaml.SafeDumper, data: dict[str, object]) -> yaml.Node:
+    return dumper.represent_mapping("tag:yaml.org,2002:map", data.items())
+
+
+_WaiverDumper.add_representer(dict, _represent_ordered_dict)
+
+
+def write_waivers(cwd: Path, waivers: list[Waiver]) -> None:
+    """O único escritor do `.bob/waivers.yaml`. A largura infinita deixa um id longo numa linha."""
+    path = waivers_path(cwd)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    payload = {"waivers": [item.as_dict() for item in waivers]}
+    path.write_text(yaml.dump(payload, Dumper=_WaiverDumper, allow_unicode=True, width=math.inf))
+
+
+class SurvivorTargets(NamedTuple):
+    """Os dois ids de waiver que cobrem um sobrevivente."""
+
+    function: str
+    """`arquivo::função`. Cobre todo sobrevivente da função."""
+
+    exact: str | None
+    """`arquivo::função::<descrição>`. None quando a descrição não separa este sobrevivente."""
+
+
+def survivor_targets(mutants: list[Mutant]) -> dict[str, SurvivorTargets]:
+    """Alvos de cada sobrevivente, pelo id do mutante.
+
+    Só sobrevivente com arquivo tem entrada. A unicidade da descrição é julgada dentro da função,
+    então `mutants` traz todos os sobreviventes de cada função que toca.
+    """
+    survivors = [item for item in mutants if item.status == "survived" and item.file]
+    # O load_waivers tira os espaços do id, e a descrição de uma linha apagada termina em espaço.
+    text = {item.id: item.operator.strip() for item in survivors}
+    count = Counter((item.file, item.function, text[item.id]) for item in survivors)
+    targets: dict[str, SurvivorTargets] = {}
+    for item in survivors:
+        function = f"{item.file}::{item.function}"
+        unique = text[item.id] and count[(item.file, item.function, text[item.id])] == 1
+        exact = f"{function}::{text[item.id]}" if unique else None
+        targets[item.id] = SurvivorTargets(function, exact)
+    return targets
+
+
 def apply_waivers(mutants: list[Mutant], waivers: list[Waiver]) -> list[Mutant]:
-    applied: list[Mutant] = []
-    for mutant in mutants:
-        reason = _matching_reason(mutant, waivers)
-        if reason == mutant.waiver:
-            applied.append(mutant)
-            continue
-        applied.append(
-            Mutant(
-                id=mutant.id,
-                function=mutant.function,
-                file=mutant.file,
-                line=mutant.line,
-                operator=mutant.operator,
-                status=mutant.status,
-                waiver=reason,
-            )
-        )
-    return applied
+    targets = survivor_targets(mutants)
+    return [
+        replace(item, waiver=_matching_reason(targets.get(item.id), waivers)) for item in mutants
+    ]
 
 
-def _matching_reason(mutant: Mutant, waivers: list[Waiver]) -> str | None:
-    keys = _match_keys(mutant)
-    for waiver in waivers:
-        if waiver.id in keys:
-            return waiver.reason
-    return None
-
-
-def _match_keys(mutant: Mutant) -> set[str]:
-    return {
-        mutant.id,
-        mutant.function,
-        f"{mutant.file}:{mutant.function}",
-        f"{mutant.file}::{mutant.function}",
-    }
-
-
-_CACHE_NAME = ".bob/mutation-cache.json"
-_STATUSES: frozenset[str] = frozenset({"killed", "survived", "timeout", "no_coverage"})
-
-
-def _reject_orphan(cwd: Path, target: str) -> None:
-    mutants = _cache_mutants(cwd)
-    if mutants is None:
-        return
-    if any(item.status == "survived" and target in _match_keys(item) for item in mutants):
-        return
-    if any(item.status == "no_coverage" and target in _match_keys(item) for item in mutants):
-        raise WaiverError(msg("waiver.not_a_test", target=target))
-    raise WaiverError(msg("waiver.not_survivor", target=target))
-
-
-def _cache_mutants(cwd: Path) -> list[Mutant] | None:
-    path = cwd / _CACHE_NAME
-    if not path.is_file():
+def _matching_reason(targets: SurvivorTargets | None, waivers: list[Waiver]) -> str | None:
+    """Um id prefixado de outro gate (ADR 0005) nunca começa com o caminho do arquivo."""
+    if targets is None:
         return None
-    try:
-        raw = json.loads(path.read_text())
-    except (OSError, UnicodeError, json.JSONDecodeError) as exc:
-        raise WaiverError(msg("mutate.cache_invalid", detail=str(exc))) from None
-    if not isinstance(raw, dict):
-        raise WaiverError(msg("mutate.cache_invalid", detail="not a mapping"))
-    functions = raw.get("functions")
-    if not isinstance(functions, dict):
-        return []
-    found: list[Mutant] = []
-    for key, entry in functions.items():
-        found.extend(_entry_mutants(entry, _label_from_key(key)))
-    return found
-
-
-def _label_from_key(key: object) -> tuple[str, str]:
-    if not isinstance(key, str) or "::" not in key:
-        return "", ""
-    file, function = key.split("::", 1)
-    return file, function
-
-
-def _entry_mutants(entry: object, label: tuple[str, str] = ("", "")) -> list[Mutant]:
-    if not isinstance(entry, dict):
-        return []
-    rows = entry.get("mutants")
-    if not isinstance(rows, list):
-        return []
-    file, function = label
-    found: list[Mutant] = []
-    for row in rows:
-        mutant = _row_mutant(row)
-        if mutant is not None:
-            found.append(_with_label(mutant, file, function))
-    return found
-
-
-def _with_label(mutant: Mutant, file: str, function: str) -> Mutant:
-    if mutant.file or not file:
-        return mutant
-    if mutant.function:
-        return replace(mutant, file=file)
-    return replace(mutant, file=file, function=function)
-
-
-def _row_mutant(row: object) -> Mutant | None:
-    if not isinstance(row, dict):
-        return None
-    mutant_id = row.get("id")
-    status = row.get("status")
-    if not isinstance(mutant_id, str) or not isinstance(status, str) or status not in _STATUSES:
-        return None
-    function = row.get("function")
-    file = row.get("file")
-    return Mutant(
-        id=mutant_id,
-        function=function if isinstance(function, str) else "",
-        file=file if isinstance(file, str) else "",
-        line=0,
-        operator="",
-        status=_status(status),
-    )
-
-
-def _status(value: str) -> MutantStatus:
-    if value == "killed":
-        return "killed"
-    if value == "timeout":
-        return "timeout"
-    if value == "no_coverage":
-        return "no_coverage"
-    return "survived"
+    keys = {targets.function, targets.exact}
+    return next((item.reason for item in waivers if item.id in keys), None)
 
 
 def _author(cwd: Path) -> str:

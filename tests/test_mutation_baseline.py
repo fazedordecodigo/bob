@@ -1,7 +1,7 @@
 """Baseline: a suíte do repositório passa antes de o CRAP ou a mutação medirem.
 
 Seam: CLI `bob check` sobre o fixture Python. Exit code, gate no `report.json`
-e o diretório `mutants/`.
+e o diretório `.bob/mutmut/mutants/`.
 """
 
 from __future__ import annotations
@@ -70,7 +70,7 @@ def test_a_broken_baseline_stops_the_mutation_before_mutants_exists(
 
     assert result.returncode == 2
     assert gate["mutate"] == {"name": "mutate", "status": "not_run", "reason": BROKEN}
-    assert not (repo / "mutants").exists()
+    assert not (repo / ".bob" / "mutmut").exists()
 
 
 @pytest.mark.parametrize("gates", ["crap", "mutate"])
@@ -96,7 +96,7 @@ def test_a_suite_that_fails_only_inside_mutants_points_at_also_copy(tmp_path: Pa
 
     result, gate = _check(repo, "mutate")
 
-    missing = repo.resolve() / "mutants" / "expected.txt"
+    missing = repo.resolve() / ".bob" / "mutmut" / "mutants" / "expected.txt"
     assert result.returncode == 4
     assert gate["mutate"] == {
         "name": "mutate",

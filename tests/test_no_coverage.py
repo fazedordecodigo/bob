@@ -197,6 +197,7 @@ def test_finish_stays_failed_when_an_unwaived_survivor_remains() -> None:
             "operator": "AOR",
             "status": "survived",
             "waiver": None,
+            "target": "src/app/a.py::a::AOR",
             "blocking": True,
         },
         {
@@ -207,6 +208,7 @@ def test_finish_stays_failed_when_an_unwaived_survivor_remains() -> None:
             "operator": "AOR",
             "status": "survived",
             "waiver": None,
+            "target": "src/app/b.py::b::AOR",
             "blocking": True,
         },
     ]
@@ -251,6 +253,7 @@ def test_finish_keeps_a_waived_survivor_while_warning_about_uncovered_mutants() 
             "operator": "AOR",
             "status": "survived",
             "waiver": "w1",
+            "target": "src/app/orphan.py::orphan::AOR",
             "blocking": False,
         }
     ]

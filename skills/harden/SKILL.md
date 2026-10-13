@@ -15,9 +15,9 @@ Matar o mutante com um teste mais forte, ou registrar um waiver de uma linha. A 
 
 ## Passos
 
-1. Ler o sobrevivente: id, função, arquivo:linha e operador, no relatório.
-2. Escrever um teste que falha se o operador estiver aplicado e passa no código atual. Feito quando uma nova `bob mutate` não lista mais esse id como sobrevivente sem waiver.
-3. Se o mutante não deve ser morto (comportamento equivalente, ou fora do que dá para provar com um teste pequeno), gravar `bob waive <mutant-id|function> --reason "texto de uma linha"`. Feito quando o waiver aparece no topo de `.bob/report.md` e o exit deixa de ser 3.
+1. Ler o sobrevivente: alvo, função, arquivo:linha e operador, no relatório.
+2. Escrever um teste que falha se o operador estiver aplicado e passa no código atual. Feito quando uma nova `bob mutate` não lista mais esse sobrevivente sem waiver.
+3. Se o mutante não deve ser morto (comportamento equivalente, ou fora do que dá para provar com um teste pequeno), gravar `bob waive <file::function|Target> --reason "texto de uma linha"`. Copie o Alvo da tabela para dispensar só esse mutante. Alvo `—` quer dizer que outro sobrevivente da mesma função tem a mesma descrição. Aí só `arquivo::função` dispensa, e ele cobre todo sobrevivente da função. `bob waive` sai com 4 se o alvo não é de um sobrevivente da última mutação. Feito quando o waiver aparece no topo de `.bob/report.md` e o exit deixa de ser 3.
 4. Repetir até não restar sobrevivente sem waiver.
 
 ## Dentro do razoável

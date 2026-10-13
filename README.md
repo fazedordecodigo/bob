@@ -119,7 +119,7 @@ bob crap --base main
 bob dry --base main
 bob deps --base main
 bob mutate --base main
-bob waive <mutant-id|function> --reason "texto de uma linha"
+bob waive <file::function|Target> --reason "texto de uma linha"
 bob doctor
 ```
 
@@ -132,7 +132,7 @@ Each command accepts these flags:
 | `bob dry` | `--base`, `--config`, `--out` |
 | `bob deps` | `--base`, `--config`, `--out` |
 | `bob mutate` | `--base`, `--config`, `--out`, `--max-workers`, `--since-last-run` (reuses the cache, which is already the default) |
-| `bob waive` | the mutant id or function name, `--reason` |
+| `bob waive` | `file::function` or a Target from the mutation report, `--reason` |
 | `bob doctor` | `--install` |
 
 Every command also accepts `--lang en|pt-BR`, before or after the command name. See [Output language](#output-language).
@@ -176,7 +176,7 @@ The npm tools need Node, and jscpd needs it in a Python-only repository too. In 
 
 ### `bob.yaml`
 
-bob reads these keys. The values below are the defaults that apply when `bob.yaml` does not exist:
+bob reads these keys. The values below apply when a key is omitted. `languages` is detected from the tree when `bob.yaml` is missing or the key is omitted, and `[python]` remains only when no matching source file exists:
 
 ```yaml
 base: origin/main
@@ -195,11 +195,11 @@ dependencies:
   typescript: .dependency-cruiser.cjs
 ```
 
-With `crap.scope: changed`, only changed functions block. `all` counts every measured function. The value is `changed` or `all`. Omitting `languages` or setting it to null selects `[python]`. An empty list exits with `4`. There is no autodetection.
+With `crap.scope: changed`, only changed functions block. `all` counts every measured function. The value is `changed` or `all`. Omitting `languages`, or setting it to null, detects the list from files under `paths.include` and outside `paths.exclude`. The scan does not follow symlinks. `paths.exclude` matches a path prefix or a path component, not a glob. `.py` selects `python`. `.ts`, `.tsx`, `.js`, `.jsx`, `.mjs`, and `.cjs` select `typescript`, in that order. If none of those files exist, the result is `[python]`. The same detection runs when `bob.yaml` is missing and `--config` was not passed. An explicit list is kept as written. An empty list exits with `4`.
 
 If the YAML is not a mapping, the YAML has a syntax error, a mapping repeats a key, or a key has the wrong type, the run exits with `4`. The message goes to stderr in English and names the file. A wrong type also names the key, as in `bob.yaml: crap must be a mapping` or `bob.yaml: crap.max_per_function must be a number`. A repeated key names the key and the line, as in `invalid YAML in bob.yaml: found duplicate key 'base' on line 2`. `check`, `doctor`, `waive`, and the other commands do this the same way. None of them writes a file.
 
-If `--config` points to a file that does not exist, `check`, `crap`, `dry`, `deps`, and `mutate` exit with `4`, write `.bob/report.md` and `.bob/report.json`, and leave stdout and stderr empty. Each requested gate is not run. The JSON reason is `config file not found: <path>`, using the path `load_config` received. The Markdown follows the output language. `doctor` and `waive` do not accept `--config`.
+If `--config` points to a file that does not exist, `check`, `crap`, `dry`, `deps`, and `mutate` exit with `4`. English stderr names the path `load_config` received (`config file not found: <path>`). The run writes nothing. `doctor` and `waive` do not accept `--config`.
 
 ### Output language
 
@@ -228,12 +228,12 @@ In CI, set `language: pt-BR` in `bob.yaml`, or `BOB_LANG: pt-BR` in the job `env
 
 Waivers live in `.bob/waivers.yaml`, which you commit with the code. `bob waive` writes one entry with these fields:
 
-- `id`, the mutant id or the function name.
+- `id`, `file::function` for every survivor of that function, or `file::function::<description>` for one survivor.
 - `reason`, one line of text.
 - `author`, from `git config user.name`, or `$USER`.
 - `date`, the UTC date.
 
-A waiver without a one-line reason is rejected with exit `4`. `bob waive` of an id that already appears once replaces that row and exits 0. A file that already contains two rows with one id exits 4 and the bytes stay. A waiver matches a mutant by the mutant id, the function name, `file:function`, or `file::function`. A `waivers.yaml` that is valid YAML with the wrong shape exits with `4`. The message is English on stderr and names `.bob/waivers.yaml` and the field, as in `.bob/waivers.yaml: waivers[0].reason must be a string`. A top-level list, a `waivers` value that is not a list, an item that is not a mapping, and a missing field all do this. The run writes no `report.md` and no `report.json`, and the file stays as it is. `check`, `doctor`, and `waive` do this the same way, even when `--lang` is `pt-BR`. A YAML syntax error also exits with `4`. That message names `.bob/waivers.yaml` and the parser error. The agent writes the waiver, and the human approves it in the pull request review. Every waiver appears at the top of the report.
+A waiver without a one-line reason is rejected with exit `4`. `bob waive` of an id that already appears once replaces that row and exits 0. A file that already contains two rows with one id exits 4 and the bytes stay. The description is the mutant's operator with the outer spaces stripped. For Python it is the `mutmut show` diff. For TypeScript it is `{mutatorName}@{line}:{column}-{line}:{column}`, plus ` -> {replacement}` when Stryker reports one. The exact form exists only when no other survivor of the function has the same description. The Target column of the survivor table shows it, or `—` when it does not exist. `bob waive` accepts only a target of a survivor in the last mutation run, read from `.bob/mutation-cache.json` and `.bob/stryker-mutants.json`. Any other target, such as the mutant id or a bare function name, exits `4` and writes nothing. A hand-edited id that matches no survivor leaves the survivor unwaived. In TypeScript, a line inserted above the mutant changes its description, so the old waiver stops matching and the gate exits `3`. See [ADR 0006](docs/adr/0006-chave-estavel-do-waiver.md). A `waivers.yaml` that is valid YAML with the wrong shape exits with `4`. The message is English on stderr and names `.bob/waivers.yaml` and the field, as in `.bob/waivers.yaml: waivers[0].reason must be a string`. A top-level list, a `waivers` value that is not a list, an item that is not a mapping, and a missing field all do this. The run writes no `report.md` and no `report.json`, and the file stays as it is. `check`, `doctor`, and `waive` do this the same way, even when `--lang` is `pt-BR`. A YAML syntax error also exits with `4`. That message names `.bob/waivers.yaml` and the parser error. The agent writes the waiver, and the human approves it in the pull request review. Every waiver appears at the top of the report.
 
 ### The report
 
@@ -288,7 +288,7 @@ Coverage shows that a line ran. It does not show that a test checks the result. 
 
 For example, a mutant changes `if total > limit:` to `if total >= limit:`. If no test uses `total == limit`, the mutant survives. Write that test, or run `bob waive` with a reason.
 
-bob mutates Python with mutmut and TypeScript with Stryker. It runs the baseline tests first and exits with `2` if they fail. It mutates the changed functions, plus the functions that still have survivors without a waiver. The cache `.bob/mutation-cache.json` stores a hash of each function's text. Reuse also requires the mutmut version and the suite fingerprint to match. A mismatch still remutates an unwaived survivor outside the diff. The GitHub Action restores and publishes the cache as the `bob-mutation-cache` artifact. TypeScript keeps Stryker's incremental file at `.bob/stryker-incremental.json`. That file is local. The Action does not restore it.
+bob mutates Python with mutmut and TypeScript with Stryker. It runs the baseline tests first and exits with `2` if they fail. It mutates the changed functions, plus the functions that still have survivors without a waiver. The cache `.bob/mutation-cache.json` stores a hash of each function's text. Reuse also requires the mutmut version and the suite fingerprint to match. A mismatch still remutates an unwaived survivor outside the diff. The GitHub Action restores and publishes the cache as the `bob-mutation-cache` artifact. TypeScript keeps Stryker's incremental file at `.bob/stryker-incremental.json`. That file is local. The Action does not restore it. mutmut runs in `.bob/mutmut/` and never writes the repository's `setup.cfg` or `mutants/`.
 
 The limit is zero unwaived survivors on a changed line, and zero `no_coverage` mutants on a changed function. Either one fails the gate with exit `3`. An unwaived survivor on a line the diff did not change stays in the report and does not change the exit. The report lists survivors, and it lists `no_coverage` mutants by function and file. `killed` and `timeout` do not block. A waiver does not cover `no_coverage`.
 

@@ -31,7 +31,7 @@ Um nome de gate desconhecido grava `not_run` e contribui 0. O processo pode sair
 
 ## Consequências
 
-O agente que lê a skill `bob-check` trata 2 como suíte quebrada. O `ArgumentParser` da CLI também sai 2 quando falta o subcomando ou a flag é ilegal. Esse 2 não é `BASELINE_BROKEN`.
+O agente que lê a skill `bob-check` trata 2 como suíte quebrada. O `ArgumentParser` da CLI sai com 4 quando falta o subcomando ou a flag é ilegal. Esse 4 não é `BASELINE_BROKEN`. O Emerson deu o OK em 13/10/2026, às 15:05.
 
 O inteiro 4 tem mais de um caminho. O preflight não grava arquivo. `_fail_early` grava o relatório com os gates em `not_run`. Ferramenta ausente no CRAP, no deps ou na mutação grava o relatório e marca só o gate quebrado. jscpd quebrado não usa 4.
 
