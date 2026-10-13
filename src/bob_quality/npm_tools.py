@@ -14,6 +14,7 @@ from bob_quality.tools import ToolError
 
 _NPM_PACKAGE = "bob-quality-tools"
 _FILESYSTEM_DENIED = re.compile(r"\bcode (EACCES|EPERM|EROFS)\b")
+_EXACT_SPEC = re.compile(r"\d+\.\d+\.\d+")
 _VITEST_CONFIG_NAMES = (
     "vitest.config.mjs",
     "vitest.config.js",
@@ -89,7 +90,44 @@ def _first_with_modules(matches: list[Path]) -> Path | None:
 def _cache_ready(cached: Path, source: Path) -> bool:
     if not (cached / "node_modules").is_dir():
         return False
-    return _load_manifest(cached / "package.json") == _load_manifest(source / "package.json")
+    manifest = _load_manifest(source / "package.json")
+    if _load_manifest(cached / "package.json") != manifest:
+        return False
+    return _installed_as_declared(cached, manifest)
+
+
+def _installed_as_declared(prefix: Path, manifest: dict[str, object] | None) -> bool:
+    declared = _declared(manifest)
+    if declared is None:
+        return False
+    for name, spec in declared.items():
+        if not _satisfies(spec, _installed_or_none(prefix, name)):
+            return False
+    return True
+
+
+def _declared(manifest: dict[str, object] | None) -> dict[str, str] | None:
+    if manifest is None or "dependencies" not in manifest:
+        return {}
+    dependencies = manifest["dependencies"]
+    if not isinstance(dependencies, dict):
+        return None
+    return {str(name): str(spec) for name, spec in dependencies.items()}
+
+
+def _satisfies(spec: str, installed: str | None) -> bool:
+    if installed is None:
+        return False
+    if _EXACT_SPEC.fullmatch(spec) is None:
+        return True
+    return installed == spec
+
+
+def _installed_or_none(prefix: Path, package: str) -> str | None:
+    try:
+        return installed_npm_version(prefix, package)
+    except ToolError:
+        return None
 
 
 def install_npm_dependencies(lang: Language) -> int:
@@ -232,8 +270,14 @@ def installed_npm_version(prefix: Path, package: str) -> str:
     if not pkg.is_file():
         raise ToolError(msg("npm.deps_missing", hint=npm_setup_hint(prefix)))
     try:
-        return str(json.loads(pkg.read_text())["version"])
-    except (json.JSONDecodeError, KeyError) as exc:
+        data = json.loads(pkg.read_text())
+    except json.JSONDecodeError as exc:
+        raise ToolError(msg("npm.unreadable_version", package=package)) from exc
+    if not isinstance(data, dict):
+        raise ToolError(msg("npm.unreadable_version", package=package))
+    try:
+        return str(data["version"])
+    except KeyError as exc:
         raise ToolError(msg("npm.unreadable_version", package=package)) from exc
 
 
