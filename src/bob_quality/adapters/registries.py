@@ -14,6 +14,7 @@ from bob_quality.adapters.manifests import AddedPackage, pep503
 from bob_quality.models import Severity, UndecidedCause
 
 _OSV = "https://api.osv.dev/v1/querybatch"
+_VULN = "https://api.osv.dev/v1/vulns/"
 _NPM_SAFE = "@"
 _SEVERITIES = frozenset({"CRITICAL", "HIGH", "MODERATE", "LOW"})
 _AV3 = {"N": 0.85, "A": 0.62, "L": 0.55, "P": 0.2}
@@ -197,7 +198,8 @@ def _query_batch(
         return tuple(AdvisoriesUndecided(result.cause) for _package in packages)
     if result.status != 200:
         return tuple(AdvisoriesUndecided("undecided") for _package in packages)
-    return _parse_batch(result.body, len(packages))
+    parsed = _parse_batch(result.body, len(packages))
+    return tuple(_resolve(probe, timeout, transport) for probe in parsed)
 
 
 def _query(index: str, package: AddedPackage) -> dict[str, object]:
@@ -215,6 +217,42 @@ def _parse_batch(body: bytes, count: int) -> tuple[AdvisoryProbe, ...]:
     if not isinstance(results, list) or len(results) != count:
         return _undecided_batch(count)
     return tuple(_one_result(item) for item in results)
+
+
+def _resolve(probe: AdvisoryProbe, timeout: int, transport: Transport) -> AdvisoryProbe:
+    if isinstance(probe, AdvisoriesUndecided):
+        return probe
+    return AdvisoriesFound(
+        tuple(_vuln_document(record.advisory_id, timeout, transport) for record in probe.records)
+    )
+
+
+def _vuln_document(
+    advisory_id: str, timeout: int, transport: Transport
+) -> DecidedAdvisory | UndecidedRecord:
+    url = _VULN + urllib.parse.quote(advisory_id, safe="")
+    result = transport("GET", url, None, timeout)
+    if isinstance(result, HttpFault):
+        return UndecidedRecord(result.cause, advisory_id)
+    if result.status != 200:
+        return UndecidedRecord("undecided", advisory_id)
+    document = _json_object(result.body)
+    if document is None:
+        return UndecidedRecord("undecided", advisory_id)
+    record = _record(document)
+    if isinstance(record, DecidedAdvisory):
+        return record
+    return UndecidedRecord("undecided", advisory_id)
+
+
+def _json_object(body: bytes) -> dict[str, object] | None:
+    try:
+        payload = json.loads(body)
+    except json.JSONDecodeError:
+        return None
+    if isinstance(payload, dict):
+        return payload
+    return None
 
 
 def _undecided_batch(count: int) -> tuple[AdvisoryProbe, ...]:

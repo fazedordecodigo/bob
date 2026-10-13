@@ -286,28 +286,77 @@ def test_probe_advisories_posts_one_batch_per_index_and_skips_an_unpinned_name()
 
 
 def test_probe_advisories_leaves_the_id_undecided_when_the_vuln_document_fails() -> None:
+    answers: dict[str, HttpOk | HttpFault] = {
+        "GHSA-fail-0000-0001": HttpFault("timeout"),
+        "GHSA-fail-0000-0002": HttpFault("dns"),
+        "GHSA-fail-0000-0003": HttpOk(500, b"no"),
+        "GHSA-fail-0000-0004": HttpOk(200, b"not-json"),
+        "GHSA-fail-0000-0005": HttpOk(200, b"[]"),
+        "GHSA-fail-0000-0006": HttpOk(200, b"{}"),
+    }
+
     def transport(method: str, url: str, body: bytes | None, timeout: int) -> HttpOk | HttpFault:
         assert timeout == 11
         if method == "POST":
             payload = {
                 "results": [
-                    {"vulns": [{"id": "GHSA-fail-0000-0001", "modified": "2024-01-01T00:00:00Z"}]},
-                    {"vulns": [{"id": "GHSA-fail-0000-0002", "modified": "2024-01-02T00:00:00Z"}]},
+                    {"vulns": [{"id": name, "modified": "2024-01-01T00:00:00Z"}]}
+                    for name in answers
                 ]
             }
             return HttpOk(200, json.dumps(payload).encode())
-        if url.endswith("GHSA-fail-0000-0001"):
-            return HttpFault("timeout")
-        return HttpOk(500, b"no")
+        return answers[url.removeprefix(_VULN)]
 
-    packages = (
-        AddedPackage("pypi", "left", "1.0.0", "pyproject.toml", 4),
-        AddedPackage("pypi", "right", "2.0.0", "pyproject.toml", 5),
+    packages = tuple(
+        AddedPackage("pypi", f"pkg-{index}", "1.0.0", "pyproject.toml", 4 + index)
+        for index, _name in enumerate(answers)
     )
 
     assert probe_advisories(packages, 11, transport) == (
         AdvisoriesFound((UndecidedRecord("timeout", "GHSA-fail-0000-0001"),)),
-        AdvisoriesFound((UndecidedRecord("undecided", "GHSA-fail-0000-0002"),)),
+        AdvisoriesFound((UndecidedRecord("dns", "GHSA-fail-0000-0002"),)),
+        AdvisoriesFound((UndecidedRecord("undecided", "GHSA-fail-0000-0003"),)),
+        AdvisoriesFound((UndecidedRecord("undecided", "GHSA-fail-0000-0004"),)),
+        AdvisoriesFound((UndecidedRecord("undecided", "GHSA-fail-0000-0005"),)),
+        AdvisoriesFound((UndecidedRecord("undecided", "GHSA-fail-0000-0006"),)),
+    )
+
+
+def test_probe_advisories_keeps_the_batch_id_when_the_alias_has_no_severity() -> None:
+    documents = {
+        "GHSA-crit-0000-0001": (VULNS / "GHSA-crit-0000-0001.json").read_bytes(),
+        "PYSEC-9": json.dumps(
+            {"id": "PYSEC-9", "modified": "2024-06-02T00:00:00Z", "aliases": ["GHSA-crit-0000-0001"]}
+        ).encode(),
+    }
+
+    def transport(method: str, url: str, body: bytes | None, timeout: int) -> HttpOk:
+        assert timeout == 30
+        if method == "GET":
+            return HttpOk(200, documents[url.removeprefix(_VULN)])
+        payload = {
+            "results": [
+                {
+                    "vulns": [
+                        {"id": "GHSA-crit-0000-0001", "modified": "2024-06-01T00:00:00Z"},
+                        {"id": "PYSEC-9", "modified": "2024-06-02T00:00:00Z"},
+                    ]
+                }
+            ]
+        }
+        return HttpOk(200, json.dumps(payload).encode())
+
+    probes = probe_advisories(
+        (AddedPackage("pypi", "left", "1.0.0", "pyproject.toml", 4),), 30, transport
+    )
+
+    assert probes == (
+        AdvisoriesFound(
+            (
+                DecidedAdvisory("GHSA-crit-0000-0001", "CRITICAL"),
+                UndecidedRecord("undecided", "PYSEC-9"),
+            )
+        ),
     )
 
 

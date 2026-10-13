@@ -10,10 +10,12 @@ from bob_quality.diff import changed_lines
 from bob_quality.messages import render
 from bob_quality.models import (
     Advisory,
+    GateResult,
     MissingPackage,
     Report,
     RowBlock,
     RowWarn,
+    SupplyReport,
     UndeclaredImport,
     UnverifiedAdvisory,
     UnverifiedExistence,
@@ -116,6 +118,31 @@ def test_run_supply_gate_blocks_an_undeclared_import_while_the_registry_times_ou
         RowBlock(UndeclaredImport("src/app.py", "requests", 1)),
         RowWarn(UnverifiedExistence("pypi", "left", "pyproject.toml", 5, "dns")),
     )
+
+
+def test_run_supply_gate_warns_when_only_osv_times_out(tmp_path: Path) -> None:
+    repo = _repo(tmp_path)
+    _pyproject(repo, "dependencies = [\n]\n")
+    _commit(repo, "base")
+    _git(repo, "checkout", "-b", "head")
+    _pyproject(repo, 'dependencies = [\n  "left==1.0.0",\n]\n')
+    _commit(repo, "head")
+
+    def transport(method: str, url: str, body: bytes | None, timeout: int) -> HttpOk | HttpFault:
+        if method == "POST":
+            return HttpFault("timeout")
+        return HttpOk(200, b'{"info":{"name":"left"}}')
+
+    result, code, _versions, supply = run_supply_gate(
+        repo, Config(), _diff(repo), "main", _deptry("[]"), transport
+    )
+
+    assert code == 0
+    assert result.status == "warn"
+    assert supply.rows == (
+        RowWarn(UnverifiedAdvisory("pypi", "left", "pyproject.toml", 5, "timeout")),
+    )
+    assert _english(result, supply).count("`left`") == 1
 
 
 def test_run_supply_gate_blocks_a_critical_advisory_from_the_vuln_document(
@@ -322,7 +349,7 @@ def _knip(raw: str):
     return runner
 
 
-def _english(result: object, supply: object) -> str:
+def _english(result: GateResult, supply: SupplyReport) -> str:
     report = Report(
         schema_version=1,
         commit="abc",
@@ -408,16 +435,20 @@ def _fault(cause: str):
 
 def _moderate():
     def transport(method: str, url: str, body: bytes | None, timeout: int) -> HttpOk:
+        if url.startswith("https://api.osv.dev/v1/vulns/"):
+            payload = {
+                "id": "GHSA-2222",
+                "modified": "2024-01-01T00:00:00Z",
+                "database_specific": {"severity": "MODERATE"},
+            }
+            return HttpOk(200, json.dumps(payload).encode())
         if method == "GET":
             return HttpOk(404, b"")
         payload = {
             "results": [
                 {
                     "vulns": [
-                        {
-                            "id": "GHSA-2222",
-                            "database_specific": {"severity": "MODERATE"},
-                        }
+                        {"id": "GHSA-2222", "modified": "2024-01-01T00:00:00Z"},
                     ]
                 }
             ]

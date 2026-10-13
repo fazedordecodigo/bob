@@ -11,6 +11,7 @@ from bob_quality.adapters.manifests import AddedPackage, added_packages
 from bob_quality.adapters.registries import (
     AdvisoriesFound,
     AdvisoriesUndecided,
+    AdvisoryProbe,
     DecidedAdvisory,
     Existence,
     PackageMissing,
@@ -369,12 +370,21 @@ def _registry_findings(
         return ()
     timeout = config.supply_timeout_seconds
     rows: list[SupplyFinding] = []
+    existences: list[Existence] = []
     for package in packages:
-        rows.extend(_existence_finding(package, probe_existence(package, timeout, transport)))
+        existence = probe_existence(package, timeout, transport)
+        existences.append(existence)
+        rows.extend(_existence_finding(package, existence))
     probes = probe_advisories(packages, timeout, transport)
-    for package, probe in zip(packages, probes):
+    for package, existence, probe in zip(packages, existences, probes, strict=True):
+        if _offline_package(existence, probe):
+            continue
         rows.extend(_advisory_findings(package, probe))
     return tuple(rows)
+
+
+def _offline_package(existence: Existence, probe: AdvisoryProbe) -> bool:
+    return isinstance(existence, PackageUndecided) and isinstance(probe, AdvisoriesUndecided)
 
 
 def _existence_finding(package: AddedPackage, existence: Existence) -> tuple[SupplyFinding, ...]:
