@@ -135,6 +135,19 @@ _SCHEMA = _Node(
                 ),
             ),
         ),
+        _Node(
+            "churn",
+            "",
+            (),
+            children=(
+                _Node(
+                    "window_days",
+                    "window_days",
+                    (_Check("integer"), _Bound("gt", 0)),
+                    null_is_default=False,
+                ),
+            ),
+        ),
     ),
 )
 
@@ -150,6 +163,7 @@ class Config:
     python_deps_config: str = ".importlinter"
     typescript_deps_config: str = ".dependency-cruiser.cjs"
     min_tokens: int = 50
+    window_days: int = 90
     language: Language | None = None
 
     def __post_init__(self) -> None:

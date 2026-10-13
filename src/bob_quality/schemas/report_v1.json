@@ -117,6 +117,65 @@
         }
       }
     },
+    "churn": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind"],
+          "properties": {
+            "kind": { "const": "unavailable" }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "window_days", "ends_on", "files", "hotspots", "diffusion"],
+          "properties": {
+            "kind": { "const": "measured" },
+            "window_days": { "type": "integer", "minimum": 1 },
+            "ends_on": { "type": "string", "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$" },
+            "files": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["path", "commits"],
+                "properties": {
+                  "path": { "type": "string" },
+                  "commits": { "type": "integer", "minimum": 0 }
+                }
+              }
+            },
+            "hotspots": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["file", "function", "start_line", "cc", "commits", "hotspot"],
+                "properties": {
+                  "file": { "type": "string" },
+                  "function": { "type": "string" },
+                  "start_line": { "type": "integer" },
+                  "cc": { "type": "integer" },
+                  "commits": { "type": "integer", "minimum": 0 },
+                  "hotspot": { "type": "integer" }
+                }
+              }
+            },
+            "diffusion": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["files", "modules"],
+              "properties": {
+                "files": { "type": "integer", "minimum": 0 },
+                "modules": { "type": "integer", "minimum": 0 }
+              }
+            }
+          }
+        }
+      ]
+    },
     "reproduce": { "type": "string" },
     "exit_code": { "type": "integer" }
   }

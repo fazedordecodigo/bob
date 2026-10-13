@@ -25,6 +25,8 @@ duplication:
 dependencies:
   python: .importlinter
   typescript: .dependency-cruiser.cjs
+churn:
+  window_days: 90
 ```
 
 `language: en` no bloco acima é o resultado da resolução, não uma chave que o arquivo vazio precise ter. Sem chave, `configured_language` devolve `None` e a CLI usa `en`.
@@ -45,10 +47,13 @@ O `bob.yaml` deste repositório é mais curto: `base`, `languages: [python]`, `p
 | `duplication.min_tokens` | inteiro maior que 0 | `50` | Mínimo de tokens do jscpd |
 | `dependencies.python` | string | `.importlinter` | Config do import-linter |
 | `dependencies.typescript` | string | `.dependency-cruiser.cjs` | Config do dependency-cruiser |
+| `churn.window_days` | inteiro maior que 0 | `90` | Dias da janela de rotatividade, terminando na data do commit |
 
 Um tipo errado sai com `4`. A mensagem em inglês no stderr cita o arquivo e a chave, por exemplo `bob.yaml: crap must be a mapping` ou `bob.yaml: crap.max_per_function must be a number`. Isso vale para `check`, `doctor`, `waive` e os outros comandos, e nenhum deles grava arquivo nesse caso. Ver [Exit 4](exit-codes.md#exit-4).
 
 `duplication` que não é mapeamento, ou `min_tokens` que não é um inteiro maior que 0, sai com `4`. A mensagem em inglês no stderr cita o arquivo e a chave, e nada é gravado. O [CHANGELOG](../CHANGELOG.md) descreve esse caso.
+
+`churn` ausente, `churn: null` e `churn: {}` ficam em 90. `churn.window_days: null`, um float, um bool, `0` ou um inteiro negativo saem com `4`. A mensagem em inglês no stderr cita `churn.window_days`, e nada é gravado. Qualquer outra chave `churn.*` é chave desconhecida, também com `4` e sem relatório.
 
 ### languages
 
@@ -60,7 +65,7 @@ O gate DRY mapeia `typescript` para os formatos `typescript` e `javascript` do j
 
 ### Chaves que o loader recusa
 
-O `_SCHEMA` em `src/bob_quality/config.py` aceita `base`, `language`, `languages`, `paths.include`, `paths.exclude`, `crap.max_per_function`, `crap.scope`, `duplication.min_tokens`, `dependencies.python` e `dependencies.typescript`. `_reject_unknown` recusa qualquer outra chave: exit `4`, mensagem em inglês no stderr, nenhum arquivo gravado.
+O `_SCHEMA` em `src/bob_quality/config.py` aceita `base`, `language`, `languages`, `paths.include`, `paths.exclude`, `crap.max_per_function`, `crap.scope`, `duplication.min_tokens`, `dependencies.python`, `dependencies.typescript` e `churn.window_days`. `_reject_unknown` recusa qualquer outra chave: exit `4`, mensagem em inglês no stderr, nenhum arquivo gravado.
 
 Estas não entram no schema:
 

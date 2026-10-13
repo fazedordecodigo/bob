@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+from bob_quality.churn import ChurnMeasured, ChurnSection, ChurnUnavailable, Hotspot
 from bob_quality.messages import Language, Message, Text, msg, render
 from bob_quality.models import (
     Clone,
@@ -60,6 +61,7 @@ def to_json(report: Report) -> dict[str, object]:
         "waivers": report.waivers,
         "survivors": report.survivors,
         "mutation": report.mutation,
+        "churn": _churn_json(report.churn),
         "reproduce": report.reproduce,
         "exit_code": report.exit_code,
     }
@@ -97,6 +99,7 @@ def to_markdown(report: Report, lang: Language) -> str:
     lines.extend(_clone_lines(report))
     lines.extend(_survivor_lines(report))
     lines.extend(_no_coverage_lines(report))
+    lines.extend(_churn_lines(report.churn))
     lines.extend(_footer(report, lang))
     return "\n".join(render(line, lang) for line in lines)
 
@@ -219,6 +222,83 @@ def _waiver_section(waivers: list[dict[str, object]]) -> list[Text]:
         )
     lines.append("")
     return lines
+
+
+def _churn_json(section: ChurnSection) -> dict[str, object]:
+    if isinstance(section, ChurnUnavailable):
+        return {"kind": "unavailable"}
+    if isinstance(section, ChurnMeasured):
+        return {
+            "kind": "measured",
+            "window_days": section.window.days,
+            "ends_on": section.window.ends_on.isoformat(),
+            "files": [{"path": item.path, "commits": item.commits} for item in section.files],
+            "hotspots": [
+                {
+                    "file": row.file,
+                    "function": row.function,
+                    "start_line": row.start_line,
+                    "cc": row.cc,
+                    "commits": row.commits,
+                    "hotspot": row.hotspot,
+                }
+                for row in section.hotspots
+            ],
+            "diffusion": {"files": section.file_count(), "modules": section.module_count()},
+        }
+    raise AssertionError(type(section))
+
+
+def _churn_lines(section: ChurnSection) -> list[Text]:
+    if isinstance(section, ChurnUnavailable):
+        return ["", msg("report.churn"), "", msg("report.churn_unavailable")]
+    if isinstance(section, ChurnMeasured):
+        return _measured_churn_lines(section)
+    raise AssertionError(type(section))
+
+
+def _measured_churn_lines(section: ChurnMeasured) -> list[Text]:
+    lines: list[Text] = [
+        "",
+        msg("report.churn"),
+        "",
+        msg(
+            "report.churn_window",
+            days=section.window.days,
+            date=section.window.ends_on.isoformat(),
+        ),
+        msg(
+            "report.churn_diffusion",
+            files=section.file_count(),
+            modules=section.module_count(),
+        ),
+    ]
+    names = section.module_names()
+    if names:
+        shown = ", ".join(f"`{name}`" for name in names)
+        lines.append(msg("report.churn_modules", names=shown))
+    lines.append("")
+    if section.files:
+        lines.append(msg("report.churn_file_header"))
+        lines.append("|---|---:|")
+        lines.extend(f"| `{item.path}` | {item.commits} |" for item in section.files)
+    else:
+        lines.append(msg("report.churn_no_files"))
+    lines.append("")
+    if section.hotspots:
+        lines.append(msg("report.churn_hotspot_header"))
+        lines.append("|---|---|---:|---:|---:|")
+        lines.extend(_hotspot_row(row) for row in section.hotspots)
+    else:
+        lines.append(msg("report.churn_no_hotspots"))
+    return lines
+
+
+def _hotspot_row(row: Hotspot) -> str:
+    return (
+        f"| `{row.function}` | `{row.file}:{row.start_line}` | {row.cc} | "
+        f"{row.commits} | {row.hotspot} |"
+    )
 
 
 def _footer(report: Report, lang: Language) -> list[Text]:

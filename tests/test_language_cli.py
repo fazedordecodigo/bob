@@ -41,6 +41,15 @@ No changed function measured.
 
 Not run.
 
+## Churn
+
+Window: 90 days ending <date>.
+Diffusion: 0 files, 0 modules.
+
+No changed file inside the include paths.
+
+No changed function to score.
+
 ## How to reproduce
 
 ```
@@ -75,6 +84,15 @@ Nenhuma função alterada medida.
 
 Não executado.
 
+## Rotatividade
+
+Janela: 90 dias terminando em <date>.
+Difusão: 0 arquivos, 0 módulos.
+
+Nenhum arquivo alterado dentro dos caminhos incluídos.
+
+Nenhuma função alterada para pontuar.
+
 ## Como reproduzir
 
 ```
@@ -95,7 +113,8 @@ def _repo(tmp_path: Path, language: str | None = None) -> Path:
 def _markdown(repo: Path) -> str:
     text = (repo / ".bob" / "report.md").read_text()
     text = re.sub(r"- Commit: `[0-9a-f]+`", "- Commit: `<sha>`", text)
-    return re.sub(r"- (Date|Data): .+", r"- \1: <date>", text)
+    text = re.sub(r"- (Date|Data): .+", r"- \1: <date>", text)
+    return re.sub(r"(ending |terminando em )\d{4}-\d{2}-\d{2}", r"\1<date>", text)
 
 
 @pytest.mark.parametrize(

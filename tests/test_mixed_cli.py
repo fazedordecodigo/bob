@@ -78,7 +78,9 @@ def test_mixed_repo_without_node_measures_python_and_skips_typescript(
     assert {item["lang"] for item in payload["top_crap"]} == {"python"}
     assert "⚠️ `crap`: warning (TypeScript skipped:" in markdown
     assert "src/app/safe.py" in markdown
-    assert "src/safe.ts" not in markdown
+    measured, churn = markdown.split("## Churn", 1)
+    assert "src/safe.ts" not in measured
+    assert "| `src/safe.ts` | 2 |" in churn
 
 
 def test_mixed_repo_without_node_keeps_the_skip_when_python_crap_fails(

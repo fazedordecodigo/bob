@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+Every report includes a Churn section between the mutants-without-tests block and the reproduce footer. It counts the commits `git log` lists for each changed file inside `paths.include`, across `churn.window_days` calendar days (default 90) ending on the commit's own date. A changed function's hotspot is that count times its cyclomatic complexity. The section does not change the exit code. When the count cannot be read, the heading stays and the numbers do not. `schema_version` stays 1. The JSON field `churn` is optional in the schema and is always written. Omitting `churn`, or writing `churn: null` or `churn: {}`, keeps 90. `churn.window_days` set to `null`, a float, a bool, zero, or a negative integer exits 4 with English stderr and writes no report. Any other `churn.*` key does the same through the unknown-key path.
+
+Todo relatório inclui a seção Rotatividade entre o bloco de mutantes sem teste e o rodapé de reprodução. Ela conta os commits que o `git log` lista para cada arquivo alterado dentro de `paths.include`, em `churn.window_days` dias de calendário (padrão 90) terminando na data do próprio commit. O hotspot de uma função alterada é essa contagem vezes a complexidade ciclomática. A seção não muda o código de saída. Quando a contagem não pode ser lida, o título fica e os números não. `schema_version` continua 1. O campo JSON `churn` é opcional no schema e sempre é escrito. Omitir `churn`, ou escrever `churn: null` ou `churn: {}`, mantém 90. `churn.window_days` com `null`, um float, um bool, zero ou um inteiro negativo sai com 4, stderr em inglês, e não grava relatório. Qualquer outra chave `churn.*` faz o mesmo pelo caminho de chave desconhecida.
+
 `grimp==3.17` is a direct pin in `pyproject.toml`, and `bob doctor` lists it. `bob doctor` no longer treats a PATH binary as a pip tool. The version it expects is the one `bob-quality` declares.
 
 `grimp==3.17` é um pin direto no `pyproject.toml`, e o `bob doctor` lista essa versão. O `bob doctor` não trata mais um binário do PATH como ferramenta pip. A versão que ele espera é a que o `bob-quality` declara.

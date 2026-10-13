@@ -56,6 +56,7 @@ def test_load_config_reads_every_key(tmp_path: Path) -> None:
         python_deps_config="deps.ini",
         typescript_deps_config="deps.cjs",
         min_tokens=80,
+        window_days=90,
         language="pt-BR",
     )
 
@@ -71,6 +72,7 @@ def test_load_config_defaults_without_a_file(tmp_path: Path) -> None:
         python_deps_config=".importlinter",
         typescript_deps_config=".dependency-cruiser.cjs",
         min_tokens=50,
+        window_days=90,
         language=None,
     )
 
@@ -107,6 +109,23 @@ def test_load_config_rejects_a_list(tmp_path: Path) -> None:
         "bob.yaml must be a mapping",
         "bob.yaml deve ser um mapeamento",
     )
+
+
+@pytest.mark.parametrize(
+    "text",
+    [None, "", "{}\n", "churn:\n", "churn: null\n", "churn: {}\n"],
+)
+def test_omitted_churn_loads_90_window_days(tmp_path: Path, text: str | None) -> None:
+    if text is not None:
+        (tmp_path / "bob.yaml").write_text(text)
+
+    assert load_config(None, tmp_path).window_days == 90
+
+
+def test_load_config_stores_window_days(tmp_path: Path) -> None:
+    (tmp_path / "bob.yaml").write_text("churn:\n  window_days: 15\n")
+
+    assert load_config(None, tmp_path).window_days == 15
 
 
 @pytest.mark.parametrize(
@@ -599,6 +618,9 @@ def test_load_config_rejects_an_illegal_semantic_value(
         ({"min_tokens": -1}, "min_tokens"),
         ({"min_tokens": 0}, "min_tokens"),
         ({"min_tokens": True}, "min_tokens"),
+        ({"window_days": 0}, "window_days"),
+        ({"window_days": -1}, "window_days"),
+        ({"window_days": True}, "window_days"),
         ({"languages": ("python", "ruby")}, "languages"),
         ({"languages": ()}, "languages"),
         ({"languages": ("python", "python")}, "languages"),
