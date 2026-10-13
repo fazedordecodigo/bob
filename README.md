@@ -290,7 +290,7 @@ For example, a mutant changes `if total > limit:` to `if total >= limit:`. If no
 
 bob mutates Python with mutmut and TypeScript with Stryker. It runs the baseline tests first and exits with `2` if they fail. It mutates the changed functions, plus the functions that still have survivors without a waiver. The cache `.bob/mutation-cache.json` stores a hash of each function's text. Reuse also requires the mutmut version and the suite fingerprint to match. A mismatch still remutates an unwaived survivor outside the diff. The GitHub Action restores and publishes the cache as the `bob-mutation-cache` artifact. TypeScript keeps Stryker's incremental file at `.bob/stryker-incremental.json`. That file is local. The Action does not restore it.
 
-The limit is zero survivors without a waiver, and zero `no_coverage` mutants on a changed function. Either one fails the gate with exit `3`. The report lists survivors, and it lists `no_coverage` mutants by function and file. `killed` and `timeout` do not block. A waiver does not cover `no_coverage`.
+The limit is zero unwaived survivors on a changed line, and zero `no_coverage` mutants on a changed function. Either one fails the gate with exit `3`. An unwaived survivor on a line the diff did not change stays in the report and does not change the exit. The report lists survivors, and it lists `no_coverage` mutants by function and file. `killed` and `timeout` do not block. A waiver does not cover `no_coverage`.
 
 ### Dependencies
 

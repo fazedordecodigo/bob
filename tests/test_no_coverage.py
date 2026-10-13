@@ -5,6 +5,8 @@ from __future__ import annotations
 import hashlib
 from pathlib import Path
 
+import pytest
+
 from bob_quality.adapters.mutmut import id_matches_function
 from bob_quality.messages import Language, render
 from bob_quality.models import CyclomaticFunction, GateResult, Mutant, Report
@@ -14,6 +16,7 @@ from bob_quality.mutate import (
     _finish,
     _start_line,
     _with_file_lines,
+    focus_with_survivors,
     no_coverage_summary,
 )
 from bob_quality.report import to_markdown
@@ -112,9 +115,10 @@ def test_summary_keeps_a_function_name_after_the_first_separator() -> None:
 
 def test_finish_fails_for_one_uncovered_mutant_and_passes_when_there_are_none() -> None:
     uncovered = Mutant("app.orphan.x_orphan__mutmut_1", "orphan", "", 0, "", "no_coverage")
-    blocked = _finish([uncovered], ["src/app/orphan.py::orphan"], [], {}, [])
+    blocked = _finish([uncovered], {}, ["src/app/orphan.py::orphan"], [], {}, [])
     passed = _finish(
         [Mutant("app.a.x_add__mutmut_1", "add", "src/app/a.py", 1, "AOR", "killed")],
+        {},
         ["src/app/a.py::add"],
         ["src/app/a.py::scale"],
         {},
@@ -142,6 +146,7 @@ def test_finish_stays_failed_when_an_unwaived_survivor_remains() -> None:
     waivers = [{"id": "other", "reason": "outro", "author": "ada", "date": "2026-10-11"}]
     outcome = _finish(
         [first, second, uncovered],
+        {"src/app/a.py": {2}, "src/app/b.py": {4}},
         ["src/app/a.py::a", "src/app/b.py::b"],
         [],
         {"mutmut": "3.8.0"},
@@ -170,6 +175,7 @@ def test_finish_stays_failed_when_an_unwaived_survivor_remains() -> None:
             "operator": "AOR",
             "status": "survived",
             "waiver": None,
+            "blocking": True,
         },
         {
             "id": "app.b.x_b__mutmut_1",
@@ -179,6 +185,7 @@ def test_finish_stays_failed_when_an_unwaived_survivor_remains() -> None:
             "operator": "AOR",
             "status": "survived",
             "waiver": None,
+            "blocking": True,
         },
     ]
     assert outcome.summary["no_coverage"] == {
@@ -201,6 +208,7 @@ def test_finish_keeps_a_waived_survivor_while_warning_about_uncovered_mutants() 
     waivers = [{"id": "w1", "reason": "equivalente", "author": "ada", "date": "2026-10-11"}]
     outcome = _finish(
         [survivor, uncovered],
+        {"src/app/orphan.py": {2}},
         ["src/app/orphan.py::orphan"],
         [],
         {"mutmut": "3.8.0"},
@@ -221,6 +229,7 @@ def test_finish_keeps_a_waived_survivor_while_warning_about_uncovered_mutants() 
             "operator": "AOR",
             "status": "survived",
             "waiver": "w1",
+            "blocking": False,
         }
     ]
 
@@ -237,7 +246,7 @@ def test_a_waiver_does_not_excuse_a_mutant_without_a_test() -> None:
     )
     waivers = [{"id": "orphan", "reason": "because", "author": "ada", "date": "2026-10-11"}]
 
-    outcome = _finish([uncovered], ["src/app/orphan.py::orphan"], [], {}, waivers)
+    outcome = _finish([uncovered], {}, ["src/app/orphan.py::orphan"], [], {}, waivers)
 
     assert outcome.exit_code == 3
     assert _verdict(outcome.result, "en") == ("mutate", "failed", "1 mutant without a test")
@@ -252,11 +261,97 @@ def test_finish_fails_with_the_uncovered_total() -> None:
         Mutant("app.orphan.x_orphan__mutmut_1", "orphan", "", 0, "", "no_coverage"),
         Mutant("app.orphan.x_orphan__mutmut_2", "orphan", "", 0, "", "no_coverage"),
     ]
-    outcome = _finish(mutants, ["src/app/orphan.py::orphan"], [], {}, [])
+    outcome = _finish(mutants, {}, ["src/app/orphan.py::orphan"], [], {}, [])
 
     assert outcome.exit_code == 3
     assert _verdict(outcome.result, "pt-BR") == ("mutate", "failed", "2 mutantes sem teste")
     assert _verdict(outcome.result, "en") == ("mutate", "failed", "2 mutants without a test")
+
+
+def test_finish_blocks_only_the_survivor_on_a_changed_line() -> None:
+    changed = Mutant("app.a.x_a__mutmut_1", "a", "src/app/a.py", 2, "AOR", "survived")
+    unchanged = Mutant("app.a.x_a__mutmut_2", "a", "src/app/a.py", 3, "AOR", "survived")
+    reused = Mutant("app.b.x_b__mutmut_1", "b", "src/app/b.py", 2, "AOR", "survived")
+
+    outcome = _finish(
+        [changed, unchanged, reused],
+        {"src/app/a.py": {2}},
+        ["src/app/a.py::a"],
+        ["src/app/b.py::b"],
+        {},
+        [],
+    )
+
+    assert outcome.exit_code == 3
+    assert _verdict(outcome.result, "en") == (
+        "mutate",
+        "failed",
+        "survivor without waiver: a@src/app/a.py:2",
+    )
+    assert [row["blocking"] for row in outcome.survivors] == [True, False, False]
+
+
+def test_finish_passes_when_every_survivor_is_off_the_diff() -> None:
+    off = Mutant("app.a.x_a__mutmut_1", "a", "src/app/a.py", 3, "AOR", "survived")
+    uncovered = Mutant("app.a.x_a__mutmut_2", "a", "", 0, "", "no_coverage")
+
+    passed = _finish([off], {"src/app/a.py": {2}}, ["src/app/a.py::a"], [], {}, [])
+    failed = _finish([off, uncovered], {"src/app/a.py": {2}}, ["src/app/a.py::a"], [], {}, [])
+
+    assert passed.exit_code == 0
+    assert passed.result == GateResult("mutate", "passed", None)
+    assert passed.survivors[0]["blocking"] is False
+    assert failed.exit_code == 3
+    assert failed.survivors[0]["blocking"] is False
+    assert _verdict(failed.result, "en") == ("mutate", "failed", "1 mutant without a test")
+
+
+@pytest.mark.parametrize(
+    ("file", "line"),
+    [("", 0), ("src/app/a.py", 0), ("src/app/a.py", -1), ("", 2)],
+    ids=["show-failed", "no-added-line", "negative-line", "no-file"],
+)
+def test_finish_blocks_a_survivor_without_a_file_line(file: str, line: int) -> None:
+    lost = Mutant("app.a.x_a__mutmut_1", "a", file, line, "", "survived")
+
+    outcome = _finish([lost], {"src/app/a.py": {2}}, ["src/app/a.py::a"], [], {}, [])
+
+    assert outcome.exit_code == 3
+    assert outcome.survivors[0]["blocking"] is True
+
+
+def test_finish_never_blocks_a_timeout_or_an_uncovered_mutant() -> None:
+    timeout = Mutant("app.a.x_a__mutmut_1", "a", "src/app/a.py", 2, "AOR", "timeout")
+    uncovered = Mutant("app.a.x_a__mutmut_2", "a", "", 0, "", "no_coverage")
+
+    outcome = _finish([timeout, uncovered], {"src/app/a.py": {2}}, ["src/app/a.py::a"], [], {}, [])
+
+    assert outcome.exit_code == 3
+    assert outcome.survivors == []
+    assert _verdict(outcome.result, "en") == ("mutate", "failed", "1 mutant without a test")
+
+
+def test_finish_does_not_block_line_1_outside_the_diff() -> None:
+    edge = Mutant("app.a.x_a__mutmut_1", "a", "src/app/a.py", 1, "AOR", "survived")
+
+    outcome = _finish([edge], {"src/app/a.py": {2}}, ["src/app/a.py::a"], [], {}, [])
+
+    assert outcome.exit_code == 0
+    assert outcome.survivors[0]["blocking"] is False
+
+
+def test_focus_counts_only_blocking_survivors() -> None:
+    survivors = [
+        {"file": "src/app/b.py", "waiver": None, "blocking": False},
+        {"file": "src/app/c.py", "waiver": None, "blocking": True},
+        {"file": "src/app/a.py", "waiver": None, "blocking": True},
+        {"file": "src/app/a.py", "waiver": "w1", "blocking": False},
+    ]
+
+    assert focus_with_survivors([{"file": "src/app/a.py", "risk": 12.0}], survivors) == [
+        {"file": "src/app/a.py", "risk": 112.0},
+        {"file": "src/app/c.py", "risk": 100.0},
+    ]
 
 
 def test_markdown_lists_uncovered_mutants_after_the_survivors() -> None:

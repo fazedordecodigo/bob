@@ -9,7 +9,7 @@ Os códigos estão em `src/bob_quality/exit_codes.py`. A [SPEC](SPEC.md) os insp
 | `0` | `PASSED` | Todo gate que rodou passou, ou só avisou |
 | `1` | `GATE_FAILED` | CRAP de uma função no escopo ≥ limite, ou violação de dependência no diff |
 | `2` | `BASELINE_BROKEN` | A suíte quebra antes da medição |
-| `3` | `UNWAIVED_SURVIVOR` | Mutante `survived` sem waiver |
+| `3` | `UNWAIVED_SURVIVOR` | Mutante `survived` sem waiver numa linha do diff, ou `no_coverage` nas funções do diff |
 | `4` | `CONFIG_OR_TOOL` | Configuração inválida ou ferramenta que impede a medição |
 
 ## Exit 0
@@ -42,9 +42,9 @@ O [AGENTS.md](../AGENTS.md) registra que o exit `2` também sai do `bob check` p
 
 ## Exit 3
 
-Só o gate `mutate`. Em `_finish`, a lista que bloqueia são os mutantes com status `survived` e waiver vazio. Um ou mais: exit `3` e status `failed`. O motivo lista `função@arquivo:linha`.
+Só o gate `mutate`. Em `_finish`, a lista que bloqueia são os mutantes com status `survived`, waiver vazio e linha no lado novo do diff. Sem arquivo, ou com linha menor ou igual a zero, esse sobrevivente também bloqueia. Um ou mais: exit `3` e status `failed`. O motivo lista só esses, no formato `função@arquivo:linha`. Sobrevivente sem waiver fora do diff fica na tabela e não muda o exit.
 
-Waiver casado por id, nome, `arquivo:função` ou `arquivo::função` tira o sobrevivente dessa lista. `killed` e `timeout` não entram nela. `no_coverage` nas funções do diff também sai `3`, e o waiver não o tira. Se já existe sobrevivente sem waiver, o motivo do exit continua o do sobrevivente, e a contagem de `no_coverage` vai no relatório.
+Waiver casado por id, nome, `arquivo:função` ou `arquivo::função` tira o sobrevivente dessa lista. `killed` e `timeout` não entram nela. `no_coverage` nas funções do diff também sai `3`, e o waiver não o tira. Se já existe sobrevivente que bloqueia, o motivo do exit continua o do sobrevivente, e a contagem de `no_coverage` vai no relatório.
 
 ## Exit 4
 
