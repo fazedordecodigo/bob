@@ -372,6 +372,116 @@ def _metric(**overrides: object) -> dict[str, object]:
     return row
 
 
+def _dead(**overrides: object) -> dict[str, object]:
+    row: dict[str, object] = {
+        "file": "app.py",
+        "line": 4,
+        "name": "add",
+        "kind": "function",
+        "language": "python",
+        "confidence": 60,
+        "waiver": None,
+    }
+    row.update(overrides)
+    return row
+
+
+_DEAD_KINDS = (
+    ("python", "attribute", 0),
+    ("python", "class", 100),
+    ("python", "function", 60),
+    ("python", "import", 1),
+    ("python", "method", 50),
+    ("python", "property", 40),
+    ("python", "variable", 30),
+    ("python", "unreachable_code", 90),
+    ("typescript", "export", None),
+    ("typescript", "type", None),
+    ("typescript", "enum_member", None),
+    ("typescript", "namespace_member", None),
+    ("typescript", "ns_export", None),
+    ("typescript", "ns_type", None),
+)
+
+
+@pytest.mark.parametrize(("language", "kind", "confidence"), _DEAD_KINDS)
+def test_report_renders_a_saved_dead_symbol(
+    tmp_path: Path, language: str, kind: str, confidence: int | None
+) -> None:
+    payload = dict(_MINIMAL)
+    payload["dead_code"] = {"symbols": [_dead(language=language, kind=kind, confidence=confidence)]}
+    _save(tmp_path, payload)
+
+    result = _invoke(tmp_path, "report")
+    markdown = (tmp_path / ".bob" / "report.md").read_text()
+
+    assert result.returncode == 0
+    assert f"- `app.py:4` {kind} `add`" in markdown
+    if confidence is None:
+        assert "- `app.py:4` " + kind + " `add`" in markdown
+        assert "%" not in markdown.split("## Dead code", 1)[1]
+    else:
+        assert f"- `app.py:4` {kind} `add` {confidence}%" in markdown
+
+
+def test_report_renders_a_waived_dead_symbol(tmp_path: Path) -> None:
+    payload = dict(_MINIMAL)
+    payload["gates"] = [{"name": "dead_code", "status": "passed", "reason": "vulture quiet"}]
+    payload["dead_code"] = {
+        "symbols": [_dead(waiver="dead:app.py:4:add", confidence=60)]
+    }
+    _save(tmp_path, payload)
+
+    result = _invoke(tmp_path, "report")
+    markdown = (tmp_path / ".bob" / "report.md").read_text()
+
+    assert result.returncode == 0
+    assert "- `app.py:4` function `add` 60% waiver `dead:app.py:4:add`" in markdown
+
+
+def test_report_renders_an_empty_dead_section_with_its_reason(tmp_path: Path) -> None:
+    payload = dict(_MINIMAL)
+    payload["gates"] = [{"name": "dead_code", "status": "passed", "reason": "vulture quiet"}]
+    payload["dead_code"] = {"symbols": []}
+    _save(tmp_path, payload)
+
+    result = _invoke(tmp_path, "report")
+    markdown = (tmp_path / ".bob" / "report.md").read_text()
+
+    assert result.returncode == 0
+    assert "No unused symbol in the diff." in markdown
+    assert "vulture quiet" in markdown
+
+
+def test_report_renders_dead_code_that_did_not_run(tmp_path: Path) -> None:
+    payload = dict(_MINIMAL)
+    payload["gates"] = [{"name": "dead_code", "status": "not_run", "reason": "no files"}]
+    payload["dead_code"] = {"symbols": []}
+    _save(tmp_path, payload)
+
+    result = _invoke(tmp_path, "report")
+    markdown = (tmp_path / ".bob" / "report.md").read_text()
+
+    assert result.returncode == 0
+    assert "## Dead code" in markdown
+    assert "Not run (no files)." in markdown
+
+
+def test_report_renders_a_dead_symbol_without_a_waiver_key(tmp_path: Path) -> None:
+    payload = dict(_MINIMAL)
+    symbol = _dead()
+    del symbol["waiver"]
+    payload["dead_code"] = {"symbols": [symbol]}
+    _save(tmp_path, payload)
+
+    result = _invoke(tmp_path, "report")
+    markdown = (tmp_path / ".bob" / "report.md").read_text()
+
+    assert result.returncode == 0
+    assert "- `app.py:4` function `add` 60%" in markdown
+    assert "waiver" not in markdown
+
+
 @pytest.mark.parametrize(
     "payload",
     [
@@ -412,6 +522,22 @@ def _metric(**overrides: object) -> dict[str, object]:
         {**_MINIMAL, "mutation": {"no_coverage": {"total": 1, "functions": [{"file": "a.py"}]}}},
         {**_MINIMAL, "survivors": [{"id": "x", "function": "add", "file": "app.py"}]},
         {**_MINIMAL, "tool_versions": []},
+        {**_MINIMAL, "dead_code": "nope"},
+        {**_MINIMAL, "dead_code": {}},
+        {**_MINIMAL, "dead_code": {"symbols": "nope"}},
+        {**_MINIMAL, "dead_code": {"symbols": [1]}},
+        {**_MINIMAL, "dead_code": {"symbols": [_dead(line=0)]}},
+        {**_MINIMAL, "dead_code": {"symbols": [_dead(line="4")]}},
+        {**_MINIMAL, "dead_code": {"symbols": [_dead(name=1)]}},
+        {**_MINIMAL, "dead_code": {"symbols": [_dead(kind="export")]}},
+        {**_MINIMAL, "dead_code": {"symbols": [_dead(language="ruby")]}},
+        {**_MINIMAL, "dead_code": {"symbols": [_dead(confidence=None)]}},
+        {**_MINIMAL, "dead_code": {"symbols": [_dead(confidence=101)]}},
+        {**_MINIMAL, "dead_code": {"symbols": [_dead(confidence=-1)]}},
+        {**_MINIMAL, "dead_code": {"symbols": [_dead(confidence=True)]}},
+        {**_MINIMAL, "dead_code": {"symbols": [_dead(language="typescript", kind="function")]}},
+        {**_MINIMAL, "dead_code": {"symbols": [_dead(language="typescript", kind="export", confidence=60)]}},
+        {**_MINIMAL, "dead_code": {"symbols": [_dead(waiver=1)]}},
         {**_MINIMAL, "commit": 1},
         {**_MINIMAL, "base": 1},
         {**_MINIMAL, "generated_at": 1},

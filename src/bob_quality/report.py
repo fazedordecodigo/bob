@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import os
 from pathlib import Path
+from typing import get_args
 
 from bob_quality.config import ConfigError
 from bob_quality.exit_codes import (
@@ -17,17 +18,22 @@ from bob_quality.exit_codes import (
 from bob_quality.messages import Language, Message, Text, msg, render
 from bob_quality.models import (
     Clone,
+    DeadSection,
     DepViolation,
     FunctionMetric,
     GateResult,
     GateStatus,
+    KnipKind,
     LedgerRow,
     PythonDead,
     Report,
     TypeScriptDead,
+    VultureKind,
 )
 
 JSON_LANGUAGE: Language = "en"
+_VULTURE_KIND: dict[str, VultureKind] = {kind: kind for kind in get_args(VultureKind)}
+_KNIP_KIND: dict[str, KnipKind] = {kind: kind for kind in get_args(KnipKind)}
 
 GATE_MARK: dict[GateStatus, str] = {
     "passed": "✅",
@@ -531,7 +537,62 @@ def _saved_report(payload: dict[str, object], path: Path) -> Report:
         waivers=_dicts(payload.get("waivers", []), path),
         survivors=_survivor_rows(payload.get("survivors", []), path),
         mutation=_optional_mutation(payload, path),
+        dead_code=_dead_section(payload, path),
     )
+
+
+def _dead_section(payload: dict[str, object], path: Path) -> DeadSection | None:
+    if "dead_code" not in payload:
+        return None
+    value = payload["dead_code"]
+    if not isinstance(value, dict) or "symbols" not in value:
+        raise _invalid_saved(path)
+    rows = tuple(_ledger_row(row, path) for row in _dicts(value["symbols"], path))
+    return DeadSection(rows)
+
+
+def _ledger_row(row: dict[str, object], path: Path) -> LedgerRow:
+    file = _text(row.get("file"), path)
+    line = _integer(row.get("line"), path)
+    if line < 1:
+        raise _invalid_saved(path)
+    return LedgerRow(_dead_symbol(row, file, line, path), _waiver(row, path))
+
+
+def _waiver(row: dict[str, object], path: Path) -> str | None:
+    if "waiver" not in row or row["waiver"] is None:
+        return None
+    return _text(row["waiver"], path)
+
+
+def _dead_symbol(
+    row: dict[str, object], file: str, line: int, path: Path
+) -> PythonDead | TypeScriptDead:
+    name = _text(row.get("name"), path)
+    kind = row.get("kind")
+    if not isinstance(kind, str):
+        raise _invalid_saved(path)
+    language = row.get("language")
+    if language == "python":
+        found = _VULTURE_KIND.get(kind)
+        if found is None:
+            raise _invalid_saved(path)
+        return PythonDead(file, line, name, found, _confidence(row, path))
+    if language == "typescript":
+        found = _KNIP_KIND.get(kind)
+        if found is None:
+            raise _invalid_saved(path)
+        if row.get("confidence") is not None:
+            raise _invalid_saved(path)
+        return TypeScriptDead(file, line, name, found)
+    raise _invalid_saved(path)
+
+
+def _confidence(row: dict[str, object], path: Path) -> int:
+    value = row.get("confidence")
+    if type(value) is int and 0 <= value <= 100:
+        return value
+    raise _invalid_saved(path)
 
 
 def _exit_code(value: object, path: Path) -> int:
