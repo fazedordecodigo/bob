@@ -146,11 +146,16 @@ def test_exclude_matches_an_exact_file(tmp_path: Path) -> None:
     assert load_config(None, tmp_path).languages == ("python",)
 
 
-def test_missing_include_root_is_skipped(tmp_path: Path) -> None:
+def test_a_missing_include_root_is_rejected_before_detection(tmp_path: Path) -> None:
     _write(tmp_path, "src/app.py", _PY)
     _yaml(tmp_path, "paths:\n  include: [missing, src]\n")
 
-    assert load_config(None, tmp_path).languages == ("python",)
+    with pytest.raises(ConfigError) as caught:
+        load_config(None, tmp_path)
+
+    assert render(reason(caught.value), "en") == (
+        "bob.yaml: paths.include does not exist: missing"
+    )
 
 
 def test_include_can_be_a_file(tmp_path: Path) -> None:

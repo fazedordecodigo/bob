@@ -439,6 +439,8 @@ def test_absorb_records_every_gate_argument_and_result(
         out,
         4,
         "origin/main",
+        True,
+        0,
     )
 
     memo = seen["crap"].pop("memo")
@@ -451,7 +453,13 @@ def test_absorb_records_every_gate_argument_and_result(
         "max_crap": 10.0,
         "coverage_file": coverage,
     }
-    assert seen["dry"] == {"cwd": tmp_path, "config": config, "diff_lines": diff}
+    assert seen["dry"] == {
+        "cwd": tmp_path,
+        "config": config,
+        "diff_lines": diff,
+        "dry_fail": True,
+        "max_new_clones": 0,
+    }
     assert seen["deps"] == (tmp_path, config, set(diff))
     assert seen["mutate"] == {
         "cwd": tmp_path,
@@ -523,6 +531,8 @@ def test_absorb_records_every_gate_argument_and_result(
         out,
         4,
         "origin/main",
+        False,
+        None,
     )
     coverage_memo = seen["coverage"].pop("memo")
 
@@ -588,6 +598,8 @@ def test_run_check_forwards_defaults_and_measured_arguments(
         out_dir: Path,
         max_workers: int | None,
         base: str,
+        dry_fail: bool,
+        max_new_clones: int | None,
     ) -> _Measured:
         seen["measure"] = (
             cwd,
@@ -599,6 +611,8 @@ def test_run_check_forwards_defaults_and_measured_arguments(
             out_dir,
             max_workers,
             base,
+            dry_fail,
+            max_new_clones,
         )
         return measured
 
@@ -655,6 +669,8 @@ def test_run_check_forwards_defaults_and_measured_arguments(
         out,
         3,
         "origin/feature",
+        False,
+        None,
     )
     assert loads == [(tmp_path, "origin/feature", "bob check", ["crap", "dry", "deps"])]
     assert measured.loaded_waivers is waivers
