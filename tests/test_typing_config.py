@@ -85,4 +85,4 @@ def test_empty_typing_mapping_rejects_a_child() -> None:
     child = _Node("threshold", "threshold", ())
 
     with pytest.raises(ValueError, match="typing"):
-        _Node("typing", "", (), (child,), empty_mapping=True)
+        _Node("typing", "", (), (child,), mapping=True)
