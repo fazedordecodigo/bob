@@ -15,7 +15,7 @@ SPEC_CLI_LINES = [
     "bob deps",
     "bob mutate  [--base REF] [--since-last-run] [--max-workers N]",
     "bob report  [--in .bob/] [--out .bob/report.md]",
-    'bob waive   <mutant-id|function> --reason "texto de uma linha"',
+    'bob waive   <file::function|Target> --reason "texto de uma linha"',
     "bob doctor  # verifica ferramentas e versões instaladas",
     "bob <comando> [--lang en|pt-BR]  # idioma da saída (padrão: en)",
 ]
@@ -26,7 +26,7 @@ SKILL_CLI_LINES = [
     "bob dry     [--base REF]",
     "bob deps",
     "bob mutate  [--base REF] [--since-last-run] [--max-workers N]",
-    'bob waive   <mutant-id|function> --reason "texto de uma linha"',
+    'bob waive   <file::function|Target> --reason "texto de uma linha"',
     "bob doctor  # verifica ferramentas e versões instaladas",
     "bob <comando> [--lang en|pt-BR]  # idioma da saída (padrão: en)",
 ]
@@ -126,6 +126,63 @@ class AgentsIndex(unittest.TestCase):
         self.assertIn("review-report", text)
         self.assertIn("harden", text)
         self.assertIn("bob check", text)
+
+
+class InvalidCliUsageInSkills(unittest.TestCase):
+    _BULLET = "- `4` erro de configuração ou ferramenta ausente"
+    _PHRASE_LINE = (
+        "O `4` é erro de configuração ou ferramenta ausente, ou uso inválido da CLI."
+    )
+    _PREDICATE_LINE = (
+        "Uso inválido: o stderr começa com `usage: bob`, contém `error:` "
+        "e não menciona baseline. Essa execução não grava relatório. "
+        "Um arquivo `.bob/` já presente não é desta execução. "
+        "Não é o exit `2`. A ajuda (`-h`, `--help`) sai com `0`. "
+        "Catálogo em docs/exit-codes.md#exit-4."
+    )
+    _BOB_STEP_1 = (
+        "1. Rodar `bob check --format both` com o `--base` do PR. "
+        "Se o exit é `4` e o stderr começa com `usage: bob`, contém `error:` "
+        "e não menciona baseline, seguir o passo 5 e repetir com o argv corrigido. "
+        "Um `.bob/report.json` de outra corrida não fecha esse caso. "
+        "Fora esse caso, feito quando o processo devolve um exit code "
+        "e `.bob/report.json` existe."
+    )
+    _BOB_STEP_5 = (
+        "5. Exit `4` com stderr que começa com `usage: bob`, contém `error:` "
+        "e não menciona baseline: corrigir o argv e repetir. "
+        "Não é o exit `2`. `bob doctor` não se aplica. "
+        "Não ler `.bob/` deixado por outra corrida como veredito desta. "
+        "Senão, `bob doctor` e corrigir ferramenta ou config. "
+        "Feito quando o check é reexecutado."
+    )
+    _REVIEW_STEP_1 = (
+        "1. Confirmar `.bob/report.md`. Se a execução que acabou de rodar saiu `4` "
+        "e o stderr começa com `usage: bob`, contém `error:` e não menciona baseline, "
+        "não escrever o PR a partir do arquivo e não chamar `bob check` de novo "
+        "com o mesmo argv. Não é o exit `2`. Seguir a skill `bob-check`. "
+        "Fora esse caso, se `.bob/report.md` falta, gerar com `bob check --format both`. "
+        "Feito quando `.bob/report.md` existe e a execução não caiu no uso inválido acima."
+    )
+
+    def test_spec_bullet_stays_a_whole_line_and_the_next_lines_classify(self) -> None:
+        for relative in (
+            "skills/bob-check/SKILL.md",
+            "skills/review-report/SKILL.md",
+        ):
+            lines = (ROOT / relative).read_text(encoding="utf-8").splitlines()
+            with self.subTest(relative=relative):
+                index = lines.index(self._BULLET)
+                self.assertEqual(lines[index + 1], self._PHRASE_LINE)
+                self.assertEqual(lines[index + 2], self._PREDICATE_LINE)
+                self.assertIn("ou uso inválido da CLI", lines[index + 1])
+
+    def test_procedures_follow_the_predicate(self) -> None:
+        bob = (ROOT / "skills/bob-check/SKILL.md").read_text(encoding="utf-8")
+        review = (ROOT / "skills/review-report/SKILL.md").read_text(encoding="utf-8")
+        self.assertIn(self._BOB_STEP_1, bob)
+        self.assertIn(self._BOB_STEP_5, bob)
+        self.assertIn(self._REVIEW_STEP_1, review)
 
 
 if __name__ == "__main__":
