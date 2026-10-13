@@ -22,6 +22,7 @@ def test_npm_tools_are_pinned_in_package_json_and_lock() -> None:
         "c8": "12.0.0",
         "dependency-cruiser": "18.5.0",
         "jscpd": "5.4.1",
+        "knip": "6.41.0",
         "vitest": "5.0.3",
     }
     root = json.loads((ROOT / "package.json").read_text())

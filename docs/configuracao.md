@@ -25,6 +25,9 @@ duplication:
 dependencies:
   python: .importlinter
   typescript: .dependency-cruiser.cjs
+supply:
+  osv_fail_severities: [HIGH, CRITICAL]
+  timeout_seconds: 30
 ```
 
 `language: en` no bloco acima é o resultado da resolução, não uma chave que o arquivo vazio precise ter. Sem chave, `configured_language` devolve `None` e a CLI usa `en`.
@@ -45,6 +48,8 @@ O `bob.yaml` deste repositório é mais curto: `base`, `languages: [python]`, `p
 | `duplication.min_tokens` | inteiro maior que 0 | `50` | Mínimo de tokens do jscpd |
 | `dependencies.python` | string | `.importlinter` | Config do import-linter |
 | `dependencies.typescript` | string | `.dependency-cruiser.cjs` | Config do dependency-cruiser |
+| `supply.osv_fail_severities` | lista de `HIGH` e `CRITICAL` | `[HIGH, CRITICAL]` | Severidades de advisory que bloqueiam. `MODERATE` e `LOW` não entram na lista |
+| `supply.timeout_seconds` | inteiro maior que 0 | `30` | Prazo de cada chamada HTTP e de cada processo do gate supply |
 
 Um tipo errado sai com `4`. A mensagem em inglês no stderr cita o arquivo e a chave, por exemplo `bob.yaml: crap must be a mapping` ou `bob.yaml: crap.max_per_function must be a number`. Isso vale para `check`, `doctor`, `waive` e os outros comandos, e nenhum deles grava arquivo nesse caso. Ver [Exit 4](exit-codes.md#exit-4).
 
@@ -60,7 +65,9 @@ O gate DRY mapeia `typescript` para os formatos `typescript` e `javascript` do j
 
 ### Chaves que o loader recusa
 
-O `_SCHEMA` em `src/bob_quality/config.py` aceita `base`, `language`, `languages`, `paths.include`, `paths.exclude`, `crap.max_per_function`, `crap.scope`, `duplication.min_tokens`, `dependencies.python` e `dependencies.typescript`. `_reject_unknown` recusa qualquer outra chave: exit `4`, mensagem em inglês no stderr, nenhum arquivo gravado.
+O `_SCHEMA` em `src/bob_quality/config.py` aceita `base`, `language`, `languages`, `paths.include`, `paths.exclude`, `crap.max_per_function`, `crap.scope`, `duplication.min_tokens`, `dependencies.python`, `dependencies.typescript`, `supply.osv_fail_severities` e `supply.timeout_seconds`. `_reject_unknown` recusa qualquer outra chave: exit `4`, mensagem em inglês no stderr, nenhum arquivo gravado.
+
+`supply.osv_fail_severities: [MODERATE]` sai com `bob.yaml: supply.osv_fail_severities[0] must be HIGH or CRITICAL`. Lista vazia, item repetido ou texto solto também saem com `4`. `supply.timeout_seconds: 0` sai com `bob.yaml: supply.timeout_seconds must be greater than 0`. Bool e float saem com `must be an integer`. Nada é gravado.
 
 Estas não entram no schema:
 

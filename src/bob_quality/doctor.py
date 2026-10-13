@@ -40,6 +40,7 @@ Pin = RequiresDist | ToolPin
 
 PINS: tuple[Pin, ...] = (
     RequiresDist("lizard", "lizard"),
+    RequiresDist("deptry", "deptry"),
     RequiresDist("coverage.py", "coverage"),
     ToolPin(
         "node",
@@ -59,6 +60,13 @@ PINS: tuple[Pin, ...] = (
         "dependency-cruiser",
         "npm install dependency-cruiser@18.5.0",
         npm_package="dependency-cruiser",
+    ),
+    ToolPin(
+        "knip",
+        "6.41.0",
+        "knip",
+        "npm install knip@6.41.0",
+        npm_package="knip",
     ),
 )
 

@@ -30,6 +30,7 @@ ROOT = Path(__file__).resolve().parents[1]
 # (nome no relatório, versão pinada, executável, banner de --version)
 PINS = (
     ("lizard", "1.24.1", "lizard", "1.24.1"),
+    ("deptry", "0.25.1", None, None),
     (
         "coverage.py",
         "7.16.2",
@@ -44,6 +45,7 @@ PINS = (
     ("import-linter", "2.15", "lint-imports", "2.15"),
     ("grimp", "3.17", None, None),
     ("dependency-cruiser", "18.5.0", "dependency-cruiser", "18.5.0"),
+    ("knip", "6.41.0", "knip", "6.41.0"),
 )
 
 INSTALL = {
@@ -57,6 +59,7 @@ INSTALL = {
     "import-linter": "pip install 'import-linter==2.15'",
     "grimp": "pip install 'grimp==3.17'",
     "dependency-cruiser": "npm install dependency-cruiser@18.5.0",
+    "knip": "npm install knip@6.41.0",
 }
 
 
@@ -360,7 +363,8 @@ def test_doctor_expected_versions_match_pip_and_npm_pins(tmp_path: Path) -> None
     assert npm["vitest"] == expected["vitest"]
     assert npm["jscpd"] == expected["jscpd"]
     assert npm["dependency-cruiser"] == expected["dependency-cruiser"]
-    assert set(npm) == {"c8", "dependency-cruiser", "jscpd", "vitest"}
+    assert npm["knip"] == expected["knip"]
+    assert set(npm) == {"c8", "dependency-cruiser", "jscpd", "knip", "vitest"}
 
 
 _DECLARED = ("lizard==1.24.1", "coverage==7.16.2", "import-linter==2.15", "mutmut==3.8.0")

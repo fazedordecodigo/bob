@@ -2,7 +2,7 @@
 
 [Índice](README.md) · [Visão geral](visao-geral.md) · [CLI](cli.md) · [Configuração](configuracao.md) · [Exit codes](exit-codes.md) · [Relatórios](relatorios.md) · [SPEC](SPEC.md)
 
-Quatro gates. Cada um devolve um status `passed`, `warn`, `failed` ou `not_run`. O Markdown traduz para passou, aviso, falhou e não executado, com ✅ ⚠️ ❌ ⏭️ (`GATE_MARK` em `src/bob_quality/report.py`). Um gate que não rodou fica ⏭️ com motivo. Ele não aparece como ✅.
+Cinco gates. Cada um devolve um status `passed`, `warn`, `failed` ou `not_run`. O Markdown traduz para passou, aviso, falhou e não executado, com ✅ ⚠️ ❌ ⏭️ (`GATE_MARK` em `src/bob_quality/report.py`). Um gate que não rodou fica ⏭️ com motivo. Ele não aparece como ✅.
 
 O exit code do `bob check` é o maior entre os gates que rodaram. Aviso não aumenta o código. Ver [Exit codes](exit-codes.md).
 
@@ -12,8 +12,11 @@ O exit code do `bob check` é o maior entre os gates que rodaram. Aviso não aum
 | [DRY](#dry) | jscpd | nada; clone novo é aviso | `0` |
 | [Mutação](#mutação) | mutmut (Python) | sobrevivente sem waiver | `3` |
 | [Dependências](#dependências) | import-linter, dependency-cruiser, mais a regra de ciclo | violação cuja origem, destino ou outro módulo do ciclo está no diff | `1` |
+| [Dependências novas](#dependências-novas) | deptry, knip, PyPI, npm e OSV | pacote novo com 404, import não declarado, ou advisory `HIGH`/`CRITICAL` numa linha nova | `1` |
 
-Versões pinadas: lizard 1.24.1, coverage 7.16.2, c8 12.0.0, vitest 5.0.3, jscpd 5.4.1, mutmut 3.8.0, import-linter 2.15, grimp 3.17, dependency-cruiser 18.5.0. Node 22.14.0. Fonte: `pyproject.toml` e `package.json`. O doctor lê os pinos pip do Requires-Dist instalado.
+`supply` não entra no `bob check` sem `--gates`, nem no hook, nem na Action. O comando é `bob check --gates supply`.
+
+Versões pinadas: lizard 1.24.1, deptry 0.25.1, coverage 7.16.2, c8 12.0.0, vitest 5.0.3, jscpd 5.4.1, mutmut 3.8.0, import-linter 2.15, grimp 3.17, dependency-cruiser 18.5.0, knip 6.41.0. Node 22.14.0. Fonte: `pyproject.toml` e `package.json`. O doctor lê os pinos pip do Requires-Dist instalado.
 
 ## CRAP
 
@@ -81,6 +84,25 @@ O nome da regra de ciclo no JSON (sempre inglês) é `Forbidden dependency cycle
 Uma violação bloqueia quando a origem, o destino, ou outro módulo do mesmo componente fortemente conexo, está no diff (`_edge_in_diff`). As outras aparecem em “Informação (dependências fora do diff)” e não mudam o exit code. Zero violações no diff: `passed` e exit `0`. Uma no diff: `failed` e exit `1`.
 
 Ferramenta ausente que impede a medição pedida deixa o gate `not_run` e o exit `4` (`ToolError` em `run_deps_gate`). O mesmo exit `4` vale para um JSON do dependency-cruiser que não é objeto ou não traz a lista `violations`, e para o import-linter com exit 0 cuja última linha `Contracts:` não é `N kept, 0 broken.`
+
+## Dependências novas
+
+O gate só roda com `bob check --gates supply`. Ele olha o que o diff acrescenta.
+
+Um nome direto entra quando o manifesto em `HEAD` o declara, o mesmo manifesto na base não o tem, e a linha dessa declaração está no lado novo. Um bump de versão de um nome que a base já tem não entra. Manifestos da raiz contam mesmo fora de `paths.include`. Caminho em `paths.exclude` não conta. Lockfile não acrescenta nome. Ele só preenche a versão quando a linha não tem pin exato.
+
+Python usa o deptry 0.25.1. `DEP001` e `DEP003` são imports não declarados. `DEP002`, `DEP004` e `DEP005` ficam de fora. TypeScript usa o knip 6.41.0, nos achados `unlisted` e `unresolved`. Um specifier que começa com `.` ou `/` não entra. O advisory vem de `POST https://api.osv.dev/v1/querybatch`. O osv-scanner não é executado.
+
+O veredito, em `judge`:
+
+- 404 do PyPI ou do npm bloqueia.
+- Import não declarado bloqueia, mesmo com a rede fora.
+- Advisory cuja severidade está em `supply.osv_fail_severities` bloqueia. O padrão é `HIGH` e `CRITICAL`. `MODERATE` e `LOW` avisam.
+- Timeout, falha de DNS ou resposta que não decide avisam e ficam não verificados. Esse aviso não é exit `4`.
+- Waiver com id `supply:missing:<índice>:<nome>`, `supply:undeclared:<arquivo>:<módulo>` ou `supply:osv:<advisory>`. O id tem de ser igual. Um achado não verificado não tem waiver.
+- Qualquer linha que bloqueia deixa o gate `failed` e o exit `1`. Sem bloqueio, um aviso deixa `warn` e exit `0`. Um bloqueio dispensado mais um `MODERATE` que ficou é `warn` e exit `0`, e a linha dispensada continua na tabela.
+
+Se uma linguagem configurada mede e a outra não, o veredito é o da que mediu. A que não mediu aparece como linha própria e não muda o status. Exit `4`, com relatório, só quando nenhuma linguagem configurada mediu. A seção markdown é `## New dependencies` ou `## Dependências novas`, depois de mutantes sem teste e antes de como reproduzir. O JSON omite a chave `supply` quando o gate não rodou. `schema_version` continua `1`.
 
 ## Monorepo e Node ausente
 
