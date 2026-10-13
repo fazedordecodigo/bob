@@ -146,17 +146,41 @@ def run_dead_code_gate(
 def read_vulture(cwd: Path, config: Config) -> MeasuredPython | Dark | Quiet:
     if "python" not in config.languages:
         return Quiet()
-    if _vulture_version() is None:
-        return Dark(msg("tool.missing", tool="vulture"))
-    missing = [path for path in config.include if not (cwd / path).is_dir()]
-    if missing:
-        return Dark(
-            msg("dead.include_missing", tool="vulture", paths=", ".join(missing))
-        )
+    blocked = _vulture_blocked(cwd, config)
+    if blocked is not None:
+        return blocked
     try:
         completed = _spawn(cwd, vulture_command(config, config.include))
     except OSError:
         return Dark(msg("tool.missing", tool="vulture"))
+    return _vulture_half(completed, cwd)
+
+
+def read_knip(cwd: Path, config: Config) -> MeasuredTypeScript | Dark | Quiet:
+    if "typescript" not in config.languages:
+        return Quiet()
+    prefix = _knip_prefix()
+    if isinstance(prefix, Dark):
+        return prefix
+    try:
+        completed = _spawn(cwd, knip_command(prefix), prefix)
+    except OSError:
+        return Dark(msg("tool.missing", tool="knip"))
+    return _knip_half(completed, cwd, prefix)
+
+
+def _vulture_blocked(cwd: Path, config: Config) -> Dark | None:
+    if _vulture_version() is None:
+        return Dark(msg("tool.missing", tool="vulture"))
+    missing = [path for path in config.include if not (cwd / path).is_dir()]
+    if missing:
+        return Dark(msg("dead.include_missing", tool="vulture", paths=", ".join(missing)))
+    return None
+
+
+def _vulture_half(
+    completed: subprocess.CompletedProcess[str], cwd: Path
+) -> MeasuredPython | Dark:
     version = _vulture_version()
     if version is None:
         return Dark(msg("tool.missing", tool="vulture"))
@@ -164,16 +188,18 @@ def read_vulture(cwd: Path, config: Config) -> MeasuredPython | Dark | Quiet:
         return MeasuredPython((), version)
     if completed.returncode != 3:
         return Dark(msg("dead.unreadable", tool="vulture"))
+    return _parsed_vulture(completed.stdout, cwd, version)
+
+
+def _parsed_vulture(stdout: str, cwd: Path, version: str) -> MeasuredPython | Dark:
     try:
-        symbols = python_symbols(completed.stdout, cwd)
+        symbols = python_symbols(stdout, cwd)
     except VultureParseError as exc:
         return Dark(reason(exc))
     return MeasuredPython(symbols, version)
 
 
-def read_knip(cwd: Path, config: Config) -> MeasuredTypeScript | Dark | Quiet:
-    if "typescript" not in config.languages:
-        return Quiet()
+def _knip_prefix() -> Path | Dark:
     if node_missing_message() is not None:
         return Dark(msg("dead.node_missing"))
     try:
@@ -182,21 +208,29 @@ def read_knip(cwd: Path, config: Config) -> MeasuredTypeScript | Dark | Quiet:
         return Dark(reason(exc))
     if not (prefix / "node_modules" / "knip" / "package.json").is_file():
         return Dark(msg("tool.missing", tool="knip"))
-    try:
-        completed = _spawn(cwd, knip_command(prefix), prefix)
-    except OSError:
-        return Dark(msg("tool.missing", tool="knip"))
+    return prefix
+
+
+def _knip_half(
+    completed: subprocess.CompletedProcess[str], cwd: Path, prefix: Path
+) -> MeasuredTypeScript | Dark:
     if completed.returncode not in {0, 1} or completed.stdout.strip() == "":
         return Dark(msg("dead.unreadable", tool="knip"))
-    try:
-        symbols = typescript_symbols(completed.stdout, cwd)
-    except KnipParseError as exc:
-        return Dark(reason(exc))
+    parsed = _parsed_knip(completed.stdout, cwd)
+    if isinstance(parsed, Dark):
+        return parsed
     try:
         version = installed_npm_version(prefix, "knip")
     except ToolError as exc:
         return Dark(reason(exc))
-    return MeasuredTypeScript(symbols, version)
+    return MeasuredTypeScript(parsed, version)
+
+
+def _parsed_knip(stdout: str, cwd: Path) -> tuple[TypeScriptDead, ...] | Dark:
+    try:
+        return typescript_symbols(stdout, cwd)
+    except KnipParseError as exc:
+        return Dark(reason(exc))
 
 
 def _vulture_version() -> str | None:

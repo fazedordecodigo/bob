@@ -234,16 +234,23 @@ def _dead_lines(report: Report) -> list[Text]:
     if report.dead_code is None:
         return []
     lines: list[Text] = ["", msg("report.dead"), ""]
-    gate = _gate_named(report, "dead_code")
+    lines.extend(_dead_body(report, _gate_named(report, "dead_code")))
+    return lines
+
+
+def _dead_body(report: Report, gate: GateResult | None) -> list[Text]:
     if gate is not None and gate.status == "not_run":
-        lines.append(msg("report.dead_not_run", reason=gate.reason or ""))
-        return lines
-    if not report.dead_code.rows:
-        lines.append(msg("report.no_dead"))
-        if gate is not None and gate.reason:
-            lines.append(gate.reason)
-        return lines
-    lines.extend(_dead_item(row) for row in report.dead_code.rows)
+        return [msg("report.dead_not_run", reason=gate.reason or "")]
+    section = report.dead_code
+    if section is None or not section.rows:
+        return _dead_empty(gate)
+    return [_dead_item(row) for row in section.rows]
+
+
+def _dead_empty(gate: GateResult | None) -> list[Text]:
+    lines = [msg("report.no_dead")]
+    if gate is not None and gate.reason:
+        lines.append(gate.reason)
     return lines
 
 
