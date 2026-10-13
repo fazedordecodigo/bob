@@ -32,6 +32,12 @@ ADD_TOUCHED = (FIXTURE / "cases" / "add_touched.py").read_text()
 ADD_AND_SCALE_TEST = (FIXTURE / "cases" / "test_add_and_scale.py").read_text()
 STRONG_TEST = (FIXTURE / "cases" / "test_classify_strong.py").read_text()
 ORPHAN = (FIXTURE / "cases" / "orphan.py").read_text()
+TALLY = (FIXTURE / "cases" / "tally.py").read_text()
+TALLY_WEAK_TEST = (FIXTURE / "cases" / "test_tally_weak.py").read_text()
+TALLY_LINE_5 = TALLY.replace("return n + extra", "return n + extra  # total")
+TALLY_LINE_3 = TALLY.replace("n = n + 1", "n = n + 1  # bump")
+TALLY_KEY = "src/app/tally.py::tally"
+LINE_2_OUTSIDE = "| src/app/tally.py:2 (outside the diff; does not block) |"
 
 
 def _repo_with_surviving_mutant(tmp_path: Path) -> Path:
@@ -382,6 +388,146 @@ def test_a_killed_mutation_run_leaves_setup_cfg_and_mutants_untouched(tmp_path: 
     assert (repo / "setup.cfg").read_bytes() == before
     assert not (repo / "mutants").exists()
     assert (repo / ".bob" / "mutmut" / "mutants").is_dir()
+
+
+def _repo_with_tally(tmp_path: Path, touched: str) -> Path:
+    repo = init_python_repo(tmp_path / "repo")
+    commit_on_main(repo, "src/app/tally.py", TALLY, "add tally")
+    commit_on_main(repo, "tests/test_tally.py", TALLY_WEAK_TEST, "weak tally test")
+    commit_on_branch(repo, "touch", "src/app/tally.py", touched, "touch one line")
+    return repo
+
+
+def _mutate_gate(payload: dict) -> dict:
+    return next(gate for gate in payload["gates"] if gate["name"] == "mutate")
+
+
+def test_survivors_on_unchanged_lines_of_a_changed_function_do_not_block(
+    tmp_path: Path,
+) -> None:
+    repo = _repo_with_tally(tmp_path, TALLY_LINE_5)
+
+    result = run_bob(repo, "mutate", "--base", "main")
+    payload = json.loads((repo / ".bob" / "report.json").read_text())
+    markdown = (repo / ".bob" / "report.md").read_text()
+    cache = json.loads((repo / ".bob" / "mutation-cache.json").read_text())
+    cached = cache["functions"][TALLY_KEY]["mutants"]
+
+    assert result.returncode == 0
+    assert _mutate_gate(payload) == {"name": "mutate", "status": "passed", "reason": None}
+    assert payload["exit_code"] == 0
+    assert payload["mutation"]["remutated"] == [TALLY_KEY]
+    assert sorted({row["line"] for row in payload["survivors"]}) == [2, 3]
+    assert {row["blocking"] for row in payload["survivors"]} == {False}
+    assert LINE_2_OUTSIDE in markdown
+    assert payload["focus"] == []
+    assert [row["status"] for row in cached].count("survived") == len(payload["survivors"])
+    assert "killed" in [row["status"] for row in cached]
+    assert all("blocking" not in row for row in cached)
+    Draft202012Validator(SCHEMA).validate(payload)
+
+    forced = run_bob(repo, "check", "--base", "main", "--gates", "mutate")
+
+    assert forced.returncode == 0
+
+
+def test_a_survivor_on_a_changed_line_exits_3(tmp_path: Path) -> None:
+    repo = _repo_with_tally(tmp_path, TALLY_LINE_3)
+
+    result = run_bob(repo, "mutate", "--base", "main")
+    payload = json.loads((repo / ".bob" / "report.json").read_text())
+    markdown = (repo / ".bob" / "report.md").read_text()
+    blocking = {row["line"] for row in payload["survivors"] if row["blocking"]}
+    outside = {row["line"] for row in payload["survivors"] if not row["blocking"]}
+
+    assert result.returncode == 3
+    assert _mutate_gate(payload) == {
+        "name": "mutate",
+        "status": "failed",
+        "reason": (
+            "survivor without waiver: "
+            "tally@src/app/tally.py:3, tally@src/app/tally.py:3, tally@src/app/tally.py:3"
+        ),
+    }
+    assert blocking == {3}
+    assert outside == {2}
+    assert LINE_2_OUTSIDE in markdown
+    assert "src/app/tally.py:3 (outside" not in markdown
+    assert payload["focus"] == [{"file": "src/app/tally.py", "risk": 300.0}]
+
+    forced = run_bob(repo, "check", "--base", "main", "--gates", "mutate")
+
+    assert forced.returncode == 3
+
+
+def test_a_waiver_clears_a_survivor_on_a_changed_line(tmp_path: Path) -> None:
+    repo = _repo_with_tally(tmp_path, TALLY_LINE_3)
+    reason = "o incremento só muda o total quando n é positivo"
+
+    blocked = run_bob(repo, "mutate", "--base", "main")
+    saved = run_bob(repo, "waive", "src/app/tally.py::tally", "--reason", reason)
+    result = run_bob(repo, "mutate", "--base", "main")
+    markdown = (repo / ".bob" / "report.md").read_text()
+    payload = json.loads((repo / ".bob" / "report.json").read_text())
+    head = markdown.split("## Verdict")[0]
+
+    assert blocked.returncode == 3
+    assert saved.returncode == 0
+    assert result.returncode == 0
+    assert markdown.startswith("# bob report\n\n## Waivers\n")
+    assert reason in head
+    assert payload["waivers"][0]["reason"] == reason
+    assert payload["waivers"][0]["author"] == "bob-test"
+    assert payload["exit_code"] == 0
+    assert _mutate_gate(payload) == {"name": "mutate", "status": "passed", "reason": None}
+    assert {row["waiver"] for row in payload["survivors"]} == {reason}
+    assert {row["blocking"] for row in payload["survivors"]} == {False}
+    assert "(outside the diff; does not block)" not in markdown
+
+
+def test_a_cached_survivor_in_a_function_the_diff_never_touched_does_not_block(
+    tmp_path: Path,
+) -> None:
+    repo = init_python_repo(tmp_path / "repo")
+    commit_on_main(repo, "src/app/safe.py", ADD_AND_SCALE, "add and scale")
+    commit_on_main(repo, "tests/test_safe.py", ADD_AND_SCALE_TEST, "test add and scale")
+    commit_on_main(repo, "src/app/tally.py", TALLY, "add tally")
+    commit_on_main(repo, "tests/test_tally.py", TALLY_WEAK_TEST, "weak tally test")
+    commit_on_branch(repo, "touch-add", "src/app/safe.py", ADD_TOUCHED, "comment inside add")
+    cache_path = repo / ".bob" / "mutation-cache.json"
+
+    first = run_bob(repo, "mutate", "--base", "main")
+    cache = json.loads(cache_path.read_text())
+    first_functions = sorted(cache["functions"])
+    cache["functions"][TALLY_KEY] = {
+        "file": "src/app/tally.py",
+        "name": "tally",
+        "mutants": [
+            {
+                "id": "tally-planted",
+                "function": "tally",
+                "file": "src/app/tally.py",
+                "line": 2,
+                "operator": "SENTINEL",
+                "status": "survived",
+            }
+        ],
+    }
+    cache_path.write_text(json.dumps(cache, indent=2) + "\n")
+
+    second = run_bob(repo, "mutate", "--base", "main")
+    payload = json.loads((repo / ".bob" / "report.json").read_text())
+    stored = json.loads(cache_path.read_text())["functions"][TALLY_KEY]["mutants"]
+
+    assert first.returncode == 0
+    assert TALLY_KEY not in first_functions
+    assert second.returncode == 0
+    assert _mutate_gate(payload) == {"name": "mutate", "status": "passed", "reason": None}
+    assert TALLY_KEY in payload["mutation"]["remutated"]
+    assert {row["file"] for row in payload["survivors"]} == {"src/app/tally.py"}
+    assert {row["blocking"] for row in payload["survivors"]} == {False}
+    assert "SENTINEL" not in [row["operator"] for row in stored]
+    assert [row["status"] for row in stored].count("survived") == len(payload["survivors"])
 
 
 def test_harden_skill_kills_mutants_without_weakening_production_code() -> None:
