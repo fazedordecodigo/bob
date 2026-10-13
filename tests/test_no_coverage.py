@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from bob_quality.messages import Language, render
-from bob_quality.models import GateResult, Mutant, Report
+from bob_quality.models import GateResult, Mutant, MutationTarget, Report
 from bob_quality.mutate import _finish, no_coverage_summary
 from bob_quality.report import to_markdown
 
@@ -12,13 +12,15 @@ def _verdict(result: GateResult, lang: Language) -> tuple[str, str, str | None]:
     shown = render(result.reason, lang) if result.reason is not None else None
     return result.name, result.status, shown
 
-_LABELS = [
-    "src/app/b.py::a",
-    "src/app/a.py::z",
-    "src/app/a.py::m",
-    "src/gone.py::zero",
-    "src/app/a.py::add",
-    "src/c.py::top",
+ORPHAN = MutationTarget("src/app/orphan.py", "orphan", 1, 2)
+
+_TARGETS = [
+    MutationTarget("src/app/b.py", "a", 1, 2),
+    MutationTarget("src/app/a.py", "z", 1, 2),
+    MutationTarget("src/app/a.py", "m", 4, 5),
+    MutationTarget("src/gone.py", "zero", 1, 2),
+    MutationTarget("src/app/a.py", "add", 7, 8),
+    MutationTarget("src/c.py", "top", 1, 2),
 ]
 
 _MUTANTS = [
@@ -53,16 +55,36 @@ _SUMMARY = {
 
 
 def test_no_coverage_summary_groups_uncovered_mutants_by_listed_function() -> None:
-    assert no_coverage_summary(_MUTANTS, _LABELS) == _SUMMARY
+    assert no_coverage_summary(_MUTANTS, _TARGETS) == _SUMMARY
+
+
+def test_no_coverage_counts_a_method_apart_from_the_same_named_function() -> None:
+    mutants = [
+        Mutant("app.box.xǁBoxǁopen__mutmut_1", "Box.open", "", 0, "", "no_coverage"),
+        Mutant("app.box.x_open__mutmut_1", "open", "", 0, "", "no_coverage"),
+        Mutant("app.box.x_open__mutmut_2", "open", "", 0, "", "no_coverage"),
+    ]
+    targets = [
+        MutationTarget("src/app/box.py", "open", 6, 7, owner="Box"),
+        MutationTarget("src/app/box.py", "open", 1, 2),
+    ]
+
+    assert no_coverage_summary(mutants, targets) == {
+        "total": 3,
+        "functions": [
+            {"file": "src/app/box.py", "function": "open", "count": 2},
+            {"file": "src/app/box.py", "function": "Box.open", "count": 1},
+        ],
+    }
 
 
 def test_finish_warns_for_one_uncovered_mutant_and_passes_when_there_are_none() -> None:
     uncovered = Mutant("app.orphan.x_orphan__mutmut_1", "orphan", "", 0, "", "no_coverage")
-    warned = _finish([uncovered], ["src/app/orphan.py::orphan"], [], {}, [])
+    warned = _finish([uncovered], [ORPHAN], [], {}, [])
     passed = _finish(
         [Mutant("app.a.x_add__mutmut_1", "add", "src/app/a.py", 1, "AOR", "killed")],
-        ["src/app/a.py::add"],
-        ["src/app/a.py::scale"],
+        [MutationTarget("src/app/a.py", "add", 1, 2)],
+        [MutationTarget("src/app/a.py", "scale", 4, 5)],
         {},
         [],
     )
@@ -88,7 +110,7 @@ def test_finish_stays_failed_when_an_unwaived_survivor_remains() -> None:
     waivers = [{"id": "other", "reason": "outro", "author": "ada", "date": "2026-10-11"}]
     outcome = _finish(
         [first, second, uncovered],
-        ["src/app/a.py::a", "src/app/b.py::b"],
+        [MutationTarget("src/app/a.py", "a", 1, 2), MutationTarget("src/app/b.py", "b", 3, 4)],
         [],
         {"mutmut": "3.8.0"},
         waivers,
@@ -147,7 +169,7 @@ def test_finish_keeps_a_waived_survivor_while_warning_about_uncovered_mutants() 
     waivers = [{"id": "w1", "reason": "equivalente", "author": "ada", "date": "2026-10-11"}]
     outcome = _finish(
         [survivor, uncovered],
-        ["src/app/orphan.py::orphan"],
+        [ORPHAN],
         [],
         {"mutmut": "3.8.0"},
         waivers,
@@ -175,7 +197,7 @@ def test_finish_warns_with_the_uncovered_total() -> None:
         Mutant("app.orphan.x_orphan__mutmut_1", "orphan", "", 0, "", "no_coverage"),
         Mutant("app.orphan.x_orphan__mutmut_2", "orphan", "", 0, "", "no_coverage"),
     ]
-    outcome = _finish(mutants, ["src/app/orphan.py::orphan"], [], {}, [])
+    outcome = _finish(mutants, [ORPHAN], [], {}, [])
 
     assert outcome.exit_code == 0
     assert _verdict(outcome.result, "pt-BR") == ("mutate", "warn", "2 mutantes sem teste")

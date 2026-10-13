@@ -6,8 +6,8 @@ from pathlib import Path
 
 import bob_quality.mutate as mutate_module
 from bob_quality.adapters.mutmut import MutmutParseError, mutants_from_raw
-from bob_quality.models import CyclomaticFunction, GateResult
-from bob_quality.mutate import _cached_start, _mutants_from_cache, _run_and_parse
+from bob_quality.models import GateResult, MutationTarget
+from bob_quality.mutate import _mutants_from_cache, _run_and_parse
 from bob_quality.tools import ToolError
 
 VERSIONS = {"mutmut": "3.8.0"}
@@ -29,12 +29,13 @@ SHOW = """\
 """
 
 
-def _changed() -> list[CyclomaticFunction]:
+PLACE = MutationTarget("src/bob_quality/mutate.py", "prepare_mutmut_workspace", 474, 484)
+
+
+def _changed() -> list[MutationTarget]:
     return [
-        CyclomaticFunction(
-            file="src/app/weak.py", name="classify", start_line=1, end_line=4, cc=1
-        ),
-        CyclomaticFunction(file="src/app/safe.py", name="add", start_line=1, end_line=3, cc=1),
+        MutationTarget("src/app/weak.py", "classify", 1, 4),
+        MutationTarget("src/app/safe.py", "add", 1, 3),
     ]
 
 
@@ -116,20 +117,44 @@ def test_show_line_is_the_file_line_when_the_function_is_not_at_the_top(
         lambda _cwd: "    bob_quality.mutate.x_prepare_mutmut_workspace__mutmut_10: survived\n",
     )
     monkeypatch.setattr(mutate_module, "mutmut_show", fake_show)
-    remutate = [
-        CyclomaticFunction(
-            file="src/bob_quality/mutate.py",
-            name="prepare_mutmut_workspace",
-            start_line=474,
-            end_line=484,
-            cc=2,
-        )
-    ]
 
-    parsed, failed = _run_and_parse(tmp_path, remutate, 1, VERSIONS, WAIVERS)
+    parsed, failed = _run_and_parse(tmp_path, [PLACE], 1, VERSIONS, WAIVERS)
 
     assert failed is None
     assert parsed[0].line == 480
+
+
+SHOW_DECORATED = """\
+# app.box.xǁBoxǁmake__mutmut_1: survived
+--- src/app/box.py
++++ src/app/box.py
+@@ -1,3 +1,3 @@
+ @staticmethod
+ def make(n: int) -> int:
+-    return n * 2
++    return n / 2
+"""
+
+
+def test_a_decorated_method_counts_its_lines_from_the_decorator(
+    monkeypatch, tmp_path: Path
+) -> None:
+    """O `mutmut show` 3.8 de um método decorado começa no decorador da linha 9."""
+    monkeypatch.setattr(mutate_module, "run_mutmut", lambda *_args: None)
+    monkeypatch.setattr(
+        mutate_module,
+        "mutmut_results",
+        lambda _cwd: "    app.box.xǁBoxǁmake__mutmut_1: survived\n",
+    )
+    monkeypatch.setattr(mutate_module, "mutmut_show", lambda _cwd, _id: SHOW_DECORATED)
+    make = MutationTarget("src/app/box.py", "make", 9, 11, owner="Box")
+
+    parsed, failed = _run_and_parse(tmp_path, [make], 1, VERSIONS, WAIVERS)
+
+    assert failed is None
+    assert [(item.function, item.file, item.line, item.operator) for item in parsed] == [
+        ("Box.make", "src/app/box.py", 11, "return n * 2 -> return n / 2")
+    ]
 
 
 def test_a_function_relative_line_of_one_lands_on_the_function_start(
@@ -151,9 +176,7 @@ def test_a_function_relative_line_of_one_lands_on_the_function_start(
         lambda _cwd: "    app.far.x_place__mutmut_1: survived\n",
     )
     monkeypatch.setattr(mutate_module, "mutmut_show", lambda _cwd, _mutant_id: show)
-    remutate = [
-        CyclomaticFunction(file="src/app/far.py", name="place", start_line=474, end_line=480, cc=1)
-    ]
+    remutate = [MutationTarget("src/app/far.py", "place", 474, 480)]
 
     parsed, failed = _run_and_parse(tmp_path, remutate, 1, VERSIONS, WAIVERS)
 
@@ -177,9 +200,7 @@ def test_a_show_without_an_added_line_keeps_line_zero(monkeypatch, tmp_path: Pat
         lambda _cwd: "    app.far.x_place__mutmut_1: survived\n",
     )
     monkeypatch.setattr(mutate_module, "mutmut_show", lambda _cwd, _mutant_id: show)
-    remutate = [
-        CyclomaticFunction(file="src/app/far.py", name="place", start_line=474, end_line=480, cc=1)
-    ]
+    remutate = [MutationTarget("src/app/far.py", "place", 474, 480)]
 
     parsed, failed = _run_and_parse(tmp_path, remutate, 1, VERSIONS, WAIVERS)
 
@@ -236,27 +257,19 @@ def test_a_cached_function_relative_line_becomes_the_file_line() -> None:
         "operator": "a -> b",
         "status": "killed",
     }
-    place = CyclomaticFunction(
-        file="src/bob_quality/mutate.py",
-        name="prepare_mutmut_workspace",
-        start_line=474,
-        end_line=484,
-        cc=2,
-    )
     mutants = _mutants_from_cache(
         [
-            ("noise", {"start_line": 10, "mutants": "não é lista"}),
+            (PLACE, {"start_line": 10, "mutants": "não é lista"}),
             (
-                "src/bob_quality/mutate.py::prepare_mutmut_workspace",
+                PLACE,
                 {
                     "start_line": 10,
                     "mutants": [kept, skipped_noise, blank_line, first_line, missing_fields],
                 },
             ),
-            ("zero", {"start_line": 0, "mutants": [zero_start]}),
-            ("text", {"start_line": "474", "mutants": [text_start]}),
-        ],
-        {"src/bob_quality/mutate.py::prepare_mutmut_workspace": place},
+            (PLACE, {"start_line": 0, "mutants": [zero_start]}),
+            (PLACE, {"start_line": "474", "mutants": [text_start]}),
+        ]
     )
 
     assert [(item.id, item.line) for item in mutants] == [
@@ -264,8 +277,8 @@ def test_a_cached_function_relative_line_becomes_the_file_line() -> None:
         (blank_line["id"], 0),
         (first_line["id"], 474),
         (missing_fields["id"], 476),
-        (zero_start["id"], 7),
-        (text_start["id"], 7),
+        (zero_start["id"], 480),
+        (text_start["id"], 480),
     ]
     assert mutants[3].function == ""
     assert mutants[3].file == ""
@@ -299,11 +312,8 @@ def test_a_cached_file_line_is_not_shifted_again() -> None:
         ],
     }
 
-    mutants = _mutants_from_cache([("src/bob_quality/mutate.py::prepare_mutmut_workspace", entry)])
+    mutants = _mutants_from_cache([(PLACE, entry)])
 
-    assert _cached_start({"start_line": 1}) == 1
-    assert _cached_start({"start_line": 0}) is None
-    assert _cached_start({"line_base": "file", "start_line": 474}) is None
     already_file = {
         "id": "bob_quality.mutate.x_prepare_mutmut_workspace__mutmut_16",
         "function": "prepare_mutmut_workspace",
@@ -320,53 +330,13 @@ def test_a_cached_file_line_is_not_shifted_again() -> None:
         "operator": "a -> b",
         "status": "killed",
     }
-    no_live_start = {
-        "id": "bob_quality.mutate.x_prepare_mutmut_workspace__mutmut_18",
-        "function": "prepare_mutmut_workspace",
-        "file": "src/bob_quality/mutate.py",
-        "line": 7,
-        "operator": "a -> b",
-        "status": "killed",
-    }
     file_rows = _mutants_from_cache(
-        [("kept", {"line_base": "file", "start_line": 100, "mutants": [already_file]})],
-        {
-            "kept": CyclomaticFunction(
-                file="src/bob_quality/mutate.py",
-                name="prepare_mutmut_workspace",
-                start_line=474,
-                end_line=484,
-                cc=1,
-            )
-        },
+        [(PLACE, {"line_base": "file", "start_line": 100, "mutants": [already_file]})]
     )
-    top_rows = _mutants_from_cache(
-        [("top", {"start_line": 100, "mutants": [at_top]})],
-        {
-            "top": CyclomaticFunction(
-                file="src/app/far.py",
-                name="place",
-                start_line=1,
-                end_line=8,
-                cc=1,
-            )
-        },
-    )
-    zero_rows = _mutants_from_cache(
-        [("zero-live", {"mutants": [no_live_start]})],
-        {
-            "zero-live": CyclomaticFunction(
-                file="src/app/far.py",
-                name="place",
-                start_line=0,
-                end_line=8,
-                cc=1,
-            )
-        },
-    )
+    at_file_top = MutationTarget("src/app/far.py", "place", 1, 8)
+    top_rows = _mutants_from_cache([(at_file_top, {"start_line": 100, "mutants": [at_top]})])
     assert file_rows[0].line == 40
     assert top_rows[0].line == 4
-    assert zero_rows[0].line == 7
     assert mutants[0].line == 480
     assert mutants[0].waiver == "porque"
     assert mutants[0].operator == "a -> b"

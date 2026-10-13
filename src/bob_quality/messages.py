@@ -123,6 +123,10 @@ _EN: dict[str, str] = {
     "mutmut.timeout": "mutmut timed out",
     "mutmut.unknown_status": "unknown mutmut status: {label!r}",
     "mutmut.bad_id": "mutant id outside the contract: {mutant_id}",
+    "mutmut.unreadable_source": "cannot parse {file}:{line}: {detail}",
+    "mutmut.unmatched_method": (
+        "lizard function {name} at {file}:{line} is inside a class and matches no def"
+    ),
     "mutmut.suite_fails_in_mutants": (
         "the suite passes in the repository and fails inside mutants/;"
         " check also_copy and the [mutmut] configuration: {detail}"
@@ -284,6 +288,11 @@ _PT_BR: dict[str, str] = {
     "mutmut.timeout": "mutmut excedeu o tempo limite",
     "mutmut.unknown_status": "status desconhecido do mutmut: {label!r}",
     "mutmut.bad_id": "id de mutante fora do contrato: {mutant_id}",
+    "mutmut.unreadable_source": "não foi possível analisar {file}:{line}: {detail}",
+    "mutmut.unmatched_method": (
+        "a função {name} do lizard em {file}:{line} está dentro de uma classe"
+        " e não casa com nenhum def"
+    ),
     "mutmut.suite_fails_in_mutants": (
         "a suíte passa no repositório e falha dentro de mutants/;"
         " confira also_copy e a configuração [mutmut]: {detail}"

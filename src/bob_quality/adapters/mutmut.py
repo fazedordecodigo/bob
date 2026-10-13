@@ -1,4 +1,4 @@
-"""Adaptador mutmut: saída bruta da versão pinada → Mutant.
+"""Adaptador mutmut: saída bruta da versão pinada → Mutant, e o nome que o mutmut dá a cada alvo.
 
 Não importa mutmut. O contrato é o texto de `mutmut results --all true`
 e de `mutmut show <id>` (mutmut==3.8.0).
@@ -6,11 +6,20 @@ e de `mutmut show <id>` (mutmut==3.8.0).
 
 from __future__ import annotations
 
+import ast
 import re
+from collections.abc import Iterable, Iterator, Mapping
+from dataclasses import dataclass
 
 from bob_quality.exit_codes import pytest_passed
 from bob_quality.messages import msg
-from bob_quality.models import Mutant, MutantStatus
+from bob_quality.models import (
+    CyclomaticFunction,
+    Mutant,
+    MutantStatus,
+    MutationTarget,
+    qualified_name,
+)
 
 _RESULT_RE = re.compile(r"^\s+(\S+):\s+(.+?)\s*$")
 _FUNCTION_RE = re.compile(r"(?:^|\.)x_(?P<name>.+?)__mutmut_\d+$")
@@ -72,30 +81,141 @@ def mutants_from_raw(results_raw: str, shows: dict[str, str]) -> list[Mutant]:
     return mutants
 
 
-def mutmut_id_prefix(file: str, name: str) -> str:
-    """Prefixo do id que o mutmut 3.8 gera para uma função de topo.
+def mutation_targets(
+    functions: list[CyclomaticFunction], sources: Mapping[str, str]
+) -> list[MutationTarget]:
+    """Dá a cada função medida pelo lizard o nome que o mutmut 3.8 gera.
 
-    Espelha a regra pública `src.` + `x_<função>__mutmut`, sem copiar o código.
+    `sources` leva cada `function.file` ao texto do arquivo. A junção com o `ast`
+    é a linha do `def`, que é o `start_line` do lizard. Um `def` no corpo de uma
+    classe vira método dela. O resto sai como o lizard mediu, sem `owner`, e o
+    nome com ponto do lizard (`outer.inner`) também. Levanta `MutmutParseError`
+    quando o `ast` não lê um arquivo, ou quando um nome sem ponto começa dentro
+    de uma classe e não casa com nenhum `def` dela.
     """
-    module = file.removesuffix(".py").replace("\\", "/").replace("/", ".")
-    if module.startswith("src."):
-        module = module[len("src.") :]
-    return f"{module}.x_{name}__mutmut"
+    files = {item.file for item in functions}
+    indexes = {file: _class_index(sources[file], file) for file in files}
+    return [_target(item, indexes[item.file]) for item in functions]
 
 
-def mutmut_stats_key(file: str, name: str) -> str:
-    """Chave da função em `tests_by_mangled_function_name` do mutmut 3.8."""
-    return mutmut_id_prefix(file, name).removesuffix("__mutmut")
-
-
-def mutmut_run_patterns(file: str, name: str) -> list[str]:
-    """Padrões do `mutmut run`: os mutantes da função e a chave dela no stats.
+def mutmut_run_patterns(target: MutationTarget) -> list[str]:
+    """Padrões do `mutmut run`: os mutantes do alvo e a chave dele no stats.
 
     O mutmut 3.8 escolhe os testes da execução limpa casando cada padrão com `*`
     contra as chaves do stats, por fnmatch. Sem o segundo padrão nada casa, e a
     execução limpa roda a suíte inteira.
     """
-    return [f"{mutmut_id_prefix(file, name)}*", f"*{mutmut_stats_key(file, name)}"]
+    mangled = _mangled_name(target)
+    return [f"{mangled}__mutmut*", f"*{mangled}"]
+
+
+def mutmut_target_of(mutant_id: str, targets: Iterable[MutationTarget]) -> MutationTarget | None:
+    """O alvo cujo prefixo abre o id. Todo prefixo termina em `__mutmut`, e o id tem um alvo só."""
+    for target in targets:
+        if mutant_id.startswith(f"{_mangled_name(target)}__mutmut"):
+            return target
+    return None
+
+
+def _mangled_name(target: MutationTarget) -> str:
+    """`<módulo>.x_<nome>` sem `owner`, `<módulo>.xǁ<Classe>ǁ<nome>` com `owner`.
+
+    É a chave do alvo em `tests_by_mangled_function_name` do mutmut 3.8. Espelha
+    a regra pública `src.` + `x_` ou `xǁ`, sem copiar o código.
+    """
+    module = target.file.removesuffix(".py").replace("\\", "/").replace("/", ".")
+    if module.startswith("src."):
+        module = module[len("src.") :]
+    if target.owner is None:
+        return f"{module}.x_{target.name}"
+    return f"{module}.xǁ{target.owner}ǁ{target.name}"
+
+
+_NESTED = "nested"
+
+
+@dataclass(frozen=True)
+class _ClassMethod:
+    owner: str
+    name: str
+    first_line: int
+
+
+@dataclass(frozen=True)
+class _ClassIndex:
+    methods: dict[int, _ClassMethod]
+    bodies: list[range]
+
+    def encloses(self, line: int) -> bool:
+        return any(line in body for body in self.bodies)
+
+
+def _target(function: CyclomaticFunction, index: _ClassIndex) -> MutationTarget:
+    found = index.methods.get(function.start_line)
+    if found is not None and found.name == function.name:
+        return MutationTarget(
+            function.file, function.name, found.first_line, function.end_line, found.owner
+        )
+    if "." not in function.name and index.encloses(function.start_line):
+        raise MutmutParseError(
+            msg(
+                "mutmut.unmatched_method",
+                name=function.name,
+                file=function.file,
+                line=function.start_line,
+            )
+        )
+    return MutationTarget(function.file, function.name, function.start_line, function.end_line)
+
+
+def _class_index(source: str, file: str) -> _ClassIndex:
+    """Linha do `def` para cada `def` no escopo de uma classe, e as linhas de cada classe.
+
+    Espelha a regra de nomes do mutmut 3.8. Só o `def` direto no corpo de uma
+    classe direta do módulo tem como dono o nome simples da classe. Todo outro
+    dono tem ponto, e o padrão dele não casa com id do mutmut: `Box.Inner` numa
+    classe dentro de classe, `nested.Late` numa classe fora do corpo do módulo e
+    `Box.nested` num `def` sob `if` ou `try` no corpo da classe. Nenhum decorador
+    muda a regra. A primeira linha do método é o primeiro decorador.
+    """
+    try:
+        tree = ast.parse(source, filename=file)
+    except SyntaxError as exc:
+        raise MutmutParseError(
+            msg("mutmut.unreadable_source", file=file, line=exc.lineno, detail=exc.msg)
+        ) from exc
+    methods: dict[int, _ClassMethod] = {}
+    bodies: list[range] = []
+    for cls, owner in _class_owners(tree):
+        bodies.append(range(cls.lineno, (cls.end_lineno or cls.lineno) + 1))
+        for node, direct in _scope_defs(cls.body, direct=True):
+            first = min([node.lineno, *(item.lineno for item in node.decorator_list)])
+            method_owner = owner if direct else qualified_name(_NESTED, owner)
+            methods[node.lineno] = _ClassMethod(method_owner, node.name, first)
+    return _ClassIndex(methods, bodies)
+
+
+def _class_owners(tree: ast.Module) -> Iterator[tuple[ast.ClassDef, str]]:
+    """Cada classe com o dono dos métodos dela. O `ast.walk` visita o pai antes do filho."""
+    parents = {child: node for node in ast.walk(tree) for child in ast.iter_child_nodes(node)}
+    owners: dict[ast.AST, str] = {}
+    for node in ast.walk(tree):
+        if isinstance(node, ast.ClassDef):
+            parent = parents[node]
+            scope = None if parent is tree else owners.get(parent, _NESTED)
+            owners[node] = qualified_name(node.name, scope)
+            yield node, owners[node]
+
+
+def _scope_defs(
+    nodes: Iterable[ast.AST], direct: bool
+) -> Iterator[tuple[ast.FunctionDef | ast.AsyncFunctionDef, bool]]:
+    """Os `def` do escopo de uma classe: direto no corpo, ou sob `if`, `try` e afins."""
+    for node in nodes:
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            yield node, direct
+        elif not isinstance(node, ast.ClassDef):
+            yield from _scope_defs(ast.iter_child_nodes(node), direct=False)
 
 
 def _parse_results(raw: str) -> list[tuple[str, MutantStatus]]:
@@ -115,9 +235,10 @@ def _parse_results(raw: str) -> list[tuple[str, MutantStatus]]:
 
 
 def _function_name(mutant_id: str) -> str:
+    """`x_nome` dá `nome`. `xǁClasseǁnome` dá `Classe.nome`, igual a `MutationTarget.qualname()`."""
     method = _METHOD_RE.search(mutant_id)
     if method:
-        return method.group("name")
+        return qualified_name(method.group("name"), method.group("class_name"))
     function = _FUNCTION_RE.search(mutant_id)
     if function:
         return function.group("name")

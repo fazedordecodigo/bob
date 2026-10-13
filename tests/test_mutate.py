@@ -29,12 +29,27 @@ ADD_TOUCHED = (FIXTURE / "cases" / "add_touched.py").read_text()
 ADD_AND_SCALE_TEST = (FIXTURE / "cases" / "test_add_and_scale.py").read_text()
 STRONG_TEST = (FIXTURE / "cases" / "test_classify_strong.py").read_text()
 ORPHAN = (FIXTURE / "cases" / "orphan.py").read_text()
+METHOD = (FIXTURE / "cases" / "survive_method.py").read_text()
+METHOD_WEAK_TEST = (FIXTURE / "cases" / "test_method_weak.py").read_text()
+NESTED_METHOD = """\
+class Shelf:
+    class Slot:
+        def label(self, n: int) -> str:
+            return "full" if n > 0 else "empty"
+"""
 
 
 def _repo_with_surviving_mutant(tmp_path: Path) -> Path:
     repo = init_python_repo(tmp_path / "repo")
     commit_on_branch(repo, "weak", "src/app/weak.py", CLASSIFY, "add classify")
     commit_on_branch(repo, "weak", "tests/test_classify.py", WEAK_TEST, "weak classify test")
+    return repo
+
+
+def _repo_with_surviving_method(tmp_path: Path) -> Path:
+    repo = init_python_repo(tmp_path / "repo")
+    commit_on_branch(repo, "method", "src/app/gauge.py", METHOD, "add Gauge.classify")
+    commit_on_branch(repo, "method", "tests/test_gauge.py", METHOD_WEAK_TEST, "weak Gauge test")
     return repo
 
 
@@ -50,6 +65,89 @@ def test_mutate_exits_3_when_changed_function_has_unwaived_survivor(tmp_path: Pa
     assert mutate["status"] == "failed"
     assert "classify" in markdown
     assert "src/app/weak.py" in markdown
+
+
+def test_mutate_exits_3_when_a_changed_method_has_an_unwaived_survivor(tmp_path: Path) -> None:
+    repo = _repo_with_surviving_method(tmp_path)
+
+    result = run_bob(repo, "mutate", "--base", "main")
+    payload = json.loads((repo / ".bob" / "report.json").read_text())
+    cache = json.loads((repo / ".bob" / "mutation-cache.json").read_text())
+    mutate = next(gate for gate in payload["gates"] if gate["name"] == "mutate")
+    entry = cache["functions"]["src/app/gauge.py::Gauge.classify"]
+
+    assert result.returncode == 3
+    assert mutate == {
+        "name": "mutate",
+        "status": "failed",
+        "reason": (
+            "survivor without waiver: Gauge.classify@src/app/gauge.py:3,"
+            " Gauge.classify@src/app/gauge.py:5, Gauge.classify@src/app/gauge.py:5"
+        ),
+    }
+    assert payload["mutation"]["remutated"] == ["src/app/gauge.py::Gauge.classify"]
+    assert [
+        (row["id"], row["function"], row["file"], row["line"], row["operator"])
+        for row in payload["survivors"]
+    ] == [
+        (
+            "app.gauge.xǁGaugeǁclassify__mutmut_1",
+            "Gauge.classify",
+            "src/app/gauge.py",
+            3,
+            "if n > 0: -> if n >= 0:",
+        ),
+        (
+            "app.gauge.xǁGaugeǁclassify__mutmut_5",
+            "Gauge.classify",
+            "src/app/gauge.py",
+            5,
+            'return "nonpos" -> return "XXnonposXX"',
+        ),
+        (
+            "app.gauge.xǁGaugeǁclassify__mutmut_6",
+            "Gauge.classify",
+            "src/app/gauge.py",
+            5,
+            'return "nonpos" -> return "NONPOS"',
+        ),
+    ]
+    assert (entry["name"], entry["start_line"], entry["end_line"]) == ("Gauge.classify", 2, 5)
+    Draft202012Validator(SCHEMA).validate(payload)
+
+
+def test_a_waiver_on_the_method_label_clears_the_method(tmp_path: Path) -> None:
+    repo = _repo_with_surviving_method(tmp_path)
+    reason = "o contrato exige estritamente maior que zero"
+
+    first = run_bob(repo, "mutate", "--base", "main")
+    saved = run_bob(repo, "waive", "src/app/gauge.py::Gauge.classify", "--reason", reason)
+    result = run_bob(repo, "mutate", "--base", "main")
+    payload = json.loads((repo / ".bob" / "report.json").read_text())
+
+    assert first.returncode == 3
+    assert saved.returncode == 0
+    assert result.returncode == 0
+    assert payload["mutation"]["remutated"] == []
+    assert payload["mutation"]["reused"] == ["src/app/gauge.py::Gauge.classify"]
+    assert [(row["id"], row["waiver"]) for row in payload["survivors"]] == [
+        ("app.gauge.xǁGaugeǁclassify__mutmut_1", reason),
+        ("app.gauge.xǁGaugeǁclassify__mutmut_5", reason),
+        ("app.gauge.xǁGaugeǁclassify__mutmut_6", reason),
+    ]
+
+
+def test_a_lone_change_to_a_nested_class_method_still_exits_4(tmp_path: Path) -> None:
+    """O mutmut 3.8 não gera mutante para o método de uma classe aninhada."""
+    repo = init_python_repo(tmp_path / "repo")
+    commit_on_branch(repo, "nested", "src/app/shelf.py", NESTED_METHOD, "add Shelf.Slot.label")
+
+    result = run_bob(repo, "mutate", "--base", "main")
+    payload = json.loads((repo / ".bob" / "report.json").read_text())
+    mutate = next(gate for gate in payload["gates"] if gate["name"] == "mutate")
+
+    assert result.returncode == 4
+    assert mutate == {"name": "mutate", "status": "not_run", "reason": "nothing matches"}
 
 
 def test_uncovered_mutants_warn_without_changing_the_exit_code(tmp_path: Path) -> None:

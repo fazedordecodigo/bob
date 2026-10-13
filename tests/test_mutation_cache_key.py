@@ -18,7 +18,8 @@ from pathlib import Path
 
 import pytest
 
-from bob_quality.adapters.mutmut import mutmut_stats_key
+from bob_quality.adapters.mutmut import mutmut_run_patterns
+from bob_quality.models import MutationTarget
 from bob_quality.mutate import (
     MutationOutcome,
     _Cache,
@@ -84,8 +85,16 @@ waivers:
 
 
 def test_stats_key_is_the_mutant_prefix_without_the_mutmut_suffix() -> None:
-    assert mutmut_stats_key("src/app/safe.py", "add") == "app.safe.x_add"
-    assert mutmut_stats_key("pkg/mod.py", "fn") == "pkg.mod.x_fn"
+    add = MutationTarget("src/app/safe.py", "add", 1, 2)
+    fn = MutationTarget("pkg/mod.py", "fn", 1, 2)
+    classify = MutationTarget("src/app/gauge.py", "classify", 2, 5, owner="Gauge")
+
+    assert mutmut_run_patterns(add) == ["app.safe.x_add__mutmut*", "*app.safe.x_add"]
+    assert mutmut_run_patterns(fn) == ["pkg.mod.x_fn__mutmut*", "*pkg.mod.x_fn"]
+    assert mutmut_run_patterns(classify) == [
+        "app.gauge.xǁGaugeǁclassify__mutmut*",
+        "*app.gauge.xǁGaugeǁclassify",
+    ]
 
 
 def _repo(tmp_path: Path, source: str = ADD_TOUCHED) -> Path:

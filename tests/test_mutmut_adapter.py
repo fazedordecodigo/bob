@@ -8,10 +8,16 @@ from pathlib import Path
 
 import pytest
 
-from bob_quality.adapters.mutmut import MutmutParseError, mutants_from_raw
+from bob_quality.adapters.lizard import parse_lizard_csv
+from bob_quality.adapters.mutmut import MutmutParseError, mutants_from_raw, mutation_targets
+from bob_quality.models import CyclomaticFunction, MutationTarget
 from helpers import in_both
 
 RAW = Path(__file__).parent / "fixtures" / "raw"
+# box.py e o CSV que o lizard 1.24.1 gravou para ele. O mutmut 3.8 só gera
+# mutantes para `open`, `make` e `helped` de `Box`, e para `outer` e `build`.
+BOX = (RAW / "box.py").read_text()
+BOX_ROWS = parse_lizard_csv((RAW / "lizard-box.csv").read_text())
 
 
 def test_mutmut_adapter_reads_pinned_results_and_show() -> None:
@@ -81,7 +87,61 @@ def test_method_mutant_id_uses_the_method_name() -> None:
 
     mutants = mutants_from_raw(raw, {})
 
-    assert mutants[0].function == "open"
+    assert mutants[0].function == "Box.open"
+
+
+def test_mutation_targets_name_each_def_in_a_class_body_by_its_class() -> None:
+    targets = mutation_targets(BOX_ROWS, {"src/app/box.py": BOX})
+
+    assert targets == [
+        MutationTarget("src/app/box.py", "open", 1, 2),
+        MutationTarget("src/app/box.py", "open", 6, 7, owner="Box"),
+        MutationTarget("src/app/box.py", "make", 9, 11, owner="Box"),
+        MutationTarget("src/app/box.py", "open", 14, 15, owner="Box.Inner"),
+        MutationTarget("src/app/box.py", "helped.helper", 18, 19),
+        MutationTarget("src/app/box.py", "helped", 17, 21, owner="Box"),
+        MutationTarget("src/app/box.py", "maybe", 24, 25, owner="Box.nested"),
+        MutationTarget("src/app/box.py", "size", 27, 29, owner="Box"),
+        MutationTarget("src/app/box.py", "outer.inner", 33, 34),
+        MutationTarget("src/app/box.py", "outer", 32, 36),
+        MutationTarget("src/app/box.py", "open", 42, 43, owner="nested.Late"),
+        MutationTarget("src/app/box.py", "build.open", 48, 49),
+        MutationTarget("src/app/box.py", "build", 46, 51),
+    ]
+    assert [item.key() for item in targets[:4]] == [
+        "src/app/box.py::open",
+        "src/app/box.py::Box.open",
+        "src/app/box.py::Box.make",
+        "src/app/box.py::Box.Inner.open",
+    ]
+
+
+def test_a_bare_name_inside_a_class_that_matches_no_def_is_rejected() -> None:
+    row = CyclomaticFunction("src/app/box.py", "open", 7, 7, 1)
+
+    with pytest.raises(MutmutParseError) as caught:
+        mutation_targets([row], {"src/app/box.py": BOX})
+
+    assert in_both(caught.value) == (
+        "lizard function open at src/app/box.py:7 is inside a class and matches no def",
+        "a função open do lizard em src/app/box.py:7 está dentro de uma classe"
+        " e não casa com nenhum def",
+    )
+    assert mutation_targets([row], {"src/app/box.py": "class Box:\n    pass\n"}) == [
+        MutationTarget("src/app/box.py", "open", 7, 7)
+    ]
+
+
+def test_a_source_that_ast_cannot_read_names_the_file_and_line() -> None:
+    row = CyclomaticFunction("src/app/bad.py", "f", 1, 2, 1)
+
+    with pytest.raises(MutmutParseError) as caught:
+        mutation_targets([row], {"src/app/bad.py": "def f(\n"})
+
+    assert in_both(caught.value) == (
+        "cannot parse src/app/bad.py:1: '(' was never closed",
+        "não foi possível analisar src/app/bad.py:1: '(' was never closed",
+    )
 
 
 def test_show_reads_a_column_zero_edit_and_a_backslash_line() -> None:
