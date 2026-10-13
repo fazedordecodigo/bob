@@ -1,15 +1,16 @@
-"""Gate de duplicação: jscpd pinado, só clones novos no diff, sempre aviso."""
+"""Gate de duplicação: jscpd pinado, só clones novos no diff, aviso ou falha."""
 
 from __future__ import annotations
 
 import subprocess
 import tempfile
+from dataclasses import dataclass
 from pathlib import Path
 
 from bob_quality.adapters.jscpd import JscpdParseError, parse_jscpd_json
 from bob_quality.config import Config
 from bob_quality.diff import function_is_changed
-from bob_quality.exit_codes import PASSED
+from bob_quality.exit_codes import GATE_FAILED, PASSED
 from bob_quality.messages import Text, msg, reason
 from bob_quality.models import Clone, GateResult
 from bob_quality.npm_tools import installed_npm_version, node_missing_message, npm_prefix
@@ -23,10 +24,32 @@ _ALWAYS_IGNORE = ("node_modules", "dist", ".git", ".bob")
 _Dry = tuple[GateResult, list[Clone], int, dict[str, str]]
 
 
+@dataclass(frozen=True)
+class _Floors:
+    similarity: float
+    lines: int
+
+
+@dataclass(frozen=True)
+class _Advise:
+    floors: _Floors
+
+
+@dataclass(frozen=True)
+class _Block:
+    floors: _Floors
+    allowed: int
+
+
+_Budget = _Advise | _Block
+
+
 def run_dry_gate(
     cwd: Path,
     config: Config,
     diff_lines: dict[str, set[int]],
+    dry_fail: bool,
+    max_new_clones: int | None,
 ) -> _Dry:
     versions, skipped = _tooling()
     if skipped is not None:
@@ -35,7 +58,16 @@ def run_dry_gate(
         found = parse_jscpd_json(_run_jscpd(cwd, config, npm_prefix()))
     except (ToolError, JscpdParseError) as exc:
         return _skipped(reason(exc), versions)
-    return _verdict(_new_clones(cwd, found, diff_lines), versions)
+    budget = _budget(config, dry_fail, max_new_clones)
+    return _verdict(budget, _new_clones(cwd, found, diff_lines), versions)
+
+
+def _budget(config: Config, dry_fail: bool, max_new_clones: int | None) -> _Budget:
+    floors = _Floors(config.min_similarity / 100, config.min_lines)
+    if dry_fail or config.new_clones == "fail":
+        allowed = config.max_new_clones if max_new_clones is None else max_new_clones
+        return _Block(floors, allowed)
+    return _Advise(floors)
 
 
 def _tooling() -> tuple[dict[str, str], _Dry | None]:
@@ -48,12 +80,22 @@ def _tooling() -> tuple[dict[str, str], _Dry | None]:
     return {"jscpd": version}, None
 
 
-def _verdict(fresh: list[Clone], versions: dict[str, str]) -> _Dry:
-    if not fresh:
-        return GateResult("dry", "passed", None), [], PASSED, versions
-    count = len(fresh)
+def _verdict(budget: _Budget, fresh: list[Clone], versions: dict[str, str]) -> _Dry:
+    counted = [clone for clone in fresh if _qualifies(clone, budget.floors)]
+    if not counted:
+        return GateResult("dry", "passed"), [], PASSED, versions
+    count = len(counted)
+    if isinstance(budget, _Block) and count > budget.allowed:
+        key = "dry.exceeded_one" if count == 1 else "dry.exceeded_many"
+        why = msg(key, count=count, limit=budget.allowed)
+        return GateResult("dry", "failed", why), counted, GATE_FAILED, versions
     key = "dry.clone" if count == 1 else "dry.clones"
-    return GateResult("dry", "warn", msg(key, count=count)), fresh, PASSED, versions
+    return GateResult("dry", "warn", msg(key, count=count)), counted, PASSED, versions
+
+
+def _qualifies(clone: Clone, floors: _Floors) -> bool:
+    similarity = 1.0 if clone.similarity is None else clone.similarity
+    return clone.lines >= floors.lines and similarity >= floors.similarity
 
 
 def _skipped(why: Text, versions: dict[str, str] | None = None) -> _Dry:

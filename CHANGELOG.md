@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+The DRY gate can fail. `duplication.new_clones` is `warn`, the default, or `fail`. Without the new keys, a new clone stays a warning and the exit stays `0`. In fail mode, the gate fails with exit `1` when the new clones that pass `duplication.min_similarity` and `duplication.min_lines` exceed `duplication.max_new_clones` (default `0`). The reason names the key and the ceiling, as in `1 new clone exceeds duplication.max_new_clones 0`. The two filters apply in warn mode too, and a clone they drop stays out of the report. `bob dry` and `bob check` accept `--dry-fail` and `--max-new-clones N`, which override the file for that run. A negative `--max-new-clones`, or an invalid value in the new keys, exits `4` and writes no report. The pre-push hook is unchanged.
+
+O gate DRY pode falhar. `duplication.new_clones` é `warn`, o padrão, ou `fail`. Sem as chaves novas, um clone novo continua em aviso e o exit continua `0`. No modo fail, o gate falha com exit `1` quando os clones novos que passam em `duplication.min_similarity` e `duplication.min_lines` passam de `duplication.max_new_clones` (padrão `0`). O motivo cita a chave e o teto, como em `1 new clone exceeds duplication.max_new_clones 0`. Os dois filtros valem também no modo warn, e um clone que eles descartam fica fora do relatório. `bob dry` e `bob check` aceitam `--dry-fail` e `--max-new-clones N`, que vencem o arquivo nessa execução. Um `--max-new-clones` negativo, ou um valor inválido nas chaves novas, sai com `4` e não grava relatório. O hook pre-push não muda.
+
 A `paths.include` entry that is not on disk exits `4`. English stderr names the config file and each missing entry, as in `bob.yaml: paths.include does not exist: missing-root`. Nothing is written. `check`, `crap`, `dry`, `deps`, `mutate`, `doctor`, and `waive` share that line, including when `--lang` is `pt-BR`. An omitted or empty `paths.include` still means `src` and is not checked.
 
 Uma entrada de `paths.include` que não está no disco sai com `4`. O stderr em inglês cita o arquivo de configuração e cada entrada ausente, como em `bob.yaml: paths.include does not exist: missing-root`. Nada é gravado. `check`, `crap`, `dry`, `deps`, `mutate`, `doctor` e `waive` usam a mesma linha, inclusive com `--lang pt-BR`. Um `paths.include` omitido ou vazio continua sendo `src` e não é verificado.
@@ -41,6 +45,14 @@ Uma chave repetida num mapeamento YAML sai com `4` e não grava relatório. O st
 The mutate gate exits `3` only for an unwaived survivor on a changed line. An unwaived survivor on a line the diff did not change stays in the report, marked outside the diff, and does not change the exit or the review focus. A survivor with no file, or with a line at or below zero, still exits `3`. Remutation is unchanged: a changed function, and a cached function that still has an unwaived survivor, are still mutated. The cache does not store `blocking`.
 
 O gate mutate sai com `3` só para um sobrevivente sem waiver numa linha alterada. Sobrevivente sem waiver numa linha que o diff não mudou fica no relatório, marcado fora do diff, e não muda o exit nem o foco do review. Sobrevivente sem arquivo, ou com linha menor ou igual a zero, continua saindo com `3`. A remutação não muda: função alterada, e função do cache que ainda tem sobrevivente sem waiver, continuam sendo mutadas. O cache não guarda `blocking`.
+
+The pull request comment resolves language with `resolve_language`, the same function the CLI calls. The order is the Action `language` input or `--lang`, then `BOB_LANG`, then `language` in `bob.yaml`, then `en`. The truncation note and the comment errors follow that language. The errors are a missing repo, pr, or token, a missing report, and an invalid comment list. The report body stays the bytes of `.bob/report.md`. A bad `language` value, a `bob.yaml` that is not a mapping, or a YAML syntax error exits 4 with the existing English stderr and posts no comment, even when `--lang` is valid. An empty `BOB_LANG` is invalid and exits 4. An empty Action `language` input is skipped.
+
+O comentário do PR resolve o idioma com `resolve_language`, a mesma função que a CLI chama. A ordem é o input `language` da Action ou `--lang`, depois `BOB_LANG`, depois `language` no `bob.yaml`, depois `en`. A nota de truncamento e os erros do comentário seguem esse idioma. Os erros são repo, pr ou token ausente, relatório ausente e lista de comentários inválida. O corpo do relatório continua os bytes de `.bob/report.md`. Um `language` inválido, um `bob.yaml` que não é mapeamento ou um YAML com erro de sintaxe sai com 4, com o stderr em inglês que já existia, e não posta comentário, mesmo com `--lang` válido. Um `BOB_LANG` vazio é inválido e sai com 4. Um input `language` vazio fica de fora.
+
+`.github/actions/bob/upsert_comment.py` reads `bob.yaml` from the process cwd.
+
+O `.github/actions/bob/upsert_comment.py` lê o `bob.yaml` do cwd do processo.
 
 `grimp==3.17` is a direct pin in `pyproject.toml`, and `bob doctor` lists it. `bob doctor` no longer treats a PATH binary as a pip tool. The version it expects is the one `bob-quality` declares.
 

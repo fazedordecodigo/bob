@@ -50,7 +50,7 @@ def test_unknown_gate_is_not_run_and_leaves_the_others_alone(
     _forbid(monkeypatch)
     state = _Measured()
 
-    _absorb(state, "nope", tmp_path, Config(), DIFF, 10.0, None, tmp_path, None)
+    _absorb(state, "nope", tmp_path, Config(), DIFF, 10.0, None, tmp_path, None, False, None)
 
     assert state.gates == [
         GateResult("nope", "not_run", msg("check.gate_not_implemented"))
@@ -87,7 +87,7 @@ def test_crap_records_metrics_baseline_and_the_exact_arguments(
     monkeypatch.setattr("bob_quality.check.run_crap_gate", fake)
     state = _Measured()
 
-    _absorb(state, "crap", tmp_path, config, DIFF, 10.0, coverage, tmp_path, 2)
+    _absorb(state, "crap", tmp_path, config, DIFF, 10.0, coverage, tmp_path, 2, False, None)
 
     assert state.metrics == ["metric"]
     assert state.baseline == 7
@@ -102,13 +102,19 @@ def test_dry_records_the_clones(monkeypatch: pytest.MonkeyPatch, tmp_path: Path)
     result = GateResult("dry", "warn", None)
 
     def fake(**kwargs: object) -> tuple[object, ...]:
-        assert kwargs == {"cwd": tmp_path, "config": config, "diff_lines": DIFF}
+        assert kwargs == {
+            "cwd": tmp_path,
+            "config": config,
+            "diff_lines": DIFF,
+            "dry_fail": False,
+            "max_new_clones": None,
+        }
         return result, [CLONE], 0, {"jscpd": "5.4.1"}
 
     monkeypatch.setattr("bob_quality.check.run_dry_gate", fake)
     state = _Measured()
 
-    _absorb(state, "dry", tmp_path, config, DIFF, 10.0, None, tmp_path, None)
+    _absorb(state, "dry", tmp_path, config, DIFF, 10.0, None, tmp_path, None, False, None)
 
     assert state.clones == [CLONE]
     assert state.gates == [result]
@@ -129,7 +135,7 @@ def test_deps_records_the_violation_set(monkeypatch: pytest.MonkeyPatch, tmp_pat
     monkeypatch.setattr("bob_quality.check.run_deps_gate", fake)
     state = _Measured()
 
-    _absorb(state, "deps", tmp_path, config, DIFF, 10.0, None, tmp_path, None)
+    _absorb(state, "deps", tmp_path, config, DIFF, 10.0, None, tmp_path, None, False, None)
 
     assert state.violations == ["edge"]
     assert state.gates == [result]
@@ -165,7 +171,7 @@ def test_mutate_keeps_the_baseline_and_the_worker_count(
     monkeypatch.setattr("bob_quality.check.run_mutate_gate", fake)
     state = _Measured(baseline=7)
 
-    _absorb(state, "mutate", tmp_path, config, DIFF, 10.0, None, out, 2)
+    _absorb(state, "mutate", tmp_path, config, DIFF, 10.0, None, out, 2, False, None)
 
     assert state.mutation is outcome
     assert state.gates == [outcome.result]
@@ -188,7 +194,7 @@ def test_typing_records_the_json_payload(monkeypatch: pytest.MonkeyPatch, tmp_pa
     monkeypatch.setattr("bob_quality.check.run_typing_gate", fake)
     state = _Measured()
 
-    _absorb(state, "typing", tmp_path, config, DIFF, 10.0, None, tmp_path, None)
+    _absorb(state, "typing", tmp_path, config, DIFF, 10.0, None, tmp_path, None, False, None)
 
     assert state.typing == found
     assert state.gates == [result]
@@ -361,7 +367,7 @@ def test_absorb_records_each_gate_from_the_arguments_it_received(monkeypatch) ->
     monkeypatch.setattr(check, "run_secrets_gate", secrets)
 
     state = _Measured()
-    _absorb(state, "crap", cwd, config, diff, 10.0, coverage, out, 2)
+    _absorb(state, "crap", cwd, config, diff, 10.0, coverage, out, 2, True, 0)
     assert seen["crap"] == {
         "cwd": cwd,
         "config": config,
@@ -376,18 +382,24 @@ def test_absorb_records_each_gate_from_the_arguments_it_received(monkeypatch) ->
     assert state.gates == [GateResult("crap", "failed")]
     assert set(seen) == {"crap"}
 
-    _absorb(state, "dry", cwd, config, diff, 10.0, coverage, out, 2)
-    assert seen["dry"] == {"cwd": cwd, "config": config, "diff_lines": diff}
+    _absorb(state, "dry", cwd, config, diff, 10.0, coverage, out, 2, True, 0)
+    assert seen["dry"] == {
+        "cwd": cwd,
+        "config": config,
+        "diff_lines": diff,
+        "dry_fail": True,
+        "max_new_clones": 0,
+    }
     assert state.clones == [_clone()]
     assert state.versions["jscpd"] == "5.4.1"
     assert set(seen) == {"crap", "dry"}
 
-    _absorb(state, "deps", cwd, config, diff, 10.0, coverage, out, 2)
+    _absorb(state, "deps", cwd, config, diff, 10.0, coverage, out, 2, True, 0)
     assert seen["deps"] == (cwd, config, {"src/app.py"})
     assert state.violations == [violation]
     assert set(seen) == {"crap", "dry", "deps"}
 
-    _absorb(state, "mutate", cwd, config, diff, 10.0, coverage, out, 2)
+    _absorb(state, "mutate", cwd, config, diff, 10.0, coverage, out, 2, True, 0)
     assert seen["mutate"] == {
         "cwd": cwd,
         "config": config,
@@ -400,7 +412,7 @@ def test_absorb_records_each_gate_from_the_arguments_it_received(monkeypatch) ->
     assert state.exit_code == 3
     assert set(seen) == {"crap", "dry", "deps", "mutate"}
 
-    _absorb(state, "secrets", cwd, config, diff, 10.0, coverage, out, 2)
+    _absorb(state, "secrets", cwd, config, diff, 10.0, coverage, out, 2, True, 0)
     assert seen["secrets"] == {"cwd": cwd, "config": config, "diff_lines": diff}
     assert state.secrets == ledger
     assert state.versions["gitleaks"] == "8.30.1"
@@ -411,7 +423,7 @@ def test_absorb_records_each_gate_from_the_arguments_it_received(monkeypatch) ->
 
 def test_absorb_unknown_gate_stays_not_run_and_exit_0() -> None:
     state = _Measured()
-    _absorb(state, "nope", Path("/repo"), Config(), {}, 10.0, None, Path("/out"), None)
+    _absorb(state, "nope", Path("/repo"), Config(), {}, 10.0, None, Path("/out"), None, False, None)
 
     assert state.exit_code == 0
     assert state.versions == {}
@@ -506,7 +518,7 @@ def test_dead_code_records_the_warning(monkeypatch: pytest.MonkeyPatch, tmp_path
 
     monkeypatch.setattr("bob_quality.check.run_dead_code_gate", fake)
     state = _Measured()
-    _absorb(state, "dead_code", tmp_path, Config(), DIFF, 10.0, None, tmp_path, None)
+    _absorb(state, "dead_code", tmp_path, Config(), DIFF, 10.0, None, tmp_path, None, False, None)
 
     assert state.dead_code == section
     assert state.gates == [advisory.as_gate()]

@@ -46,6 +46,8 @@ def run_check(
     reproduce: str | None = None,
     max_workers: int | None = None,
     lang: Language = DEFAULT_LANGUAGE,
+    dry_fail: bool = False,
+    max_new_clones: int | None = None,
 ) -> int:
     chosen_gates = gates or list(DEFAULT_GATES)
     chosen_out = out_dir or (cwd / ".bob")
@@ -63,6 +65,8 @@ def run_check(
         chosen_gates,
         chosen_out,
         max_workers,
+        dry_fail,
+        max_new_clones,
     )
     if measured.mutation is None:
         loaded = _load_idle_waivers(cwd, chosen_base, command, chosen_gates)
@@ -129,6 +133,8 @@ def _measure(
     gates: list[str],
     out_dir: Path,
     max_workers: int | None,
+    dry_fail: bool,
+    max_new_clones: int | None,
 ) -> _Measured:
     state = _Measured()
     for gate in gates:
@@ -142,6 +148,8 @@ def _measure(
             coverage_file,
             out_dir,
             max_workers,
+            dry_fail,
+            max_new_clones,
         )
     return state
 
@@ -156,6 +164,8 @@ def _absorb(
     coverage_file: Path | None,
     out_dir: Path,
     max_workers: int | None,
+    dry_fail: bool,
+    max_new_clones: int | None,
 ) -> None:
     if gate == "crap":
         result, metrics, code, versions, baseline = run_crap_gate(
@@ -171,7 +181,11 @@ def _absorb(
         return
     if gate == "dry":
         result, found, code, versions = run_dry_gate(
-            cwd=cwd, config=config, diff_lines=diff_lines
+            cwd=cwd,
+            config=config,
+            diff_lines=diff_lines,
+            dry_fail=dry_fail,
+            max_new_clones=max_new_clones,
         )
         state.clones = found
         _record(state, result, code, versions)
