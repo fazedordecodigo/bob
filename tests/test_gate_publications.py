@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from bob_quality.doctor import NODE, node_range
+
 ROOT = Path(__file__).resolve().parents[1]
 
 FAST_GATES = "crap,dry,deps"
@@ -83,3 +85,24 @@ def test_readmes_publish_the_fast_hook_command() -> None:
     old = "bob check --gates crap,deps"
     assert old not in english
     assert old not in portuguese
+
+
+_NODE_DOCS = (
+    "AGENTS.md",
+    "README.md",
+    "README.pt-BR.md",
+    "docs/instalacao.md",
+    "docs/contribuicao.md",
+    "docs/cli.md",
+    "docs/gates.md",
+)
+
+
+def test_docs_publish_the_node_range_the_doctor_accepts() -> None:
+    printed = node_range(NODE)
+    assert printed == ">=22.14.0 <23"
+    for relative in _NODE_DOCS:
+        assert printed in _text(relative), relative
+    assert "essa versão exata" not in _text("AGENTS.md")
+    assert "any Node other than 22.14.0" not in _text("README.md")
+    assert "qualquer Node diferente de 22.14.0" not in _text("README.pt-BR.md")
