@@ -22,6 +22,10 @@ The pull request comment resolves language with `resolve_language`, the same fun
 
 O comentário do PR resolve o idioma com `resolve_language`, a mesma função que a CLI chama. A ordem é o input `language` da Action ou `--lang`, depois `BOB_LANG`, depois `language` no `bob.yaml`, depois `en`. A nota de truncamento e os erros do comentário seguem esse idioma. Os erros são repo, pr ou token ausente, relatório ausente e lista de comentários inválida. O corpo do relatório continua os bytes de `.bob/report.md`. Um `language` inválido, um `bob.yaml` que não é mapeamento ou um YAML com erro de sintaxe sai com 4, com o stderr em inglês que já existia, e não posta comentário, mesmo com `--lang` válido. Um `BOB_LANG` vazio é inválido e sai com 4. Um input `language` vazio fica de fora.
 
+`.github/actions/bob/upsert_comment.py` reads `bob.yaml` from the process cwd.
+
+O `.github/actions/bob/upsert_comment.py` lê o `bob.yaml` do cwd do processo.
+
 `grimp==3.17` is a direct pin in `pyproject.toml`, and `bob doctor` lists it. `bob doctor` no longer treats a PATH binary as a pip tool. The version it expects is the one `bob-quality` declares.
 
 `grimp==3.17` é um pin direto no `pyproject.toml`, e o `bob doctor` lista essa versão. O `bob doctor` não trata mais um binário do PATH como ferramenta pip. A versão que ele espera é a que o `bob-quality` declara.

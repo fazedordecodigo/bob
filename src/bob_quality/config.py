@@ -200,6 +200,7 @@ def resolve_language(flag: str | None, config_path: Path | None, cwd: Path) -> L
     else:
         env = os.environ.get("BOB_LANG")
         chosen = None if env is None else _parse_language(env)
+    # --lang ou BOB_LANG válido ainda lê o bob.yaml para um arquivo inválido continuar falhando.
     configured = _configured_language(config_path, cwd)
     if chosen is not None:
         return chosen
