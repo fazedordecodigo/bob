@@ -6,7 +6,7 @@ Dois arquivos. `bob.yaml` na raiz do repositório (ou o caminho de `--config`) d
 
 ## bob.yaml
 
-Se o arquivo não existe e `--config` não foi passado, `load_config` devolve os padrões de `Config` em `src/bob_quality/config.py`. Se `--config` aponta para um arquivo que não existe, `check`, `crap`, `dry`, `deps` e `mutate` saem com `4`, gravam `.bob/report.md` e `.bob/report.json`, e deixam o stdout e o stderr vazios. Cada gate pedido fica `not_run`. O `reason` do JSON é `config file not found: <caminho>`, com o caminho que `load_config` recebeu. O `report.md` segue o idioma da saída. `doctor` e `waive` não aceitam `--config`.
+Se o arquivo não existe e `--config` não foi passado, `load_config` devolve os padrões de `Config` em `src/bob_quality/config.py`. Se `--config` aponta para um arquivo que não existe, `check`, `crap`, `dry`, `deps` e `mutate` saem com `4`. O stderr fica em inglês e cita o caminho que `load_config` recebeu (`config file not found: <caminho>`). Nada é gravado. `doctor` e `waive` não aceitam `--config`.
 
 Padrões quando não há `bob.yaml`:
 

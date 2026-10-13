@@ -187,10 +187,7 @@ def load_config(path: Path | None, cwd: Path) -> Config:
 
 
 def reject_config_types(path: Path | None, cwd: Path) -> None:
-    config_path = path if path is not None else cwd / "bob.yaml"
-    if not config_path.is_file():
-        return
-    _config_from_file(config_path, cwd)
+    load_config(path, cwd)
 
 
 def configured_language(path: Path | None, cwd: Path) -> Language | None:

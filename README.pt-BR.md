@@ -200,7 +200,7 @@ Com `crap.scope: changed`, só funções alteradas bloqueiam. `all` faz toda fun
 
 Se o YAML não é um mapeamento, se o YAML tem erro de sintaxe, se um mapeamento repete uma chave, ou se uma chave tem o tipo errado, a execução sai com `4`. A mensagem vai para o stderr em inglês e cita o arquivo. Um tipo errado também cita a chave, como em `bob.yaml: crap must be a mapping` ou `bob.yaml: crap.max_per_function must be a number`. Uma chave repetida cita a chave e a linha, como em `invalid YAML in bob.yaml: found duplicate key 'base' on line 2`. `check`, `doctor`, `waive` e os outros comandos fazem isso do mesmo jeito. Nenhum deles grava um arquivo.
 
-Se `--config` aponta para um arquivo que não existe, `check`, `crap`, `dry`, `deps` e `mutate` saem com `4`, gravam `.bob/report.md` e `.bob/report.json`, e deixam o stdout e o stderr vazios. Cada gate pedido fica não executado. O `reason` do JSON é `config file not found: <caminho>`, com o caminho que `load_config` recebeu. O Markdown segue o idioma da saída. `doctor` e `waive` não aceitam `--config`.
+Se `--config` aponta para um arquivo que não existe, `check`, `crap`, `dry`, `deps` e `mutate` saem com `4`. O stderr fica em inglês e cita o caminho que `load_config` recebeu (`config file not found: <caminho>`). Nada é gravado. `doctor` e `waive` não aceitam `--config`.
 
 ### Idioma da saída
 

@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+A missing `--config` file exits `4` on `check`, `crap`, `dry`, `deps`, and `mutate`. English stderr names the path, as in `config file not found: <path>`, and the run writes no report. A missing `bob.yaml`, with no `--config`, still uses the defaults.
+
+Um `--config` inexistente sai com `4` em `check`, `crap`, `dry`, `deps` e `mutate`. O stderr em inglês cita o caminho, como em `config file not found: <caminho>`, e a execução não grava relatório. Um `bob.yaml` ausente, sem `--config`, continua nos padrões.
+
 `bob check --gates secrets` scans `paths.include` with gitleaks 8.30.1. A secret on a new diff line fails with exit `1`. The report lists the file, the line, and the rule id. It does not print the secret. Waive a finding in `.bob/waivers.yaml` with the id `secret:<rule>:<file>:<line>`. `secrets` in `bob.yaml` is an empty mapping and does not turn the gate on. The gate stays out of the default list, the pre-push hook, and the Action default. `bob doctor` pins gitleaks 8.30.1. A `.gitleaksignore` file under an include root exits `4` before the scan.
 
 `bob check --gates secrets` varre `paths.include` com o gitleaks 8.30.1. Um segredo numa linha nova do diff falha com exit `1`. O relatório lista o arquivo, a linha e o id da regra. Ele não imprime o segredo. O waiver em `.bob/waivers.yaml` usa o id `secret:<regra>:<arquivo>:<linha>`. `secrets` no `bob.yaml` é um mapeamento vazio e não liga o gate. O gate fica fora da lista padrão, do hook pre-push e do padrão da Action. O `bob doctor` pina o gitleaks 8.30.1. Um `.gitleaksignore` numa raiz de include sai com `4` antes da varredura.

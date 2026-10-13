@@ -389,16 +389,20 @@ def test_language_follows_flag_then_env_then_yaml_then_config(tmp_path: Path) ->
     )
 
 
-def test_missing_config_names_the_file_the_gate_opens(tmp_path: Path) -> None:
-    repo = _repo(tmp_path / "repo")
+@pytest.mark.parametrize("command", ["check", "crap", "dry", "deps", "mutate"])
+def test_missing_explicit_config_exits_4_in_english_and_writes_nothing(
+    tmp_path: Path, command: str
+) -> None:
+    repo = tmp_path / command
+    repo.mkdir()
     missing = repo / "missing.yaml"
 
-    result = _invoke(repo, "check", "--gates", "nope", "--base", "main", "--config", "missing.yaml")
+    result = _invoke(repo, command, "--config", "missing.yaml", "--lang", "pt-BR")
 
     assert result.returncode == 4, result.stderr
-    report = (repo / ".bob" / "report.json").read_text()
-    assert missing.as_posix() in report
-    assert "config file not found" in report
+    assert result.stdout == ""
+    assert result.stderr == f"config file not found: {missing}\n"
+    assert not (repo / ".bob").exists()
 
 
 def test_invalid_language_is_english_on_stderr_and_writes_nothing(tmp_path: Path) -> None:
