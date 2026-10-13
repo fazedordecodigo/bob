@@ -7,6 +7,7 @@ fora do diff e mantém o exit code. Não inspeciona o parser do jscpd.
 import json
 import os
 import shutil
+import subprocess
 from pathlib import Path
 
 import pytest
