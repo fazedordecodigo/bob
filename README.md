@@ -177,7 +177,7 @@ The npm tools need Node, and jscpd needs it in a Python-only repository too. In 
 
 ### `bob.yaml`
 
-bob reads these keys. The values below are the defaults that apply when `bob.yaml` does not exist:
+bob reads these keys. The values below apply when a key is omitted. `languages` is detected from the tree when `bob.yaml` is missing or the key is omitted, and `[python]` remains only when no matching source file exists:
 
 ```yaml
 base: origin/main
@@ -196,11 +196,11 @@ dependencies:
   typescript: .dependency-cruiser.cjs
 ```
 
-With `crap.scope: changed`, only changed functions block. `all` counts every measured function. The value is `changed` or `all`. Omitting `languages` or setting it to null selects `[python]`. An empty list exits with `4`. There is no autodetection.
+With `crap.scope: changed`, only changed functions block. `all` counts every measured function. The value is `changed` or `all`. Omitting `languages`, or setting it to null, detects the list from files under `paths.include` and outside `paths.exclude`. The scan does not follow symlinks. `paths.exclude` matches a path prefix or a path component, not a glob. `.py` selects `python`. `.ts`, `.tsx`, `.js`, `.jsx`, `.mjs`, and `.cjs` select `typescript`, in that order. If none of those files exist, the result is `[python]`. The same detection runs when `bob.yaml` is missing and `--config` was not passed. An explicit list is kept as written. An empty list exits with `4`.
 
 If the YAML is not a mapping, the YAML has a syntax error, a mapping repeats a key, or a key has the wrong type, the run exits with `4`. The message goes to stderr in English and names the file. A wrong type also names the key, as in `bob.yaml: crap must be a mapping` or `bob.yaml: crap.max_per_function must be a number`. A repeated key names the key and the line, as in `invalid YAML in bob.yaml: found duplicate key 'base' on line 2`. `check`, `doctor`, `waive`, and the other commands do this the same way. None of them writes a file.
 
-If `--config` points to a file that does not exist, `check`, `crap`, `dry`, `deps`, and `mutate` exit with `4`, write `.bob/report.md` and `.bob/report.json`, and leave stdout and stderr empty. Each requested gate is not run. The JSON reason is `config file not found: <path>`, using the path `load_config` received. The Markdown follows the output language. `doctor` and `waive` do not accept `--config`.
+If `--config` points to a file that does not exist, `check`, `crap`, `dry`, `deps`, and `mutate` exit with `4`. English stderr names the path `load_config` received (`config file not found: <path>`). The run writes nothing. `doctor` and `waive` do not accept `--config`.
 
 ### Output language
 

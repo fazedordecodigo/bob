@@ -163,24 +163,13 @@ def test_check_exits_2_when_baseline_tests_fail(tmp_path: Path) -> None:
 
 def test_check_exits_4_when_config_is_missing(tmp_path: Path) -> None:
     repo = init_python_repo(tmp_path / "repo")
-    commit_on_branch(
-        repo,
-        "safe-change",
-        "src/app/safe.py",
-        SAFE_CHANGE,
-        "touch tested add",
-    )
-
-    result = run_bob(repo, "check", "--base", "main", "--config", "missing.yaml")
-    payload = json.loads((repo / ".bob" / "report.json").read_text())
-    names = {gate["name"]: gate for gate in payload["gates"]}
+    missing = repo / "missing.yaml"
+    result = run_bob(repo, "check", "--base", "main", "--config", "missing.yaml", "--lang", "pt-BR")
 
     assert result.returncode == 4
-    assert (repo / ".bob" / "report.md").is_file()
-    assert names["crap"]["status"] == "not_run"
-    assert names["dry"]["status"] == "not_run"
-    assert names["deps"]["status"] == "not_run"
-    assert names["dry"]["reason"]
+    assert result.stdout == ""
+    assert result.stderr == f"config file not found: {missing}\n"
+    assert not (repo / ".bob").exists()
 
 
 def test_check_does_not_reenter_parent_pytest_via_addopts(tmp_path: Path) -> None:

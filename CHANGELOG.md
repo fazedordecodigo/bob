@@ -2,6 +2,18 @@
 
 ## Unreleased
 
+Language detection does not follow symlinks. A symlink to a file or a directory does not select a language, and a symlink that points back at a parent does not loop. `paths.exclude` matches a path prefix or a path component. It is not a glob. An entry `*.py` does not exclude `src/app.py`.
+
+A detecção de linguagem não segue symlink. Um link para arquivo ou diretório não escolhe linguagem, e um link que aponta de volta para um pai não entra em ciclo. `paths.exclude` casa por prefixo de caminho ou por componente. Não é glob. A entrada `*.py` não deixa `src/app.py` de fora.
+
+Omitting `languages`, or setting it to null, detects the list from files under `paths.include` and outside `paths.exclude`. `.py` selects `python`. `.ts`, `.tsx`, `.js`, `.jsx`, `.mjs`, and `.cjs` select `typescript`, in that order. If none of those files exist, the result stays `[python]`. An explicit list is kept as written. A missing `bob.yaml`, with no `--config`, uses the same detection. A `--config` path that is not a file still exits `4` and writes nothing.
+
+`languages` omitido ou nulo é autodetectado pelos arquivos em `paths.include`, fora de `paths.exclude`. `.py` escolhe `python`. `.ts`, `.tsx`, `.js`, `.jsx`, `.mjs` e `.cjs` escolhem `typescript`, nessa ordem. Sem nenhum desses arquivos, o resultado continua `[python]`. Uma lista explícita permanece como foi escrita. Um `bob.yaml` ausente, sem `--config`, usa a mesma detecção. Um `--config` que não é arquivo continua saindo com `4` e não grava nada.
+
+A missing `--config` file exits `4` on `check`, `crap`, `dry`, `deps`, and `mutate`. English stderr names the path, as in `config file not found: <path>`, and the run writes no report. A missing `bob.yaml`, with no `--config`, still uses the defaults.
+
+Um `--config` inexistente sai com `4` em `check`, `crap`, `dry`, `deps` e `mutate`. O stderr em inglês cita o caminho, como em `config file not found: <caminho>`, e a execução não grava relatório. Um `bob.yaml` ausente, sem `--config`, continua nos padrões.
+
 `bob check --gates secrets` scans `paths.include` with gitleaks 8.30.1. A secret on a new diff line fails with exit `1`. The report lists the file, the line, and the rule id. It does not print the secret. Waive a finding in `.bob/waivers.yaml` with the id `secret:<rule>:<file>:<line>`. `secrets` in `bob.yaml` is an empty mapping and does not turn the gate on. The gate stays out of the default list, the pre-push hook, and the Action default. `bob doctor` pins gitleaks 8.30.1. A `.gitleaksignore` file under an include root exits `4` before the scan.
 
 `bob check --gates secrets` varre `paths.include` com o gitleaks 8.30.1. Um segredo numa linha nova do diff falha com exit `1`. O relatório lista o arquivo, a linha e o id da regra. Ele não imprime o segredo. O waiver em `.bob/waivers.yaml` usa o id `secret:<regra>:<arquivo>:<linha>`. `secrets` no `bob.yaml` é um mapeamento vazio e não liga o gate. O gate fica fora da lista padrão, do hook pre-push e do padrão da Action. O `bob doctor` pina o gitleaks 8.30.1. Um `.gitleaksignore` numa raiz de include sai com `4` antes da varredura.

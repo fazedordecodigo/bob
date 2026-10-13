@@ -6,7 +6,7 @@ Dois arquivos. `bob.yaml` na raiz do repositório (ou o caminho de `--config`) d
 
 ## bob.yaml
 
-Se o arquivo não existe e `--config` não foi passado, `load_config` devolve os padrões de `Config` em `src/bob_quality/config.py`. Se `--config` aponta para um arquivo que não existe, `check`, `crap`, `dry`, `deps` e `mutate` saem com `4`, gravam `.bob/report.md` e `.bob/report.json`, e deixam o stdout e o stderr vazios. Cada gate pedido fica `not_run`. O `reason` do JSON é `config file not found: <caminho>`, com o caminho que `load_config` recebeu. O `report.md` segue o idioma da saída. `doctor` e `waive` não aceitam `--config`.
+Se o arquivo não existe e `--config` não foi passado, `load_config` devolve os padrões de `Config` em `src/bob_quality/config.py`. Se `--config` aponta para um arquivo que não existe, `check`, `crap`, `dry`, `deps` e `mutate` saem com `4`. O stderr fica em inglês e cita o caminho que `load_config` recebeu (`config file not found: <caminho>`). Nada é gravado. `doctor` e `waive` não aceitam `--config`.
 
 Padrões quando não há `bob.yaml`:
 
@@ -56,9 +56,11 @@ Uma chave repetida no mesmo mapeamento sai com `4`. O stderr fica em inglês e c
 
 ### languages
 
-`languages` omitido ou nulo (`languages:` ou `languages: null`) vira `["python"]`, o padrão de `Config`. Não há autodetecção. O mesmo vale quando o arquivo `bob.yaml` não existe e `--config` não foi passado. Para medir TypeScript é preciso listar `typescript` (e `python` também, num monorepo misto).
+`languages` omitido ou nulo (`languages:` ou `languages: null`) é autodetectado. O mesmo vale quando o arquivo `bob.yaml` não existe e `--config` não foi passado. A varredura lê `paths.include` e ignora `paths.exclude`. Ela não segue symlink. Um link para arquivo ou diretório não escolhe linguagem, e um link que aponta de volta para um pai não entra em ciclo. `.py` escolhe `python`. `.ts`, `.tsx`, `.js`, `.jsx`, `.mjs` e `.cjs` escolhem `typescript`. O resultado sai nessa ordem. Sem nenhum desses arquivos, o resultado é `["python"]`. Uma lista explícita permanece como foi escrita.
 
-Uma lista vazia ou um item repetido sai com 4. Uma chave ausente ou nula continua `[python]`.
+`paths.exclude` casa por prefixo de caminho, não por glob. O item casa com o caminho inteiro, com o prefixo `item/`, ou com um componente do caminho. `*.py` não deixa `src/app.py` de fora. `tests` deixa de fora `tests/a.py` e `src/tests/a.py`. `node_modules` deixa de fora `src/node_modules`.
+
+Uma lista vazia ou um item repetido sai com 4.
 
 O gate DRY mapeia `typescript` para os formatos `typescript` e `javascript` do jscpd (`dry_gate.py`).
 
