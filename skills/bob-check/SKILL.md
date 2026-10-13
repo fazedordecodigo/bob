@@ -16,9 +16,9 @@ Invocar a CLI, ler o veredito, corrigir o que ela nomeia, repetir até exit 0. O
 ## Invocar
 
 ```
-bob check   [--base REF] [--gates crap,dry,deps,mutate] [--config bob.yaml] [--format md|json|both] [--out .bob/]
+bob check   [--base REF] [--gates crap,dry,deps,mutate] [--config bob.yaml] [--format md|json|both] [--out .bob/] [--dry-fail] [--max-new-clones N]
 bob crap    [--base REF] [--threshold N] [--coverage-file PATH]
-bob dry     [--base REF]
+bob dry     [--base REF] [--dry-fail] [--max-new-clones N]
 bob deps
 bob mutate  [--base REF] [--since-last-run] [--max-workers N]
 bob waive   <file::function|Target> --reason "texto de uma linha"
@@ -49,7 +49,7 @@ Uso inválido: o stderr começa com `usage: bob`, contém `error:` e não mencio
 
 `.bob/report.json` (`schema_version: 1`) espelha `.bob/report.md`.
 
-Veredito por gate: ✅ passou / ⚠️ aviso / ❌ falhou / ⏭️ não executado (com motivo). Exit `0` é o passe do check. ⚠️ (clone novo) não falha. `no_coverage` nas funções do diff é ❌ e sai `3`. ⏭️ fica ⏭️ com motivo. Violação de dependência é ❌.
+Veredito por gate: ✅ passou / ⚠️ aviso / ❌ falhou / ⏭️ não executado (com motivo). Exit `0` é o passe do check. ⚠️ (clone novo no modo warn, ou até o teto no modo fail) não falha. `no_coverage` nas funções do diff é ❌ e sai `3`. ⏭️ fica ⏭️ com motivo. Violação de dependência é ❌. Com `duplication.new_clones: fail` ou `--dry-fail`, mais clones novos que `duplication.max_new_clones` dão ❌ e exit `1`. O `reason` cita a chave e o teto.
 
 Cada linha acionável traz função, arquivo:linha, métrica e limite.
 

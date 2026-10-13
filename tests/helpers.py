@@ -9,9 +9,10 @@ import subprocess
 import sys
 from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
+from typing import NamedTuple
 
 from bob_quality.cli import main
-from bob_quality.messages import Text, reason, render
+from bob_quality.messages import Language, Text, reason, render
 
 FIXTURE_PYTHON = Path(__file__).parent / "fixtures" / "python_app"
 FIXTURE_TYPESCRIPT = Path(__file__).parent / "fixtures" / "ts_app"
@@ -22,6 +23,32 @@ MESSY_WITHOUT_RETURN_2 = (FIXTURE_PYTHON / "cases" / "messy_without_return_2.py"
 SAFE_CHANGE = (FIXTURE_PYTHON / "cases" / "pass_safe.py").read_text()
 TS_RISKY_SOURCE = (FIXTURE_TYPESCRIPT / "cases" / "fail_crap.ts").read_text()
 TS_SAFE_CHANGE = (FIXTURE_TYPESCRIPT / "cases" / "pass_safe.ts").read_text()
+
+
+class LanguageCase(NamedTuple):
+    flag: Language | None
+    env: Language | None
+    configured: Language | None
+    expected: Language
+
+
+LANGUAGE_CASES: tuple[LanguageCase, ...] = (
+    LanguageCase(None, None, None, "en"),
+    LanguageCase("pt-BR", None, None, "pt-BR"),
+    LanguageCase(None, "pt-BR", None, "pt-BR"),
+    LanguageCase(None, None, "pt-BR", "pt-BR"),
+    LanguageCase(None, "en", "pt-BR", "en"),
+    LanguageCase("en", "pt-BR", "pt-BR", "en"),
+    LanguageCase("pt-BR", "en", "en", "pt-BR"),
+)
+
+BAD_LANGUAGE_YAML: tuple[tuple[str, str], ...] = (
+    ("language: fr\n", "bob.yaml: language must be en or pt-BR\n"),
+    ("language: pt-br\n", "bob.yaml: language must be en or pt-BR\n"),
+    ("language: 5\n", "bob.yaml: language must be a string\n"),
+    ("- base\n", "bob.yaml must be a mapping\n"),
+    (":\n  - [\n", "invalid YAML in bob.yaml: while parsing a block mapping\n"),
+)
 
 
 def in_both(text: Text | BaseException) -> tuple[str, str]:

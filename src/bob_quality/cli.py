@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import argparse
-import os
 import shlex
 import sys
 from dataclasses import dataclass
@@ -11,13 +10,7 @@ from pathlib import Path
 from typing import NoReturn
 
 from bob_quality.check import run_check
-from bob_quality.config import (
-    Config,
-    ConfigError,
-    configured_language,
-    reject_config_types,
-    resolve_language,
-)
+from bob_quality.config import Config, ConfigError, reject_config_types, resolve_language
 from bob_quality.doctor import run_doctor
 from bob_quality.exit_codes import CONFIG_OR_TOOL, PASSED
 from bob_quality.messages import DEFAULT_LANGUAGE, Language, reason, render, t
@@ -83,6 +76,7 @@ def build_parser(lang: Language = DEFAULT_LANGUAGE) -> _Parser:
         default="both",
         choices=("md", "json", "both"),
     )
+    _add_dry_limits(check)
 
     crap = sub.add_parser("crap", help=t(lang, "cli.crap"))
     _add_shared(crap, lang)
@@ -91,6 +85,7 @@ def build_parser(lang: Language = DEFAULT_LANGUAGE) -> _Parser:
 
     dry = sub.add_parser("dry", help=t(lang, "cli.dry"))
     _add_shared(dry, lang)
+    _add_dry_limits(dry)
 
     deps = sub.add_parser("deps", help=t(lang, "cli.deps"))
     _add_shared(deps, lang)
@@ -157,6 +152,11 @@ def _add_lang(parser: argparse.ArgumentParser, lang: Language) -> None:
     parser.add_argument("--lang", default=None, help=t(lang, "cli.lang"))
 
 
+def _add_dry_limits(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument("--dry-fail", action="store_true")
+    parser.add_argument("--max-new-clones", type=int)
+
+
 def _parse(argv: list[str] | None) -> _Invocation:
     try:
         lang = _language(argv)
@@ -177,7 +177,15 @@ def _parse(argv: list[str] | None) -> _Invocation:
         return _Rejected()
     except _Parser.Help:
         return _HelpShown()
+    if _negative_ceiling(args):
+        print(t(DEFAULT_LANGUAGE, "cli.max_new_clones_negative"), file=sys.stderr)
+        return _Rejected()
     return _Ready(lang, args)
+
+
+def _negative_ceiling(args: argparse.Namespace) -> bool:
+    ceiling = getattr(args, "max_new_clones", None)
+    return ceiling is not None and ceiling < 0
 
 
 def _stop_code(seen: _HelpShown | _Rejected) -> int:
@@ -232,17 +240,7 @@ def _language(argv: list[str] | None) -> Language:
     except _EarlyFlags.Unreadable:
         return DEFAULT_LANGUAGE
     cwd = Path.cwd()
-    flag = known.lang
-    env = os.environ.get("BOB_LANG")
-    selected = (
-        resolve_language(flag, env, None) if flag is not None or env is not None else None
-    )
-    configured = configured_language(_resolve_config(cwd, known.config), cwd)
-    if selected is not None:
-        return selected
-    if configured is None:
-        return DEFAULT_LANGUAGE
-    return configured
+    return resolve_language(known.lang, _resolve_config(cwd, known.config), cwd)
 
 
 def _blocked_config(cwd: Path, config: str | None) -> int | None:
@@ -324,6 +322,8 @@ def _run_check(
         fmt=args.format,
         reproduce=_reproduce("check", args),
         lang=lang,
+        dry_fail=args.dry_fail,
+        max_new_clones=args.max_new_clones,
     )
 
 
@@ -365,6 +365,8 @@ def _run_dry(
         fmt="both",
         reproduce=_reproduce("dry", args),
         lang=lang,
+        dry_fail=args.dry_fail,
+        max_new_clones=args.max_new_clones,
     )
 
 
@@ -417,8 +419,11 @@ def _reproduce(command: str, args: argparse.Namespace) -> str:
     _append_flag(parts, "--threshold", getattr(args, "threshold", None))
     _append_flag(parts, "--coverage-file", getattr(args, "coverage_file", None))
     _append_flag(parts, "--max-workers", getattr(args, "max_workers", None))
-    if getattr(args, "since_last_run", False):
+    if vars(args).get("since_last_run") is True:
         parts.append("--since-last-run")
+    if vars(args).get("dry_fail") is True:
+        parts.append("--dry-fail")
+    _append_flag(parts, "--max-new-clones", getattr(args, "max_new_clones", None))
     return " ".join(parts)
 
 

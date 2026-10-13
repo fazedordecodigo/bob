@@ -13,7 +13,7 @@ A fórmula, os limiares, o escopo no diff, a mutação diferencial e os waivers 
 Confirmado no [README.pt-BR.md](../README.pt-BR.md) e no código:
 
 - CRAP em Python e TypeScript.
-- Duplicação com jscpd, só como aviso.
+- Duplicação com jscpd, aviso por padrão e falha acima de um teto no modo fail.
 - Dependências, com a regra que proíbe ciclos.
 - Mutação diferencial em Python com mutmut, e `bob waive`.
 - `bob doctor` e o pacote `bob-quality` `0.1.0`, com sdist e wheel gerados no CI. O workflow `.github/workflows/package.yml` termina em `twine check` e `bob doctor` e não publica.
