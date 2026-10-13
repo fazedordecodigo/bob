@@ -24,6 +24,7 @@ _CheckKind = Literal[
     "number",
     "finite",
     "integer",
+    "confidence",
     "one_of",
     "members",
     "language",
@@ -142,6 +143,14 @@ _SCHEMA = _Node(
             ),
         ),
         _Node("typing", "", (), empty_mapping=True),
+        _Node(
+            "dead_code",
+            "",
+            (),
+            children=(
+                _Node("min_confidence", "dead_code_min_confidence", (_Check("confidence"),)),
+            ),
+        ),
     ),
 )
 
@@ -157,6 +166,7 @@ class Config:
     python_deps_config: str = ".importlinter"
     typescript_deps_config: str = ".dependency-cruiser.cjs"
     min_tokens: int = 50
+    dead_code_min_confidence: int | None = None
     language: Language | None = None
 
     def __post_init__(self) -> None:
@@ -366,6 +376,16 @@ def _integer(check: _Check, value: object) -> _Failure | None:
     return ("config.key_integer", "", {})
 
 
+def _confidence(check: _Check, value: object) -> _Failure | None:
+    if value is None:
+        return None
+    if isinstance(value, bool) or not isinstance(value, int):
+        return ("config.key_integer", "", {})
+    if 0 <= value <= 100:
+        return None
+    return ("config.key_between", "", {"low": 0, "high": 100})
+
+
 def _one_of(check: _Check, value: object) -> _Failure | None:
     if value in check.choices:
         return None
@@ -421,6 +441,7 @@ _UNBOUND: dict[_CheckKind, _FailFn] = {
     "number": _number,
     "finite": _finite,
     "integer": _integer,
+    "confidence": _confidence,
     "one_of": _one_of,
     "members": _members,
     "language": _language,
