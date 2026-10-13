@@ -11,8 +11,11 @@ import subprocess
 import sys
 from pathlib import Path
 
+import pytest
+
 from bob_quality.config import Config
 from bob_quality.dry_gate import _run_jscpd
+from bob_quality.tools import ToolError
 
 from helpers import (
     RISKY_SOURCE,
@@ -74,6 +77,15 @@ def test_jscpd_spawns_inside_a_bob_temp_dir(tmp_path: Path, monkeypatch) -> None
         "50",
         "--reporters",
     ]
+
+    def fake_spawn_without_report(
+        cwd: Path, args: list[str], prefix: Path | None = None
+    ) -> subprocess.CompletedProcess[str]:
+        return subprocess.CompletedProcess(args, 1, "from-stdout", "from-stderr")
+
+    monkeypatch.setattr("bob_quality.dry_gate.spawn_clean", fake_spawn_without_report)
+    with pytest.raises(ToolError, match="^from-stderr$"):
+        _run_jscpd(repo, Config(), prefix)
 
 
 def test_new_python_clones_in_the_diff_warn_without_failing(tmp_path: Path) -> None:
