@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 import subprocess
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -22,6 +23,15 @@ class ProcessFault:
 
 ProcessResult = ProcessExit | ProcessFault
 Runner = Callable[[list[str], Path, int], ProcessResult]
+
+
+def banner_version(result: ProcessExit, pattern: re.Pattern[str]) -> str:
+    match = pattern.search(result.stdout)
+    if match is None:
+        match = pattern.search(result.stderr)
+    if match is None:
+        return "unknown"
+    return match.group(0)
 
 
 def default_runner(args: list[str], cwd: Path, timeout: int) -> ProcessResult:

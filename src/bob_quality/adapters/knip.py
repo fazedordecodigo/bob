@@ -6,7 +6,13 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
 
-from bob_quality.adapters.runner import ProcessExit, ProcessFault, Runner, default_runner
+from bob_quality.adapters.runner import (
+    ProcessExit,
+    ProcessFault,
+    Runner,
+    banner_version,
+    default_runner,
+)
 from bob_quality.messages import Text, msg
 from bob_quality.npm_tools import npm_prefix
 from bob_quality.tools import ToolError
@@ -84,10 +90,7 @@ def _version(cwd: Path, timeout: int, runner: Runner, prefix: str) -> str:
     result = runner(args, cwd, timeout)
     if not isinstance(result, ProcessExit):
         return "unknown"
-    match = _VERSION.search(result.stdout + "\n" + result.stderr)
-    if match is None:
-        return "unknown"
-    return match.group(0)
+    return banner_version(result, _VERSION)
 
 
 def _file(item: object) -> KnipFile | None:

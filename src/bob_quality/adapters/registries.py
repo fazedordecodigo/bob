@@ -14,6 +14,7 @@ from bob_quality.adapters.manifests import AddedPackage, pep503
 from bob_quality.models import Severity, UndecidedCause
 
 _OSV = "https://api.osv.dev/v1/querybatch"
+_NPM_SAFE = "@"
 _SEVERITIES = frozenset({"CRITICAL", "HIGH", "MODERATE", "LOW"})
 _AV3 = {"N": 0.85, "A": 0.62, "L": 0.55, "P": 0.2}
 _AC3 = {"L": 0.77, "H": 0.44}
@@ -141,7 +142,7 @@ def _existence_url(package: AddedPackage) -> str:
     if package.index == "pypi":
         name = urllib.parse.quote(pep503(package.name))
         return f"https://pypi.org/pypi/{name}/json"
-    name = urllib.parse.quote(package.name, safe="@")
+    name = urllib.parse.quote(package.name, safe=_NPM_SAFE)
     return f"https://registry.npmjs.org/{name}"
 
 

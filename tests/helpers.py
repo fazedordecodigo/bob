@@ -43,13 +43,19 @@ def run_bob(
 
 
 def _git(repo: Path, *args: str) -> None:
-    subprocess.run(
-        ["git", *args],
+    env = os.environ.copy()
+    for key in ("GIT_DIR", "GIT_WORK_TREE", "GIT_INDEX_FILE", "GIT_PREFIX", "GIT_COMMON_DIR"):
+        env.pop(key, None)
+    completed = subprocess.run(
+        ["git", "-c", "commit.gpgsign=false", *args],
         cwd=repo,
-        check=True,
         capture_output=True,
         text=True,
+        env=env,
     )
+    if completed.returncode != 0:
+        detail = completed.stderr.strip() or completed.stdout.strip()
+        raise RuntimeError(f"git {' '.join(args)} exited {completed.returncode}: {detail}")
 
 
 def init_python_repo(dest: Path) -> Path:

@@ -1,6 +1,7 @@
 import json
-import subprocess
 from pathlib import Path
+
+from helpers import _git
 
 from bob_quality.adapters.registries import HttpFault, HttpOk
 from bob_quality.adapters.runner import ProcessExit, ProcessFault
@@ -318,10 +319,6 @@ def _repo(tmp_path: Path) -> Path:
 def _commit(repo: Path, message: str) -> None:
     _git(repo, "add", ".")
     _git(repo, "commit", "-m", message)
-
-
-def _git(repo: Path, *args: str) -> None:
-    subprocess.run(["git", *args], cwd=repo, check=True, capture_output=True, text=True)
 
 
 def _diff(repo: Path) -> dict[str, set[int]]:

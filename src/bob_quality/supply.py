@@ -248,8 +248,7 @@ def run_supply_gate(
         supply_waiver_ids(tuple(load_waivers(cwd))),
     )
     result, code = finish(judgment, languages)
-    rows = judgment.rows if languages else ()
-    return result, code, versions, SupplyReport(languages, tuple(skipped), rows)
+    return result, code, versions, SupplyReport(languages, tuple(skipped), _reported_rows(languages, judgment.rows))
 
 
 def _measure_language(
@@ -420,6 +419,14 @@ def _advisory_record(
         record.cause,
         record.advisory_id,
     )
+
+
+def _reported_rows(
+    languages: tuple[SupplyLanguage, ...], rows: tuple[SupplyRow, ...]
+) -> tuple[SupplyRow, ...]:
+    if not languages:
+        return ()
+    return rows
 
 
 def _relative(cwd: Path, file: str) -> str:

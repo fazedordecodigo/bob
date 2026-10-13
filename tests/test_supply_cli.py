@@ -1,8 +1,7 @@
 import json
-import subprocess
 from pathlib import Path
 
-from helpers import run_bob
+from helpers import _git, run_bob
 
 
 def test_check_gates_supply_blocks_an_undeclared_import(tmp_path: Path) -> None:
@@ -140,7 +139,3 @@ def _repo(tmp_path: Path, source: str = "x = 1\n", replacement: str = "import re
     _git(repo, "add", ".")
     _git(repo, "commit", "-m", "change")
     return repo
-
-
-def _git(repo: Path, *args: str) -> None:
-    subprocess.run(["git", *args], cwd=repo, check=True, capture_output=True, text=True)

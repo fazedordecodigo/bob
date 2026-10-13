@@ -1,13 +1,13 @@
 import io
 import json
 import socket
-import subprocess
 import urllib.error
 import urllib.request
 from pathlib import Path
 
 import pytest
 
+from helpers import _git
 from bob_quality.adapters.deptry import (
     DeptryViolation,
     parse_deptry_json,
@@ -426,7 +426,3 @@ def _repo(tmp_path: Path) -> Path:
 def _commit(repo: Path, message: str) -> None:
     _git(repo, "add", ".")
     _git(repo, "commit", "-m", message)
-
-
-def _git(repo: Path, *args: str) -> None:
-    subprocess.run(["git", *args], cwd=repo, check=True, capture_output=True, text=True)

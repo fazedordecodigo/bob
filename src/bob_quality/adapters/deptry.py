@@ -7,7 +7,13 @@ import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 
-from bob_quality.adapters.runner import ProcessExit, ProcessFault, Runner, default_runner
+from bob_quality.adapters.runner import (
+    ProcessExit,
+    ProcessFault,
+    Runner,
+    banner_version,
+    default_runner,
+)
 from bob_quality.messages import Text, msg
 
 _VERSION = re.compile(r"\d+\.\d+(?:\.\d+)?")
@@ -89,10 +95,7 @@ def _version(cwd: Path, timeout: int, runner: Runner) -> str:
     result = runner([sys.executable, "-m", "deptry", "--version"], cwd, timeout)
     if not isinstance(result, ProcessExit):
         return "unknown"
-    match = _VERSION.search(result.stdout + "\n" + result.stderr)
-    if match is None:
-        return "unknown"
-    return match.group(0)
+    return banner_version(result, _VERSION)
 
 
 def _read(path: Path) -> tuple[DeptryViolation, ...] | None:

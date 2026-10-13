@@ -22,6 +22,8 @@ _NPM_SECTIONS = (
     "peerDependencies",
 )
 _NPM_SKIP = ("file:", "link:", "workspace:", "git+", "git:", "github:", "http:", "https:")
+_NPM_SCAN = (0, False)
+_IDLE_SECTION = ("", False)
 
 
 @dataclass(frozen=True)
@@ -149,13 +151,19 @@ def _toml_lock(path: Path, name: str) -> str | None:
         if stripped == "[[package]]":
             current = None
             continue
-        if stripped.startswith("name = "):
-            current = _quoted_value(stripped.split("=", 1)[1].strip())
+        key, separator, value = stripped.partition("=")
+        if separator and key.strip() == "name":
+            current = _quoted_value(value.strip())
             continue
-        if current is None or pep503(current) != name or not stripped.startswith("version = "):
-            continue
-        return _quoted_value(stripped.split("=", 1)[1].strip())
+        if _is_locked_version(current, name, separator, key):
+            return _quoted_value(value.strip())
     return None
+
+
+def _is_locked_version(current: str | None, wanted: str, separator: str, key: str) -> bool:
+    if current is None or not separator:
+        return False
+    return pep503(current) == wanted and key.strip() == "version"
 
 
 def _npm_locked(manifest: Path, name: str) -> str | None:
@@ -267,8 +275,7 @@ def _excluded(relative: str, exclude: tuple[str, ...]) -> bool:
 
 
 def _python_declarations(text: str) -> tuple[_Decl, ...]:
-    section = ""
-    collecting = False
+    section, collecting = _IDLE_SECTION
     rows: list[_Decl] = []
     for number, raw in enumerate(text.splitlines(), 1):
         section, collecting, found = _python_line(section, collecting, raw, number)
@@ -279,7 +286,7 @@ def _python_declarations(text: str) -> tuple[_Decl, ...]:
 def _python_line(
     section: str, collecting: bool, raw: str, number: int
 ) -> tuple[str, bool, tuple[_Decl, ...]]:
-    stripped = raw.split("#", 1)[0].strip()
+    stripped = raw.partition("#")[0].strip()
     header = _header(stripped)
     if header is not None:
         return header, False, ()
@@ -298,7 +305,7 @@ def _python_line(
 def _requirement_declarations(text: str) -> tuple[_Decl, ...]:
     rows: list[_Decl] = []
     for number, raw in enumerate(text.splitlines(), 1):
-        stripped = raw.split("#", 1)[0].strip()
+        stripped = raw.partition("#")[0].strip()
         parsed = _requirement(stripped)
         if parsed is not None:
             rows.append(_Decl(parsed[0], parsed[1], number))
@@ -322,7 +329,7 @@ def _header(stripped: str) -> str | None:
 def _opens_requirement_array(section: str, stripped: str) -> bool:
     if "=" not in stripped or "[" not in stripped:
         return False
-    key = stripped.split("=", 1)[0].strip()
+    key = stripped.partition("=")[0].strip()
     if section == "project" and key == "dependencies":
         return True
     if section == "project.optional-dependencies":
@@ -388,7 +395,7 @@ def _quoted_value(value: str) -> str | None:
 
 
 def _requirement(stripped: str) -> tuple[str, str | None] | None:
-    if not stripped or stripped.startswith(("-", ".", "/")):
+    if not stripped:
         return None
     if "://" in stripped or " @" in stripped:
         return None
@@ -403,10 +410,9 @@ def _requirement(stripped: str) -> tuple[str, str | None] | None:
 
 def _spec(spec: str) -> str | None:
     if spec.startswith("["):
-        end = spec.find("]")
-        if end < 0:
+        if "]" not in spec:
             return None
-        spec = spec[end + 1 :].strip()
+        spec = spec[spec.find("]") + 1 :].strip()
     if "://" in spec or spec.startswith("@"):
         return None
     return spec
@@ -463,14 +469,13 @@ def _npm_exact(spec: str) -> str | None:
 
 
 def _npm_line(text: str, section: str, name: str) -> int | None:
-    depth = 0
-    inside = False
+    depth, inside = _NPM_SCAN
     for number, line in enumerate(text.splitlines(), 1):
-        if inside:
-            depth += line.count("{") - line.count("}")
-        else:
+        if inside is False:
             depth, inside = _enter_section(line, section)
-        if inside and _package_on_line(line, section, name):
+        else:
+            depth += line.count("{") - line.count("}")
+        if inside is True and _package_on_line(line, section, name):
             return number
         if depth <= 0:
             inside = False
