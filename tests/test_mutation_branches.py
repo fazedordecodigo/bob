@@ -11,7 +11,7 @@ from bob_quality.adapters.stryker import StrykerParseError
 from bob_quality.config import Config
 from bob_quality.coverage_gate import CoverageOutcome
 from bob_quality.messages import msg
-from bob_quality.check import _Measured, _assemble
+from bob_quality.check import DEFAULT_GATES, _Measured, _assemble, run_check
 from bob_quality.models import (
     Clone,
     CyclomaticFunction,
@@ -21,6 +21,7 @@ from bob_quality.models import (
     FunctionMetric,
     GateResult,
     LanguageDiff,
+    Report,
 )
 from bob_quality.mutate import MutationOutcome
 from bob_quality.tools import ToolError
@@ -540,6 +541,176 @@ def test_absorb_records_every_gate_argument_and_result(
     assert coverage_memo._closed is True
 
 
+def test_run_check_forwards_defaults_and_measured_arguments(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    from bob_quality import check as check_mod
+
+    config = Config()
+    diff = {"src/a.py": {1}}
+    measured = _Measured()
+    waivers = [{"id": "idle", "reason": "kept", "author": "ada", "date": "2026-10-12"}]
+    report = Report(
+        schema_version=1,
+        commit="abc123",
+        base="origin/feature",
+        generated_at="2026-10-13T00:00:00+00:00",
+        tool_versions={},
+        gates=[],
+        focus=[],
+        top_crap=[],
+        reproduce="bob check",
+        exit_code=7,
+    )
+    opened = (config, "origin/feature", 9.5, "abc123", diff)
+    seen: dict[str, object] = {}
+    loads: list[tuple[object, ...]] = []
+
+    def fake_open(
+        cwd: Path,
+        base: str | None,
+        config_path: Path | None,
+        threshold: float | None,
+        command: str,
+        gates: list[str],
+    ) -> object:
+        seen["open"] = (cwd, base, config_path, threshold, command, gates)
+        return opened
+
+    def fake_measure(
+        cwd: Path,
+        got_config: Config,
+        diff_lines: dict[str, set[int]],
+        max_crap: float,
+        coverage_file: Path | None,
+        gates: list[str],
+        out_dir: Path,
+        max_workers: int | None,
+        base: str,
+    ) -> _Measured:
+        seen["measure"] = (
+            cwd,
+            got_config,
+            diff_lines,
+            max_crap,
+            coverage_file,
+            gates,
+            out_dir,
+            max_workers,
+            base,
+        )
+        return measured
+
+    def fake_load(cwd: Path, base: str, command: str, gates: list[str]) -> list[dict[str, object]]:
+        loads.append((cwd, base, command, gates))
+        return waivers
+
+    def fake_assemble(
+        state: _Measured,
+        commit: str,
+        base: str,
+        diff_lines: dict[str, set[int]],
+        max_crap: float,
+        command: str,
+    ) -> Report:
+        seen["assemble"] = (state, commit, base, diff_lines, max_crap, command)
+        return report
+
+    def fake_written(got_report: Report, out_dir: Path, fmt: str, lang: str) -> int:
+        seen["written"] = (got_report, out_dir, fmt, lang)
+        return got_report.exit_code
+
+    monkeypatch.setattr(check_mod, "_open", fake_open)
+    monkeypatch.setattr(check_mod, "_measure", fake_measure)
+    monkeypatch.setattr(check_mod, "_load_idle_waivers", fake_load)
+    monkeypatch.setattr(check_mod, "_assemble", fake_assemble)
+    monkeypatch.setattr(check_mod, "_written", fake_written)
+
+    coverage = tmp_path / "coverage.json"
+    out = tmp_path / "out"
+    config_path = tmp_path / "bob.yaml"
+    code = run_check(
+        tmp_path,
+        base="origin/main",
+        config_path=config_path,
+        out_dir=out,
+        fmt="json",
+        threshold=4.0,
+        coverage_file=coverage,
+        max_workers=3,
+        lang="pt-BR",
+    )
+
+    assert list(DEFAULT_GATES) == ["crap", "dry", "deps"]
+    assert code == 7
+    assert seen["open"] == (tmp_path, "origin/main", config_path, 4.0, "bob check", ["crap", "dry", "deps"])
+    assert seen["measure"] == (
+        tmp_path,
+        config,
+        diff,
+        9.5,
+        coverage,
+        ["crap", "dry", "deps"],
+        out,
+        3,
+        "origin/feature",
+    )
+    assert loads == [(tmp_path, "origin/feature", "bob check", ["crap", "dry", "deps"])]
+    assert measured.loaded_waivers is waivers
+    assert seen["assemble"] == (measured, "abc123", "origin/feature", diff, 9.5, "bob check")
+    assert seen["written"] == (report, out, "json", "pt-BR")
+
+    measured.mutation = _outcome(0, status="passed")
+    custom = run_check(
+        tmp_path,
+        base="origin/main",
+        reproduce="bob mutate --since-last-run",
+        gates=["mutate"],
+    )
+
+    assert custom == 7
+    assert len(loads) == 1
+    assert seen["open"] == (
+        tmp_path,
+        "origin/main",
+        None,
+        None,
+        "bob mutate --since-last-run",
+        ["mutate"],
+    )
+    assert seen["assemble"] == (
+        measured,
+        "abc123",
+        "origin/feature",
+        diff,
+        9.5,
+        "bob mutate --since-last-run",
+    )
+
+    failed = Report(
+        schema_version=1,
+        commit="",
+        base="origin/feature",
+        generated_at="2026-10-13T00:00:00+00:00",
+        tool_versions={},
+        gates=[],
+        focus=[],
+        top_crap=[],
+        reproduce="bob check",
+        exit_code=4,
+    )
+
+    def fake_load_report(cwd: Path, base: str, command: str, gates: list[str]) -> Report:
+        return failed
+
+    measured.mutation = None
+    monkeypatch.setattr(check_mod, "_load_idle_waivers", fake_load_report)
+    broken = run_check(tmp_path, base="origin/main", out_dir=out, fmt="md", lang="en")
+
+    assert broken == 4
+    assert seen["written"] == (failed, out, "md", "en")
+
+
 def test_assemble_copies_every_measured_field() -> None:
     clone = Clone("src/a.py", 1, 4, "src/b.py", 1, 4, 4, 20)
     metric = FunctionMetric(
@@ -555,9 +726,25 @@ def test_assemble_copies_every_measured_field() -> None:
         changed=True,
     )
     coverage = DiffCoverage((LanguageDiff("python", 80.0, (DiffLine("src/app/safe.py", 2),)),))
+    debt = FunctionMetric(
+        lang="python",
+        module="app",
+        name="old",
+        file="src/app/old.py",
+        start_line=4,
+        end_line=8,
+        cc=6,
+        coverage=0.0,
+        crap=36.0,
+        changed=False,
+    )
     state = _Measured()
-    state.metrics = [metric]
+    state.metrics = [metric, debt]
     state.clones = [clone]
+    state.violations = [
+        DepViolation("src/app/safe.py", "src/app/other.py", "keep apart", True),
+        DepViolation("src/legacy.py", "src/app/safe.py", "old cycle", False),
+    ]
     state.versions = {"lizard": "1.24.1"}
     state.exit_code = 0
     state.loaded_waivers = [{"id": "idle", "reason": "kept", "author": "ada", "date": "2026-10-12"}]
@@ -568,7 +755,7 @@ def test_assemble_copies_every_measured_field() -> None:
     assert idle.schema_version == 1
     assert idle.commit == "abc123"
     assert idle.base == "origin/main"
-    assert idle.generated_at.startswith("20") and "T" in idle.generated_at
+    assert idle.generated_at.startswith("20") and idle.generated_at.endswith("+00:00")
     assert idle.tool_versions == {"lizard": "1.24.1"}
     assert idle.exit_code == 0
     assert idle.reproduce == "bob check"
@@ -583,6 +770,27 @@ def test_assemble_copies_every_measured_field() -> None:
         {"file": "src/a.py", "risk": 0.0, "clone": True},
     ]
     assert idle.top_crap[0]["name"] == "add"
+    assert idle.old_debt == [
+        {
+            "lang": "python",
+            "module": "app",
+            "name": "old",
+            "file": "src/app/old.py",
+            "start_line": 4,
+            "end_line": 8,
+            "cc": 6,
+            "coverage": 0.0,
+            "crap": 36.0,
+            "changed": False,
+            "delta": None,
+        }
+    ]
+    assert idle.dependencies == [
+        {"origin": "src/app/safe.py", "destination": "src/app/other.py", "rule": "keep apart"}
+    ]
+    assert idle.old_dependencies == [
+        {"origin": "src/legacy.py", "destination": "src/app/safe.py", "rule": "old cycle"}
+    ]
 
     mutation = _outcome(
         0,

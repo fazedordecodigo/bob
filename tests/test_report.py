@@ -121,7 +121,7 @@ def test_diff_coverage_json_lists_measured_percents_and_uncovered_lines() -> Non
         "typescript": 100.0,
         "uncovered": [{"file": "src/app/gap.py", "line": 12}],
     }
-    assert "| python | 75.00% |" in english
+    assert "| Language | Percent |\n|---|---:|\n| python | 75.00% |" in english
     assert "| typescript | 100.00% |" in english
     assert "`src/app/gap.py:12`" in english
 
