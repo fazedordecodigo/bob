@@ -150,6 +150,8 @@ Os comandos gravam `.bob/report.md` e `.bob/report.json`. Os exit codes são:
 
 Um uso inválido da linha de comando sai com `4`, não grava relatório, e o stderr não menciona baseline. A ajuda (`-h`, `--help`) continua saindo com `0`.
 
+`--config` antes do comando sai com `4` e não grava relatório. A última linha do stderr fica em inglês, mesmo com `--lang pt-BR`. Ela mostra o comando com a flag depois do nome, como em `bob: error: --config goes after the command: bob check --config ci.yaml`. Um caminho com espaço sai entre aspas, como em `bob crap --config 'my ci.yaml'`. `doctor` não aceita `--config`. A última linha é `bob: error: doctor does not accept --config`. `waive` também não aceita. A última linha é `bob: error: waive does not accept --config`. O `bob --help` não lista `--config`.
+
 Quando mais de um gate falha, `bob check` sai com o código mais alto.
 
 `bob check` local não roda mutação. `bob check --gates mutate` e `bob mutate` rodam, só nas funções alteradas e nas funções que ainda têm sobreviventes.
@@ -196,7 +198,7 @@ dependencies:
 
 Com `crap.scope: changed`, só funções alteradas bloqueiam. `all` faz toda função medida contar. O valor é `changed` ou `all`. `languages` omitido ou nulo vale `[python]`. Uma lista vazia sai com `4`. Não há autodetecção.
 
-Se o YAML não é um mapeamento, se o YAML tem erro de sintaxe, ou se uma chave tem o tipo errado, a execução sai com `4`. A mensagem vai para o stderr em inglês e cita o arquivo. Um tipo errado também cita a chave, como em `bob.yaml: crap must be a mapping` ou `bob.yaml: crap.max_per_function must be a number`. `check`, `doctor`, `waive` e os outros comandos fazem isso do mesmo jeito. Nenhum deles grava um arquivo.
+Se o YAML não é um mapeamento, se o YAML tem erro de sintaxe, se um mapeamento repete uma chave, ou se uma chave tem o tipo errado, a execução sai com `4`. A mensagem vai para o stderr em inglês e cita o arquivo. Um tipo errado também cita a chave, como em `bob.yaml: crap must be a mapping` ou `bob.yaml: crap.max_per_function must be a number`. Uma chave repetida cita a chave e a linha, como em `invalid YAML in bob.yaml: found duplicate key 'base' on line 2`. `check`, `doctor`, `waive` e os outros comandos fazem isso do mesmo jeito. Nenhum deles grava um arquivo.
 
 Se `--config` aponta para um arquivo que não existe, `check`, `crap`, `dry`, `deps` e `mutate` saem com `4`, gravam `.bob/report.md` e `.bob/report.json`, e deixam o stdout e o stderr vazios. Cada gate pedido fica não executado. O `reason` do JSON é `config file not found: <caminho>`, com o caminho que `load_config` recebeu. O Markdown segue o idioma da saída. `doctor` e `waive` não aceitam `--config`.
 
@@ -219,7 +221,7 @@ No CI, defina `language: pt-BR` no `bob.yaml`, ou `BOB_LANG: pt-BR` no `env` do 
 
 ### `bob doctor` e `--install`
 
-`bob doctor` lista cada ferramenta com a versão pinada e a encontrada. Sai com `0` quando todas coincidem, e com `4` quando alguma falta ou diverge, junto com o comando de instalação. As versões precisam bater exatamente, então o Node 20, ou qualquer Node diferente de 22.14.0, dá `4`. Se o diretório do pacote não for gravável, a mensagem pede `bob doctor --install`.
+`bob doctor` lista cada ferramenta com a versão pinada e a encontrada. Sai com `0` quando todas coincidem, e com `4` quando alguma falta ou diverge, junto com o comando de instalação. As ferramentas Python e npm precisam bater exatamente. O Node precisa estar em `>=22.14.0 <23`, então o Node 20, o Node 24 ou `22.14.0-rc.1` dá `4`. Se o diretório do pacote não for gravável, a mensagem pede `bob doctor --install`.
 
 `bob doctor --install` roda `npm ci` no pacote instalado. Quando o npm falha ali com `EACCES`, `EPERM` ou `EROFS`, instala num cache do usuário (`$XDG_CACHE_HOME/bob-quality`, ou `~/.cache/bob-quality`). Outros erros do npm saem com `4` e o comando exato. Depois imprime o mesmo relatório.
 
@@ -289,7 +291,7 @@ Por exemplo, um mutante troca `if total > limit:` por `if total >= limit:`. Se n
 
 O bob muta Python com o mutmut e TypeScript com o Stryker. Ele roda os testes da baseline primeiro e sai com `2` se eles falham. Ele muta as funções alteradas, mais as funções que ainda têm sobreviventes sem waiver. O cache `.bob/mutation-cache.json` guarda um hash do texto de cada função. O reuso também exige que a versão do mutmut e a impressão da suíte batam. Uma diferença ainda remuta um sobrevivente sem waiver fora do diff. A GitHub Action restaura e publica o cache como o artefato `bob-mutation-cache`. O TypeScript guarda o arquivo incremental do Stryker em `.bob/stryker-incremental.json`. Esse arquivo é local. A Action não o restaura.
 
-O limite é zero sobreviventes sem waiver. Qualquer sobrevivente assim reprova o gate com exit `3`. O relatório lista só os sobreviventes. Mutantes `killed`, `timeout` e `no_coverage` não bloqueiam. Um aviso para mutantes `no_coverage` está planejado ([#31](https://github.com/fazedordecodigo/bob/issues/31)).
+O limite é zero sobreviventes sem waiver numa linha alterada. Um desses reprova o gate com exit `3`. Sobrevivente sem waiver numa linha que o diff não mudou continua no relatório e não muda o exit. O relatório lista só os sobreviventes. Mutantes `killed`, `timeout` e `no_coverage` não bloqueiam. Um aviso para mutantes `no_coverage` está planejado ([#31](https://github.com/fazedordecodigo/bob/issues/31)).
 
 ### Dependências
 

@@ -136,6 +136,81 @@ def test_load_config_rejects_zero_min_tokens(tmp_path: Path) -> None:
     )
 
 
+@pytest.mark.parametrize(
+    "text",
+    [
+        "{}\n",
+        "dead_code:\n",
+        "dead_code: null\n",
+        "dead_code: {}\n",
+        "dead_code:\n  min_confidence:\n",
+        "dead_code:\n  min_confidence: null\n",
+    ],
+)
+def test_load_config_omits_min_confidence_when_the_key_is_absent(
+    tmp_path: Path, text: str
+) -> None:
+    (tmp_path / "bob.yaml").write_text(text)
+
+    assert load_config(None, tmp_path).dead_code_min_confidence is None
+
+
+@pytest.mark.parametrize(("text", "value"), [("0", 0), ("80", 80), ("100", 100)])
+def test_load_config_stores_a_present_min_confidence(
+    tmp_path: Path, text: str, value: int
+) -> None:
+    (tmp_path / "bob.yaml").write_text(f"dead_code:\n  min_confidence: {text}\n")
+
+    assert load_config(None, tmp_path).dead_code_min_confidence == value
+
+
+@pytest.mark.parametrize(
+    ("text", "english", "portuguese"),
+    [
+        (
+            "dead_code:\n  min_confidence: 101\n",
+            "bob.yaml: dead_code.min_confidence must be an integer from 0 to 100",
+            "bob.yaml: dead_code.min_confidence deve ser um inteiro de 0 a 100",
+        ),
+        (
+            "dead_code:\n  min_confidence: -1\n",
+            "bob.yaml: dead_code.min_confidence must be an integer from 0 to 100",
+            "bob.yaml: dead_code.min_confidence deve ser um inteiro de 0 a 100",
+        ),
+        (
+            "dead_code:\n  min_confidence: true\n",
+            "bob.yaml: dead_code.min_confidence must be an integer",
+            "bob.yaml: dead_code.min_confidence deve ser um inteiro",
+        ),
+        (
+            "dead_code:\n  min_confidence: 1.5\n",
+            "bob.yaml: dead_code.min_confidence must be an integer",
+            "bob.yaml: dead_code.min_confidence deve ser um inteiro",
+        ),
+    ],
+)
+def test_load_config_rejects_an_illegal_min_confidence(
+    tmp_path: Path, text: str, english: str, portuguese: str
+) -> None:
+    (tmp_path / "bob.yaml").write_text(text)
+
+    assert _config_error(tmp_path) == (english, portuguese)
+
+
+def test_config_accepts_absent_and_zero_min_confidence() -> None:
+    assert Config().dead_code_min_confidence is None
+    assert Config(dead_code_min_confidence=0).dead_code_min_confidence == 0
+    assert Config(dead_code_min_confidence=100).dead_code_min_confidence == 100
+
+
+@pytest.mark.parametrize("value", [101, -1, True, 1.5])
+def test_config_rejects_an_illegal_min_confidence(value: object) -> None:
+    with pytest.raises(ValueError) as caught:
+        Config(dead_code_min_confidence=value)
+
+    assert caught.value.args == ("dead_code_min_confidence",)
+
+
 def test_load_config_stores_one_min_token(tmp_path: Path) -> None:
     (tmp_path / "bob.yaml").write_text("duplication:\n  min_tokens: 1\n")
 
@@ -361,6 +436,42 @@ def test_load_config_rejects_invalid_yaml(tmp_path: Path) -> None:
     )
 
 
+def test_load_config_rejects_a_duplicate_key(tmp_path: Path) -> None:
+    (tmp_path / "bob.yaml").write_text("base: main\nbase: trunk\n")
+
+    assert _config_error(tmp_path) == (
+        "invalid YAML in bob.yaml: found duplicate key 'base' on line 2",
+        "YAML inválido em bob.yaml: found duplicate key 'base' on line 2",
+    )
+
+    (tmp_path / "bob.yaml").write_text("crap:\n  scope: all\n  scope: changed\n")
+
+    assert _config_error(tmp_path) == (
+        "invalid YAML in bob.yaml: found duplicate key 'scope' on line 3",
+        "YAML inválido em bob.yaml: found duplicate key 'scope' on line 3",
+    )
+
+
+def test_load_config_lets_an_explicit_key_override_a_merged_one(tmp_path: Path) -> None:
+    (tmp_path / "bob.yaml").write_text(
+        "crap:\n  <<: {max_per_function: 12, scope: all}\n  max_per_function: 15\n"
+    )
+
+    loaded = load_config(None, tmp_path)
+
+    assert loaded.max_crap == 15.0
+    assert loaded.crap_scope == "all"
+
+
+def test_load_config_rejects_an_unhashable_key_with_exit_4_text(tmp_path: Path) -> None:
+    (tmp_path / "bob.yaml").write_text("? [a]\n: 1\n")
+
+    assert _config_error(tmp_path) == (
+        "invalid YAML in bob.yaml: while constructing a mapping",
+        "YAML inválido em bob.yaml: while constructing a mapping",
+    )
+
+
 def test_load_config_rejects_a_numeric_language(tmp_path: Path) -> None:
     (tmp_path / "bob.yaml").write_text("language: 5\n")
 
@@ -435,6 +546,17 @@ def test_configured_language_rejects_invalid_yaml(tmp_path: Path) -> None:
 
     assert render(reason(caught.value), "en") == (
         "invalid YAML in bob.yaml: while parsing a block mapping"
+    )
+
+
+def test_configured_language_rejects_a_duplicate_key(tmp_path: Path) -> None:
+    (tmp_path / "bob.yaml").write_text("language: en\nlanguage: pt-BR\n")
+
+    with pytest.raises(ConfigError) as caught:
+        configured_language(None, tmp_path)
+
+    assert render(reason(caught.value), "en") == (
+        "invalid YAML in bob.yaml: found duplicate key 'language' on line 2"
     )
 
 

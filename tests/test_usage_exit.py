@@ -4,6 +4,7 @@ import io
 import os
 import re
 import subprocess
+import sys
 from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
 
@@ -109,6 +110,69 @@ def test_missing_lang_and_config_values(tmp_path: Path) -> None:
     _usage_4(run_bob(tmp_path, "check", "--config"), tmp_path)
 
 
+def test_config_before_the_command_names_the_fix(tmp_path: Path) -> None:
+    commands = tuple(
+        command
+        for command in _commands(tmp_path)
+        if "--config" in _invoke(tmp_path, command, "--help").stdout
+    )
+    assert commands == ("check", "crap", "dry", "deps", "mutate")
+    for command in commands:
+        result = _invoke(tmp_path, "--config", "ci.yaml", command)
+        _usage_4(result, tmp_path)
+        assert result.stderr.splitlines()[-1] == (
+            f"bob: error: --config goes after the command: bob {command} --config ci.yaml"
+        )
+    equals = _invoke(tmp_path, "--config=ci.yaml", "check")
+    _usage_4(equals, tmp_path)
+    assert equals.stderr.splitlines()[-1] == (
+        "bob: error: --config goes after the command: bob check --config ci.yaml"
+    )
+
+
+def test_config_before_a_command_without_config(tmp_path: Path) -> None:
+    doctor = _invoke(tmp_path, "--config", "ci.yaml", "doctor")
+    _usage_4(doctor, tmp_path)
+    assert doctor.stderr.splitlines()[-1] == "bob: error: doctor does not accept --config"
+    assert "bob doctor --config" not in doctor.stderr
+
+    waive = _invoke(tmp_path, "--config", "ci.yaml", "waive", "fn", "--reason", "r")
+    _usage_4(waive, tmp_path)
+    assert waive.stderr.splitlines()[-1] == "bob: error: waive does not accept --config"
+    assert "bob doctor --config" not in waive.stderr
+    assert "bob waive --config" not in waive.stderr
+
+
+def test_config_hint_quotes_a_path_with_spaces(tmp_path: Path) -> None:
+    result = _invoke(tmp_path, "--config", "my ci.yaml", "crap")
+    _usage_4(result, tmp_path)
+    assert result.stderr.splitlines()[-1] == (
+        "bob: error: --config goes after the command: bob crap --config 'my ci.yaml'"
+    )
+
+
+def test_top_level_help_hides_config(tmp_path: Path) -> None:
+    top = _invoke(tmp_path, "--help")
+    check = _invoke(tmp_path, "check", "--help")
+    _help_0(top, tmp_path)
+    _help_0(check, tmp_path)
+    assert "--config" not in top.stdout
+    assert "--config" in check.stdout
+
+
+def test_the_full_parser_reports_a_missing_flag_value(tmp_path: Path) -> None:
+    lang = _invoke(tmp_path, "--lang")
+    _usage_4(lang, tmp_path)
+    assert lang.stderr.splitlines()[-1] == "bob: error: argument --lang: expected one argument"
+    assert "[--config CONFIG]" not in lang.stderr
+
+    config = _invoke(tmp_path, "check", "--config")
+    _usage_4(config, tmp_path)
+    assert config.stderr.splitlines()[-1] == (
+        "bob check: error: argument --config: expected one argument"
+    )
+
+
 def test_shared_flag_before_the_command(tmp_path: Path) -> None:
     for command in _commands(tmp_path):
         _usage_4(run_bob(tmp_path, "--base", "main", command), tmp_path)
@@ -129,6 +193,21 @@ def test_main_returns_the_process_code(
     assert main(["--help"]) == 0
     assert main(["check", "--help"]) == 0
     assert main(["check", "--format", "xml"]) == 4
+    assert not (tmp_path / ".bob").exists()
+
+
+def test_omitted_argv_reads_lang_from_the_process_arguments(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.delenv("BOB_LANG", raising=False)
+    monkeypatch.setattr(sys, "argv", ["bob", "--lang", "pt-BR", "--help"])
+    stdout = io.StringIO()
+    with redirect_stdout(stdout):
+        code = main()
+
+    assert code == 0
+    assert "Gates de qualidade para agentes." in _flat(stdout.getvalue())
     assert not (tmp_path / ".bob").exists()
 
 

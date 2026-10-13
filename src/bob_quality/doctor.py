@@ -10,14 +10,22 @@ import subprocess
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
 from pathlib import Path
+from typing import NamedTuple
 
 from bob_quality.exit_codes import CONFIG_OR_TOOL, PASSED
 from bob_quality.messages import DEFAULT_LANGUAGE, Language, Text, msg, reason, render
 from bob_quality.npm_tools import install_npm_dependencies, npm_prefix, npm_setup_hint
 from bob_quality.tools import ToolError
 
-_VERSION = re.compile(r"\d+\.\d+(?:\.\d+)?")
+_VERSION = re.compile(r"\d+\.\d+(?:\.\d+)?(?:-rc(?:\.\d+)*)?")
+_NODE_RELEASE = re.compile(r"(\d+)\.(\d+)\.(\d+)")
 _SELF = "bob-quality"
+
+
+class NodeVersion(NamedTuple):
+    major: int
+    minor: int
+    patch: int
 
 
 @dataclass(frozen=True)
@@ -27,51 +35,50 @@ class RequiresDist:
 
 
 @dataclass(frozen=True)
-class ToolPin:
+class NpmPin:
     name: str
     expected: str
     executable: str
-    install: Text
-    npm_package: str | None = None
+    npm_package: str
 
 
-Pin = RequiresDist | ToolPin
+@dataclass(frozen=True)
+class NodePin:
+    floor: NodeVersion
 
+
+Pin = RequiresDist | NpmPin | NodePin
+
+NODE = NodePin(floor=NodeVersion(22, 14, 0))
 
 PINS: tuple[Pin, ...] = (
     RequiresDist("lizard", "lizard"),
     RequiresDist("coverage.py", "coverage"),
-    ToolPin(
-        "node",
-        "22.14.0",
-        "node",
-        msg("doctor.install_node", version="22.14.0", url="https://nodejs.org/dist/v22.14.0/"),
-    ),
-    ToolPin("c8", "12.0.0", "c8", "npm install c8@12.0.0", npm_package="c8"),
-    ToolPin("vitest", "5.0.3", "vitest", "npm install vitest@5.0.3", npm_package="vitest"),
-    ToolPin("jscpd", "5.4.1", "jscpd", "npm install jscpd@5.4.1", npm_package="jscpd"),
+    NODE,
+    NpmPin("c8", "12.0.0", "c8", npm_package="c8"),
+    NpmPin("vitest", "5.0.3", "vitest", npm_package="vitest"),
+    NpmPin("jscpd", "5.4.1", "jscpd", npm_package="jscpd"),
     RequiresDist("mutmut", "mutmut"),
     RequiresDist("import-linter", "import-linter"),
     RequiresDist("grimp", "grimp"),
-    ToolPin(
+    NpmPin(
         "dependency-cruiser",
         "18.5.0",
         "dependency-cruiser",
-        "npm install dependency-cruiser@18.5.0",
         npm_package="dependency-cruiser",
     ),
-    ToolPin(
+    RequiresDist("vulture", "vulture"),
+    NpmPin("knip", "6.41.0", "knip", npm_package="knip"),
+    NpmPin(
         "stryker",
         "10.0.0",
         "stryker",
-        "npm install @stryker-mutator/core@10.0.0",
         npm_package="@stryker-mutator/core",
     ),
-    ToolPin(
+    NpmPin(
         "stryker-vitest-runner",
         "10.0.0",
         "stryker-vitest-runner",
-        "npm install @stryker-mutator/vitest-runner@10.0.0",
         npm_package="@stryker-mutator/vitest-runner",
     ),
 )
@@ -183,7 +190,9 @@ def _any_npm_missing(rows: list[_PinRow]) -> bool:
 def _assess(pin: Pin, declared: Mapping[str, str]) -> _PinRow:
     if isinstance(pin, RequiresDist):
         return _assess_requires_dist(pin, declared.get(pin.distribution))
-    return _assess_tool(pin)
+    if isinstance(pin, NodePin):
+        return _assess_node(pin)
+    return _assess_npm(pin)
 
 
 def _assess_requires_dist(pin: RequiresDist, expected: str | None) -> _PinRow:
@@ -201,24 +210,59 @@ def _assess_requires_dist(pin: RequiresDist, expected: str | None) -> _PinRow:
     )
 
 
-def _assess_tool(pin: ToolPin) -> _PinRow:
+def node_admits(pin: NodePin, found: str | None) -> bool:
+    version = _node_version(found)
+    if version is None:
+        return False
+    return version.major == pin.floor.major and version >= pin.floor
+
+
+def node_range(pin: NodePin) -> str:
+    return f">={_dotted(pin.floor)} <{pin.floor.major + 1}"
+
+
+def _node_version(found: str | None) -> NodeVersion | None:
+    if found is None:
+        return None
+    match = _NODE_RELEASE.fullmatch(found)
+    if match is None:
+        return None
+    major, minor, patch = match.groups()
+    return NodeVersion(int(major), int(minor), int(patch))
+
+
+def _dotted(version: NodeVersion) -> str:
+    return f"{version.major}.{version.minor}.{version.patch}"
+
+
+def _node_install(pin: NodePin) -> Text:
+    return msg(
+        "doctor.install_node",
+        version=node_range(pin),
+        url=f"https://nodejs.org/dist/v{_dotted(pin.floor)}/",
+    )
+
+
+def _assess_node(pin: NodePin) -> _PinRow:
+    found = _cli_version("node")
+    line = msg("doctor.version", name="node", expected=node_range(pin), found=_shown(found))
+    if node_admits(pin, found):
+        return _PinRow(line, True, None, False)
+    return _PinRow(line, False, _node_install(pin), False)
+
+
+def _assess_npm(pin: NpmPin) -> _PinRow:
     found = _found_version(pin)
     line = msg("doctor.version", name=pin.name, expected=pin.expected, found=_shown(found))
     if found == pin.expected:
         return _PinRow(line, True, None, False)
-    return _PinRow(line, False, _install_text(pin), pin.npm_package is not None)
+    return _PinRow(line, False, None, True)
 
 
 def _shown(found: str | None) -> Text:
     if found is None:
         return msg("doctor.missing")
     return found
-
-
-def _install_text(pin: ToolPin) -> Text | None:
-    if pin.npm_package is not None:
-        return None
-    return pin.install
 
 
 def _npm_ci_hint() -> Text:
@@ -228,17 +272,11 @@ def _npm_ci_hint() -> Text:
         return reason(exc)
 
 
-def _found_version(pin: ToolPin) -> str | None:
-    packaged = _packaged_version(pin)
+def _found_version(pin: NpmPin) -> str | None:
+    packaged = _npm_package_version(pin.npm_package, pin.executable)
     if packaged is not None:
         return packaged
     return _cli_version(pin.executable)
-
-
-def _packaged_version(pin: ToolPin) -> str | None:
-    if pin.npm_package is not None:
-        return _npm_package_version(pin.npm_package, pin.executable)
-    return None
 
 
 def _npm_root() -> Path | None:

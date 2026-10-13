@@ -7,7 +7,7 @@ Há dois artefatos. O pacote pip `bob-quality` entrega o comando `bob`. O plugin
 ## Requisitos
 
 - Python 3.10 ou superior. O CI (`.github/workflows/ci.yml`) roda 3.10 e 3.12. `requires-python` em `pyproject.toml` é `>=3.10`.
-- Node **22.14.0**. `bob doctor` compara a versão exata (`src/bob_quality/doctor.py`, pino `node` `22.14.0`). Outra versão, inclusive Node 20, faz o doctor sair com `4`.
+- Node `>=22.14.0 <23`. O `bob doctor` aceita essa faixa (`src/bob_quality/doctor.py`). Node 20, Node 24 e um sufixo `-rc` fazem o doctor sair com `4`.
 - Para as ferramentas npm, `npm ci` na raiz do clone, ou `bob doctor --install` depois de instalar o pacote.
 
 Num Ubuntu atual o Python do sistema recusa `pip install` pela PEP 668. Use um venv. Para o Node, `fnm install 22.14.0`, `nvm install 22.14.0`, ou o `.tar.gz` em <https://nodejs.org/dist/v22.14.0/>. O [AGENTS.md](../AGENTS.md) prefere o `.tar.gz` ao `.tar.xz` quando a imagem não tem `xz`.
@@ -36,9 +36,11 @@ bob doctor
 
 O pacote instalado por pip carrega `package.json`, `package-lock.json` e `js/` (`tool.setuptools.package-data` em `pyproject.toml`). `bob doctor --install` roda `npm ci` nesse pacote. Se o npm falha com `EACCES`, `EPERM` ou `EROFS`, a instalação vai para `$XDG_CACHE_HOME/bob-quality` ou `~/.cache/bob-quality` (`src/bob_quality/npm_tools.py`). Outro erro do npm sai com `4` e o comando. Se o diretório do pacote não for gravável, a mensagem do doctor pede `bob doctor --install`.
 
+O `npm_prefix` reusa esse cache quando o `package.json` é o do pacote e cada dependência direta com spec `x.y.z` está instalada nessa versão. Um spec com sufixo `-rc` não é um `x.y.z` exato. O pacote presente basta, como em `file:`.
+
 O wheel não inclui as skills. Quem instalou só o pip e quer copiar skills para um projeto passa `--source` com o clone. Ver [Skills no projeto](#skills-no-projeto).
 
-`bob doctor --install` num checkout editável cria `src/bob_quality/node_modules`. O [AGENTS.md](../AGENTS.md) registra que isso quebra `tests/test_mutmut_dogfood.py` ([#34](https://github.com/fazedordecodigo/bob/issues/34)). Apague essa pasta antes do `pytest`.
+Num checkout editável, `src/bob_quality/package.json` é um symlink para o `package.json` da raiz. `bob doctor --install` instala nessa raiz, o mesmo lugar de `npm ci`. Se `src/bob_quality/node_modules` já existir por um `--install` antigo, apague essa pasta antes do `pytest`. Ela quebra `tests/test_mutmut_dogfood.py`.
 
 ## Plugin nos agentes
 

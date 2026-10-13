@@ -93,20 +93,21 @@ def _with_spans(
     except (ToolError, OSError, LizardParseError) as exc:
         return _not_run(reason(exc), versions, waiver_rows), None
     if not spans:
-        return _finish([], [], [], versions, waiver_rows), None
-    return _with_stryker(cwd, out_dir, spans, versions, waivers, waiver_rows)
+        return _finish([], diff_lines, [], [], versions, waiver_rows), None
+    return _with_stryker(cwd, out_dir, spans, diff_lines, versions, waivers, waiver_rows)
 
 
 def _with_stryker(
     cwd: Path,
     out_dir: Path,
     spans: list[CyclomaticFunction],
+    diff_lines: dict[str, set[int]],
     versions: dict[str, str],
     waivers: list[Waiver],
     waiver_rows: list[dict[str, object]],
 ) -> tuple[MutationOutcome | None, Text | None]:
     try:
-        return _run(cwd, out_dir, spans, versions, waiver_rows, waivers), None
+        return _run(cwd, out_dir, spans, diff_lines, versions, waiver_rows, waivers), None
     except (OSError, json.JSONDecodeError, StrykerParseError) as exc:
         return _not_run(reason(exc), versions, waiver_rows), None
 
@@ -165,6 +166,7 @@ def _run(
     cwd: Path,
     out_dir: Path,
     spans: list[CyclomaticFunction],
+    diff_lines: dict[str, set[int]],
     versions: dict[str, str],
     waiver_rows: list[dict[str, object]],
     waivers: list[Waiver],
@@ -187,6 +189,7 @@ def _run(
         incremental_path,
         argv,
         spans,
+        diff_lines,
         versions,
         waiver_rows,
         waivers,
@@ -199,16 +202,19 @@ def _report_or_retry(
     incremental_path: Path,
     argv: list[str],
     spans: list[CyclomaticFunction],
+    diff_lines: dict[str, set[int]],
     versions: dict[str, str],
     waiver_rows: list[dict[str, object]],
     waivers: list[Waiver],
 ) -> MutationOutcome:
-    found = _read_report(cwd, report_path, argv, spans, versions, waiver_rows, waivers)
+    found = _read_report(cwd, report_path, argv, spans, diff_lines, versions, waiver_rows, waivers)
     if found is not None:
         return found
     if incremental_path.is_file():
         incremental_path.unlink()
-        found = _read_report(cwd, report_path, argv, spans, versions, waiver_rows, waivers)
+        found = _read_report(
+            cwd, report_path, argv, spans, diff_lines, versions, waiver_rows, waivers
+        )
         if found is not None:
             return found
     return _not_run(msg("stryker.no_report"), versions, waiver_rows)
@@ -219,13 +225,14 @@ def _read_report(
     report_path: Path,
     argv: list[str],
     spans: list[CyclomaticFunction],
+    diff_lines: dict[str, set[int]],
     versions: dict[str, str],
     waiver_rows: list[dict[str, object]],
     waivers: list[Waiver],
 ) -> MutationOutcome | None:
     completed = _invoke(cwd, report_path, argv)
     if report_path.is_file():
-        return _from_report(report_path, spans, versions, waiver_rows, waivers)
+        return _from_report(report_path, spans, diff_lines, versions, waiver_rows, waivers)
     if _dry_run_failed(completed):
         return _baseline(versions, waiver_rows)
     return None
@@ -303,6 +310,7 @@ def _dry_run_failed(completed: subprocess.CompletedProcess[str]) -> bool:
 def _from_report(
     report_path: Path,
     spans: list[CyclomaticFunction],
+    diff_lines: dict[str, set[int]],
     versions: dict[str, str],
     waiver_rows: list[dict[str, object]],
     waivers: list[Waiver],
@@ -312,7 +320,7 @@ def _from_report(
         raise StrykerParseError(msg("stryker.bad_report", detail=REPORT_NAME))
     mutants = apply_waivers(mutants_from_report(payload, spans), waivers)
     labels = [f"{span.file}::{span.name}" for span in spans]
-    return _finish(mutants, labels, [], versions, waiver_rows)
+    return _finish(mutants, diff_lines, labels, [], versions, waiver_rows)
 
 
 def _baseline(
