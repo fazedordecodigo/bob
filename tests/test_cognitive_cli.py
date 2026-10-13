@@ -56,6 +56,7 @@ def test_in_process_check_records_the_exit_and_the_tool_version(tmp_path: Path) 
     assert payload["exit_code"] == 0
     assert gate["status"] == "warn"
     assert payload["cognitive"][0]["file"] == "src/app/edge.py"
+    assert payload["cognitive"][0]["language"] == "python"
     assert payload["tool_versions"]["complexipy"] == "8.0.1"
 
 

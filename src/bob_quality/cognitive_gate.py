@@ -49,8 +49,7 @@ def run_cognitive_gate(
         measured.append(outcome)
     if not measured:
         if not misses:
-            result, found, code = cognitive_verdict([], config.max_cognitive, set(), diff_lines)
-            return result, found, code, {}
+            return GateResult("cognitive", "passed"), [], 0, {}
         return GateResult("cognitive", "not_run", _miss_reason(misses)), [], 0, {}
     functions = [item for batch in measured for item in batch.functions]
     versions: dict[str, str] = {}
@@ -77,7 +76,7 @@ def _measure_python(cwd: Path, config: Config) -> _LanguageFunctions | _Language
         return _LanguageMiss(msg("cognitive.tool_missing", tool="complexipy"))
     try:
         functions = _python_functions(cwd, config, module)
-        version = importlib.metadata.version("complexipy")
+        version = importlib.metadata.version(module.__name__)
     except Exception as exc:
         return _LanguageMiss(msg("cognitive.tool_bad", tool="complexipy", detail=_detail(exc)))
     return _LanguageFunctions(functions, {"complexipy": version})
@@ -91,7 +90,7 @@ def _python_functions(cwd: Path, config: Config, module: object) -> list[Cogniti
     found: list[CognitiveFunction] = []
     for path in _python_files(cwd, config):
         measure_file = getattr(module, "file_complexity")
-        measured = measure_file(str(path), check_script=False, no_ignore=True)
+        measured = measure_file(str(path), no_ignore=True)
         relative = path.resolve().relative_to(cwd.resolve()).as_posix()
         for item in _items(getattr(measured, "functions", None)):
             name, score, start, end = _function_fields(item)
@@ -156,10 +155,7 @@ def _relative(cwd: Path, raw: str) -> str:
     path = Path(raw)
     if path.is_absolute():
         path = path.resolve().relative_to(cwd.resolve())
-    text = path.as_posix()
-    if text.startswith("./"):
-        return text[2:]
-    return text
+    return path.as_posix()
 
 
 def _detail(exc: BaseException) -> str:

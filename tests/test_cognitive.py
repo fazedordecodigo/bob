@@ -1,17 +1,39 @@
 """Veredito de complexidade cognitiva no núcleo."""
 
+import importlib
 import json
 from pathlib import Path
+from types import SimpleNamespace
 from typing import get_args
 
 import pytest
 
 from bob_quality.check import _Measured, _assemble
-from bob_quality.cognitive_gate import _parse_payload, _relative
-from bob_quality.config import SOURCE_LANGUAGES
+from bob_quality.cognitive_gate import (
+    _LanguageFunctions,
+    _LanguageMiss,
+    _MEASURE,
+    _function_fields,
+    _items,
+    _measure_python,
+    _parse_payload,
+    _python_files,
+    _python_functions,
+    _relative,
+    _whole,
+    run_cognitive_gate,
+)
+from bob_quality.config import SOURCE_LANGUAGES, Config
 from bob_quality.core import cognitive_verdict
-from bob_quality.messages import render
-from bob_quality.models import Clone, CognitiveFunction, CognitiveLanguage, GateResult
+from bob_quality.messages import msg, render
+from bob_quality.models import (
+    Clone,
+    CognitiveFunction,
+    CognitiveLanguage,
+    DepViolation,
+    FunctionMetric,
+    GateResult,
+)
 from bob_quality.mutate import MutationOutcome
 
 
@@ -262,6 +284,215 @@ def test_cognitive_function_rejects_illegal_values(
     assert str(caught.value) == message
 
 
+def test_a_one_line_function_keeps_its_span() -> None:
+    item = _function("save", score=0, start=4, end=4)
+
+    assert (item.start_line, item.end_line) == (4, 4)
+
+
+def test_no_configured_language_passes() -> None:
+    result, found, code, versions = run_cognitive_gate(
+        Path("."), SimpleNamespace(languages=()), {}
+    )
+
+    assert result == GateResult("cognitive", "passed")
+    assert found == []
+    assert code == 0
+    assert versions == {}
+
+
+def test_a_missing_tool_on_the_only_language_is_not_run(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setitem(_MEASURE, "python", _missing("complexipy"))
+
+    result, found, code, versions = run_cognitive_gate(tmp_path, Config(), {})
+
+    assert result == GateResult(
+        "cognitive", "not_run", msg("cognitive.tool_missing", tool="complexipy")
+    )
+    assert found == []
+    assert code == 0
+    assert versions == {}
+
+
+def test_two_misses_join_their_reasons(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setitem(_MEASURE, "python", _missing("complexipy"))
+    monkeypatch.setitem(_MEASURE, "typescript", _missing("node"))
+
+    result, found, code, versions = run_cognitive_gate(
+        tmp_path, Config(languages=("python", "typescript")), {}
+    )
+
+    assert result == GateResult(
+        "cognitive",
+        "not_run",
+        msg(
+            "probe.joined",
+            first=msg("cognitive.tool_missing", tool="complexipy"),
+            second=msg("cognitive.tool_missing", tool="node"),
+        ),
+    )
+    assert found == []
+    assert code == 0
+    assert versions == {}
+
+
+def test_a_miss_still_warns_when_another_language_is_over(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    hot = _function("save", score=15, file="src/a.ts", language="typescript")
+
+    def hit(cwd: Path, config: Config) -> _LanguageFunctions:
+        return _LanguageFunctions([hot], {"eslint": "9.39.5"})
+
+    monkeypatch.setitem(_MEASURE, "python", _missing("complexipy"))
+    monkeypatch.setitem(_MEASURE, "typescript", hit)
+
+    result, found, code, versions = run_cognitive_gate(
+        tmp_path,
+        Config(languages=("python", "typescript")),
+        {"src/a.ts": {1}},
+    )
+
+    assert result.name == "cognitive"
+    assert result.status == "warn"
+    assert code == 0
+    assert found == [hot]
+    assert versions == {"eslint": "9.39.5"}
+
+
+def test_missing_complexipy_names_the_tool(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def missing() -> object:
+        raise ImportError("missing")
+
+    monkeypatch.setattr("bob_quality.cognitive_gate._load_complexipy", missing)
+
+    outcome = _measure_python(tmp_path, Config())
+
+    assert isinstance(outcome, _LanguageMiss)
+    assert outcome.reason == msg("cognitive.tool_missing", tool="complexipy")
+
+
+def test_a_broken_measurer_names_the_tool_and_the_detail(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    source = tmp_path / "src"
+    source.mkdir()
+    (source / "a.py").write_text("x = 1\n")
+
+    def broken(path: str, **kwargs: object) -> object:
+        raise RuntimeError("boom {x}\nsecond")
+
+    def blank(path: str, **kwargs: object) -> object:
+        raise RuntimeError("   ")
+
+    monkeypatch.setattr("bob_quality.cognitive_gate._load_complexipy", _module(broken))
+    outcome = _measure_python(tmp_path, Config())
+    assert isinstance(outcome, _LanguageMiss)
+    assert outcome.reason == msg("cognitive.tool_bad", tool="complexipy", detail="boom (x)")
+
+    monkeypatch.setattr("bob_quality.cognitive_gate._load_complexipy", _module(blank))
+    outcome = _measure_python(tmp_path, Config())
+    assert isinstance(outcome, _LanguageMiss)
+    assert outcome.reason == msg("cognitive.tool_bad", tool="complexipy", detail="failed")
+
+
+def test_python_files_keep_a_py_file_and_skip_the_rest(tmp_path: Path) -> None:
+    (tmp_path / "single.py").write_text("x = 1\n")
+    (tmp_path / "notes.txt").write_text("x\n")
+    (tmp_path / "pkg" / "a_skip").mkdir(parents=True)
+    (tmp_path / "pkg" / "a_skip" / "hidden.py").write_text("x = 1\n")
+    (tmp_path / "pkg" / "z.py").write_text("x = 1\n")
+    (tmp_path / "other").mkdir()
+    (tmp_path / "other" / "a.py").write_text("x = 1\n")
+    config = Config(
+        include=("single.py", "notes.txt", "pkg", "missing", "other"),
+        exclude=("a_skip",),
+    )
+
+    found = [path.relative_to(tmp_path).as_posix() for path in _python_files(tmp_path, config)]
+
+    assert found == ["single.py", "pkg/z.py", "other/a.py"]
+
+
+def test_python_functions_keep_an_ignored_function_and_skip_the_module(tmp_path: Path) -> None:
+    source = tmp_path / "src"
+    source.mkdir()
+    (source / "sample.py").write_text(
+        "def kept(n):\n"
+        "    if n:\n"
+        "        return 1\n"
+        "    return 0\n"
+        "\n"
+        "def ignored(n):  # complexipy: ignore\n"
+        "    if n:\n"
+        "        return 1\n"
+        "    return 0\n"
+        "\n"
+        "if True:\n"
+        "    value = 1\n"
+    )
+
+    found = _python_functions(
+        tmp_path, Config(include=("src",)), importlib.import_module("complexipy")
+    )
+
+    assert [(item.name, item.language, item.file) for item in found] == [
+        ("kept", "python", "src/sample.py"),
+        ("ignored", "python", "src/sample.py"),
+    ]
+
+
+def test_function_fields_read_a_complexipy_row_and_reject_a_broken_one() -> None:
+    assert _function_fields(
+        SimpleNamespace(name="save", complexity=3, line_start=2, line_end=4)
+    ) == ("save", 3, 2, 4)
+    message = "function is missing name, complexity, line_start, or line_end"
+    broken = [
+        SimpleNamespace(complexity=1, line_start=1, line_end=2),
+        SimpleNamespace(name="", complexity=1, line_start=1, line_end=2),
+        SimpleNamespace(name=1, complexity=1, line_start=1, line_end=2),
+        SimpleNamespace(name="save", complexity=True, line_start=1, line_end=2),
+        SimpleNamespace(name="save", complexity=1, line_start=True, line_end=2),
+        SimpleNamespace(name="save", complexity=1, line_start=1, line_end=True),
+        SimpleNamespace(name="save", complexity="x", line_start=1, line_end=2),
+    ]
+    for item in broken:
+        with pytest.raises(ValueError) as caught:
+            _function_fields(item)
+        assert str(caught.value) == message
+
+
+def test_whole_rejects_a_bool_and_items_copy_a_non_list() -> None:
+    assert _whole(1) is True
+    assert _whole(True) is False
+    assert _whole(1.0) is False
+    assert _items([1]) == [1]
+    assert _items((1, 2)) == [1, 2]
+    with pytest.raises(ValueError) as caught:
+        _items(None)
+    assert str(caught.value) == "function is missing name, complexity, line_start, or line_end"
+
+
+def _missing(tool: str):
+    def miss(cwd: Path, config: Config) -> _LanguageMiss:
+        return _LanguageMiss(msg("cognitive.tool_missing", tool=tool))
+
+    return miss
+
+
+def _module(measure):
+    def load() -> object:
+        return SimpleNamespace(__name__="complexipy", file_complexity=measure)
+
+    return load
+
+
 def test_assemble_keeps_a_cloned_file_in_the_diff_and_the_mutation_summary() -> None:
     clone = Clone(
         first_file="src/a.py",
@@ -274,19 +505,64 @@ def test_assemble_keeps_a_cloned_file_in_the_diff_and_the_mutation_summary() -> 
         tokens=10,
     )
     summary = {"remutated": ["src/a.py:save"]}
+    waivers = [{"id": "cognitive:src/a.py:save"}]
+    survivors = [{"file": "src/a.py", "waiver": "kept"}]
+    cognitive = [_function("save", score=15)]
+    changed = FunctionMetric(
+        lang="python",
+        module="a",
+        name="save",
+        file="src/a.py",
+        start_line=1,
+        end_line=2,
+        cc=4,
+        coverage=0.0,
+        crap=20.0,
+        changed=True,
+    )
+    debt = FunctionMetric(
+        lang="python",
+        module="b",
+        name="legacy",
+        file="src/b.py",
+        start_line=1,
+        end_line=2,
+        cc=4,
+        coverage=0.0,
+        crap=20.0,
+        changed=False,
+    )
+    blocking = DepViolation("src.a", "src.b", "no-cycles", True)
+    parked = DepViolation("src.c", "src.d", "no-cycles", False)
     measured = _Measured(
         clones=[clone],
+        metrics=[changed, debt],
+        violations=[blocking, parked],
+        cognitive=cognitive,
         mutation=MutationOutcome(
             result=GateResult("mutate", "passed"),
             exit_code=0,
             versions={},
-            waivers=[],
-            survivors=[],
+            waivers=waivers,
+            survivors=survivors,
             summary=summary,
         ),
     )
 
     report = _assemble(measured, "abc", "main", {"src/a.py": {1}}, 10.0, "bob check")
 
-    assert report.focus == [{"file": "src/a.py", "risk": 0.0, "clone": True}]
+    assert report.schema_version == 1
+    assert report.generated_at.endswith("+00:00")
+    assert report.focus == [{"file": "src/a.py", "risk": 20.0, "clone": True}]
     assert report.mutation == summary
+    assert report.waivers == waivers
+    assert report.survivors == survivors
+    assert report.cognitive == cognitive
+    assert report.top_crap[0]["name"] == "save"
+    assert report.old_debt[0]["name"] == "legacy"
+    assert report.dependencies == [
+        {"origin": "src.a", "destination": "src.b", "rule": "no-cycles"}
+    ]
+    assert report.old_dependencies == [
+        {"origin": "src.c", "destination": "src.d", "rule": "no-cycles"}
+    ]
