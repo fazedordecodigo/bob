@@ -28,6 +28,14 @@ _BROKEN_YAML = (
     ("languages: 5\n", "bob.yaml: languages must be a list of strings\n"),
     ("dependencies: [1]\n", "bob.yaml: dependencies must be a mapping\n"),
     ("base: [main]\n", "bob.yaml: base must be a string\n"),
+    (
+        "base: main\nbase: trunk\n",
+        "invalid YAML in bob.yaml: found duplicate key 'base' on line 2\n",
+    ),
+    (
+        "crap:\n  scope: all\n  scope: changed\n",
+        "invalid YAML in bob.yaml: found duplicate key 'scope' on line 3\n",
+    ),
 )
 
 
@@ -47,6 +55,44 @@ def test_load_waivers_rejects_invalid_yaml_in_both_languages(tmp_path: Path) -> 
         "invalid YAML in .bob/waivers.yaml: while parsing a flow node",
         "YAML inválido em .bob/waivers.yaml: while parsing a flow node",
     )
+
+
+def test_load_waivers_rejects_a_duplicate_key(tmp_path: Path) -> None:
+    _write_waivers(
+        tmp_path,
+        "waivers:\n"
+        "  - id: fn\n"
+        "    id: other\n"
+        "    reason: because\n"
+        "    author: ada\n"
+        "    date: '2026-10-11'\n",
+    )
+
+    with pytest.raises(WaiverError) as caught:
+        load_waivers(tmp_path)
+
+    assert in_both(caught.value) == (
+        "invalid YAML in .bob/waivers.yaml: found duplicate key 'id' on line 3",
+        "YAML inválido em .bob/waivers.yaml: found duplicate key 'id' on line 3",
+    )
+
+
+def test_load_waivers_reads_a_merge_chain(tmp_path: Path) -> None:
+    _write_waivers(
+        tmp_path,
+        "waivers:\n"
+        "  - &a {id: fn, reason: because, author: ada, date: '2026-10-11'}\n"
+        "  - &b {<<: *a, id: second}\n"
+        "  - {<<: *b, id: third}\n",
+    )
+
+    loaded = load_waivers(tmp_path)
+
+    assert [(item.id, item.reason) for item in loaded] == [
+        ("fn", "because"),
+        ("second", "because"),
+        ("third", "because"),
+    ]
 
 
 def test_load_waivers_reads_one_entry(tmp_path: Path) -> None:

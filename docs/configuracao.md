@@ -49,6 +49,8 @@ O `bob.yaml` deste repositório é mais curto: `base`, `languages: [python]`, `p
 
 Um tipo errado sai com `4`. A mensagem em inglês no stderr cita o arquivo e a chave, por exemplo `bob.yaml: crap must be a mapping` ou `bob.yaml: crap.max_per_function must be a number`. Isso vale para `check`, `doctor`, `waive` e os outros comandos, e nenhum deles grava arquivo nesse caso. Ver [Exit 4](exit-codes.md#exit-4).
 
+Uma chave repetida no mesmo mapeamento sai com `4`. O stderr fica em inglês e cita a chave e a linha, como `invalid YAML in bob.yaml: found duplicate key 'scope' on line 3`. Uma chave escrita nesse mapeamento ainda pode substituir um valor mesclado com `<<`.
+
 `duplication` que não é mapeamento, ou `min_tokens` que não é um inteiro maior que 0, sai com `4`. A mensagem em inglês no stderr cita o arquivo e a chave, e nada é gravado. O [CHANGELOG](../CHANGELOG.md) descreve esse caso.
 
 `test_smells` omitido, `null` ou `true` guarda `True`. `false`, um mapeamento (`{}` ou com filhos) e qualquer outro valor saem com `4`. O stderr é `bob.yaml: test_smells accepts only true`. Nada é gravado. O gate `test_smells` não consulta o campo.
@@ -104,6 +106,7 @@ Na hora de aplicar, um waiver casa com um mutante se o `id` é igual ao id do mu
 Estes casos saem com `4`, em inglês no stderr, citando `.bob/waivers.yaml` e o campo. Nada é gravado em `report.md` ou `report.json`, e o arquivo permanece como está. `check`, `doctor` e `waive` passam por `reject_waiver_syntax` antes do comando:
 
 - erro de sintaxe YAML (a mensagem inclui o erro do parser);
+- chave repetida no mesmo mapeamento, como `invalid YAML in .bob/waivers.yaml: found duplicate key 'id' on line 3`;
 - o topo não é um mapeamento;
 - `waivers` não é uma lista;
 - um item não é um mapeamento;
