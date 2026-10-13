@@ -149,6 +149,19 @@
         }
       }
     },
+    "secrets": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["file", "line", "rule_id"],
+        "properties": {
+          "file": { "type": "string" },
+          "line": { "type": "integer", "minimum": 1 },
+          "rule_id": { "type": "string" }
+        }
+      }
+    },
     "reproduce": { "type": "string" },
     "exit_code": { "type": "integer" },
     "dead_code": {
