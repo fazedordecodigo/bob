@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import math
+import os
 from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any, Callable, Literal, TypeGuard
@@ -208,7 +209,22 @@ def reject_config_types(path: Path | None, cwd: Path) -> None:
     load_config(path, cwd)
 
 
-def configured_language(path: Path | None, cwd: Path) -> Language | None:
+def resolve_language(flag: str | None, config_path: Path | None, cwd: Path) -> Language:
+    if flag is not None:
+        chosen = _parse_language(flag)
+    else:
+        env = os.environ.get("BOB_LANG")
+        chosen = None if env is None else _parse_language(env)
+    # --lang ou BOB_LANG válido ainda lê o bob.yaml para um arquivo inválido continuar falhando.
+    configured = _configured_language(config_path, cwd)
+    if chosen is not None:
+        return chosen
+    if configured is None:
+        return DEFAULT_LANGUAGE
+    return configured
+
+
+def _configured_language(path: Path | None, cwd: Path) -> Language | None:
     config_path = path if path is not None else cwd / "bob.yaml"
     if not config_path.is_file():
         return None
@@ -218,22 +234,10 @@ def configured_language(path: Path | None, cwd: Path) -> Language | None:
     found = values.get("language")
     if not isinstance(found, str):
         return None
-    return parse_language(found)
+    return _parse_language(found)
 
 
-def resolve_language(
-    flag: str | None, env: str | None, configured: Language | None
-) -> Language:
-    if flag is not None:
-        return parse_language(flag)
-    if env is not None:
-        return parse_language(env)
-    if configured is None:
-        return DEFAULT_LANGUAGE
-    return configured
-
-
-def parse_language(value: str) -> Language:
+def _parse_language(value: str) -> Language:
     for language in LANGUAGES:
         if value == language:
             return language

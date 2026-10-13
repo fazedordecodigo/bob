@@ -9,7 +9,6 @@ from bob_quality.config import (
     ConfigError,
     _Bound,
     _Check,
-    configured_language,
     load_config,
     resolve_language,
 )
@@ -539,80 +538,113 @@ def test_load_config_treats_an_empty_language_as_unset(tmp_path: Path, line: str
     assert load_config(None, tmp_path) == Config()
 
 
+def _set_bob_lang(monkeypatch: pytest.MonkeyPatch, env: str | None) -> None:
+    monkeypatch.delenv("BOB_LANG", raising=False)
+    if env is not None:
+        monkeypatch.setenv("BOB_LANG", env)
+
+
 @pytest.mark.parametrize("language", ["en", "pt-BR"])
-def test_configured_language_reads_bob_yaml(tmp_path: Path, language: str) -> None:
+def test_resolve_language_reads_bob_yaml(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, language: str
+) -> None:
+    _set_bob_lang(monkeypatch, None)
     (tmp_path / "bob.yaml").write_text(f"language: {language}\n")
 
-    assert configured_language(None, tmp_path) == language
+    assert resolve_language(None, None, tmp_path) == language
 
 
-def test_configured_language_reads_an_explicit_path(tmp_path: Path) -> None:
+def test_resolve_language_reads_an_explicit_path(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _set_bob_lang(monkeypatch, None)
     explicit = tmp_path / "custom.yaml"
     explicit.write_text("language: pt-BR\n")
 
-    assert configured_language(explicit, tmp_path) == "pt-BR"
+    assert resolve_language(None, explicit, tmp_path) == "pt-BR"
 
 
-def test_configured_language_rejects_an_unknown_language(tmp_path: Path) -> None:
+def test_resolve_language_rejects_an_unknown_yaml_language(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _set_bob_lang(monkeypatch, None)
     (tmp_path / "bob.yaml").write_text("language: fr\n")
 
     with pytest.raises(ConfigError) as caught:
-        configured_language(None, tmp_path)
+        resolve_language(None, None, tmp_path)
 
     assert render(reason(caught.value), "en") == "bob.yaml: language must be en or pt-BR"
 
 
-def test_configured_language_rejects_a_number(tmp_path: Path) -> None:
+def test_resolve_language_rejects_a_numeric_yaml_language(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _set_bob_lang(monkeypatch, None)
     (tmp_path / "bob.yaml").write_text("language: 5\n")
 
     with pytest.raises(ConfigError) as caught:
-        configured_language(None, tmp_path)
+        resolve_language(None, None, tmp_path)
 
     assert render(reason(caught.value), "en") == "bob.yaml: language must be a string"
 
 
-def test_configured_language_rejects_a_list(tmp_path: Path) -> None:
+def test_resolve_language_rejects_a_yaml_list(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _set_bob_lang(monkeypatch, None)
     (tmp_path / "bob.yaml").write_text("- base\n")
 
     with pytest.raises(ConfigError) as caught:
-        configured_language(None, tmp_path)
+        resolve_language(None, None, tmp_path)
 
     assert render(reason(caught.value), "en") == "bob.yaml must be a mapping"
 
 
-def test_configured_language_rejects_invalid_yaml(tmp_path: Path) -> None:
+def test_resolve_language_rejects_invalid_yaml(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _set_bob_lang(monkeypatch, None)
     (tmp_path / "bob.yaml").write_text(":\n  - [\n")
 
     with pytest.raises(ConfigError) as caught:
-        configured_language(None, tmp_path)
+        resolve_language(None, None, tmp_path)
 
     assert render(reason(caught.value), "en") == (
         "invalid YAML in bob.yaml: while parsing a block mapping"
     )
 
 
-def test_configured_language_rejects_a_duplicate_key(tmp_path: Path) -> None:
+def test_resolve_language_rejects_a_duplicate_key(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _set_bob_lang(monkeypatch, None)
     (tmp_path / "bob.yaml").write_text("language: en\nlanguage: pt-BR\n")
 
     with pytest.raises(ConfigError) as caught:
-        configured_language(None, tmp_path)
+        resolve_language(None, None, tmp_path)
 
     assert render(reason(caught.value), "en") == (
         "invalid YAML in bob.yaml: found duplicate key 'language' on line 2"
     )
 
 
-def test_configured_language_keeps_pt_br_when_another_key_is_invalid(tmp_path: Path) -> None:
+def test_resolve_language_keeps_pt_br_when_another_key_is_invalid(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _set_bob_lang(monkeypatch, None)
     (tmp_path / "bob.yaml").write_text("language: pt-BR\nduplication: [1]\n")
 
-    assert configured_language(None, tmp_path) == "pt-BR"
+    assert resolve_language(None, None, tmp_path) == "pt-BR"
 
 
 @pytest.mark.parametrize("text", ["base: trunk\n", "language:\n", 'language: ""\n'])
-def test_configured_language_is_unset_without_a_language_value(tmp_path: Path, text: str) -> None:
+def test_resolve_language_falls_back_to_en_without_a_language_value(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, text: str
+) -> None:
+    _set_bob_lang(monkeypatch, None)
     (tmp_path / "bob.yaml").write_text(text)
 
-    assert configured_language(None, tmp_path) is None
+    assert resolve_language(None, None, tmp_path) == "en"
 
 
 @pytest.mark.parametrize(
@@ -628,17 +660,29 @@ def test_configured_language_is_unset_without_a_language_value(tmp_path: Path, t
     ],
 )
 def test_resolve_language_prefers_flag_then_env_then_yaml_then_en(
-    flag: str | None, env: str | None, configured: str | None, expected: str
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    flag: str | None,
+    env: str | None,
+    configured: str | None,
+    expected: str,
 ) -> None:
-    assert resolve_language(flag, env, configured) == expected
+    _set_bob_lang(monkeypatch, env)
+    if configured is not None:
+        (tmp_path / "bob.yaml").write_text(f"language: {configured}\n")
+
+    assert resolve_language(flag, None, tmp_path) == expected
 
 
 @pytest.mark.parametrize(("flag", "env", "shown"), [("fr", None, "fr"), (None, "pt-br", "pt-br")])
 def test_resolve_language_rejects_an_unknown_value(
-    flag: str | None, env: str | None, shown: str
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, flag: str | None, env: str | None, shown: str
 ) -> None:
+    _set_bob_lang(monkeypatch, env)
+    (tmp_path / "bob.yaml").write_text("language: pt-BR\n")
+
     with pytest.raises(ConfigError) as caught:
-        resolve_language(flag, env, "pt-BR")
+        resolve_language(flag, None, tmp_path)
 
     assert render(reason(caught.value), "en") == f"invalid language: {shown} (use en or pt-BR)"
 
@@ -647,11 +691,48 @@ def test_resolve_language_rejects_an_unknown_value(
     ("flag", "env"),
     [("", "pt-BR"), (None, ""), ("", None)],
 )
-def test_resolve_language_rejects_an_empty_string(flag: str | None, env: str | None) -> None:
+def test_resolve_language_rejects_an_empty_string(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, flag: str | None, env: str | None
+) -> None:
+    _set_bob_lang(monkeypatch, env)
+    (tmp_path / "bob.yaml").write_text("language: pt-BR\n")
+
     with pytest.raises(ConfigError) as caught:
-        resolve_language(flag, env, "pt-BR")
+        resolve_language(flag, None, tmp_path)
 
     assert render(reason(caught.value), "en") == 'invalid language: "" (use en or pt-BR)'
+
+
+@pytest.mark.parametrize(
+    ("flag", "env", "shown"),
+    [("fr", None, "fr"), (None, "fr", "fr"), (None, "", '""')],
+)
+def test_flag_error_comes_before_the_yaml_error(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    flag: str | None,
+    env: str | None,
+    shown: str,
+) -> None:
+    _set_bob_lang(monkeypatch, env)
+    (tmp_path / "bob.yaml").write_text("language: pt-br\n")
+
+    with pytest.raises(ConfigError) as caught:
+        resolve_language(flag, None, tmp_path)
+
+    assert render(reason(caught.value), "en") == f"invalid language: {shown} (use en or pt-BR)"
+
+
+def test_bad_yaml_language_fails_even_when_the_flag_wins(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _set_bob_lang(monkeypatch, None)
+    (tmp_path / "bob.yaml").write_text("language: pt-br\n")
+
+    with pytest.raises(ConfigError) as caught:
+        resolve_language("en", None, tmp_path)
+
+    assert render(reason(caught.value), "en") == "bob.yaml: language must be en or pt-BR"
 
 
 @pytest.mark.parametrize(
