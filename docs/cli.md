@@ -16,7 +16,7 @@ bob doctor
 
 Todo comando aceita `--lang en|pt-BR` antes ou depois do nome. Ver [Idioma](#idioma---lang).
 
-Um uso inválido da linha de comando sai com `4`. O stderr é o texto de uso do argparse, não menciona baseline, e nada é gravado em `.bob/`. A ajuda (`-h`, `--help`) sai com `0`. Isso não é o exit `2` da suíte.
+Um uso inválido da linha de comando sai com `4`. O stderr é o texto de uso do argparse, não menciona baseline, e nada é gravado em `.bob/`. A ajuda (`-h`, `--help`) sai com `0`. Isso não é o exit `2` da suíte. Um valor fora da regra de `--threshold` ou de `--max-workers` também é uso inválido. A última linha do stderr fica em inglês, mesmo com `--lang pt-BR`, como `bob crap: error: argument --threshold: invalid value: 'nan' (use a finite number greater than 0)`.
 
 ## bob check
 
@@ -45,10 +45,12 @@ Quando mais de um gate devolve código, fica o maior (`_worse` em `check.py`).
 
 | Comando | Flags a mais |
 |---|---|
-| `bob crap` | `--threshold` substitui `crap.max_per_function` nesta execução. `--coverage-file` aponta um arquivo de cobertura já gerado |
+| `bob crap` | `--threshold` substitui `crap.max_per_function` nesta execução e segue a mesma regra, um número finito maior que `0`. `--coverage-file` aponta um arquivo de cobertura já gerado |
 | `bob dry` | nenhuma além das compartilhadas |
 | `bob deps` | nenhuma além das compartilhadas |
 | `bob mutate` | `--max-workers` vira `--max-children` do mutmut (`src/bob_quality/mutmut_tool.py`). `--since-last-run` não muda a medição: a ajuda diz que reusar o cache já é o padrão. A flag só entra na linha `reproduce` do relatório quando foi passada |
+
+`--max-workers` aceita um inteiro de 1 a 64. O teto é `_WORKER_CEILING` em `src/bob_quality/cli.py`. O mutmut abre um pool com esse número de processos antes do primeiro mutante. Cada processo segura dois descritores de arquivo. Com 256 arquivos abertos, o limite padrão do macOS, 128 processos já falham. 64 é a maior potência de 2 que ainda abre ali.
 
 ## bob doctor
 
