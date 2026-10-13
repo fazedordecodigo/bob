@@ -205,12 +205,24 @@ def _no_coverage_lines(report: Report) -> list[Text]:
     return lines
 
 
-def _survivor_row(item: dict[str, object]) -> str:
+def _survivor_row(item: dict[str, object]) -> Text:
     waiver = item.get("waiver") or "—"
     operator = str(item.get("operator") or "—").replace("|", "\\|")
-    return (
-        f"| `{item['id']}` | {item['function']} | {item['file']}:{item['line']} | {operator} | {waiver} |"
+    return msg(
+        "report.survivor_row",
+        id=item["id"],
+        function=item["function"],
+        location=_survivor_location(item),
+        operator=operator,
+        waiver=waiver,
     )
+
+
+def _survivor_location(item: dict[str, object]) -> Text:
+    location = f"{item['file']}:{item['line']}"
+    if item.get("blocking") is False and not item.get("waiver"):
+        return msg("report.survivor_outside_diff", location=location)
+    return location
 
 
 def _waiver_section(waivers: list[dict[str, object]]) -> list[Text]:

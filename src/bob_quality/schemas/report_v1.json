@@ -92,7 +92,15 @@
       }
     },
     "waivers": { "type": "array" },
-    "survivors": { "type": "array" },
+    "survivors": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "blocking": { "type": "boolean" }
+        }
+      }
+    },
     "mutation": {
       "type": ["object", "null"],
       "properties": {
