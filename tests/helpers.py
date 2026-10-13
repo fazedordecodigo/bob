@@ -70,7 +70,11 @@ def init_mixed_repo(dest: Path) -> Path:
 def _init_repo(source: Path, dest: Path) -> Path:
     if dest.exists():
         shutil.rmtree(dest)
-    shutil.copytree(source, dest)
+    shutil.copytree(
+        source,
+        dest,
+        ignore=shutil.ignore_patterns("node_modules", ".bob", "__pycache__"),
+    )
     _git(dest, "init", "-b", "main")
     _git(dest, "config", "user.email", "bob-test@example.com")
     _git(dest, "config", "user.name", "bob-test")
