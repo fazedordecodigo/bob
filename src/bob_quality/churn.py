@@ -164,8 +164,6 @@ def _matches(path: str, roots: tuple[PurePosixPath, ...]) -> bool:
     if key.is_absolute():
         return False
     for root in roots:
-        if root.as_posix() == ".":
-            return True
         if key == root or root in key.parents:
             return True
     return False

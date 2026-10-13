@@ -238,6 +238,24 @@ def test_a_skipped_metric_keeps_the_later_hotspot(tmp_path: Path) -> None:
     assert section.hotspots == (Hotspot("src/a.py", "kept", 1, 3, 1),)
 
 
+def test_a_repeated_metric_keeps_the_later_hotspot(tmp_path: Path) -> None:
+    repo, tip = _tree(tmp_path)
+    metrics = (
+        _metric("src/a.py", "kept", 1, 3, True),
+        _metric("src/a.py", "kept", 1, 9, True),
+        _metric("src/b.py", "later", 2, 4, True),
+    )
+
+    section = measure_churn(
+        repo, tip, 90, {"src/a.py": {1}, "src/b.py": {1}}, ("src",), metrics
+    )
+
+    assert section.hotspots == (
+        Hotspot("src/b.py", "later", 2, 4, 2),
+        Hotspot("src/a.py", "kept", 1, 3, 1),
+    )
+
+
 def test_signature_text_is_not_a_commit(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
