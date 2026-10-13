@@ -67,6 +67,11 @@ def to_json(report: Report) -> dict[str, object]:
         "survivors": report.survivors,
         "mutation": report.mutation,
     }
+    _put_measured(payload, report)
+    return payload
+
+
+def _put_measured(payload: dict[str, object], report: Report) -> None:
     if report.test_smells is not None:
         payload["test_smells"] = [smell_row(smell) for smell in report.test_smells]
     if report.secrets is not None:
@@ -77,7 +82,6 @@ def to_json(report: Report) -> dict[str, object]:
     payload["exit_code"] = report.exit_code
     if report.dead_code is not None:
         payload["dead_code"] = {"symbols": [dead_row(row) for row in report.dead_code.rows]}
-    return payload
 
 
 def _json_reason(reason: Text | None) -> str | None:
