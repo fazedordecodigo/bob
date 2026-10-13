@@ -1,0 +1,13 @@
+2,1,11,1,2,"open@1-2@src/app/box.py","src/app/box.py","open","open( path : str )",1,2
+2,1,9,1,2,"open@6-7@src/app/box.py","src/app/box.py","open","open( self )",6,7
+2,1,13,1,2,"make@10-11@src/app/box.py","src/app/box.py","make","make( n : int )",10,11
+2,1,9,1,2,"open@14-15@src/app/box.py","src/app/box.py","open","open( self )",14,15
+2,1,8,0,2,"helped.helper@18-19@src/app/box.py","src/app/box.py","helped.helper","helped.helper( )",18,19
+3,1,13,1,5,"helped@17-21@src/app/box.py","src/app/box.py","helped","helped( self )",17,21
+2,1,9,1,2,"maybe@24-25@src/app/box.py","src/app/box.py","maybe","maybe( self )",24,25
+2,1,9,1,2,"size@28-29@src/app/box.py","src/app/box.py","size","size( self )",28,29
+2,1,8,0,2,"outer.inner@33-34@src/app/box.py","src/app/box.py","outer.inner","outer.inner( )",33,34
+3,1,12,0,5,"outer@32-36@src/app/box.py","src/app/box.py","outer","outer( )",32,36
+2,1,9,1,2,"open@42-43@src/app/box.py","src/app/box.py","open","open( self )",42,43
+2,1,9,1,2,"build.open@48-49@src/app/box.py","src/app/box.py","build.open","build.open( self )",48,49
+4,1,13,0,6,"build@46-51@src/app/box.py","src/app/box.py","build","build( )",46,51
