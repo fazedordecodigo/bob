@@ -1,12 +1,11 @@
 from __future__ import annotations
 
-import json
 from pathlib import Path
 from typing import Any
 
-from bob_quality.adapters.paths import repo_relative
+from bob_quality.adapters.sast_json import at, parsed_results
 from bob_quality.messages import msg
-from bob_quality.models import Finding, Severity
+from bob_quality.models import Finding
 
 LABELS = ("HIGH", "MEDIUM", "LOW", "UNDEFINED")
 
@@ -16,26 +15,13 @@ class BanditParseError(Exception):
 
 
 def parse_bandit(stdout: str, root: Path) -> tuple[Finding, ...]:
-    payload = _object(stdout)
-    results = payload.get("results")
-    if not isinstance(results, list):
-        raise BanditParseError(msg("bandit.no_results"))
-    found: list[Finding] = []
-    for item in results:
-        finding = _finding(item, root)
-        if finding is not None:
-            found.append(finding)
-    return tuple(found)
-
-
-def _object(stdout: str) -> dict[str, Any]:
-    try:
-        payload = json.loads(stdout)
-    except json.JSONDecodeError as exc:
-        raise BanditParseError(msg("bandit.invalid_json")) from exc
-    if not isinstance(payload, dict):
-        raise BanditParseError(msg("bandit.no_results"))
-    return payload
+    return parsed_results(
+        stdout,
+        BanditParseError,
+        msg("bandit.invalid_json"),
+        msg("bandit.no_results"),
+        lambda item: _finding(item, root),
+    )
 
 
 def _finding(item: Any, root: Path) -> Finding | None:
@@ -48,18 +34,8 @@ def _finding(item: Any, root: Path) -> Finding | None:
         raise BanditParseError(msg("bandit.malformed"))
     if label not in LABELS:
         raise BanditParseError(msg("bandit.malformed"))
-    relative = repo_relative(filename, root)
-    if relative is None:
-        return None
     line, end_line = _span(item)
-    return Finding(
-        tool="bandit",
-        rule=rule,
-        file=relative,
-        line=line,
-        end_line=end_line,
-        severity=Severity(label),
-    )
+    return at("bandit", rule, filename, root, line, end_line, label)
 
 
 def _span(item: dict[str, Any]) -> tuple[int, int]:
