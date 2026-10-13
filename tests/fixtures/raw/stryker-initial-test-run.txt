@@ -1,0 +1,1 @@
+throw new ConfigError('There were failed tests in the initial test run.');
