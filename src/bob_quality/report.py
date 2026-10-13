@@ -13,12 +13,15 @@ from bob_quality.models import (
     FunctionMetric,
     GateResult,
     GateStatus,
+    LedgerRow,
     MissingPackage,
+    PythonDead,
     Report,
     RowWaived,
     SupplyFinding,
     SupplyReport,
     SupplyRow,
+    TypeScriptDead,
     UndeclaredImport,
     UnverifiedAdvisory,
     UnverifiedExistence,
@@ -50,7 +53,7 @@ def write_report(report: Report, out_dir: Path, fmt: str, lang: Language) -> Non
 
 
 def to_json(report: Report) -> dict[str, object]:
-    return {
+    payload: dict[str, object] = {
         "schema_version": report.schema_version,
         "commit": report.commit,
         "base": report.base,
@@ -73,6 +76,11 @@ def to_json(report: Report) -> dict[str, object]:
         "reproduce": report.reproduce,
         "exit_code": report.exit_code,
     }
+    if report.dead_code is not None:
+        payload["dead_code"] = {
+            "symbols": [dead_row(row) for row in report.dead_code.rows]
+        }
+    return payload
 
 
 def _json_reason(reason: Text | None) -> str | None:
@@ -108,6 +116,7 @@ def to_markdown(report: Report, lang: Language) -> str:
     lines.extend(_survivor_lines(report))
     lines.extend(_no_coverage_lines(report))
     lines.extend(supply_lines(report))
+    lines.extend(_dead_lines(report))
     lines.extend(_footer(report, lang))
     return "\n".join(render(line, lang) for line in lines)
 
@@ -207,12 +216,24 @@ def _no_coverage_lines(report: Report) -> list[Text]:
     return lines
 
 
-def _survivor_row(item: dict[str, object]) -> str:
+def _survivor_row(item: dict[str, object]) -> Text:
     waiver = item.get("waiver") or "—"
     operator = str(item.get("operator") or "—").replace("|", "\\|")
-    return (
-        f"| `{item['id']}` | {item['function']} | {item['file']}:{item['line']} | {operator} | {waiver} |"
+    return msg(
+        "report.survivor_row",
+        id=item["id"],
+        function=item["function"],
+        location=_survivor_location(item),
+        operator=operator,
+        waiver=waiver,
     )
+
+
+def _survivor_location(item: dict[str, object]) -> Text:
+    location = f"{item['file']}:{item['line']}"
+    if item.get("blocking") is False and not item.get("waiver"):
+        return msg("report.survivor_outside_diff", location=location)
+    return location
 
 
 def _waiver_section(waivers: list[dict[str, object]]) -> list[Text]:
@@ -230,6 +251,75 @@ def _waiver_section(waivers: list[dict[str, object]]) -> list[Text]:
         )
     lines.append("")
     return lines
+
+
+def _dead_lines(report: Report) -> list[Text]:
+    if report.dead_code is None:
+        return []
+    lines: list[Text] = ["", msg("report.dead"), ""]
+    lines.extend(_dead_body(report, _gate_named(report, "dead_code")))
+    return lines
+
+
+def _dead_body(report: Report, gate: GateResult | None) -> list[Text]:
+    if gate is not None and gate.status == "not_run":
+        return [msg("report.dead_not_run", reason=gate.reason or "")]
+    section = report.dead_code
+    if section is None or not section.rows:
+        return _dead_empty(gate)
+    return [_dead_item(row) for row in section.rows]
+
+
+def _dead_empty(gate: GateResult | None) -> list[Text]:
+    lines = [msg("report.no_dead")]
+    if gate is not None and gate.reason:
+        lines.append(gate.reason)
+    return lines
+
+
+def _dead_item(row: LedgerRow) -> Message:
+    symbol = row.symbol
+    return msg(
+        "report.dead_item",
+        loc=f"{symbol.file}:{symbol.line}",
+        kind=msg(f"report.dead_kind.{symbol.kind}"),
+        name=symbol.name,
+        suffix=_dead_suffix(row),
+    )
+
+
+def _dead_suffix(row: LedgerRow) -> str:
+    symbol = row.symbol
+    if isinstance(symbol, PythonDead):
+        suffix = f" {symbol.confidence}%"
+    elif isinstance(symbol, TypeScriptDead):
+        suffix = ""
+    else:
+        raise TypeError(type(symbol).__name__)
+    if row.waiver is not None:
+        suffix += f" waiver `{row.waiver}`"
+    return suffix
+
+
+def dead_row(row: LedgerRow) -> dict[str, object]:
+    symbol = row.symbol
+    if isinstance(symbol, PythonDead):
+        language = "python"
+        confidence: int | None = symbol.confidence
+    elif isinstance(symbol, TypeScriptDead):
+        language = "typescript"
+        confidence = None
+    else:
+        raise TypeError(type(symbol).__name__)
+    return {
+        "file": symbol.file,
+        "line": symbol.line,
+        "name": symbol.name,
+        "kind": symbol.kind,
+        "language": language,
+        "confidence": confidence,
+        "waiver": row.waiver,
+    }
 
 
 def _footer(report: Report, lang: Language) -> list[Text]:
