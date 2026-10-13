@@ -38,7 +38,7 @@ O pacote instalado por pip carrega `package.json`, `package-lock.json` e `js/` (
 
 O wheel não inclui as skills. Quem instalou só o pip e quer copiar skills para um projeto passa `--source` com o clone. Ver [Skills no projeto](#skills-no-projeto).
 
-`bob doctor --install` num checkout editável cria `src/bob_quality/node_modules`. O [AGENTS.md](../AGENTS.md) registra que isso quebra `tests/test_mutmut_dogfood.py` ([#34](https://github.com/fazedordecodigo/bob/issues/34)). Apague essa pasta antes do `pytest`.
+Num checkout editável, `src/bob_quality/package.json` é um symlink para o `package.json` da raiz. `bob doctor --install` instala nessa raiz, o mesmo lugar de `npm ci`. Se `src/bob_quality/node_modules` já existir por um `--install` antigo, apague essa pasta antes do `pytest`. Ela quebra `tests/test_mutmut_dogfood.py`.
 
 ## Plugin nos agentes
 
