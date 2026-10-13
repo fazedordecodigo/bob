@@ -36,6 +36,7 @@ from bob_quality.typing_gate import (
     OffDiff,
     Unmeasured,
     Waived,
+    _heading,
     _subject_key,
     typing_verdict,
     waiver_id,
@@ -1103,4 +1104,107 @@ def test_include_is_a_path_prefix_and_exclude_matches_any_segment(tmp_path: Path
         "absent": [],
         "checkers": [{"language": "python", "tool": "mypy", "outcome": "measured"}],
         "findings": [],
+    }
+
+
+def test_heading_reads_utf8_and_classifies_the_stripped_line(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    path = tmp_path / "pyproject.toml"
+    path.write_bytes("  [tool.mypy]\né\n".encode())
+    seen: list[object] = []
+    real = Path.read_text
+
+    def wrapped(self: Path, *args: object, **kwargs: object) -> str:
+        if self == path:
+            seen.append(kwargs.get("encoding", args[0] if args else None))
+        return real(self, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "read_text", wrapped)
+
+    assert _heading(path, "[tool.mypy]") == "present"
+    assert seen == ["utf-8"]
+    assert _heading(path, "[tool.pyright]") == "absent"
+    assert _heading(tmp_path, "[tool.mypy]") == "broken"
+    broken = tmp_path / "broken.toml"
+    broken.write_bytes(b"\xff")
+    assert _heading(broken, "[tool.mypy]") == "broken"
+
+
+def test_a_token_error_still_blocks_an_escape_on_the_diff_line(tmp_path: Path) -> None:
+    repo = init_python_repo(tmp_path / "repo")
+    (repo / "pyproject.toml").write_text("[tool.mypy]\npretty = false\n")
+    path = _install(repo, "mypy")
+    commit_on_main(repo, "src/app/broken.py", "old: Any = 1\n", "seed a line outside the diff")
+    commit_on_branch(
+        repo,
+        "escape",
+        "src/app/broken.py",
+        "old: Any = 1\nvalue = 1\nfresh: Any = 2  # type: ignore[code]\n(\n",
+        "leave the tokenizer short",
+    )
+    _checker_output(repo, "mypy", "", 0)
+
+    result = _bob(repo, "check", "--gates", "typing", "--base", "main", path=path)
+
+    assert result.returncode == 1
+    payload = _json(repo)
+    assert payload["typing"] == {
+        "absent": [],
+        "checkers": [{"language": "python", "tool": "mypy", "outcome": "measured"}],
+        "findings": [
+            _escape("src/app/broken.py", 3, "Any"),
+            _escape("src/app/broken.py", 3, "type: ignore"),
+        ],
+    }
+
+
+def test_template_text_hides_an_escape_and_a_hole_does_not(tmp_path: Path) -> None:
+    repo = init_ts_repo(tmp_path / "repo")
+    (repo / "tsconfig.json").write_text("{}\n")
+    path = _install(repo, "tsc")
+    source = (
+        'const escaped = "say \\" as any";\n'
+        "const hole = `pre ${1 as any} post`;\n"
+        "const nested = `a ${`b ${1 as any}`} c`;\n"
+        "const comment = `a ${\n"
+        "  // @ts-ignore\n"
+        "  1 as any\n"
+        "} b`;\n"
+        "const block = `a ${ /* @ts-expect-error */ 1} b`;\n"
+        'const inner = `a ${"as any"} b`;\n'
+        "const braces = `a ${{ value: 1 as any }} b`;\n"
+        "const ignored = `as any @ts-ignore`;\n"
+        "const open = `a ${1 as any`;\n"
+    )
+    commit_on_branch(repo, "escape", "src/escaped.ts", source, "add template escapes")
+    _checker_output(repo, "tsc", "", 0)
+
+    result = _bob(repo, "check", "--gates", "typing", "--base", "main", path=path)
+
+    assert result.returncode == 1
+    payload = _json(repo)
+    assert payload["typing"] == {
+        "absent": [],
+        "checkers": [{"language": "typescript", "tool": "tsc", "outcome": "measured"}],
+        "findings": [
+            _escape("src/escaped.ts", 2, "as any"),
+            _escape("src/escaped.ts", 3, "as any"),
+            _escape("src/escaped.ts", 5, "@ts-ignore"),
+            _escape("src/escaped.ts", 6, "as any"),
+            _escape("src/escaped.ts", 8, "@ts-expect-error"),
+            _escape("src/escaped.ts", 10, "as any"),
+            _escape("src/escaped.ts", 12, "as any"),
+        ],
+    }
+
+
+def _escape(file: str, line: int, code: str) -> dict[str, object]:
+    return {
+        "kind": "escape",
+        "disposition": "blocking",
+        "file": file,
+        "line": line,
+        "code": code,
+        "waiver_id": f"typing:{file}:{line}:{code}",
     }
