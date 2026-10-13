@@ -43,6 +43,8 @@ PINS = (
     ("mutmut", "3.8.0", "mutmut", "mutmut, version 3.8.0"),
     ("import-linter", "2.15", "lint-imports", "2.15"),
     ("grimp", "3.17", None, None),
+    ("bandit", "1.9.4", None, None),
+    ("semgrep", "1.180.0", None, None),
     ("dependency-cruiser", "18.5.0", "dependency-cruiser", "18.5.0"),
 )
 
@@ -56,6 +58,8 @@ INSTALL = {
     "mutmut": "pip install 'mutmut==3.8.0'",
     "import-linter": "pip install 'import-linter==2.15'",
     "grimp": "pip install 'grimp==3.17'",
+    "bandit": "pip install 'bandit==1.9.4'",
+    "semgrep": "pip install 'semgrep==1.180.0'",
     "dependency-cruiser": "npm install dependency-cruiser@18.5.0",
 }
 
@@ -352,6 +356,8 @@ def test_doctor_expected_versions_match_pip_and_npm_pins(tmp_path: Path) -> None
     assert requirements["mutmut"] == expected["mutmut"]
     assert requirements["import-linter"] == expected["import-linter"]
     assert requirements["grimp"] == expected["grimp"]
+    assert requirements["bandit"] == expected["bandit"]
+    assert requirements["semgrep"] == expected["semgrep"]
 
     package = json.loads((ROOT / "package.json").read_text())
     assert package["private"] is True

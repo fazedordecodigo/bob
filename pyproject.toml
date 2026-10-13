@@ -17,15 +17,17 @@ dependencies = [
     "import-linter==2.15",
     "grimp==3.17",
     "mutmut==3.8.0",
+    "bandit==1.9.4",
+    "semgrep==1.180.0",
 ]
 
 [project.optional-dependencies]
 dev = [
     "pytest==9.1.1",
-    "jsonschema==4.26.0",
+    "jsonschema==4.25.1",
     "build==1.6.1",
     "twine==7.0.0",
-    "tomli==2.5.0; python_version < '3.11'",
+    "tomli==2.4.1; python_version < '3.11'",
 ]
 
 [project.scripts]

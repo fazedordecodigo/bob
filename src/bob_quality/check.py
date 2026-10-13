@@ -14,9 +14,10 @@ from bob_quality.diff import GitError, changed_lines, current_commit
 from bob_quality.dry_gate import run_dry_gate
 from bob_quality.exit_codes import CONFIG_OR_TOOL, PASSED
 from bob_quality.messages import DEFAULT_LANGUAGE, Language, Text, msg, reason
-from bob_quality.models import Clone, DepViolation, FunctionMetric, GateResult, Report
+from bob_quality.models import Clone, DepViolation, FunctionMetric, GateResult, Report, SecurityReport
 from bob_quality.mutate import MutationOutcome, focus_with_survivors, run_mutation_gate
 from bob_quality.report import metric_row, violation_rows, write_report
+from bob_quality.security_gate import run_security_gate
 from bob_quality.waivers import WaiverError, load_waivers
 
 DEFAULT_GATES = ("crap", "dry", "deps")
@@ -45,6 +46,7 @@ def run_check(
     measured = _measure(
         cwd,
         config,
+        chosen_base,
         diff_lines,
         max_crap,
         coverage_file,
@@ -103,11 +105,13 @@ class _Measured:
     mutation: MutationOutcome | None = None
     loaded_waivers: list[dict[str, object]] = field(default_factory=list)
     baseline: int | None = None
+    security: SecurityReport | None = None
 
 
 def _measure(
     cwd: Path,
     config: Config,
+    base: str,
     diff_lines: dict[str, set[int]],
     max_crap: float,
     coverage_file: Path | None,
@@ -122,6 +126,7 @@ def _measure(
             gate,
             cwd,
             config,
+            base,
             diff_lines,
             max_crap,
             coverage_file,
@@ -136,6 +141,7 @@ def _absorb(
     gate: str,
     cwd: Path,
     config: Config,
+    base: str,
     diff_lines: dict[str, set[int]],
     max_crap: float,
     coverage_file: Path | None,
@@ -175,6 +181,11 @@ def _absorb(
         )
         state.mutation = mutation
         _record(state, mutation.result, mutation.exit_code, mutation.versions)
+        return
+    if gate == "security":
+        result, code, versions, security = run_security_gate(cwd, config, base, diff_lines)
+        state.security = security
+        _record(state, result, code, versions)
         return
     _record(
         state,
@@ -241,6 +252,7 @@ def _assemble(
         waivers=waivers,
         survivors=survivors,
         mutation=summary,
+        security=measured.security,
     )
 
 

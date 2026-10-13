@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+`bob check --gates security` fails with exit `1` when a changed line carries a Bandit or Semgrep finding whose severity is in `security.fail_severities`. The default list is `HIGH`, `CRITICAL`, and `ERROR`. A finding on the diff outside that list is `warn` and exit `0`. A finding off the diff does not change the exit. The gate stays out of the default `bob check`, the pre-push hook, and the GitHub Action. `bandit==1.9.4` and `semgrep==1.180.0` are pinned, and `bob doctor` lists them. Semgrep 1.180.0 requires `jsonschema~=4.25.1` and `tomli~=2.4.0`, so the dev extra pins `jsonschema==4.25.1` and, on Python older than 3.11, `tomli==2.4.1`.
+
+`bob check --gates security` sai com `1` quando uma linha alterada tem um achado do Bandit ou do Semgrep cuja severidade está em `security.fail_severities`. O padrão é `HIGH`, `CRITICAL` e `ERROR`. Achado no diff fora dessa lista fica em `warn` e o exit é `0`. Achado fora do diff não muda o exit. O gate continua fora do `bob check` sem `--gates`, do hook pre-push e da GitHub Action. `bandit==1.9.4` e `semgrep==1.180.0` ficam pinados, e o `bob doctor` lista os dois. O Semgrep 1.180.0 pede `jsonschema~=4.25.1` e `tomli~=2.4.0`, então o extra `dev` pina `jsonschema==4.25.1` e, no Python anterior ao 3.11, `tomli==2.4.1`.
+
 `grimp==3.17` is a direct pin in `pyproject.toml`, and `bob doctor` lists it. `bob doctor` no longer treats a PATH binary as a pip tool. The version it expects is the one `bob-quality` declares.
 
 `grimp==3.17` é um pin direto no `pyproject.toml`, e o `bob doctor` lista essa versão. O `bob doctor` não trata mais um binário do PATH como ferramenta pip. A versão que ele espera é a que o `bob-quality` declara.

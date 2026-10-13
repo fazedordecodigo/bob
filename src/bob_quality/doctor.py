@@ -53,6 +53,8 @@ PINS: tuple[Pin, ...] = (
     RequiresDist("mutmut", "mutmut"),
     RequiresDist("import-linter", "import-linter"),
     RequiresDist("grimp", "grimp"),
+    RequiresDist("bandit", "bandit"),
+    RequiresDist("semgrep", "semgrep"),
     ToolPin(
         "dependency-cruiser",
         "18.5.0",

@@ -117,6 +117,42 @@
         }
       }
     },
+    "security": {
+      "type": "object",
+      "required": ["findings", "unmeasured"],
+      "properties": {
+        "findings": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "tool",
+              "rule",
+              "file",
+              "line",
+              "end_line",
+              "severity",
+              "disposition",
+              "waiver"
+            ],
+            "properties": {
+              "tool": { "type": "string" },
+              "rule": { "type": "string" },
+              "file": { "type": "string" },
+              "line": { "type": "integer" },
+              "end_line": { "type": "integer" },
+              "severity": { "type": "string" },
+              "disposition": { "enum": ["fail", "warn", "waived", "off_diff"] },
+              "waiver": { "type": ["string", "null"] }
+            }
+          }
+        },
+        "unmeasured": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      }
+    },
     "reproduce": { "type": "string" },
     "exit_code": { "type": "integer" }
   }

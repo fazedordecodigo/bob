@@ -2,7 +2,7 @@
 
 [Índice](README.md) · [Visão geral](visao-geral.md) · [CLI](cli.md) · [Configuração](configuracao.md) · [Exit codes](exit-codes.md) · [Relatórios](relatorios.md) · [SPEC](SPEC.md)
 
-Quatro gates. Cada um devolve um status `passed`, `warn`, `failed` ou `not_run`. O Markdown traduz para passou, aviso, falhou e não executado, com ✅ ⚠️ ❌ ⏭️ (`GATE_MARK` em `src/bob_quality/report.py`). Um gate que não rodou fica ⏭️ com motivo. Ele não aparece como ✅.
+Cinco gates. Cada um devolve um status `passed`, `warn`, `failed` ou `not_run`. O Markdown traduz para passou, aviso, falhou e não executado, com ✅ ⚠️ ❌ ⏭️ (`GATE_MARK` em `src/bob_quality/report.py`). Um gate que não rodou fica ⏭️ com motivo. Ele não aparece como ✅.
 
 O exit code do `bob check` é o maior entre os gates que rodaram. Aviso não aumenta o código. Ver [Exit codes](exit-codes.md).
 
@@ -12,8 +12,9 @@ O exit code do `bob check` é o maior entre os gates que rodaram. Aviso não aum
 | [DRY](#dry) | jscpd | nada; clone novo é aviso | `0` |
 | [Mutação](#mutação) | mutmut (Python) | sobrevivente sem waiver | `3` |
 | [Dependências](#dependências) | import-linter, dependency-cruiser, mais a regra de ciclo | violação cuja origem, destino ou outro módulo do ciclo está no diff | `1` |
+| [Segurança](#segurança) | Bandit no Python, Semgrep no TypeScript | achado novo cuja severidade está em `security.fail_severities`, sem waiver | `1` |
 
-Versões pinadas: lizard 1.24.1, coverage 7.16.2, c8 12.0.0, vitest 5.0.3, jscpd 5.4.1, mutmut 3.8.0, import-linter 2.15, grimp 3.17, dependency-cruiser 18.5.0. Node 22.14.0. Fonte: `pyproject.toml` e `package.json`. O doctor lê os pinos pip do Requires-Dist instalado.
+Versões pinadas: lizard 1.24.1, coverage 7.16.2, c8 12.0.0, vitest 5.0.3, jscpd 5.4.1, mutmut 3.8.0, import-linter 2.15, grimp 3.17, dependency-cruiser 18.5.0, bandit 1.9.4, semgrep 1.180.0. Node 22.14.0. Fonte: `pyproject.toml` e `package.json`. O doctor lê os pinos pip do Requires-Dist instalado.
 
 ## CRAP
 
@@ -82,6 +83,22 @@ Uma violação bloqueia quando a origem, o destino, ou outro módulo do mesmo co
 
 Ferramenta ausente que impede a medição pedida deixa o gate `not_run` e o exit `4` (`ToolError` em `run_deps_gate`). O mesmo exit `4` vale para um JSON do dependency-cruiser que não é objeto ou não traz a lista `violations`, e para o import-linter com exit 0 cuja última linha `Contracts:` não é `N kept, 0 broken.`
 
+## Segurança
+
+O gate só entra com `--gates security`. O `bob check` sem `--gates` continua `crap,dry,deps`. O hook `pre-push` e a Action, sem inputs, também não o incluem.
+
+Python roda o Bandit (`python -m bandit`). TypeScript roda o Semgrep, o executável `semgrep` ao lado do interpretador, com `scan`. Uma linguagem fora de `languages` não roda e não conta como ferramenta ausente. Repositório só Python não chama o Semgrep.
+
+O achado falha quando o intervalo de linhas cruza `changed_lines`, a severidade está em `security.fail_severities` e nenhum waiver casa. O padrão da lista é `HIGH`, `CRITICAL` e `ERROR`. `ERROR` é a palavra que regras antigas do Semgrep emitem. Não vira `HIGH`. O resto no diff fica em `warn` e o exit continua `0`. Achado fora do diff aparece no relatório como `off_diff` e não muda o exit. A confiança do Bandit (`issue_confidence`) não filtra.
+
+O waiver fica em `.bob/waivers.yaml`. O id `sast:<ferramenta>:<regra>` cobre essa regra em todo o diff. O id `sast:<ferramenta>:<regra>:<arquivo>:<linha>` cobre a linha primária do achado, inclusive fora do diff. A comparação é igualdade das duas strings. Um id de regra com `:` continua inteiro. Quando os dois casam, o motivo gravado é o do id com arquivo e linha.
+
+O Semgrep recebe `--baseline-commit` com o SHA de `git merge-base <base> HEAD`, o mesmo merge-base do diff. A execução é num worktree destacado de `HEAD`, apagado no fim. Árvore suja, índice sujo e arquivo não commitado não entram nesse scan e não abortam o gate. As regras são o diretório `.semgrep/` commitado na raiz. Sem `.yml` ou `.yaml` ali, o Semgrep não inicia e essa linguagem fica sem medição, com o motivo `missing rules directory: .semgrep`. O gate só fica `not_run` quando nenhuma linguagem pedida mediu. Não há id de registry e não há download.
+
+O Bandit varre o diretório de trabalho. Um `.bandit` do projeto não escolhe a severidade. O bob passa `--ini` num arquivo vazio. `# nosec` e `nosem` continuam visíveis para o waiver (`--ignore-nosec` e `--disable-nosem`).
+
+Se uma linguagem mede e a outra não, a que faltou sai do veredito. Um passe vira `warn` com exit `0`. Uma falha continua `failed` com exit `1`, e o motivo junta os dois com `probe.joined`. Se toda linguagem pedida fica sem medição, o gate é `not_run`, o exit é `4` e o relatório é gravado. Exit da ferramenta fora de `0` e `1`, JSON que não parseia, ou binário ausente contam como sem medição. O bob não copia o inteiro da ferramenta.
+
 ## Monorepo e Node ausente
 
 Decisão 10 da [SPEC](SPEC.md), implementada em `crap_gate.py` e `deps_gate.py`:
@@ -90,3 +107,5 @@ Decisão 10 da [SPEC](SPEC.md), implementada em `crap_gate.py` e `deps_gate.py`:
 - Repositório só TypeScript sem Node: a ferramenta ausente impede a medição pedida e o exit é `4`.
 
 O DRY, sozinho, trata Node ausente como `not_run` com exit `0`, também num repo só Python.
+
+O gate `security` usa o mesmo corte entre linguagens. Semgrep ausente num repositório que também mediu o Python não sai `4`. As duas linguagens sem medição saem `4`.
