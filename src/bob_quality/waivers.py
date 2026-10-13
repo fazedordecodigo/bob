@@ -168,7 +168,7 @@ def add_waiver(cwd: Path, target: str, reason: str | None) -> Waiver:
     path = waivers_path(cwd)
     path.parent.mkdir(parents=True, exist_ok=True)
     payload = {"waivers": [item.as_dict() for item in replaced]}
-    path.write_text(yaml.safe_dump(payload, allow_unicode=True, sort_keys=False))
+    path.write_text(yaml.safe_dump(payload, allow_unicode=True))
     return waiver
 
 
@@ -234,7 +234,7 @@ def _cache_mutants(cwd: Path) -> list[Mutant] | None:
     if not path.is_file():
         return None
     try:
-        raw = json.loads(path.read_text(encoding="utf-8"))
+        raw = json.loads(path.read_text())
     except (OSError, UnicodeError, json.JSONDecodeError) as exc:
         raise WaiverError(msg("mutate.cache_invalid", detail=str(exc))) from None
     if not isinstance(raw, dict):

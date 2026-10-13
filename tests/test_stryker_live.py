@@ -9,7 +9,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from helpers import commit_on_branch, init_ts_repo, run_bob
+from helpers import commit_on_branch, init_ts_repo, run_bob_subprocess
 
 _SAFE = """\
 export function add(left: number, right: number): number {
@@ -66,7 +66,7 @@ def test_nested_describe_kills_add_and_an_unwaived_survivor_exits_3(tmp_path: Pa
     commit_on_branch(repo, "change", "src/safe.ts", _SAFE, "add label")
     commit_on_branch(repo, "change", "tests/safe.test.ts", _NESTED, "nest the killer")
 
-    result = run_bob(repo, "mutate", "--base", "main")
+    result = run_bob_subprocess(repo, "mutate", "--base", "main")
     payload = json.loads((repo / ".bob" / "report.json").read_text())
     mutate = next(gate for gate in payload["gates"] if gate["name"] == "mutate")
     mutants = _mutants(repo, "src/safe.ts")
@@ -89,7 +89,7 @@ def test_an_uncovered_changed_function_exits_3(tmp_path: Path) -> None:
     repo = init_ts_repo(tmp_path / "repo")
     commit_on_branch(repo, "orphan", "src/safe.ts", _ORPHAN_FILE, "add orphan")
 
-    result = run_bob(repo, "mutate", "--base", "main")
+    result = run_bob_subprocess(repo, "mutate", "--base", "main")
     payload = json.loads((repo / ".bob" / "report.json").read_text())
     mutate = next(gate for gate in payload["gates"] if gate["name"] == "mutate")
 

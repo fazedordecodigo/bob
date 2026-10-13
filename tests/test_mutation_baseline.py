@@ -12,7 +12,13 @@ from pathlib import Path
 
 import pytest
 
-from helpers import FIXTURE_PYTHON, commit_on_branch, commit_on_main, init_python_repo, run_bob
+from helpers import (
+    FIXTURE_PYTHON,
+    commit_on_branch,
+    commit_on_main,
+    init_python_repo,
+    run_bob_subprocess,
+)
 
 ADD_TOUCHED = (FIXTURE_PYTHON / "cases" / "add_touched.py").read_text()
 ADD_COMMENT = "def add(left: int, right: int) -> int:\n    return left + right  # soma\n"
@@ -48,7 +54,7 @@ def _touched(repo_dir: Path) -> Path:
 
 
 def _check(repo: Path, gates: str) -> tuple[subprocess.CompletedProcess[str], dict[str, dict]]:
-    result = run_bob(repo, "check", "--base", "main", "--gates", gates)
+    result = run_bob_subprocess(repo, "check", "--base", "main", "--gates", gates)
     report = json.loads((repo / ".bob" / "report.json").read_text())
     return result, {gate["name"]: gate for gate in report["gates"]}
 

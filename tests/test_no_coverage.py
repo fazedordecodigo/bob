@@ -1,11 +1,21 @@
-"""Mutantes sem teste: contagem por função e aviso no relatório."""
+"""Mutantes sem teste: contagem por função e falha no relatório."""
 
 from __future__ import annotations
 
+import hashlib
+from pathlib import Path
+
 from bob_quality.adapters.mutmut import id_matches_function
 from bob_quality.messages import Language, render
-from bob_quality.models import GateResult, Mutant, Report
-from bob_quality.mutate import _finish, no_coverage_summary
+from bob_quality.models import CyclomaticFunction, GateResult, Mutant, Report
+from bob_quality.mutate import (
+    _belongs,
+    _cache_body,
+    _finish,
+    _start_line,
+    _with_file_lines,
+    no_coverage_summary,
+)
 from bob_quality.report import to_markdown
 
 
@@ -327,3 +337,73 @@ _MARKDOWN_EMPTY = (
     + "## Mutantes sem teste\n\nNenhum mutante sem teste.\n\n"
     + "## Como reproduzir\n\n```\nbob mutate --base main --lang pt-BR\n```\n"
 )
+
+
+def test_a_mutant_belongs_only_to_the_function_with_that_name() -> None:
+    foo = CyclomaticFunction("src/app/a.py", "foo", 10, 12, 1)
+    longer = CyclomaticFunction("src/app/a.py", "foo_bar", 40, 42, 1)
+    own = Mutant("app.a.x_foo__mutmut_1", "foo", "src/app/a.py", 2, "AOR", "killed")
+    sibling = Mutant("app.a.x_foo_bar__mutmut_1", "foo_bar", "src/app/a.py", 3, "AOR", "killed")
+
+    assert _belongs(own, []) is False
+    assert _belongs(own, [longer, foo]) is True
+    assert _belongs(sibling, [foo]) is False
+    assert _start_line(own, [longer, foo]) == 10
+    assert _start_line(sibling, [foo]) is None
+    assert _with_file_lines([own, sibling], [foo, longer]) == [
+        Mutant("app.a.x_foo__mutmut_1", "foo", "src/app/a.py", 11, "AOR", "killed"),
+        Mutant("app.a.x_foo_bar__mutmut_1", "foo_bar", "src/app/a.py", 42, "AOR", "killed"),
+    ]
+
+
+def test_an_unlocated_mutant_keeps_its_line() -> None:
+    foo = CyclomaticFunction("src/app/a.py", "foo", 10, 12, 1)
+    unknown = Mutant("app.a.x_missing__mutmut_1", "missing", "", 2, "", "killed")
+    uncovered = Mutant("app.a.x_foo__mutmut_2", "foo", "", 0, "", "no_coverage")
+
+    assert _start_line(unknown, [foo]) is None
+    assert _with_file_lines([unknown, uncovered], [foo]) == [unknown, uncovered]
+
+
+def test_cache_body_stores_each_function_and_skips_a_longer_name(tmp_path: Path) -> None:
+    source = "def foo():\n    return 1\n\ndef foo_bar():\n    return 2\n"
+    path = tmp_path / "src" / "app" / "a.py"
+    path.parent.mkdir(parents=True)
+    path.write_text(source)
+    foo = CyclomaticFunction("src/app/a.py", "foo", 1, 2, 1)
+    longer = CyclomaticFunction("src/app/a.py", "foo_bar", 4, 5, 1)
+    own = Mutant("app.a.x_foo__mutmut_1", "foo", "src/app/a.py", 2, "AOR", "killed")
+    sibling = Mutant("app.a.x_foo_bar__mutmut_1", "foo_bar", "src/app/a.py", 5, "AOR", "survived")
+
+    body = _cache_body(tmp_path, [foo, longer], [own, sibling])
+
+    assert body["src/app/a.py::foo"] == {
+        "hash": hashlib.sha256(b"def foo():\n    return 1").hexdigest(),
+        "file": "src/app/a.py",
+        "name": "foo",
+        "start_line": 1,
+        "end_line": 2,
+        "line_base": "file",
+        "mutants": [
+            {
+                "id": own.id,
+                "function": "foo",
+                "file": "src/app/a.py",
+                "line": 2,
+                "operator": "AOR",
+                "status": "killed",
+                "waiver": None,
+            }
+        ],
+    }
+    assert body["src/app/a.py::foo_bar"]["mutants"] == [
+        {
+            "id": sibling.id,
+            "function": "foo_bar",
+            "file": "src/app/a.py",
+            "line": 5,
+            "operator": "AOR",
+            "status": "survived",
+            "waiver": None,
+        }
+    ]

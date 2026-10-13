@@ -9,7 +9,9 @@ import pytest
 from bob_quality.adapters.lizard import LizardParseError
 from bob_quality.adapters.stryker import StrykerParseError
 from bob_quality.config import Config
+from bob_quality.exit_codes import PASSED, UNWAIVED_SURVIVOR
 from bob_quality.messages import msg
+from bob_quality.mutate_gate import _coverage_exit, _has_unwaived
 from bob_quality.models import Clone, CyclomaticFunction, DepViolation, FunctionMetric, GateResult
 from bob_quality.mutate import MutationOutcome
 from bob_quality.tools import ToolError
@@ -793,3 +795,18 @@ def test_unchanged_function_does_not_hide_the_next_changed_one(
     )
 
     assert [(item.name, item.cc) for item in spans] == [("add", 2)]
+
+
+def test_coverage_exit_fails_only_when_the_count_is_a_positive_int() -> None:
+    summary = {"no_coverage": {"total": 0}}
+
+    assert _coverage_exit(PASSED, summary) == PASSED
+    assert _coverage_exit(PASSED, {"no_coverage": {"total": 1}}) == UNWAIVED_SURVIVOR
+    assert _coverage_exit(PASSED, {"no_coverage": {"total": "1"}}) == PASSED
+    assert _coverage_exit(4, {"no_coverage": {"total": 3}}) == 4
+
+
+def test_has_unwaived_is_true_only_for_a_survivor_without_a_waiver() -> None:
+    assert _has_unwaived([{"waiver": "because"}]) is False
+    assert _has_unwaived([{"waiver": None}]) is True
+    assert _has_unwaived([]) is False

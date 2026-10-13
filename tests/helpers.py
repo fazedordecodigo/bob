@@ -6,6 +6,7 @@ import io
 import os
 import shutil
 import subprocess
+import sys
 from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
 
@@ -61,14 +62,42 @@ def run_bob(
     )
 
 
+def run_bob_subprocess(
+    repo: Path,
+    *args: str,
+    bob_lang: str | None = None,
+    env: dict[str, str] | None = None,
+) -> subprocess.CompletedProcess[str]:
+    """Roda a CLI num interpretador filho.
+
+    O filho não carrega o trampolim do mutmut. Teste que dispara mutmut ou
+    Stryker fica neste caminho. No processo, cada mutante do gate repetiria
+    o teste.
+    """
+    base = os.environ if env is None else env
+    child = {key: value for key, value in base.items() if key != "BOB_LANG"}
+    if bob_lang is not None:
+        child["BOB_LANG"] = bob_lang
+    return subprocess.run(
+        [sys.executable, "-m", "bob_quality", *args],
+        cwd=repo,
+        capture_output=True,
+        text=True,
+        env=child,
+    )
+
+
 def _git(repo: Path, *args: str) -> None:
-    subprocess.run(
+    completed = subprocess.run(
         ["git", *args],
         cwd=repo,
-        check=True,
         capture_output=True,
         text=True,
     )
+    if completed.returncode == 0:
+        return
+    detail = completed.stderr.strip() or completed.stdout.strip()
+    raise RuntimeError(f"git {' '.join(args)} exited {completed.returncode}: {detail}")
 
 
 def init_python_repo(dest: Path) -> Path:

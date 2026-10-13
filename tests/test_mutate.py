@@ -11,11 +11,22 @@ Seams combinados em docs/SPEC.md (aceite da issue #3):
 from __future__ import annotations
 
 import json
+from datetime import datetime, timezone
 from pathlib import Path
 
 from jsonschema import Draft202012Validator
+from pytest import MonkeyPatch
 
-from helpers import commit_on_branch, commit_on_main, init_python_repo, run_bob
+from bob_quality.models import Mutant
+from bob_quality.waivers import Waiver, _matching_reason, _row_mutant, _status, add_waiver
+
+from helpers import (
+    commit_on_branch,
+    commit_on_main,
+    init_python_repo,
+    run_bob,
+    run_bob_subprocess,
+)
 
 SCHEMA = json.loads(
     (Path(__file__).resolve().parents[1] / "src/bob_quality/schemas/report_v1.json").read_text()
@@ -41,7 +52,7 @@ def _repo_with_surviving_mutant(tmp_path: Path) -> Path:
 def test_mutate_exits_3_when_changed_function_has_unwaived_survivor(tmp_path: Path) -> None:
     repo = _repo_with_surviving_mutant(tmp_path)
 
-    result = run_bob(repo, "mutate", "--base", "main")
+    result = run_bob_subprocess(repo, "mutate", "--base", "main")
     payload = json.loads((repo / ".bob" / "report.json").read_text())
     markdown = (repo / ".bob" / "report.md").read_text()
     mutate = next(gate for gate in payload["gates"] if gate["name"] == "mutate")
@@ -56,7 +67,7 @@ def test_uncovered_mutants_in_the_diff_fail_with_exit_3(tmp_path: Path) -> None:
     repo = init_python_repo(tmp_path / "repo")
     commit_on_branch(repo, "orphan", "src/app/orphan.py", ORPHAN, "add orphan")
 
-    result = run_bob(repo, "mutate", "--base", "main")
+    result = run_bob_subprocess(repo, "mutate", "--base", "main")
     payload = json.loads((repo / ".bob" / "report.json").read_text())
     markdown = (repo / ".bob" / "report.md").read_text()
     mutate = next(gate for gate in payload["gates"] if gate["name"] == "mutate")
@@ -94,7 +105,7 @@ def test_mutate_exits_2_when_baseline_tests_fail(tmp_path: Path) -> None:
         "break baseline tests",
     )
 
-    result = run_bob(repo, "mutate", "--base", "main")
+    result = run_bob_subprocess(repo, "mutate", "--base", "main")
     payload = json.loads((repo / ".bob" / "report.json").read_text())
     mutate = next(gate for gate in payload["gates"] if gate["name"] == "mutate")
 
@@ -115,7 +126,7 @@ def test_local_check_skips_mutation_unless_gates_mutate(tmp_path: Path) -> None:
     assert all(gate["name"] != "mutate" for gate in plain_payload["gates"])
     assert "mutmut" not in plain_payload["tool_versions"]
 
-    forced = run_bob(repo, "check", "--base", "main", "--gates", "mutate")
+    forced = run_bob_subprocess(repo, "check", "--base", "main", "--gates", "mutate")
     forced_payload = json.loads((repo / ".bob" / "report.json").read_text())
     mutate = next(gate for gate in forced_payload["gates"] if gate["name"] == "mutate")
 
@@ -143,7 +154,7 @@ def test_waive_puts_the_reason_at_the_top_of_the_report(tmp_path: Path) -> None:
     reason = "o contrato exige estritamente maior que zero"
 
     saved = run_bob(repo, "waive", "classify", "--reason", reason)
-    result = run_bob(repo, "mutate", "--base", "main")
+    result = run_bob_subprocess(repo, "mutate", "--base", "main")
     markdown = (repo / ".bob" / "report.md").read_text()
     payload = json.loads((repo / ".bob" / "report.json").read_text())
     stored = (repo / ".bob" / "waivers.yaml").read_text()
@@ -168,7 +179,7 @@ def test_only_changed_functions_are_mutated_and_clean_ones_are_not_remutated(
     commit_on_main(repo, "tests/test_safe.py", ADD_AND_SCALE_TEST, "test add and scale")
     commit_on_branch(repo, "touch-add", "src/app/safe.py", ADD_TOUCHED, "comment inside add")
 
-    first = run_bob(repo, "mutate", "--base", "main")
+    first = run_bob_subprocess(repo, "mutate", "--base", "main")
     cache_path = repo / ".bob" / "mutation-cache.json"
     cache = json.loads(cache_path.read_text())
     payload = json.loads((repo / ".bob" / "report.json").read_text())
@@ -191,7 +202,7 @@ def test_only_changed_functions_are_mutated_and_clean_ones_are_not_remutated(
     functions["src/app/safe.py::add"]["mutants"][0]["operator"] = "SENTINEL"
     cache_path.write_text(json.dumps(cache, indent=2) + "\n")
 
-    second = run_bob(repo, "mutate", "--base", "main")
+    second = run_bob_subprocess(repo, "mutate", "--base", "main")
     again = json.loads(cache_path.read_text())
     second_payload = json.loads((repo / ".bob" / "report.json").read_text())
 
@@ -206,11 +217,11 @@ def test_functions_with_survivors_are_remutated_even_when_the_hash_matches(
 ) -> None:
     repo = _repo_with_surviving_mutant(tmp_path)
 
-    first = run_bob(repo, "mutate", "--base", "main")
+    first = run_bob_subprocess(repo, "mutate", "--base", "main")
     assert first.returncode == 3
 
     commit_on_branch(repo, "weak", "tests/test_classify.py", STRONG_TEST, "kill the survivors")
-    second = run_bob(repo, "mutate", "--base", "main")
+    second = run_bob_subprocess(repo, "mutate", "--base", "main")
     payload = json.loads((repo / ".bob" / "report.json").read_text())
 
     assert second.returncode == 0
@@ -227,7 +238,7 @@ def test_hand_written_waiver_without_author_is_rejected(tmp_path: Path) -> None:
         encoding="utf-8",
     )
 
-    result = run_bob(repo, "mutate", "--base", "main")
+    result = run_bob_subprocess(repo, "mutate", "--base", "main")
 
     assert result.returncode == 4
     assert result.stderr == ".bob/waivers.yaml: waivers[0].author must be a string\n"
@@ -262,12 +273,12 @@ def test_removed_waiver_fails_the_survivor_again(tmp_path: Path) -> None:
     repo = _repo_with_surviving_mutant(tmp_path)
     reason = "o contrato exige estritamente maior que zero"
 
-    assert run_bob(repo, "mutate", "--base", "main").returncode == 3
+    assert run_bob_subprocess(repo, "mutate", "--base", "main").returncode == 3
     assert run_bob(repo, "waive", "classify", "--reason", reason).returncode == 0
-    assert run_bob(repo, "mutate", "--base", "main").returncode == 0
+    assert run_bob_subprocess(repo, "mutate", "--base", "main").returncode == 0
 
     (repo / ".bob" / "waivers.yaml").unlink()
-    result = run_bob(repo, "mutate", "--base", "main")
+    result = run_bob_subprocess(repo, "mutate", "--base", "main")
     markdown = (repo / ".bob" / "report.md").read_text()
 
     assert result.returncode == 3
@@ -366,8 +377,83 @@ def test_waive_rejects_a_cache_that_is_not_json(tmp_path: Path) -> None:
     result = run_bob(tmp_path, "waive", "add", "--reason", "because")
 
     assert result.returncode == 4
-    assert result.stderr.startswith("invalid mutation cache: ")
+    assert result.stderr == (
+        "invalid mutation cache: Expecting property name enclosed in double quotes:"
+        " line 1 column 2 (char 1)\n"
+    )
     assert not (bob / "waivers.yaml").exists()
+
+
+def test_waive_creates_a_missing_directory(tmp_path: Path) -> None:
+    repo = tmp_path / "missing"
+
+    waiver = add_waiver(repo, "keep", "because")
+
+    assert waiver.id == "keep"
+    assert (repo / ".bob" / "waivers.yaml").is_file()
+
+
+def test_an_empty_target_names_the_missing_target(tmp_path: Path) -> None:
+    result = run_bob(tmp_path, "waive", "   ", "--reason", "because")
+
+    assert result.returncode == 4
+    assert result.stderr == "waiver without a target\n"
+    assert result.stdout == ""
+
+
+def test_a_new_waiver_records_the_repo_author_the_utc_date_and_the_yaml_order(
+    tmp_path: Path, monkeypatch: MonkeyPatch
+) -> None:
+    repo = init_python_repo(tmp_path / "repo")
+    real = datetime
+
+    class DateTime:
+        @staticmethod
+        def now(tz: timezone | None = None) -> datetime:
+            assert tz is timezone.utc
+            return real(2026, 1, 2, 15, tzinfo=timezone.utc)
+
+    monkeypatch.setattr("bob_quality.waivers.datetime", DateTime)
+
+    waiver = add_waiver(repo, "keep", "não")
+
+    assert waiver.author == "bob-test"
+    assert waiver.date == "2026-01-02"
+    assert (repo / ".bob" / "waivers.yaml").read_text(encoding="utf-8") == (
+        "waivers:\n"
+        "- author: bob-test\n"
+        "  date: '2026-01-02'\n"
+        "  id: keep\n"
+        "  reason: não\n"
+    )
+
+
+def test_a_cache_row_keeps_string_fields_and_drops_an_unknown_status() -> None:
+    kept = _row_mutant(
+        {"id": "app.a.x_add__mutmut_1", "status": "killed", "function": "add", "file": "src/a.py"}
+    )
+    blank = _row_mutant({"id": "app.a.x_add__mutmut_1", "status": "timeout", "function": 1, "file": 2})
+
+    assert kept == Mutant("app.a.x_add__mutmut_1", "add", "src/a.py", 0, "", "killed")
+    assert blank == Mutant("app.a.x_add__mutmut_1", "", "", 0, "", "timeout")
+    assert _row_mutant({"id": "app.a.x_add__mutmut_1", "status": "nope"}) is None
+    assert _row_mutant({"id": 1, "status": "killed"}) is None
+    assert _row_mutant({"id": "app.a.x_add__mutmut_1", "status": 1}) is None
+    assert _row_mutant(["id"]) is None
+    assert _status("killed") == "killed"
+    assert _status("timeout") == "timeout"
+    assert _status("no_coverage") == "no_coverage"
+    assert _status("survived") == "survived"
+
+
+def test_a_waiver_matches_the_mutant_it_names() -> None:
+    mutant = Mutant("app.a.x_add__mutmut_1", "add", "src/a.py", 1, "AOR", "survived")
+    named = Waiver("add", "because", "bob-test", "2026-01-02")
+    other = Waiver("scale", "nope", "bob-test", "2026-01-02")
+
+    assert _matching_reason(mutant, [other, named]) == "because"
+    assert _matching_reason(mutant, [other]) is None
+    assert _matching_reason(mutant, []) is None
 
 
 def test_harden_skill_kills_mutants_without_weakening_production_code() -> None:

@@ -34,7 +34,13 @@ from bob_quality.mutate import (
 )
 from bob_quality.suite_fingerprint import suite_fingerprint
 from bob_quality.tools import ToolError
-from helpers import commit_on_branch, commit_on_main, in_both, init_python_repo, run_bob
+from helpers import (
+    commit_on_branch,
+    commit_on_main,
+    in_both,
+    init_python_repo,
+    run_bob_subprocess,
+)
 
 FIXTURE = Path(__file__).parent / "fixtures" / "python_app"
 ADD_AND_SCALE = (FIXTURE / "cases" / "add_and_scale.py").read_text()
@@ -98,7 +104,7 @@ def _repo(tmp_path: Path, source: str = ADD_TOUCHED) -> Path:
 
 
 def _mutate(repo: Path) -> tuple[int, dict, dict]:
-    code = run_bob(repo, "mutate", "--base", "main").returncode
+    code = run_bob_subprocess(repo, "mutate", "--base", "main").returncode
     report = json.loads((repo / ".bob" / "report.json").read_text())
     cache = json.loads((repo / ".bob" / "mutation-cache.json").read_text())
     return code, report, cache
@@ -112,7 +118,7 @@ def _plant(repo: Path, cache: dict[str, object]) -> Path:
 
 
 def _assert_invalid_cache(repo: Path, path: Path, before: bytes, detail: str) -> None:
-    result = run_bob(repo, "mutate", "--base", "main")
+    result = run_bob_subprocess(repo, "mutate", "--base", "main")
     assert result.returncode == 4, result.stderr
     report = json.loads((repo / ".bob" / "report.json").read_text())
     mutate = next(gate for gate in report["gates"] if gate["name"] == "mutate")
@@ -269,7 +275,7 @@ def test_a_non_numeric_mutant_line_exits_4_and_leaves_the_cache_file(tmp_path: P
     _edit_cache(repo, corrupt)
     before = path.read_bytes()
 
-    result = run_bob(repo, "mutate", "--base", "main")
+    result = run_bob_subprocess(repo, "mutate", "--base", "main")
     assert result.returncode == 4, result.stderr
     report = json.loads((repo / ".bob" / "report.json").read_text())
     mutate = next(gate for gate in report["gates"] if gate["name"] == "mutate")
