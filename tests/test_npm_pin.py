@@ -19,6 +19,8 @@ ROOT = Path(__file__).resolve().parents[1]
 
 def test_npm_tools_are_pinned_in_package_json_and_lock() -> None:
     pins = {
+        "@stryker-mutator/core": "10.0.0",
+        "@stryker-mutator/vitest-runner": "10.0.0",
         "c8": "12.0.0",
         "dependency-cruiser": "18.5.0",
         "jscpd": "5.4.1",
