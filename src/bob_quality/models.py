@@ -79,6 +79,39 @@ class FunctionMetric:
     delta: float | None = None
 
 
+def qualified_name(name: str, owner: str | None) -> str:
+    """`nome` sem dono, `Dono.nome` com dono. O ponto entre classe e método só nasce aqui."""
+    return name if owner is None else f"{owner}.{name}"
+
+
+@dataclass(frozen=True)
+class MutationTarget:
+    """Função que o gate de mutação mira. Só `adapters.mutmut.mutation_targets` dá `owner`.
+
+    `owner` é a classe que tem o `def` no corpo. Só o método direto de uma classe
+    do topo do módulo tem o nome simples da classe, a grafia que o mutmut 3.8 gera.
+    Todo outro dono tem ponto e não casa com id nenhum do mutmut.
+    `start_line` é a primeira linha que o `mutmut show` imprime. Num método é o
+    primeiro decorador. No resto é o `def` medido pelo lizard. `end_line` é a do lizard.
+    `qualname` e `key` são métodos, não `@property`, porque o mutmut 3.8 não
+    gera mutante para `@property` e o gate deste repositório muta este arquivo.
+    """
+
+    file: str
+    name: str
+    start_line: int
+    end_line: int
+    owner: str | None = None
+
+    def qualname(self) -> str:
+        """`Mutant.function` dos mutantes do alvo, e o nome que o waiver cita."""
+        return qualified_name(self.name, self.owner)
+
+    def key(self) -> str:
+        """`arquivo::qualname`. Chave do cache, rótulo do relatório e id de waiver."""
+        return f"{self.file}::{self.qualname()}"
+
+
 MutantStatus = Literal["killed", "survived", "timeout", "no_coverage"]
 
 
