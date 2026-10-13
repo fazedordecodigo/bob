@@ -91,7 +91,6 @@ def cognitive_verdict(
     waived: set[str],
     diff_lines: dict[str, set[int]],
 ) -> tuple[GateResult, list[CognitiveFunction], Literal[0]]:
-    """Funções alteradas com score no limite viram aviso. O exit é 0."""
     hot = [
         item
         for item in functions

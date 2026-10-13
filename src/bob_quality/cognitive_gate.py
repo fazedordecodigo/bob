@@ -1,5 +1,3 @@
-"""Gate de complexidade cognitiva. A medição fica aqui; o veredito fica no núcleo."""
-
 from __future__ import annotations
 
 import importlib
@@ -41,11 +39,6 @@ def run_cognitive_gate(
     config: Config,
     diff_lines: dict[str, set[int]],
 ) -> _Outcome:
-    """Mede cada idioma configurado e chama o veredito uma vez.
-
-    Idioma que não mediu fica de fora. Se todos falham, o status é not_run
-    e o exit é 0.
-    """
     measured: list[_LanguageFunctions] = []
     misses: list[_LanguageMiss] = []
     for language in config.languages:
@@ -91,7 +84,6 @@ def _measure_python(cwd: Path, config: Config) -> _LanguageFunctions | _Language
 
 
 def _load_complexipy():
-    # A top-level import would make every bob check fail when the package is absent.
     return importlib.import_module("complexipy")
 
 
