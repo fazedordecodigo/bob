@@ -58,7 +58,7 @@ _EN: dict[str, str] = {
     "cli.mutate": "Mutate the changed functions with mutmut",
     "cli.since_last_run": "Reuse the cache; already the default behavior",
     "cli.waive": "Record a waiver with a one-line reason",
-    "cli.waive_target": "mutant id or function name",
+    "cli.waive_target": "file::function, or a Target from the mutation report",
     "cli.doctor": "Check the pinned tools and the installed versions",
     "cli.install": "Install the npm tools with npm ci in the package (or in a user cache)",
     "config.not_found": "config file not found: {path}",
@@ -139,6 +139,9 @@ _EN: dict[str, str] = {
     "waiver.field_string": "{path}: {field} must be a string",
     "waiver.reason_line": "{path}: {field} must be one non-empty line",
     "waiver.no_target": "waiver without a target",
+    "waiver.unknown_target": (
+        "no survivor matches {target}: copy file::function or a Target from the last mutation report"
+    ),
     "waiver.duplicate_id": "{path}: {field} repeats {earlier}",
     "coverage.invalid_json": "invalid coverage.json",
     "coverage.no_files": "coverage.json without a files key",
@@ -182,7 +185,7 @@ _EN: dict[str, str] = {
     "report.old_debt_item": "- `{name}` at `{loc}` CRAP {crap} (outside the diff; does not block)",
     "report.survivors": "## Surviving mutants",
     "report.no_survivors": "No surviving mutants.",
-    "report.survivor_header": "| Id | Function | Location | Operator | Waiver |",
+    "report.survivor_header": "| Target | Function | Location | Operator | Waiver |",
     "report.no_coverage": "## Mutants without tests",
     "report.no_uncovered": "No mutants without tests.",
     "report.uncovered_total": "⚠️ Total: {total}. Does not block.",
@@ -222,7 +225,7 @@ _PT_BR: dict[str, str] = {
     "cli.mutate": "Muta funções alteradas com mutmut",
     "cli.since_last_run": "Reusa o cache; já é o comportamento padrão",
     "cli.waive": "Registra um waiver com motivo de uma linha",
-    "cli.waive_target": "id do mutante ou nome da função",
+    "cli.waive_target": "arquivo::função, ou um Alvo do relatório de mutação",
     "cli.doctor": "Verifica as ferramentas pinadas e as versões instaladas",
     "cli.install": "Instala as ferramentas npm com npm ci no pacote (ou num cache do usuário)",
     "config.not_found": "arquivo de configuração não encontrado: {path}",
@@ -304,6 +307,10 @@ _PT_BR: dict[str, str] = {
     "waiver.field_string": "{path}: {field} deve ser um texto",
     "waiver.reason_line": "{path}: {field} deve ser uma linha não vazia",
     "waiver.no_target": "waiver sem alvo",
+    "waiver.unknown_target": (
+        "nenhum sobrevivente casa com {target}:"
+        " copie arquivo::função ou um Alvo do último relatório de mutação"
+    ),
     "waiver.duplicate_id": "{path}: {field} repete {earlier}",
     "coverage.invalid_json": "coverage.json inválido",
     "coverage.no_files": "coverage.json sem chave files",
@@ -347,7 +354,7 @@ _PT_BR: dict[str, str] = {
     "report.old_debt_item": "- `{name}` em `{loc}` CRAP {crap} (fora do diff; não bloqueia)",
     "report.survivors": "## Mutantes sobreviventes",
     "report.no_survivors": "Nenhum mutante sobrevivente.",
-    "report.survivor_header": "| Id | Função | Local | Operador | Waiver |",
+    "report.survivor_header": "| Alvo | Função | Local | Operador | Waiver |",
     "report.no_coverage": "## Mutantes sem teste",
     "report.no_uncovered": "Nenhum mutante sem teste.",
     "report.uncovered_total": "⚠️ Total: {total}. Não bloqueia.",

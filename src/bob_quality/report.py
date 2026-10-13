@@ -197,10 +197,12 @@ def _no_coverage_lines(report: Report) -> list[Text]:
 
 
 def _survivor_row(item: dict[str, object]) -> str:
+    target = item.get("target")
+    first = "`" + str(target).replace("|", "\\|") + "`" if target else "—"
     waiver = item.get("waiver") or "—"
     operator = str(item.get("operator") or "—").replace("|", "\\|")
     return (
-        f"| `{item['id']}` | {item['function']} | {item['file']}:{item['line']} | {operator} | {waiver} |"
+        f"| {first} | {item['function']} | {item['file']}:{item['line']} | {operator} | {waiver} |"
     )
 
 

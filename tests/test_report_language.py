@@ -14,6 +14,7 @@ SURVIVOR = {
     "line": 2,
     "operator": "ROR",
     "waiver": "m.x__mutmut_1",
+    "target": "src/app/weak.py::classify::ROR",
 }
 MESSY = {
     "name": "messy",
@@ -129,9 +130,9 @@ RICH_EN = """# bob report
 
 ## Surviving mutants
 
-| Id | Function | Location | Operator | Waiver |
+| Target | Function | Location | Operator | Waiver |
 |---|---|---|---|---|
-| `app.weak.x_classify__mutmut_1` | classify | src/app/weak.py:2 | ROR | m.x__mutmut_1 |
+| `src/app/weak.py::classify::ROR` | classify | src/app/weak.py:2 | ROR | m.x__mutmut_1 |
 
 ## Mutants without tests
 
@@ -200,9 +201,9 @@ RICH_PT_BR = """# Relatório bob
 
 ## Mutantes sobreviventes
 
-| Id | Função | Local | Operador | Waiver |
+| Alvo | Função | Local | Operador | Waiver |
 |---|---|---|---|---|
-| `app.weak.x_classify__mutmut_1` | classify | src/app/weak.py:2 | ROR | m.x__mutmut_1 |
+| `src/app/weak.py::classify::ROR` | classify | src/app/weak.py:2 | ROR | m.x__mutmut_1 |
 
 ## Mutantes sem teste
 
@@ -389,4 +390,25 @@ def test_waiver_rows_escape_pipes_and_leave_missing_fields_blank() -> None:
         "|---|---|---|---|\n"
         "| `m.x__mutmut_2` | a \\| b | E | 2026-10-11 |\n"
         "| `` |  |  |  |\n"
+    ) in to_markdown(report, "en")
+
+
+def test_survivor_rows_escape_pipes_in_the_target_and_dash_a_missing_one() -> None:
+    piped = {
+        **SURVIVOR,
+        "operator": "a or b -> a | b",
+        "waiver": None,
+        "target": "src/app/weak.py::classify::a or b -> a | b",
+    }
+    blind = {**SURVIVOR, "file": "", "line": 0, "operator": "", "waiver": None, "target": None}
+    report = replace(
+        _empty([]), survivors=[piped, blind], mutation={"remutated": [], "reused": []}
+    )
+
+    assert (
+        "| Target | Function | Location | Operator | Waiver |\n"
+        "|---|---|---|---|---|\n"
+        "| `src/app/weak.py::classify::a or b -> a \\| b` | classify | src/app/weak.py:2"
+        " | a or b -> a \\| b | — |\n"
+        "| — | classify | :0 | — | — |\n"
     ) in to_markdown(report, "en")

@@ -4,9 +4,11 @@ from __future__ import annotations
 
 import os
 import subprocess
-from dataclasses import dataclass, fields
+from collections import Counter
+from dataclasses import dataclass, fields, replace
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import NamedTuple
 
 import yaml
 
@@ -149,58 +151,79 @@ def _item_field(index: int, key: str | None = None) -> str:
     return f"{field}.{key}"
 
 
-def add_waiver(cwd: Path, target: str, reason: str | None) -> Waiver:
+def add_waiver(cwd: Path, target: str, reason: str | None, known: frozenset[str]) -> Waiver:
+    """`known` são os alvos dos sobreviventes do último relatório de mutação.
+
+    Cada recusa acontece antes de abrir o `.bob/waivers.yaml` para escrita.
+    """
     text = normalize_reason(reason)
-    if not target.strip():
+    wanted = target.strip()
+    if not wanted:
         raise WaiverError(msg("waiver.no_target"))
+    if wanted not in known:
+        raise WaiverError(msg("waiver.unknown_target", target=wanted))
     waiver = Waiver(
-        id=target.strip(),
+        id=wanted,
         reason=text,
         author=_author(cwd),
         date=datetime.now(timezone.utc).date().isoformat(),
     )
-    current = load_waivers(cwd)
-    replaced = [item for item in current if item.id != waiver.id]
-    replaced.append(waiver)
-    path = waivers_path(cwd)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    payload = {"waivers": [item.as_dict() for item in replaced]}
-    path.write_text(yaml.safe_dump(payload, allow_unicode=True, sort_keys=False))
+    write_waivers(cwd, [item for item in load_waivers(cwd) if item.id != wanted] + [waiver])
     return waiver
 
 
+def write_waivers(cwd: Path, waivers: list[Waiver]) -> None:
+    """O único escritor do `.bob/waivers.yaml`. A largura infinita deixa um id longo numa linha."""
+    path = waivers_path(cwd)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    payload = {"waivers": [item.as_dict() for item in waivers]}
+    path.write_text(
+        yaml.safe_dump(payload, allow_unicode=True, sort_keys=False, width=float("inf"))
+    )
+
+
+class SurvivorTargets(NamedTuple):
+    """Os dois ids de waiver que cobrem um sobrevivente."""
+
+    function: str
+    """`arquivo::função`. Cobre todo sobrevivente da função."""
+
+    exact: str | None
+    """`arquivo::função::<descrição>`. None quando a descrição não separa este sobrevivente."""
+
+
+def survivor_targets(mutants: list[Mutant]) -> dict[str, SurvivorTargets]:
+    """Alvos de cada sobrevivente, pelo id do mutante.
+
+    Só sobrevivente com arquivo tem entrada. A unicidade da descrição é julgada dentro da função,
+    então `mutants` traz todos os sobreviventes de cada função que toca.
+    """
+    survivors = [item for item in mutants if item.status == "survived" and item.file]
+    # O load_waivers tira os espaços do id, e a descrição de uma linha apagada termina em espaço.
+    text = {item.id: item.operator.strip() for item in survivors}
+    count = Counter((item.file, item.function, text[item.id]) for item in survivors)
+    targets: dict[str, SurvivorTargets] = {}
+    for item in survivors:
+        function = f"{item.file}::{item.function}"
+        unique = text[item.id] and count[(item.file, item.function, text[item.id])] == 1
+        exact = f"{function}::{text[item.id]}" if unique else None
+        targets[item.id] = SurvivorTargets(function, exact)
+    return targets
+
+
 def apply_waivers(mutants: list[Mutant], waivers: list[Waiver]) -> list[Mutant]:
-    applied: list[Mutant] = []
-    for mutant in mutants:
-        reason = _matching_reason(mutant, waivers)
-        if reason == mutant.waiver:
-            applied.append(mutant)
-            continue
-        applied.append(
-            Mutant(
-                id=mutant.id,
-                function=mutant.function,
-                file=mutant.file,
-                line=mutant.line,
-                operator=mutant.operator,
-                status=mutant.status,
-                waiver=reason,
-            )
-        )
-    return applied
+    targets = survivor_targets(mutants)
+    return [
+        replace(item, waiver=_matching_reason(targets.get(item.id), waivers)) for item in mutants
+    ]
 
 
-def _matching_reason(mutant: Mutant, waivers: list[Waiver]) -> str | None:
-    keys = {
-        mutant.id,
-        mutant.function,
-        f"{mutant.file}:{mutant.function}",
-        f"{mutant.file}::{mutant.function}",
-    }
-    for waiver in waivers:
-        if waiver.id in keys:
-            return waiver.reason
-    return None
+def _matching_reason(targets: SurvivorTargets | None, waivers: list[Waiver]) -> str | None:
+    """Um id prefixado de outro gate (ADR 0005) nunca começa com o caminho do arquivo."""
+    if targets is None:
+        return None
+    keys = {targets.function, targets.exact}
+    return next((item.reason for item in waivers if item.id in keys), None)
 
 
 def _author(cwd: Path) -> str:

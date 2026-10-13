@@ -21,7 +21,7 @@ bob crap    [--base REF] [--threshold N] [--coverage-file PATH]
 bob dry     [--base REF]
 bob deps
 bob mutate  [--base REF] [--since-last-run] [--max-workers N]
-bob waive   <mutant-id|function> --reason "texto de uma linha"
+bob waive   <file::function|Target> --reason "texto de uma linha"
 bob doctor  # verifica ferramentas e versões instaladas
 bob <comando> [--lang en|pt-BR]  # idioma da saída (padrão: en)
 ```
@@ -58,5 +58,5 @@ Conclusão da skill: `bob check` sai com `0`.
 1. Rodar `bob check --format both` com o `--base` do PR. Feito quando o processo devolve um exit code e `.bob/report.json` existe.
 2. Exit `1`: ajustar a função ou arquivo:linha até a métrica caber no limite. Feito quando o check é reexecutado.
 3. Exit `2`: fazer os testes passarem (baseline). A medição começa depois disso. Feito quando o check é reexecutado.
-4. Exit `3`: matar o mutante com teste mais forte, ou `bob waive <mutant-id|function> --reason "texto de uma linha"`. Waiver vale só com motivo de uma linha. Feito quando o check é reexecutado.
+4. Exit `3`: matar o mutante com teste mais forte, ou `bob waive <file::function|Target> --reason "texto de uma linha"`, copiando o Alvo da tabela de sobreviventes. Waiver vale só com motivo de uma linha. O id do mutante e o nome nu da função saem com `4`. Feito quando o check é reexecutado.
 5. Exit `4`: `bob doctor` e corrigir ferramenta ou config. Feito quando o check é reexecutado.

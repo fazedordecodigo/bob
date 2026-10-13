@@ -24,7 +24,7 @@ bob crap    [--base REF] [--threshold N] [--coverage-file PATH]
 bob dry     [--base REF]
 bob deps
 bob mutate  [--base REF] [--since-last-run] [--max-workers N]
-bob waive   <mutant-id|function> --reason "texto de uma linha"
+bob waive   <file::function|Target> --reason "texto de uma linha"
 bob doctor  # verifica ferramentas e versões instaladas
 ```
 
@@ -70,7 +70,7 @@ Lista de `docs/SPEC.md` (fonte):
 - **Before:** <exit e linhas do `bob check` que falhou>
   **After:** <exit `0` e os vereditos atuais>
 - **Onde focar o review:** <a lista do relatório>
-- <cada waiver, com a justificativa>
+- <cada waiver, com o id e a justificativa. Diga quando o id é `arquivo::função`, que cobre todo sobrevivente da função>
 - Relatório completo: `.bob/report.md`
 
 ## Merge Danger

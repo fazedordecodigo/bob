@@ -13,7 +13,7 @@ from bob_quality.diff import function_is_changed
 from bob_quality.exit_codes import BASELINE_BROKEN, CONFIG_OR_TOOL
 from bob_quality.messages import Text, msg, reason
 from bob_quality.models import CyclomaticFunction, GateResult
-from bob_quality.mutate import MutationOutcome, _finish, _outcome
+from bob_quality.mutate import MutationOutcome, _finish, _outcome, write_stryker_mutants
 from bob_quality.npm_tools import (
     _user_vitest_config,
     installed_npm_version,
@@ -311,6 +311,7 @@ def _from_report(
     if not isinstance(payload, dict):
         raise StrykerParseError(msg("stryker.bad_report", detail=REPORT_NAME))
     mutants = apply_waivers(mutants_from_report(payload, spans), waivers)
+    write_stryker_mutants(report_path.parent, mutants)
     labels = [f"{span.file}::{span.name}" for span in spans]
     return _finish(mutants, labels, [], versions, waiver_rows)
 

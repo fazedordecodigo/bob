@@ -6,6 +6,7 @@ import hashlib
 import json
 import os
 import tempfile
+from collections.abc import Callable
 from dataclasses import dataclass, replace
 from pathlib import Path
 
@@ -38,9 +39,16 @@ from bob_quality.mutmut_tool import (
 from bob_quality.probe import relative_path
 from bob_quality.suite_fingerprint import suite_fingerprint
 from bob_quality.tools import ToolError, run_lizard_csv
-from bob_quality.waivers import Waiver, WaiverError, apply_waivers, load_waivers
+from bob_quality.waivers import (
+    Waiver,
+    WaiverError,
+    apply_waivers,
+    load_waivers,
+    survivor_targets,
+)
 
 CACHE_NAME = "mutation-cache.json"
+STRYKER_MUTANTS_NAME = "stryker-mutants.json"
 _WORKDIR = "mutmut"
 _NEVER_LINKED = frozenset({".git", "mutants"})
 
@@ -509,7 +517,11 @@ def _finish(
 ) -> MutationOutcome:
     visible = [item for item in mutants if item.status == "survived"]
     unwaived = [item for item in visible if not item.waiver]
-    rows = [_mutant_row(item) for item in visible]
+    targets = survivor_targets(mutants)
+    rows = [
+        {**_mutant_row(item), "target": targets[item.id].exact if item.id in targets else None}
+        for item in visible
+    ]
     uncovered = no_coverage_summary(mutants, [*remutated, *reused])
     summary = {"remutated": remutated, "reused": reused, "no_coverage": uncovered}
     if not unwaived:
@@ -656,18 +668,59 @@ def _publish_body(plan: _Plan, fresh: dict[str, object]) -> dict[str, object]:
 
 
 def _write_cache(cache: _Cache, functions: dict[str, object]) -> None:
-    cache.path.parent.mkdir(parents=True, exist_ok=True)
-    payload = json.dumps({**cache.key, "functions": functions}, indent=2) + "\n"
-    fd, name = tempfile.mkstemp(dir=cache.path.parent)
+    _write_json(cache.path, {**cache.key, "functions": functions})
+
+
+def write_stryker_mutants(out_dir: Path, mutants: list[Mutant]) -> None:
+    """Os mutantes do último relatório do Stryker, para o `bob waive` saber os alvos."""
+    _write_json(out_dir / STRYKER_MUTANTS_NAME, {"mutants": [_mutant_row(item) for item in mutants]})
+
+
+def _write_json(path: Path, payload: dict[str, object]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    text = json.dumps(payload, indent=2) + "\n"
+    fd, name = tempfile.mkstemp(dir=path.parent)
     temporary = Path(name)
     try:
         with os.fdopen(fd, "w") as handle:
-            handle.write(payload)
+            handle.write(text)
             handle.flush()
             os.fsync(handle.fileno())
-        os.replace(temporary, cache.path)
+        os.replace(temporary, path)
     finally:
         temporary.unlink(missing_ok=True)
+
+
+def waivable_targets(out_dir: Path) -> frozenset[str]:
+    """Alvos que o `bob waive` aceita: os sobreviventes do último relatório Python e TypeScript.
+
+    Ignora a chave do cache. Mudar a suíte impede o reuso, mas não muda o que o relatório mostrou.
+    """
+    mutants = [
+        *_read_mutants(out_dir / CACHE_NAME, _cache_mutants),
+        *_read_mutants(out_dir / STRYKER_MUTANTS_NAME, _cached_mutants),
+    ]
+    found: set[str] = set()
+    for targets in survivor_targets(mutants).values():
+        found.add(targets.function)
+        if targets.exact is not None:
+            found.add(targets.exact)
+    return frozenset(found)
+
+
+def _read_mutants(
+    path: Path, rows: Callable[[dict[str, object]], list[Mutant]]
+) -> list[Mutant]:
+    """Um arquivo ausente ou quebrado não contribui com nada."""
+    try:
+        raw = json.loads(path.read_bytes().decode())
+        return rows(raw) if isinstance(raw, dict) else []
+    except (OSError, ValueError):
+        return []
+
+
+def _cache_mutants(raw: dict[str, object]) -> list[Mutant]:
+    return [item for entry in _view_cache(raw, {}).held.values() for item in _cached_mutants(entry)]
 
 
 def _mutant_row(mutant: Mutant) -> dict[str, object]:
