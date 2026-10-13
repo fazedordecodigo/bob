@@ -92,7 +92,15 @@
       }
     },
     "waivers": { "type": "array" },
-    "survivors": { "type": "array" },
+    "survivors": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "blocking": { "type": "boolean" }
+        }
+      }
+    },
     "mutation": {
       "type": ["object", "null"],
       "properties": {
@@ -129,6 +137,28 @@
           "line": { "type": "integer" },
           "rule": { "type": "string" },
           "waiver": { "type": ["string", "null"] }
+        }
+      }
+    },
+    "dead_code": {
+      "type": "object",
+      "required": ["symbols"],
+      "properties": {
+        "symbols": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["file", "line", "name", "kind", "language"],
+            "properties": {
+              "file": { "type": "string" },
+              "line": { "type": "integer", "minimum": 1 },
+              "name": { "type": "string" },
+              "kind": { "type": "string" },
+              "language": { "enum": ["python", "typescript"] },
+              "confidence": { "type": ["integer", "null"], "minimum": 0, "maximum": 100 },
+              "waiver": { "type": ["string", "null"] }
+            }
+          }
         }
       }
     }

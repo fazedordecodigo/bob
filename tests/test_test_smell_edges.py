@@ -265,6 +265,7 @@ def test_assemble_keeps_mutation_fields_and_both_dependency_sides() -> None:
         "operator": "==",
         "status": "survived",
         "waiver": None,
+        "blocking": True,
     }
     waivers = [{"id": "m", "reason": "because", "author": "ada", "date": "2026-10-12"}]
     summary = {"remutated": ["src/app.py::changed_fn"], "reused": [], "no_coverage": {"total": 0}}

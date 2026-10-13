@@ -335,6 +335,22 @@ _SEMANTIC_YAML = (
     ("test_smells: {}\n", "bob.yaml: test_smells accepts only true\n"),
     ("test_smells:\n  enabled: true\n", "bob.yaml: test_smells accepts only true\n"),
     ("test_smells: 1\n", "bob.yaml: test_smells accepts only true\n"),
+    (
+        "dead_code:\n  min_confidence: 101\n",
+        "bob.yaml: dead_code.min_confidence must be an integer from 0 to 100\n",
+    ),
+    (
+        "dead_code:\n  min_confidence: -1\n",
+        "bob.yaml: dead_code.min_confidence must be an integer from 0 to 100\n",
+    ),
+    (
+        "dead_code:\n  min_confidence: true\n",
+        "bob.yaml: dead_code.min_confidence must be an integer\n",
+    ),
+    (
+        "dead_code:\n  min_confidence: 1.5\n",
+        "bob.yaml: dead_code.min_confidence must be an integer\n",
+    ),
     ("0\n", "bob.yaml must be a mapping\n"),
     ("false\n", "bob.yaml must be a mapping\n"),
     ('""\n', "bob.yaml must be a mapping\n"),

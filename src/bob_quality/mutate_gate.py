@@ -106,7 +106,7 @@ def _merged_result(
 
 
 def _unwaived_result(survivors: list[dict[str, object]]) -> GateResult:
-    mutants = ", ".join(_unwaived_label(item) for item in survivors if not item.get("waiver"))
+    mutants = ", ".join(_unwaived_label(item) for item in survivors if item.get("blocking"))
     return GateResult("mutate", "failed", msg("mutate.unwaived", mutants=mutants))
 
 
