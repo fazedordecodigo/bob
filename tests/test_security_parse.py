@@ -88,6 +88,10 @@ def test_parse_bandit_keeps_paths_inside_the_root_and_drops_the_rest(tmp_path: P
     prefixed["filename"] = "./src/high.py"
     assert parse_bandit(_document(prefixed), tmp_path)[0].file == "src/high.py"
 
+    nested = _bandit_item()
+    nested["filename"] = "src/../src/high.py"
+    assert parse_bandit(_document(nested), tmp_path)[0].file == "src/high.py"
+
     empty = _bandit_item()
     empty["filename"] = ""
     assert parse_bandit(_document(empty), tmp_path) == ()
@@ -105,66 +109,88 @@ def test_parse_bandit_keeps_paths_inside_the_root_and_drops_the_rest(tmp_path: P
     assert parse_bandit(_document(root), tmp_path) == ()
 
 
+_BANDIT_MALFORMED = ("bandit: malformed result", "bandit: resultado fora do formato")
+_SEMGREP_MALFORMED = ("semgrep: malformed result", "semgrep: resultado fora do formato")
+
+
+def _raises_bandit(document: str) -> None:
+    with pytest.raises(BanditParseError) as caught:
+        parse_bandit(document, Path("."))
+    assert in_both(caught.value) == _BANDIT_MALFORMED
+
+
+def _raises_semgrep(payload: dict[str, object]) -> None:
+    with pytest.raises(SemgrepParseError) as caught:
+        parse_semgrep(json.dumps(payload), Path("."))
+    assert in_both(caught.value) == _SEMGREP_MALFORMED
+
+
 def test_parse_bandit_rejects_a_broken_span_and_uses_an_empty_range() -> None:
     missing = _bandit_item()
     del missing["line_number"]
-    with pytest.raises(BanditParseError) as caught:
-        parse_bandit(_document(missing), Path("."))
-    assert in_both(caught.value) == ("bandit: malformed result", "bandit: resultado fora do formato")
+    _raises_bandit(_document(missing))
 
     broken = _bandit_item()
     broken["line_range"] = ["nope"]
-    with pytest.raises(BanditParseError):
-        parse_bandit(_document(broken), Path("."))
+    _raises_bandit(_document(broken))
 
     blank = _bandit_item()
     blank["line_range"] = None
-    with pytest.raises(BanditParseError):
-        parse_bandit(_document(blank), Path("."))
+    _raises_bandit(_document(blank))
+
+    text = _bandit_item()
+    text["line_range"] = "4"
+    _raises_bandit(_document(text))
 
     empty = _bandit_item()
     empty["line_range"] = []
     found = parse_bandit(_document(empty), Path("."))
     assert (found[0].line, found[0].end_line) == (4, 4)
 
+    implicit = _bandit_item()
+    del implicit["line_range"]
+    found = parse_bandit(_document(implicit), Path("."))
+    assert (found[0].line, found[0].end_line) == (4, 4)
+
     odd = _bandit_item()
     del odd["test_id"]
-    with pytest.raises(BanditParseError):
-        parse_bandit(_document(odd), Path("."))
+    _raises_bandit(_document(odd))
+
+    filename = _bandit_item()
+    filename["filename"] = 4
+    _raises_bandit(_document(filename))
 
     labeled = _bandit_item()
     labeled["issue_severity"] = "NOPE"
-    with pytest.raises(BanditParseError):
-        parse_bandit(_document(labeled), Path("."))
+    _raises_bandit(_document(labeled))
 
-    with pytest.raises(BanditParseError):
-        parse_bandit(json.dumps({"results": [1]}), Path("."))
+    _raises_bandit(json.dumps({"results": [1]}))
 
 
 def test_parse_semgrep_rejects_a_malformed_result_and_a_broken_span() -> None:
     payload = json.loads((RAW / "semgrep-1.180.0.json").read_text())
     payload["results"] = ["nope"]
-    with pytest.raises(SemgrepParseError) as caught:
-        parse_semgrep(json.dumps(payload), Path("."))
-    assert in_both(caught.value) == (
-        "semgrep: malformed result",
-        "semgrep: resultado fora do formato",
-    )
+    _raises_semgrep(payload)
 
     payload = json.loads((RAW / "semgrep-1.180.0.json").read_text())
     del payload["results"][0]["check_id"]
-    with pytest.raises(SemgrepParseError):
-        parse_semgrep(json.dumps(payload), Path("."))
+    _raises_semgrep(payload)
+
+    payload = json.loads((RAW / "semgrep-1.180.0.json").read_text())
+    payload["results"][0]["path"] = 4
+    _raises_semgrep(payload)
 
     payload = json.loads((RAW / "semgrep-1.180.0.json").read_text())
     payload["results"][0]["extra"]["severity"] = 1
-    with pytest.raises(SemgrepParseError):
-        parse_semgrep(json.dumps(payload), Path("."))
+    _raises_semgrep(payload)
+
+    payload = json.loads((RAW / "semgrep-1.180.0.json").read_text())
+    payload["results"][0]["extra"]["severity"] = "NOPE"
+    _raises_semgrep(payload)
 
     payload = json.loads((RAW / "semgrep-1.180.0.json").read_text())
     del payload["results"][0]["start"]
-    with pytest.raises(SemgrepParseError):
-        parse_semgrep(json.dumps(payload), Path("."))
+    _raises_semgrep(payload)
 
 
 def _bandit_item() -> dict[str, object]:
