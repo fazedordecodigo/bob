@@ -117,18 +117,36 @@ def mutmut_target_of(mutant_id: str, targets: Iterable[MutationTarget]) -> Mutat
     return None
 
 
-def _mangled_name(target: MutationTarget) -> str:
-    """`<módulo>.x_<nome>` sem `owner`, `<módulo>.xǁ<Classe>ǁ<nome>` com `owner`.
+def label_id_prefix(file: str, qualname: str) -> str:
+    """Prefixo `__mutmut` de um rótulo `arquivo::qualname`.
 
-    É a chave do alvo em `tests_by_mangled_function_name` do mutmut 3.8. Espelha
-    a regra pública `src.` + `x_` ou `xǁ`, sem copiar o código.
+    Sem ponto, a grafia é a de função de topo. Com ponto, o último ponto separa
+    o dono do método (`Box.open`, `Box.Inner.open`). O nome aninhado do lizard
+    (`outer.inner`) tem a mesma forma e não é um id que o mutmut emite.
     """
-    module = target.file.removesuffix(".py").replace("\\", "/").replace("/", ".")
+    owner = None
+    name = qualname
+    if "." in qualname:
+        owner, name = qualname.rsplit(".", 1)
+    return f"{_mangle(file, name, owner)}__mutmut"
+
+
+def _mangled_name(target: MutationTarget) -> str:
+    """Chave do alvo em `tests_by_mangled_function_name` do mutmut 3.8."""
+    return _mangle(target.file, target.name, target.owner)
+
+
+def _mangle(file: str, name: str, owner: str | None) -> str:
+    """`<módulo>.x_<nome>` sem dono, `<módulo>.xǁ<Classe>ǁ<nome>` com dono.
+
+    Espelha a regra pública `src.` + `x_` ou `xǁ`, sem copiar o código.
+    """
+    module = file.removesuffix(".py").replace("\\", "/").replace("/", ".")
     if module.startswith("src."):
         module = module[len("src.") :]
-    if target.owner is None:
-        return f"{module}.x_{target.name}"
-    return f"{module}.xǁ{target.owner}ǁ{target.name}"
+    if owner is None:
+        return f"{module}.x_{name}"
+    return f"{module}.xǁ{owner}ǁ{name}"
 
 
 _NESTED = "nested"

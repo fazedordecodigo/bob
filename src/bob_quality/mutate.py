@@ -6,7 +6,6 @@ import hashlib
 import json
 import os
 import tempfile
-from collections import Counter
 from collections.abc import Callable
 from dataclasses import dataclass, replace
 from pathlib import Path
@@ -15,6 +14,7 @@ from bob_quality.adapters.lizard import LizardParseError, parse_lizard_csv
 from bob_quality.adapters.mutmut import (
     MutmutParseError,
     ids_for_show,
+    label_id_prefix,
     mutants_from_raw,
     mutation_targets,
     mutmut_run_patterns,
@@ -72,7 +72,13 @@ def run_mutation_gate(
     reused = [target for target, _entry in plan.reuse]
     if not plan.remutate:
         _write_cache(cache, _publish_body(plan, {}))
-        return _finish(plan.reused_mutants, plan.remutate, reused, versions, waiver_rows)
+        return _finish(
+            plan.reused_mutants,
+            [item.key() for item in plan.remutate],
+            [item.key() for item in reused],
+            versions,
+            waiver_rows,
+        )
     blocked = _baseline_outcome(cwd, baseline, versions, waiver_rows)
     if blocked is not None:
         return blocked
@@ -80,7 +86,13 @@ def run_mutation_gate(
     if isinstance(fresh, MutationOutcome):
         return fresh
     _write_cache(cache, _publish_body(plan, _cache_body(cwd, plan.remutate, fresh)))
-    return _finish(fresh + plan.reused_mutants, plan.remutate, reused, versions, waiver_rows)
+    return _finish(
+        fresh + plan.reused_mutants,
+        [item.key() for item in plan.remutate],
+        [item.key() for item in reused],
+        versions,
+        waiver_rows,
+    )
 
 
 @dataclass(frozen=True)
@@ -467,8 +479,8 @@ def _status_from_cache(value: object) -> MutantStatus:
 
 def _finish(
     mutants: list[Mutant],
-    remutated: list[MutationTarget],
-    reused: list[MutationTarget],
+    remutated: list[str],
+    reused: list[str],
     versions: dict[str, str],
     waiver_rows: list[dict[str, object]],
 ) -> MutationOutcome:
@@ -476,11 +488,7 @@ def _finish(
     unwaived = [item for item in visible if not item.waiver]
     rows = [_mutant_row(item) for item in visible]
     uncovered = no_coverage_summary(mutants, [*remutated, *reused])
-    summary = {
-        "remutated": [item.key() for item in remutated],
-        "reused": [item.key() for item in reused],
-        "no_coverage": uncovered,
-    }
+    summary = {"remutated": remutated, "reused": reused, "no_coverage": uncovered}
     if not unwaived:
         return _outcome(
             _passing_result(int(uncovered["total"])),
@@ -501,21 +509,45 @@ def _finish(
     )
 
 
-def no_coverage_summary(
-    mutants: list[Mutant], functions: list[MutationTarget]
-) -> dict[str, object]:
-    """`Mutant.file` vem vazio sem `mutmut show`. O arquivo e o nome saem do alvo."""
-    owners = Counter(
-        mutmut_target_of(item.id, functions) for item in mutants if item.status == "no_coverage"
-    )
-    counts = [
-        (count, owner.file, owner.qualname())
-        for owner, count in owners.items()
-        if owner is not None
-    ]
-    counts.sort(key=lambda row: (-row[0], row[1], row[2]))
-    rows = [{"file": file, "function": function, "count": count} for count, file, function in counts]
-    return {"total": sum(row[0] for row in counts), "functions": rows}
+def no_coverage_summary(mutants: list[Mutant], labels: list[str]) -> dict[str, object]:
+    """O mutmut deixa `file` vazio sem `show`, então o id casa o prefixo.
+
+    O Stryker preenche arquivo e função, e o id não tem esse prefixo.
+    Um rótulo `arquivo::Classe.método` usa o prefixo `xǁ`.
+    """
+    counts = [row for row in (_label_count(mutants, label) for label in labels) if row]
+    counts.sort(key=_count_order)
+    return {
+        "total": sum(count for count, _file, _function in counts),
+        "functions": [_count_row(row) for row in counts],
+    }
+
+
+def _label_count(mutants: list[Mutant], label: str) -> tuple[int, str, str] | None:
+    file, function = label.split("::")
+    prefix = label_id_prefix(file, function)
+    count = sum(1 for item in mutants if _uncovered(item, file, function, prefix))
+    if not count:
+        return None
+    return count, file, function
+
+
+def _uncovered(item: Mutant, file: str, function: str, prefix: str) -> bool:
+    if item.status != "no_coverage":
+        return False
+    if item.file == file and item.function == function:
+        return True
+    return item.id.startswith(prefix)
+
+
+def _count_order(row: tuple[int, str, str]) -> tuple[int, str, str]:
+    count, file, function = row
+    return -count, file, function
+
+
+def _count_row(row: tuple[int, str, str]) -> dict[str, object]:
+    count, file, function = row
+    return {"file": file, "function": function, "count": count}
 
 
 def _passing_result(uncovered: int) -> GateResult:

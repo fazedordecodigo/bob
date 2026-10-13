@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from bob_quality.messages import Language, render
-from bob_quality.models import GateResult, Mutant, MutationTarget, Report
+from bob_quality.models import GateResult, Mutant, Report
 from bob_quality.mutate import _finish, no_coverage_summary
 from bob_quality.report import to_markdown
 
@@ -12,15 +12,15 @@ def _verdict(result: GateResult, lang: Language) -> tuple[str, str, str | None]:
     shown = render(result.reason, lang) if result.reason is not None else None
     return result.name, result.status, shown
 
-ORPHAN = MutationTarget("src/app/orphan.py", "orphan", 1, 2)
+ORPHAN = "src/app/orphan.py::orphan"
 
-_TARGETS = [
-    MutationTarget("src/app/b.py", "a", 1, 2),
-    MutationTarget("src/app/a.py", "z", 1, 2),
-    MutationTarget("src/app/a.py", "m", 4, 5),
-    MutationTarget("src/gone.py", "zero", 1, 2),
-    MutationTarget("src/app/a.py", "add", 7, 8),
-    MutationTarget("src/c.py", "top", 1, 2),
+_LABELS = [
+    "src/app/b.py::a",
+    "src/app/a.py::z",
+    "src/app/a.py::m",
+    "src/gone.py::zero",
+    "src/app/a.py::add",
+    "src/c.py::top",
 ]
 
 _MUTANTS = [
@@ -55,7 +55,7 @@ _SUMMARY = {
 
 
 def test_no_coverage_summary_groups_uncovered_mutants_by_listed_function() -> None:
-    assert no_coverage_summary(_MUTANTS, _TARGETS) == _SUMMARY
+    assert no_coverage_summary(_MUTANTS, _LABELS) == _SUMMARY
 
 
 def test_no_coverage_counts_a_method_apart_from_the_same_named_function() -> None:
@@ -64,16 +64,28 @@ def test_no_coverage_counts_a_method_apart_from_the_same_named_function() -> Non
         Mutant("app.box.x_open__mutmut_1", "open", "", 0, "", "no_coverage"),
         Mutant("app.box.x_open__mutmut_2", "open", "", 0, "", "no_coverage"),
     ]
-    targets = [
-        MutationTarget("src/app/box.py", "open", 6, 7, owner="Box"),
-        MutationTarget("src/app/box.py", "open", 1, 2),
-    ]
+    labels = ["src/app/box.py::Box.open", "src/app/box.py::open"]
 
-    assert no_coverage_summary(mutants, targets) == {
+    assert no_coverage_summary(mutants, labels) == {
         "total": 3,
         "functions": [
             {"file": "src/app/box.py", "function": "open", "count": 2},
             {"file": "src/app/box.py", "function": "Box.open", "count": 1},
+        ],
+    }
+
+
+def test_no_coverage_summary_counts_a_typescript_id_by_file_and_function() -> None:
+    mutants = [
+        Mutant("src/safe.ts:2", "add", "src/safe.ts", 2, "BlockStatement", "no_coverage"),
+        Mutant("app.a.x_add__mutmut_1", "add", "", 0, "", "no_coverage"),
+    ]
+
+    assert no_coverage_summary(mutants, ["src/safe.ts::add", "src/app/a.py::add"]) == {
+        "total": 2,
+        "functions": [
+            {"file": "src/app/a.py", "function": "add", "count": 1},
+            {"file": "src/safe.ts", "function": "add", "count": 1},
         ],
     }
 
@@ -83,8 +95,8 @@ def test_finish_warns_for_one_uncovered_mutant_and_passes_when_there_are_none() 
     warned = _finish([uncovered], [ORPHAN], [], {}, [])
     passed = _finish(
         [Mutant("app.a.x_add__mutmut_1", "add", "src/app/a.py", 1, "AOR", "killed")],
-        [MutationTarget("src/app/a.py", "add", 1, 2)],
-        [MutationTarget("src/app/a.py", "scale", 4, 5)],
+        ["src/app/a.py::add"],
+        ["src/app/a.py::scale"],
         {},
         [],
     )
@@ -110,7 +122,7 @@ def test_finish_stays_failed_when_an_unwaived_survivor_remains() -> None:
     waivers = [{"id": "other", "reason": "outro", "author": "ada", "date": "2026-10-11"}]
     outcome = _finish(
         [first, second, uncovered],
-        [MutationTarget("src/app/a.py", "a", 1, 2), MutationTarget("src/app/b.py", "b", 3, 4)],
+        ["src/app/a.py::a", "src/app/b.py::b"],
         [],
         {"mutmut": "3.8.0"},
         waivers,
