@@ -5,6 +5,7 @@ import os
 import subprocess
 import sys
 from pathlib import Path
+from typing import get_args
 
 import pytest
 
@@ -42,11 +43,13 @@ from bob_quality.models import (
     DepViolation,
     FunctionMetric,
     GateResult,
+    KnipKind,
     LedgerRow,
     Mutant,
     PythonDead,
     Report,
     TypeScriptDead,
+    VultureKind,
 )
 from bob_quality.mutate import MutationOutcome
 from bob_quality.report import _dead_body, _dead_suffix, dead_row, to_json, to_markdown
@@ -366,9 +369,9 @@ def test_the_dead_section_sits_between_untested_mutants_and_reproduce() -> None:
         "## Mutantes sem teste\n\n"
         "Nenhum mutante sem teste.\n\n"
         "## Código morto\n\n"
-        "- `src/app/orphan.py:3` function `orphan` 60% "
+        "- `src/app/orphan.py:3` função `orphan` 60% "
         "waiver `dead:src/app/orphan.py:3:orphan`\n"
-        "- `src/app/orphan.ts:3` export `orphan`\n\n"
+        "- `src/app/orphan.ts:3` exportação `orphan`\n\n"
         "## Como reproduzir"
     ) in portuguese
     payload = to_json(report)
@@ -399,6 +402,62 @@ def test_the_dead_section_sits_between_untested_mutants_and_reproduce() -> None:
             },
         ]
     }
+
+
+_PORTUGUESE_KIND = {
+    "attribute": "atributo",
+    "class": "classe",
+    "function": "função",
+    "import": "importação",
+    "method": "método",
+    "property": "propriedade",
+    "variable": "variável",
+    "unreachable_code": "código inalcançável",
+    "export": "exportação",
+    "type": "tipo",
+    "enum_member": "membro de enum",
+    "namespace_member": "membro de namespace",
+    "ns_export": "exportação de namespace",
+    "ns_type": "tipo de namespace",
+}
+
+
+def test_each_symbol_kind_is_translated_only_in_portuguese_markdown() -> None:
+    symbols: list[PythonDead | TypeScriptDead] = [
+        PythonDead("src/a.py", index, "n", kind, 60)
+        for index, kind in enumerate(get_args(VultureKind), start=1)
+    ]
+    symbols.extend(
+        TypeScriptDead("src/a.ts", index, "n", kind)
+        for index, kind in enumerate(get_args(KnipKind), start=1)
+    )
+    report = Report(
+        schema_version=1,
+        commit="abc",
+        base="main",
+        generated_at="2026-10-12T00:00:00+00:00",
+        tool_versions={},
+        gates=[GateResult("dead_code", "warn", None)],
+        focus=[],
+        top_crap=[],
+        reproduce="bob check",
+        exit_code=0,
+        dead_code=DeadSection(tuple(LedgerRow(symbol, None) for symbol in symbols)),
+    )
+
+    portuguese = to_markdown(report, "pt-BR")
+    english = to_markdown(report, "en")
+    for symbol in symbols:
+        if isinstance(symbol, PythonDead):
+            tail = f" {symbol.confidence}%"
+        else:
+            tail = ""
+        location = f"`{symbol.file}:{symbol.line}`"
+        assert f"- {location} {_PORTUGUESE_KIND[symbol.kind]} `n`{tail}" in portuguese
+        assert f"- {location} {symbol.kind} `n`{tail}" in english
+    assert [row["kind"] for row in to_json(report)["dead_code"]["symbols"]] == [
+        symbol.kind for symbol in symbols
+    ]
 
 
 def test_not_run_and_a_clean_skip_render_the_reason() -> None:

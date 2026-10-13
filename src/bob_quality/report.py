@@ -259,7 +259,7 @@ def _dead_item(row: LedgerRow) -> Message:
     return msg(
         "report.dead_item",
         loc=f"{symbol.file}:{symbol.line}",
-        kind=symbol.kind,
+        kind=msg(f"report.dead_kind.{symbol.kind}"),
         name=symbol.name,
         suffix=_dead_suffix(row),
     )
