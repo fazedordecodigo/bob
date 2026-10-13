@@ -1,70 +1,65 @@
 waivers:
-- id: bob_quality.mutmut_tool.x_pytest_exit_code__mutmut_27
+- id: src/bob_quality/mutmut_tool.py::pytest_exit_code::timeout=900, -> timeout=901,
   reason: timeout=900 vira 901; um segundo a mais no teto da baseline não muda o veredito.
   author: Emerson (aprovado 11/10)
   date: '2026-10-11'
-- id: bob_quality.mutmut_tool.x_failure_text__mutmut_7
+- id: src/bob_quality/mutmut_tool.py::failure_text::blob = f"{stdout}\n{stderr}".replace("\r", "\n") -> blob = f"{stdout}\n{stderr}".replace("XX\rXX", "\n")
   reason: replace deixa de ver \r, e splitlines já quebra nessa marca.
   author: Emerson (aprovado 11/10)
   date: '2026-10-11'
-- id: bob_quality.mutmut_tool.x_failure_text__mutmut_8
-  reason: o substituto de \r muda, e splitlines continua quebrando o spinner.
-  author: Emerson (aprovado 11/10)
-  date: '2026-10-11'
-- id: bob_quality.mutate.x_prepare_mutmut_workspace__mutmut_10
+- id: src/bob_quality/mutate.py::prepare_mutmut_workspace::dest_root.mkdir(parents=True, exist_ok=True) -> dest_root.mkdir(parents=None, exist_ok=True)
   reason: parents=None no mkdir; o cwd existe, então parents não entra.
   author: Emerson (aprovado 11/10)
   date: '2026-10-11'
-- id: bob_quality.mutate.x_prepare_mutmut_workspace__mutmut_12
+- id: src/bob_quality/mutate.py::prepare_mutmut_workspace::dest_root.mkdir(parents=True, exist_ok=True) -> dest_root.mkdir(exist_ok=True)
   reason: parents some; o pai do diretório mutants é o cwd.
   author: Emerson (aprovado 11/10)
   date: '2026-10-11'
-- id: bob_quality.mutate.x_prepare_mutmut_workspace__mutmut_14
+- id: src/bob_quality/mutate.py::prepare_mutmut_workspace::dest_root.mkdir(parents=True, exist_ok=True) -> dest_root.mkdir(parents=False, exist_ok=True)
   reason: parents=False; o mesmo cwd já existe.
   author: Emerson (aprovado 11/10)
   date: '2026-10-11'
-- id: bob_quality.mutate.x_prepare_mutmut_workspace__mutmut_22
+- id: src/bob_quality/mutate.py::prepare_mutmut_workspace::dest.symlink_to(source.resolve(), target_is_directory=True) -> dest.symlink_to(source.resolve(), target_is_directory=None)
   reason: target_is_directory=None; no POSIX o flag não muda o symlink.
   author: Emerson (aprovado 11/10)
   date: '2026-10-11'
-- id: bob_quality.mutate.x_prepare_mutmut_workspace__mutmut_24
+- id: src/bob_quality/mutate.py::prepare_mutmut_workspace::dest.symlink_to(source.resolve(), target_is_directory=True) -> dest.symlink_to(source.resolve(), )
   reason: target_is_directory some; no POSIX o default é o mesmo efeito.
   author: Emerson (aprovado 11/10)
   date: '2026-10-11'
-- id: bob_quality.mutate.x_prepare_mutmut_workspace__mutmut_25
+- id: src/bob_quality/mutate.py::prepare_mutmut_workspace::dest.symlink_to(source.resolve(), target_is_directory=True) -> dest.symlink_to(source.resolve(), target_is_directory=False)
   reason: target_is_directory=False; no POSIX o flag é ignorado.
   author: Emerson (aprovado 11/10)
   date: '2026-10-11'
-- id: bob_quality.adapters.mutmut.x__consume_show_header__mutmut_5
-  reason: removeprefix("a/") vira removesuffix; o diff do mutmut 3.8 não traz prefixo
-    a/.
+- id: src/bob_quality/adapters/mutmut.py::_consume_show_header::state.file = line[4:].strip().removeprefix("a/") -> state.file = line[4:].strip().removesuffix("a/")
+  reason: removeprefix("a/") vira removesuffix; o diff do mutmut 3.8 não traz prefixo a/.
   author: Emerson (aprovado 11/10)
   date: '2026-10-11'
-- id: bob_quality.adapters.mutmut.x__consume_show_header__mutmut_7
+- id: src/bob_quality/adapters/mutmut.py::_consume_show_header::state.file = line[4:].strip().removeprefix("a/") -> state.file = line[4:].strip().removeprefix("XXa/XX")
   reason: o prefixo procurado vira XXa/XX; o caminho real não começa assim.
   author: Emerson (aprovado 11/10)
   date: '2026-10-11'
-- id: bob_quality.adapters.mutmut.x__consume_show_header__mutmut_8
+- id: src/bob_quality/adapters/mutmut.py::_consume_show_header::state.file = line[4:].strip().removeprefix("a/") -> state.file = line[4:].strip().removeprefix("A/")
   reason: o prefixo vira A/; o diff pinado também não começa assim.
   author: Emerson (aprovado 11/10)
   date: '2026-10-11'
-- id: bob_quality.adapters.mutmut.x__consume_hunk_line__mutmut_8
+- id: src/bob_quality/adapters/mutmut.py::_consume_hunk_line::state.new_line += 1 -> state.new_line = 1
   reason: new_line = 1 depois de gravar a linha da mudança; o resultado já foi fechado.
   author: Emerson (aprovado 11/10)
   date: '2026-10-11'
-- id: bob_quality.adapters.mutmut.x__consume_hunk_line__mutmut_9
+- id: src/bob_quality/adapters/mutmut.py::_consume_hunk_line::state.new_line += 1 -> state.new_line -= 1
   reason: new_line -= 1 no mesmo ponto; não entra em arquivo, linha nem operador.
   author: Emerson (aprovado 11/10)
   date: '2026-10-11'
-- id: bob_quality.adapters.mutmut.x__consume_hunk_line__mutmut_10
+- id: src/bob_quality/adapters/mutmut.py::_consume_hunk_line::state.new_line += 1 -> state.new_line += 2
   reason: new_line += 2 no mesmo ponto; o valor devolvido não muda.
   author: Emerson (aprovado 11/10)
   date: '2026-10-11'
-- id: bob_quality.suite_fingerprint.x__setup_cfg_also_copy__mutmut_11
+- id: 'src/bob_quality/suite_fingerprint.py::_setup_cfg_also_copy::if not parser.has_option("mutmut", "also_copy"): -> if not parser.has_option("mutmut", "ALSO_COPY"):'
   reason: has_option com ALSO_COPY; o ConfigParser passa o nome da opção para minúsculas.
   author: Cursor Agent
   date: '2026-10-11'
-- id: bob_quality.suite_fingerprint.x__setup_cfg_also_copy__mutmut_20
+- id: src/bob_quality/suite_fingerprint.py::_setup_cfg_also_copy::raw = parser.get("mutmut", "also_copy") -> raw = parser.get("mutmut", "ALSO_COPY")
   reason: get com ALSO_COPY; o ConfigParser passa o nome da opção para minúsculas.
   author: Cursor Agent
   date: '2026-10-11'

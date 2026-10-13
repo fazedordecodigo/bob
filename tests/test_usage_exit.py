@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import io
+import json
 import os
 import re
 import subprocess
@@ -263,7 +264,7 @@ _SUB_HELP = {
         "usage: bob waive",
         "--reason REASON",
         "target",
-        "mutant id or function name",
+        "file::function, or a Target from the mutation report",
     ),
     "doctor": (
         "usage: bob doctor",
@@ -396,16 +397,20 @@ def test_language_follows_flag_then_env_then_yaml_then_config(tmp_path: Path) ->
     )
 
 
-def test_missing_config_names_the_file_the_gate_opens(tmp_path: Path) -> None:
-    repo = _repo(tmp_path / "repo")
+@pytest.mark.parametrize("command", ["check", "crap", "dry", "deps", "mutate"])
+def test_missing_explicit_config_exits_4_in_english_and_writes_nothing(
+    tmp_path: Path, command: str
+) -> None:
+    repo = tmp_path / command
+    repo.mkdir()
     missing = repo / "missing.yaml"
 
-    result = _invoke(repo, "check", "--gates", "nope", "--base", "main", "--config", "missing.yaml")
+    result = _invoke(repo, command, "--config", "missing.yaml", "--lang", "pt-BR")
 
     assert result.returncode == 4, result.stderr
-    report = (repo / ".bob" / "report.json").read_text()
-    assert missing.as_posix() in report
-    assert "config file not found" in report
+    assert result.stdout == ""
+    assert result.stderr == f"config file not found: {missing}\n"
+    assert not (repo / ".bob").exists()
 
 
 def test_invalid_language_is_english_on_stderr_and_writes_nothing(tmp_path: Path) -> None:
@@ -483,16 +488,35 @@ def test_doctor_install_invokes_npm_ci(
     assert "lizard" not in result.stdout
 
 
-def test_waive_records_the_reason_and_translates_a_missing_one(tmp_path: Path) -> None:
-    saved = _invoke(tmp_path, "waive", "classify", "--reason", "because")
-    missing = _invoke(tmp_path, "waive", "other", "--lang", "pt-BR")
+def test_waive_records_a_reported_target_and_refuses_an_unknown_one(tmp_path: Path) -> None:
+    bob = tmp_path / ".bob"
+    bob.mkdir()
+    survivor = {
+        "id": "app.weak.x_classify__mutmut_1",
+        "function": "classify",
+        "file": "src/app/weak.py",
+        "line": 2,
+        "operator": "if n > 0: -> if n >= 0:",
+        "status": "survived",
+    }
+    (bob / "mutation-cache.json").write_text(
+        json.dumps({"functions": {"src/app/weak.py::classify": {"mutants": [survivor]}}})
+    )
 
-    assert saved.returncode == 0, saved.stderr
-    text = (tmp_path / ".bob" / "waivers.yaml").read_text()
-    assert "classify" in text
-    assert "because" in text
+    unknown = _invoke(tmp_path, "waive", "classify", "--reason", "because")
+    missing = _invoke(tmp_path, "waive", "other", "--lang", "pt-BR")
+    saved = _invoke(tmp_path, "waive", "src/app/weak.py::classify", "--reason", "because")
+
+    assert unknown.returncode == 4
+    assert unknown.stderr == (
+        "no survivor matches classify:"
+        " copy file::function or a Target from the last mutation report\n"
+    )
     assert missing.returncode == 4
     assert missing.stderr == "waiver sem motivo: informe --reason com uma linha\n"
+    assert saved.returncode == 0, saved.stderr
+    text = (bob / "waivers.yaml").read_text()
+    assert "- id: src/app/weak.py::classify\n  reason: because\n" in text
 
 
 def test_stop_code_names_an_unexpected_result() -> None:

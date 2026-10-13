@@ -47,7 +47,16 @@ class NodePin:
     floor: NodeVersion
 
 
-Pin = RequiresDist | NpmPin | NodePin
+@dataclass(frozen=True)
+class BinaryPin:
+    name: str
+    expected: str
+    executable: str
+    url: str
+    sha256: str
+
+
+Pin = RequiresDist | NpmPin | NodePin | BinaryPin
 
 NODE = NodePin(floor=NodeVersion(22, 14, 0))
 
@@ -66,6 +75,13 @@ PINS: tuple[Pin, ...] = (
         "18.5.0",
         "dependency-cruiser",
         npm_package="dependency-cruiser",
+    ),
+    BinaryPin(
+        "gitleaks",
+        "8.30.1",
+        "gitleaks",
+        "https://github.com/gitleaks/gitleaks/releases/download/v8.30.1/gitleaks_8.30.1_linux_x64.tar.gz",
+        "551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb",
     ),
     RequiresDist("vulture", "vulture"),
     NpmPin("knip", "6.41.0", "knip", npm_package="knip"),
@@ -192,6 +208,8 @@ def _assess(pin: Pin, declared: Mapping[str, str]) -> _PinRow:
         return _assess_requires_dist(pin, declared.get(pin.distribution))
     if isinstance(pin, NodePin):
         return _assess_node(pin)
+    if isinstance(pin, BinaryPin):
+        return _assess_binary(pin)
     return _assess_npm(pin)
 
 
@@ -257,6 +275,23 @@ def _assess_npm(pin: NpmPin) -> _PinRow:
     if found == pin.expected:
         return _PinRow(line, True, None, False)
     return _PinRow(line, False, None, True)
+
+
+def _assess_binary(pin: BinaryPin) -> _PinRow:
+    found = _cli_version(pin.executable)
+    line = msg("doctor.version", name=pin.name, expected=pin.expected, found=_shown(found))
+    if found == pin.expected:
+        return _PinRow(line, True, None, False)
+    return _PinRow(line, False, _binary_install(pin), False)
+
+
+def _binary_install(pin: BinaryPin) -> Text:
+    return msg(
+        "doctor.install_gitleaks",
+        version=pin.expected,
+        url=pin.url,
+        sha256=pin.sha256,
+    )
 
 
 def _shown(found: str | None) -> Text:
