@@ -36,10 +36,6 @@ def run_bob(
     bob_lang: str | None = None,
     env: dict[str, str] | None = None,
 ) -> subprocess.CompletedProcess[str]:
-    """Roda a CLI no processo do teste, para o mutmut enxergar a função.
-
-    `MUTANT_UNDER_TEST` fica como o mutmut deixou. Apagá-lo solta o trampolim.
-    """
     previous_cwd = Path.cwd()
     previous_env = os.environ.copy()
     stdout = io.StringIO()

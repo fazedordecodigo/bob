@@ -216,10 +216,6 @@ _STATUSES: frozenset[str] = frozenset({"killed", "survived", "timeout", "no_cove
 
 
 def _reject_orphan(cwd: Path, target: str) -> None:
-    """Sem cache, o waive segue. Com cache, só um sobrevivente casa.
-
-    `no_coverage` não é sobrevivente. Um waiver não o cobre.
-    """
     mutants = _cache_mutants(cwd)
     if mutants is None:
         return
