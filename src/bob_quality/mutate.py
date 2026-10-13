@@ -529,19 +529,43 @@ def _finish(
 
 
 def no_coverage_summary(mutants: list[Mutant], labels: list[str]) -> dict[str, object]:
-    """`Mutant.file` vem vazio sem `mutmut show`. O arquivo sai do rótulo `arquivo::função`."""
-    counts: list[tuple[int, str, str]] = []
-    for label in labels:
-        file, function = label.split("::")
-        prefix = mutmut_id_prefix(file, function)
-        count = sum(
-            1 for item in mutants if item.status == "no_coverage" and item.id.startswith(prefix)
-        )
-        if count:
-            counts.append((count, file, function))
-    counts.sort(key=lambda row: (-row[0], row[1], row[2]))
-    rows = [{"file": file, "function": function, "count": count} for count, file, function in counts]
-    return {"total": sum(row[0] for row in counts), "functions": rows}
+    """O mutmut deixa `file` vazio sem `show`, então o id casa o prefixo.
+
+    O Stryker preenche arquivo e função, e o id não tem esse prefixo.
+    """
+    counts = [row for row in (_label_count(mutants, label) for label in labels) if row]
+    counts.sort(key=_count_order)
+    return {
+        "total": sum(count for count, _file, _function in counts),
+        "functions": [_count_row(row) for row in counts],
+    }
+
+
+def _label_count(mutants: list[Mutant], label: str) -> tuple[int, str, str] | None:
+    file, function = label.split("::")
+    prefix = mutmut_id_prefix(file, function)
+    count = sum(1 for item in mutants if _uncovered(item, file, function, prefix))
+    if not count:
+        return None
+    return count, file, function
+
+
+def _uncovered(item: Mutant, file: str, function: str, prefix: str) -> bool:
+    if item.status != "no_coverage":
+        return False
+    if item.file == file and item.function == function:
+        return True
+    return item.id.startswith(prefix)
+
+
+def _count_order(row: tuple[int, str, str]) -> tuple[int, str, str]:
+    count, file, function = row
+    return -count, file, function
+
+
+def _count_row(row: tuple[int, str, str]) -> dict[str, object]:
+    count, file, function = row
+    return {"file": file, "function": function, "count": count}
 
 
 def _passing_result(uncovered: int) -> GateResult:
