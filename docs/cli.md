@@ -31,6 +31,8 @@ Roda os gates pedidos e grava `.bob/` (ou `--out`).
 | `--out` | `.bob/` | Pasta do relatório |
 | `--gates` | `crap,dry,deps` | Lista separada por vírgula. Constante `DEFAULT_GATES` em `src/bob_quality/check.py` |
 | `--format` | `both` | `md`, `json` ou `both` |
+| `--dry-fail` | desligada | Liga o modo fail do DRY nesta execução, como `duplication.new_clones: fail`. Ver [Gates](gates.md#dry) |
+| `--max-new-clones` | `duplication.max_new_clones` | Teto de clones novos no modo fail nesta execução. `0` é um teto de verdade. Negativo sai com `4` |
 | `--lang` | ver [Idioma](#idioma---lang) | `en` ou `pt-BR` |
 
 Um `--config` que aponta para um arquivo inexistente sai com `4`. O stderr fica em inglês e cita o caminho, como em `config file not found: <caminho>`. Nada é gravado. O mesmo vale para `crap`, `dry`, `deps` e `mutate`. Detalhe em [Exit 4](exit-codes.md#exit-4).
@@ -48,7 +50,7 @@ Quando mais de um gate devolve código, fica o maior (`_worse` em `check.py`).
 | Comando | Flags a mais |
 |---|---|
 | `bob crap` | `--threshold` substitui `crap.max_per_function` nesta execução e segue a mesma regra, um número finito maior que `0`. `--coverage-file` aponta um arquivo de cobertura já gerado |
-| `bob dry` | nenhuma além das compartilhadas |
+| `bob dry` | `--dry-fail` e `--max-new-clones`, as mesmas de `bob check` |
 | `bob deps` | nenhuma além das compartilhadas |
 | `bob mutate` | `--max-workers` vira `--max-children` do mutmut (`src/bob_quality/mutmut_tool.py`). `--since-last-run` não muda a medição: a ajuda diz que reusar o cache já é o padrão. A flag só entra na linha `reproduce` do relatório quando foi passada |
 

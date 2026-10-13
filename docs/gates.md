@@ -9,7 +9,7 @@ O exit code do `bob check` é o maior entre os gates que rodaram. Aviso não aum
 | Gate | Ferramenta | O que bloqueia | Exit quando bloqueia |
 |---|---|---|---|
 | [CRAP](#crap) | lizard + coverage.py ou c8/vitest | função no escopo com CRAP ≥ limite | `1` |
-| [DRY](#dry) | jscpd | nada; clone novo é aviso | `0` |
+| [DRY](#dry) | jscpd | no modo fail, mais clones novos que `duplication.max_new_clones`. No modo warn, o padrão, nada | `1` no modo fail, `0` no warn |
 | [Mutação](#mutação) | mutmut (Python), StrykerJS (TypeScript) | sobrevivente sem waiver | `3` |
 | [Dependências](#dependências) | import-linter, dependency-cruiser, mais a regra de ciclo | violação cuja origem, destino ou outro módulo do ciclo está no diff | `1` |
 | [Segredos](#segredos) | gitleaks | segredo novo no diff | `1` |
@@ -45,11 +45,15 @@ Python: coverage.py rodando pytest. TypeScript: c8 rodando vitest. Os dois camin
 
 Um clone é um bloco que repete outro. O gate roda o jscpd com `duplication.min_tokens` (padrão 50) e fica com os clones em que pelo menos um lado toca uma linha alterada (`_new_clones` em `dry_gate.py`).
 
-Um ou mais clones novos deixam o gate em `warn` e o exit em `0`. A linha do relatório traz os dois lados (`arquivo:início-fim`), a quantidade de linhas, os tokens e a similaridade (`85%`, ou `exata` quando o clone é `exact` e não há percentual). Sem clones novos, o status é `passed`.
+Dois filtros escolhem quais clones novos entram na conta, nos dois modos. O clone precisa de pelo menos `duplication.min_lines` linhas (padrão 0) e de pelo menos `duplication.min_similarity` por cento de similaridade (padrão 0). Um clone sem percentual, como o `exact`, conta como 100. O jscpd já descarta clones com menos de 5 linhas (o `--min-lines` padrão dele), então um `min_lines` abaixo de 5 não traz esses clones de volta. Clone fora da conta não aparece no relatório.
 
-Sem Node, ou sem o jscpd instalado, o status é `not_run` e o exit continua `0` (o retorno de `_skipped` é `PASSED`). O jscpd precisa de Node também num repositório só Python, se `dry` estiver na lista.
+No modo warn, o padrão, um ou mais clones na conta deixam o gate em `warn` e o exit em `0`. No modo fail, o gate fica `failed` e o exit `1` quando a conta passa de `duplication.max_new_clones` (padrão 0). Com o teto 0, um clone na conta já falha. O motivo cita a chave e o teto, como em `1 new clone exceeds duplication.max_new_clones 0`. Até o teto, o modo fail fica em `warn`. A linha do relatório traz os dois lados (`arquivo:início-fim`), a quantidade de linhas, os tokens e a similaridade (`85%`, ou `exata` quando o clone é `exact` e não há percentual). Sem clones na conta, o status é `passed`.
 
-A spec marca clones novos como aviso no MVP. O código faz isso no gate. `duplication.new_clones` não está no schema: sai com `4`. Ver [Configuração](configuracao.md#chaves-que-o-loader-recusa).
+O modo fail vem de `duplication.new_clones: fail` ou de `--dry-fail`. `--max-new-clones N` substitui `duplication.max_new_clones` nessa execução, e `0` é um teto de verdade. As duas flags existem em `bob dry` e `bob check`. Não há flag para forçar warn. Um `--max-new-clones` negativo sai com `4` antes de gravar relatório. O hook continua `crap,dry,deps`, sem essas flags.
+
+Sem Node, ou sem o jscpd instalado, o status é `not_run` e o exit continua `0` (o retorno de `_skipped` é `PASSED`), também no modo fail. O jscpd precisa de Node também num repositório só Python, se `dry` estiver na lista.
+
+A decisão 4 da [SPEC](SPEC.md), revista em 12/10/2026, define os dois modos. As chaves estão em [Configuração](configuracao.md#duplication).
 
 ## Mutação
 
