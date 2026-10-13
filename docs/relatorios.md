@@ -47,7 +47,7 @@ O `report.md` e o comentário do pull request traduzem a regra de ciclo e o fall
 
 ## Comentário no pull request
 
-A Action (`.github/actions/bob/upsert_comment.py`) cria ou atualiza um único comentário com o Markdown, em pull request. O limite do corpo é `GITHUB_BODY_LIMIT = 65536`. Acima disso, o comentário é truncado e a nota usa o idioma do input `language` (ou `BOB_LANG` / `bob.yaml` / `en`). O exit code do job é o do bob (`propagate_exit.sh`).
+A Action (`.github/actions/bob/upsert_comment.py`) cria ou atualiza um único comentário com o Markdown, em pull request. O limite do corpo é `GITHUB_BODY_LIMIT = 65536`. Acima disso, o comentário é truncado e a nota usa o idioma do input `language` (ou `BOB_LANG` / `bob.yaml` / `en`). Os erros do comentário usam esse mesmo idioma. São repo, pr ou token ausente, relatório ausente e lista de comentários inválida. O exit code do job é o do bob (`propagate_exit.sh`).
 
 O artefato `bob-mutation-cache` sobe com `.bob/mutation-cache.json` e `.bob/stryker-incremental.json` mesmo quando o check falha (`if: always()` na action). O GitHub guarda esse artefato por 7 dias (`retention-days: 7`). Um dos dois pode faltar; o upload segue com o que existir.
 

@@ -31,6 +31,8 @@ Roda os gates pedidos e grava `.bob/` (ou `--out`).
 | `--out` | `.bob/` | Pasta do relatório |
 | `--gates` | `crap,dry,deps` | Lista separada por vírgula. Constante `DEFAULT_GATES` em `src/bob_quality/check.py` |
 | `--format` | `both` | `md`, `json` ou `both` |
+| `--dry-fail` | desligada | Liga o modo fail do DRY nesta execução, como `duplication.new_clones: fail`. Ver [Gates](gates.md#dry) |
+| `--max-new-clones` | `duplication.max_new_clones` | Teto de clones novos no modo fail nesta execução. `0` é um teto de verdade. Negativo sai com `4` |
 | `--lang` | ver [Idioma](#idioma---lang) | `en` ou `pt-BR` |
 
 Um `--config` que aponta para um arquivo inexistente sai com `4`. O stderr fica em inglês e cita o caminho, como em `config file not found: <caminho>`. Nada é gravado. O mesmo vale para `crap`, `dry`, `deps` e `mutate`. Detalhe em [Exit 4](exit-codes.md#exit-4).
@@ -48,7 +50,7 @@ Quando mais de um gate devolve código, fica o maior (`_worse` em `check.py`).
 | Comando | Flags a mais |
 |---|---|
 | `bob crap` | `--threshold` substitui `crap.max_per_function` nesta execução e segue a mesma regra, um número finito maior que `0`. `--coverage-file` aponta um arquivo de cobertura já gerado |
-| `bob dry` | nenhuma além das compartilhadas |
+| `bob dry` | `--dry-fail` e `--max-new-clones`, as mesmas de `bob check` |
 | `bob deps` | nenhuma além das compartilhadas |
 | `bob mutate` | `--max-workers` vira `--max-children` do mutmut (`src/bob_quality/mutmut_tool.py`). `--since-last-run` não muda a medição: a ajuda diz que reusar o cache já é o padrão. A flag só entra na linha `reproduce` do relatório quando foi passada |
 
@@ -80,7 +82,7 @@ Um `.bob/waivers.yaml` que já está inválido é recusado antes, em inglês no 
 
 ## Idioma (`--lang`)
 
-Vale a primeira fonte definida (`resolve_language` em `src/bob_quality/config.py`, chamada a partir de `cli.py`):
+Vale a primeira fonte definida (`resolve_language` em `src/bob_quality/config.py`, chamada pela CLI e pelo comentário da Action):
 
 1. `--lang en` ou `--lang pt-BR`, antes ou depois do comando.
 2. A variável `BOB_LANG`.
@@ -95,7 +97,7 @@ Idioma inválido, `language` que não é string, YAML que não é mapeamento, er
 
 Uma chave `duplication` inválida também sai com `4`, em inglês no stderr, sem gravar relatório. `reject_config_types` percorre o schema inteiro, inclusive `duplication`. O [CHANGELOG.md](../CHANGELOG.md) descreve esse caso. Uma chave desconhecida segue o mesmo caminho. Ver [Exit codes](exit-codes.md#exit-4).
 
-O que muda com o idioma: mensagens da CLI, texto do `--help`, `bob doctor`, o hook (porque ele chama a CLI), `.bob/report.md` e a nota de truncamento do comentário da Action. O `.bob/report.json` é o mesmo arquivo nos dois idiomas (`JSON_LANGUAGE = "en"` em `report.py`). Detalhe em [Relatórios](relatorios.md#o-que-não-muda-com-o-idioma).
+O que muda com o idioma: mensagens da CLI, texto do `--help`, `bob doctor`, o hook (porque ele chama a CLI), `.bob/report.md`, a nota de truncamento do comentário da Action e os erros desse comentário (repo, pr ou token ausente, relatório ausente, lista de comentários inválida). O `.bob/report.json` é o mesmo arquivo nos dois idiomas (`JSON_LANGUAGE = "en"` em `report.py`). Detalhe em [Relatórios](relatorios.md#o-que-não-muda-com-o-idioma).
 
 No CI, `language: pt-BR` no `bob.yaml` ou `BOB_LANG: pt-BR` no `env` do job. O input `language` da Action repassa a escolha ao `bob check` e ao comentário. Input vazio deixa `BOB_LANG` e o `bob.yaml`.
 

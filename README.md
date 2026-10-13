@@ -19,7 +19,7 @@ License: MIT.
 These parts work on `main`:
 
 - CRAP for Python and TypeScript.
-- Duplication with jscpd, as a warning only.
+- Duplication with jscpd, a warning by default and a failure above a ceiling in fail mode.
 - The dependency gate, with the rule that forbids cycles.
 - Differential mutation testing for Python and incremental Stryker mutation for TypeScript, and `bob waive`.
 - The GitHub Action that comments the report on the pull request.
@@ -128,9 +128,9 @@ Each command accepts these flags:
 
 | Command | Flags |
 |---|---|
-| `bob check` | `--base`, `--config`, `--out` (default `.bob/`), `--gates` (default `crap,dry,deps`), `--format` (`md`, `json`, or `both`, default `both`) |
+| `bob check` | `--base`, `--config`, `--out` (default `.bob/`), `--gates` (default `crap,dry,deps`), `--format` (`md`, `json`, or `both`, default `both`), `--dry-fail`, `--max-new-clones` |
 | `bob crap` | `--base`, `--config`, `--out`, `--threshold`, `--coverage-file` |
-| `bob dry` | `--base`, `--config`, `--out` |
+| `bob dry` | `--base`, `--config`, `--out`, `--dry-fail`, `--max-new-clones` |
 | `bob deps` | `--base`, `--config`, `--out` |
 | `bob mutate` | `--base`, `--config`, `--out`, `--max-workers`, `--since-last-run` (reuses the cache, which is already the default) |
 | `bob waive` | `file::function` or a Target from the mutation report, `--reason` |
@@ -143,7 +143,7 @@ The commands write `.bob/report.md` and `.bob/report.json`. The exit codes are:
 | Code | Meaning |
 |---|---|
 | `0` | Every gate that ran passed. |
-| `1` | A gate failed. A changed function has CRAP at or above the limit, or the diff has a dependency violation. |
+| `1` | A gate failed. A changed function has CRAP at or above the limit, the diff has a dependency violation, or, in DRY fail mode, the new clones exceed `duplication.max_new_clones`. |
 | `2` | The baseline tests failed before bob could measure. The `crap` gate runs them in the default `bob check` too. |
 | `3` | A surviving mutant has no waiver. |
 | `4` | Missing or different tool, or invalid configuration. The message goes to stderr in English, and the run writes nothing. |
@@ -160,7 +160,7 @@ A local `bob check` does not run mutation. `bob check --gates mutate` and `bob m
 
 ### Only the diff blocks
 
-bob runs `git diff <base>...HEAD` and maps the changed lines to functions. A function counts as changed when the diff touches one of its lines. Only changed functions, and dependency violations that touch changed files, can fail a gate. Old debt goes to the informational sections of the report, marked `outside the diff; does not block`, and does not change the exit code. `--base` overrides the `base` key in `bob.yaml`.
+bob runs `git diff <base>...HEAD` and maps the changed lines to functions. A function counts as changed when the diff touches one of its lines. Only changed functions, dependency violations that touch changed files, and, in DRY fail mode, clones that touch changed lines can fail a gate. Old debt goes to the informational sections of the report, marked `outside the diff; does not block`, and does not change the exit code. `--base` overrides the `base` key in `bob.yaml`.
 
 ### Pinned tools per language
 
@@ -191,6 +191,10 @@ crap:
   scope: changed
 duplication:
   min_tokens: 50
+  new_clones: warn
+  max_new_clones: 0
+  min_similarity: 0
+  min_lines: 0
 dependencies:
   python: .importlinter
   typescript: .dependency-cruiser.cjs
@@ -213,7 +217,7 @@ bob writes its text for humans in English (`en`) or Brazilian Portuguese (`pt-BR
 
 The case matters (`pt-br` is invalid). An empty `--lang` or `BOB_LANG` is invalid. The run exits with `4`, prints `invalid language: "" (use en or pt-BR)` to stderr, and writes nothing. An empty `language` key in `bob.yaml` still counts as unset.
 
-An invalid `--lang` or `BOB_LANG`, a `bob.yaml` that is not a mapping, YAML with a syntax error, or a key with the wrong type exits with `4`. The message goes to stderr in English, even when `--lang` or `language` is `pt-BR`. The run writes no report and no `waivers.yaml`. `check`, `doctor`, `waive`, and the other commands do this the same way. An invalid `duplication`, an unknown key, a numeric `language`, a `language` other than `en` or `pt-BR`, a `crap.scope` other than `changed` or `all`, a `languages` member other than `python` or `typescript`, a `crap.max_per_function` that is not a finite number greater than 0 (an integer too large to convert to float counts as not finite), an empty `languages` list, a repeated `languages` item, `duplication.min_tokens` of 0 or less, `waivers` set to `0`, `false`, or `""`, and an empty `reason` also exit with `4` on `check`, `doctor`, and `waive`. The English stderr names the path and the field, and the run writes nothing.
+An invalid `--lang` or `BOB_LANG`, a `bob.yaml` that is not a mapping, YAML with a syntax error, or a key with the wrong type exits with `4`. The message goes to stderr in English, even when `--lang` or `language` is `pt-BR`. The run writes no report and no `waivers.yaml`. `check`, `doctor`, `waive`, and the other commands do this the same way. An invalid `duplication`, an unknown key, a numeric `language`, a `language` other than `en` or `pt-BR`, a `crap.scope` other than `changed` or `all`, a `languages` member other than `python` or `typescript`, a `crap.max_per_function` that is not a finite number greater than 0 (an integer too large to convert to float counts as not finite), an empty `languages` list, a repeated `languages` item, `duplication.min_tokens` of 0 or less, a `duplication.new_clones` other than `warn` or `fail`, a negative `duplication.max_new_clones` or `duplication.min_lines`, a `duplication.min_similarity` that is not a finite number from 0 to 100, `waivers` set to `0`, `false`, or `""`, and an empty `reason` also exit with `4` on `check`, `doctor`, and `waive`. The English stderr names the path and the field, and the run writes nothing.
 
 `.bob/report.json` is the same bytes in both languages. Every gate `reason`, the cycle rule name, and `reproduce` stay English, so a tool can match them without knowing the output language. `reproduce` in the JSON omits `--lang`. English calls the cycle rule `Forbidden dependency cycle`. `pt-BR` calls it `Proibido ciclo de dependência` in `report.md` and in the pull request comment. A dependency-cruiser rule with no name is `dependency` in the JSON and `dependência` in the Markdown. The reproduce line in `report.md` includes the `--lang` that produced it.
 
@@ -275,9 +279,13 @@ The limit is CRAP < 10 per changed function. A function with CRAP of 10 or more 
 
 A clone is a block of code that repeats another block. New clones show where the agent copied code instead of reusing it.
 
-bob runs jscpd and keeps only the clones where at least one side touches a changed line. For example, if the diff adds a block of at least 50 tokens that matches existing code, the report lists the pair under `New clones` and the verdict shows ⚠️. The exit code stays `0`.
+bob runs jscpd and keeps only the clones where at least one side touches a changed line. Two filters then choose which new clones count, in both modes. A clone counts when it has at least `duplication.min_lines` lines (default 0) and at least `duplication.min_similarity` percent similarity (default 0). A clone without a percentage, such as an exact one, counts as 100. jscpd already drops clones under 5 lines, its own default, so a `min_lines` below 5 does not bring them back. A clone that does not count stays out of the report.
 
-The limit is `duplication.min_tokens` (default 50). Duplication is a warning only and never changes the exit code. Without Node, the gate shows as ⏭️.
+`duplication.new_clones` picks the mode. In `warn` mode, the default, the exit code stays `0`. For example, if the diff adds a block of at least 50 tokens that matches existing code, the report lists the pair under `New clones` and the verdict shows ⚠️. In `fail` mode, the gate shows ❌ and exits with `1` when the count is above `duplication.max_new_clones` (default 0), so one counted clone already fails. The reason names the key and the ceiling, as in `1 new clone exceeds duplication.max_new_clones 0`. When the count is at or under the ceiling, fail mode shows ⚠️.
+
+`bob dry` and `bob check` accept `--dry-fail`, which turns on fail mode for that run, and `--max-new-clones N`, which replaces the ceiling for that run. `0` is a real ceiling. No flag forces warn mode. A negative `--max-new-clones` exits with `4` before any report. The pre-push hook passes neither flag, so it follows `bob.yaml`.
+
+`duplication.min_tokens` (default 50) is the jscpd token minimum. Without Node, the gate shows as ⏭️ and the exit code stays `0`, in fail mode too.
 
 ### Mutation testing
 
