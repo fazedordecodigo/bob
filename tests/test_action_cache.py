@@ -97,6 +97,7 @@ def test_restores_the_newest_mutation_cache_from_a_previous_run(tmp_path: Path) 
         server.shutdown()
 
     assert result.returncode == 0, result.stderr
+    assert result.stdout == "restored mutmut\n"
     assert json.loads(dest.read_text()) == {"generation": 2}
     assert not (dest.parent / "stryker-incremental.json").exists()
 
@@ -125,6 +126,7 @@ def test_restore_keeps_only_same_repo_base_or_head_branch_caches(tmp_path: Path)
         server.shutdown()
 
     assert result.returncode == 0, result.stderr
+    assert result.stdout == "restored mutmut\n"
     assert json.loads(dest.read_text()) == {"generation": 2}
 
 
@@ -138,6 +140,7 @@ def test_missing_previous_cache_is_not_an_error(tmp_path: Path) -> None:
         server.shutdown()
 
     assert result.returncode == 0, result.stderr
+    assert result.stdout == ""
     assert not dest.exists()
 
 
@@ -160,6 +163,7 @@ def test_restore_ignores_zip_entries_that_escape_the_cache_file(tmp_path: Path) 
         server.shutdown()
 
     assert result.returncode == 0, result.stderr
+    assert result.stdout == "restored mutmut\n"
     assert json.loads(dest.read_text()) == {"kept": True}
     assert not (tmp_path / "outside.txt").exists()
     assert not (tmp_path / ".bob" / "outside.txt").exists()
@@ -186,6 +190,7 @@ def test_restore_writes_the_stryker_incremental_file_beside_the_cache(tmp_path: 
 
     incremental = dest.parent / "stryker-incremental.json"
     assert result.returncode == 0, result.stderr
+    assert result.stdout == "restored both\n"
     assert json.loads(dest.read_text()) == {"generation": 2}
     assert json.loads(incremental.read_text()) == {"incremental": True}
     assert not (tmp_path / "stryker-incremental.json").exists()
@@ -205,5 +210,6 @@ def test_restore_writes_incremental_when_the_mutmut_cache_is_absent(tmp_path: Pa
         server.shutdown()
 
     assert result.returncode == 0, result.stderr
+    assert result.stdout == "restored incremental\n"
     assert not dest.exists()
     assert json.loads((dest.parent / "stryker-incremental.json").read_text()) == {"incremental": True}

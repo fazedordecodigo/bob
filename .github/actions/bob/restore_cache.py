@@ -60,6 +60,12 @@ def extract_cache(payload: bytes, dest: Path) -> bool:
         wrote_incremental = _write_named(
             archive, INCREMENTAL_NAME, dest.parent / INCREMENTAL_NAME
         )
+    if wrote_cache and wrote_incremental:
+        print("restored both")
+    elif wrote_cache:
+        print("restored mutmut")
+    elif wrote_incremental:
+        print("restored incremental")
     return wrote_cache or wrote_incremental
 
 
