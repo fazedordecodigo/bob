@@ -14,29 +14,16 @@ SECRET_PREFIX = "secret:"
 
 @dataclass(frozen=True)
 class SecretRow:
-    """Achado depois que o JSON do gitleaks some.
-
-    Não há campo para o valor. `line` é o StartLine e vale pelo menos 1.
-    """
-
     file: str
     line: int
     rule_id: str
 
     def waiver_id(self) -> str:
-        """`secret:<regra>:<arquivo>:<linha>`. O casamento é a string inteira."""
         return f"{SECRET_PREFIX}{self.rule_id}:{self.file}:{self.line}"
 
 
 @dataclass(frozen=True)
 class SecretLedger:
-    """Partição do que o relatório pode mostrar.
-
-    `blocking` falha o gate. `outside_diff` aparece e não muda o exit.
-    As tuplas são disjuntas e ordenadas por arquivo, linha e regra.
-    Waiver fica fora das duas.
-    """
-
     blocking: tuple[SecretRow, ...] = ()
     outside_diff: tuple[SecretRow, ...] = ()
 

@@ -1,5 +1,3 @@
-"""Gate de segredos: o diff decide o bloqueio e o relatório não leva o valor."""
-
 from __future__ import annotations
 
 import json

@@ -1,5 +1,3 @@
-"""Gate de segredos: o veredito sai da partição, não do exit do gitleaks."""
-
 from __future__ import annotations
 
 import json
@@ -24,8 +22,6 @@ _DROPPED_ENV = frozenset({"GITLEAKS_CONFIG", "GITLEAKS_CONFIG_TOML"})
 
 @dataclass(frozen=True)
 class SecretsJudgment:
-    """Resultado puro. Exit 4 não cabe aqui."""
-
     ledger: SecretLedger
     result: GateResult
     exit_code: int
@@ -47,7 +43,6 @@ def judge_secrets(
     diff_lines: dict[str, set[int]],
     waiver_ids: frozenset[str],
 ) -> SecretsJudgment:
-    """Parte as linhas e tira o exit só de `blocking`."""
     applicable = {item for item in waiver_ids if item.startswith(SECRET_PREFIX)}
     blocking: list[SecretRow] = []
     outside: list[SecretRow] = []
@@ -97,12 +92,6 @@ def _count_reason(count: int, one: str, many: str) -> Text | None:
 
 @dataclass(frozen=True)
 class SecretsRun:
-    """O que o check guarda.
-
-    `ledger is None` é `not_run` e exit 4. Com ledger, o exit é 1 só quando
-    `blocking` não está vazio.
-    """
-
     result: GateResult
     ledger: SecretLedger | None
     exit_code: int
@@ -119,7 +108,7 @@ class SecretsRun:
 
 
 class GitleaksParseError(Exception):
-    """O corpo não é o array de achados que este gate aceita."""
+    pass
 
 
 def run_secrets_gate(
@@ -127,7 +116,6 @@ def run_secrets_gate(
     config: Config,
     diff_lines: dict[str, set[int]],
 ) -> SecretsRun:
-    """Varre `paths.include` e julga. O JSON bruto morre no diretório temporário."""
     roots = _roots(cwd, config)
     if isinstance(roots, Text):
         return _unmeasured(roots)
