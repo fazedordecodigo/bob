@@ -22,6 +22,10 @@ crap:
   scope: changed
 duplication:
   min_tokens: 50
+  new_clones: warn
+  max_new_clones: 0
+  min_similarity: 0
+  min_lines: 0
 dependencies:
   python: .importlinter
   typescript: .dependency-cruiser.cjs
@@ -30,7 +34,7 @@ supply:
   timeout_seconds: 30
 ```
 
-`language: en` no bloco acima é o resultado da resolução, não uma chave que o arquivo vazio precise ter. Sem chave, `configured_language` devolve `None` e a CLI usa `en`.
+`language: en` no bloco acima é o resultado da resolução, não uma chave que o arquivo vazio precise ter. Sem chave, `resolve_language` devolve `en`.
 
 O `bob.yaml` deste repositório é mais curto: `base`, `languages: [python]`, `paths.include: [src]`, `paths.exclude: [tests]`, `crap.max_per_function: 10`, `crap.scope: changed`. O que falta continua no padrão do código.
 
@@ -46,6 +50,10 @@ O `bob.yaml` deste repositório é mais curto: `base`, `languages: [python]`, `p
 | `crap.max_per_function` | número (bool não vale) | `10` | Limite. CRAP maior ou igual reprova |
 | `crap.scope` | string | `changed` | Só `changed` ou `all`. Outro texto sai com `4` |
 | `duplication.min_tokens` | inteiro maior que 0 | `50` | Mínimo de tokens do jscpd |
+| `duplication.new_clones` | `warn` ou `fail`, ou vazio | `warn` | Modo do gate DRY. Ver [duplication](#duplication) |
+| `duplication.max_new_clones` | inteiro ≥ 0 (bool não vale) | `0` | Teto de clones novos no modo fail |
+| `duplication.min_similarity` | número finito de 0 a 100 (bool não vale) | `0` | Similaridade mínima, em percentual, para o clone entrar na conta |
+| `duplication.min_lines` | inteiro ≥ 0 (bool não vale) | `0` | Linhas mínimas para o clone entrar na conta |
 | `dependencies.python` | string | `.importlinter` | Config do import-linter |
 | `dependencies.typescript` | string | `.dependency-cruiser.cjs` | Config do dependency-cruiser |
 | `supply.osv_fail_severities` | lista de `HIGH` e `CRITICAL` | `[HIGH, CRITICAL]` | Severidades de advisory que bloqueiam. `MODERATE` e `LOW` não entram na lista |
@@ -55,9 +63,21 @@ O `bob.yaml` deste repositório é mais curto: `base`, `languages: [python]`, `p
 
 Um tipo errado sai com `4`. A mensagem em inglês no stderr cita o arquivo e a chave, por exemplo `bob.yaml: crap must be a mapping` ou `bob.yaml: crap.max_per_function must be a number`. Isso vale para `check`, `doctor`, `waive` e os outros comandos, e nenhum deles grava arquivo nesse caso. Ver [Exit 4](exit-codes.md#exit-4).
 
+O `bob` resolve cada caminho relativo de `paths.include` a partir do diretório de trabalho atual. A entrada `src` é `<cwd>/src`. Uma entrada de `paths.include` que não existe no disco sai com `4` do mesmo jeito. O stderr fica em inglês e cita cada entrada ausente, como `bob.yaml: paths.include does not exist: missing-root`. Uma lista omitida ou vazia continua `[src]` e não é verificada. Um arquivo que existe, mesmo sem ser diretório, passa dessa barreira.
+
 Uma chave repetida no mesmo mapeamento sai com `4`. O stderr fica em inglês e cita a chave e a linha, como `invalid YAML in bob.yaml: found duplicate key 'scope' on line 3`. Uma chave escrita nesse mapeamento ainda pode substituir um valor mesclado com `<<`.
 
 `duplication` que não é mapeamento, ou `min_tokens` que não é um inteiro maior que 0, sai com `4`. A mensagem em inglês no stderr cita o arquivo e a chave, e nada é gravado. O [CHANGELOG](../CHANGELOG.md) descreve esse caso.
+
+### duplication
+
+`new_clones` escolhe o modo do gate DRY. Sem a chave, ou com ela vazia, o modo é `warn`. Clone novo fica em aviso e o exit continua `0`. Com `fail`, o gate fica `failed` e sai com `1` quando a conta de clones novos passa de `max_new_clones`. Com o padrão 0, um clone na conta já falha. Até o teto, o gate fica em `warn`. No modo `warn`, nenhum limite numérico falha.
+
+`min_similarity` e `min_lines` só escolhem quem entra na conta, nos dois modos. Um clone novo entra quando tem pelo menos `min_lines` linhas e pelo menos `min_similarity` por cento de similaridade. Um clone sem percentual, como o `exact`, conta como 100. Um clone que não entra na conta também não aparece no relatório. O jscpd já descarta clones com menos de 5 linhas (o padrão dele), então um `min_lines` abaixo de 5 não faz esses clones aparecerem.
+
+Duas flags de `bob dry` e `bob check` vencem o arquivo nessa execução. `--dry-fail` liga o modo `fail`. `--max-new-clones N` substitui `max_new_clones`, e `0` é um teto de verdade. Não há flag para forçar `warn`. Ver [CLI](cli.md).
+
+Um valor inválido sai com `4`, em inglês no stderr, e nada é gravado. A mensagem cita o arquivo e a chave, como `bob.yaml: duplication.new_clones must be warn or fail`, `bob.yaml: duplication.max_new_clones must be at least 0` ou `bob.yaml: duplication.min_similarity must be at most 100`.
 
 ### languages
 
@@ -71,7 +91,7 @@ O gate DRY mapeia `typescript` para os formatos `typescript` e `javascript` do j
 
 ### Chaves que o loader recusa
 
-O `_SCHEMA` em `src/bob_quality/config.py` aceita `base`, `language`, `languages`, `paths.include`, `paths.exclude`, `crap.max_per_function`, `crap.scope`, `duplication.min_tokens`, `dependencies.python`, `dependencies.typescript`, `secrets`, `supply.osv_fail_severities`, `supply.timeout_seconds` e `dead_code.min_confidence`. `_reject_unknown` recusa qualquer outra chave: exit `4`, mensagem em inglês no stderr, nenhum arquivo gravado.
+O `_SCHEMA` em `src/bob_quality/config.py` aceita `base`, `language`, `languages`, `paths.include`, `paths.exclude`, `crap.max_per_function`, `crap.scope`, `duplication.min_tokens`, `duplication.new_clones`, `duplication.max_new_clones`, `duplication.min_similarity`, `duplication.min_lines`, `dependencies.python`, `dependencies.typescript`, `secrets`, `supply.osv_fail_severities`, `supply.timeout_seconds` e `dead_code.min_confidence`. `_reject_unknown` recusa qualquer outra chave: exit `4`, mensagem em inglês no stderr, nenhum arquivo gravado.
 
 `supply.osv_fail_severities: [MODERATE]` sai com `bob.yaml: supply.osv_fail_severities[0] must be HIGH or CRITICAL`. Lista vazia, item repetido ou texto solto também saem com `4`. `supply.timeout_seconds: 0` sai com `bob.yaml: supply.timeout_seconds must be greater than 0`. Bool e float saem com `must be an integer`. Nada é gravado.
 
@@ -83,10 +103,9 @@ Estas não entram no schema:
 
 - `mutation`. O erro é `bob.yaml: unknown key mutation`, também quando o bloco traz `require_zero_unwaived_survivors`, `scope` ou `differential`.
 - `duplication.tool`. O erro é `bob.yaml: unknown key duplication.tool`.
-- `duplication.new_clones`. O erro é `bob.yaml: unknown key duplication.new_clones`.
 - `dependencies.violation`. O erro é `bob.yaml: unknown key dependencies.violation`.
 
-O exemplo de `bob.yaml` na [SPEC](SPEC.md) e nos READMEs não as inclui. Sobrevivente sem waiver sai com `3`, a mutação reusa `.bob/mutation-cache.json`, clone novo é aviso e violação no diff sai com `1`, sem chave para desligar isso. `tests/test_invalid_config.py` cobre a recusa.
+O exemplo de `bob.yaml` na [SPEC](SPEC.md) e nos READMEs não as inclui. Sobrevivente sem waiver sai com `3`, a mutação reusa `.bob/mutation-cache.json` e violação no diff sai com `1`, sem chave para desligar isso. `tests/test_invalid_config.py` cobre a recusa.
 
 ## .bob/waivers.yaml
 

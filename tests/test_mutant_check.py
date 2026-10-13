@@ -72,6 +72,8 @@ def test_measure_passes_the_base_into_supply(tmp_path: Path) -> None:
             ["supply"],
             tmp_path / "out",
             None,
+            False,
+            None,
             "origin/main",
         )
     finally:

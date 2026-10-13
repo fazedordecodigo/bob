@@ -79,7 +79,7 @@ def test_absorb_records_each_gate_from_the_arguments_it_received(monkeypatch) ->
     monkeypatch.setattr(check, "run_supply_gate", supply)
 
     state = _Measured()
-    _absorb(state, "crap", cwd, config, diff, 10.0, coverage, out, 2, "origin/main")
+    _absorb(state, "crap", cwd, config, diff, 10.0, coverage, out, 2, True, 0, "origin/main")
     assert seen["crap"] == {
         "cwd": cwd,
         "config": config,
@@ -94,18 +94,24 @@ def test_absorb_records_each_gate_from_the_arguments_it_received(monkeypatch) ->
     assert state.gates == [GateResult("crap", "failed")]
     assert set(seen) == {"crap"}
 
-    _absorb(state, "dry", cwd, config, diff, 10.0, coverage, out, 2, "origin/main")
-    assert seen["dry"] == {"cwd": cwd, "config": config, "diff_lines": diff}
+    _absorb(state, "dry", cwd, config, diff, 10.0, coverage, out, 2, True, 0, "origin/main")
+    assert seen["dry"] == {
+        "cwd": cwd,
+        "config": config,
+        "diff_lines": diff,
+        "dry_fail": True,
+        "max_new_clones": 0,
+    }
     assert state.clones == [_clone()]
     assert state.versions["jscpd"] == "5.4.1"
     assert set(seen) == {"crap", "dry"}
 
-    _absorb(state, "deps", cwd, config, diff, 10.0, coverage, out, 2, "origin/main")
+    _absorb(state, "deps", cwd, config, diff, 10.0, coverage, out, 2, True, 0, "origin/main")
     assert seen["deps"] == (cwd, config, {"src/app.py"})
     assert state.violations == [violation]
     assert set(seen) == {"crap", "dry", "deps"}
 
-    _absorb(state, "mutate", cwd, config, diff, 10.0, coverage, out, 2, "origin/main")
+    _absorb(state, "mutate", cwd, config, diff, 10.0, coverage, out, 2, True, 0, "origin/main")
     assert seen["mutate"] == {
         "cwd": cwd,
         "config": config,
@@ -118,14 +124,14 @@ def test_absorb_records_each_gate_from_the_arguments_it_received(monkeypatch) ->
     assert state.exit_code == 3
     assert set(seen) == {"crap", "dry", "deps", "mutate"}
 
-    _absorb(state, "secrets", cwd, config, diff, 10.0, coverage, out, 2, "origin/main")
+    _absorb(state, "secrets", cwd, config, diff, 10.0, coverage, out, 2, True, 0, "origin/main")
     assert seen["secrets"] == {"cwd": cwd, "config": config, "diff_lines": diff}
     assert state.secrets == ledger
     assert state.versions["gitleaks"] == "8.30.1"
     assert [gate.name for gate in state.gates] == ["crap", "dry", "deps", "mutate", "secrets"]
     assert state.gates[-1].status == "failed"
 
-    _absorb(state, "supply", cwd, config, diff, 10.0, coverage, out, 2, "origin/main")
+    _absorb(state, "supply", cwd, config, diff, 10.0, coverage, out, 2, True, 0, "origin/main")
     assert seen["supply"] == (cwd, config, diff, "origin/main")
     assert state.supply == supply_report
     assert state.versions["deptry"] == "0.25.1"
@@ -143,7 +149,9 @@ def test_absorb_records_each_gate_from_the_arguments_it_received(monkeypatch) ->
 
 def test_absorb_unknown_gate_stays_not_run_and_exit_0() -> None:
     state = _Measured()
-    _absorb(state, "nope", Path("/repo"), Config(), {}, 10.0, None, Path("/out"), None, "origin/main")
+    _absorb(
+        state, "nope", Path("/repo"), Config(), {}, 10.0, None, Path("/out"), None, False, None, "origin/main"
+    )
 
     assert state.exit_code == 0
     assert state.versions == {}
