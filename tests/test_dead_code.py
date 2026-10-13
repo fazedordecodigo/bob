@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import json
+import os
+import subprocess
 import sys
 from pathlib import Path
 
@@ -13,11 +15,18 @@ from bob_quality.dead_code import (
     MeasuredPython,
     MeasuredTypeScript,
     Quiet,
+    _knip_half,
+    _knip_prefix,
+    _parsed_knip,
+    _parsed_vulture,
+    _spawn,
+    _vulture_half,
     definition_is_new,
     knip_command,
     settle,
     vulture_command,
 )
+from bob_quality.tools import ToolError
 from bob_quality.diff import function_is_changed, line_is_changed
 from bob_quality.messages import msg, render
 from bob_quality.models import (
@@ -431,3 +440,112 @@ def test_knip_argv_never_receives_min_confidence(tmp_path: Path) -> None:
         "json",
         "--no-progress",
     ]
+
+
+def _completed(code: int, stdout: str) -> subprocess.CompletedProcess[str]:
+    return subprocess.CompletedProcess([], code, stdout, "")
+
+
+def test_vulture_half_names_vulture_when_the_version_is_gone(monkeypatch) -> None:
+    monkeypatch.setattr("bob_quality.dead_code._vulture_version", lambda: None)
+
+    found = _vulture_half(_completed(3, "src/a.py:1: unused function 'a' (60% confidence)"), Path("."))
+
+    assert isinstance(found, Dark)
+    assert render(found.reason, "en") == "missing tool: vulture"
+
+
+def test_a_bad_vulture_line_keeps_the_parser_reason(tmp_path: Path) -> None:
+    found = _parsed_vulture("not a vulture line", tmp_path, "2.16")
+
+    assert isinstance(found, Dark)
+    assert render(found.reason, "en") == "vulture: output could not be parsed"
+
+
+def test_knip_exit_zero_with_json_is_measured(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.setattr("bob_quality.dead_code.installed_npm_version", lambda _prefix, _name: "6.41.0")
+
+    found = _knip_half(_completed(0, '{"issues":[]}'), tmp_path, tmp_path)
+
+    assert isinstance(found, MeasuredTypeScript)
+    assert found.symbols == ()
+    assert found.version == "6.41.0"
+
+
+def test_blank_knip_stdout_does_not_reach_the_parser(tmp_path: Path, monkeypatch) -> None:
+    def explode(*_args: object) -> object:
+        raise AssertionError("parser")
+
+    monkeypatch.setattr("bob_quality.dead_code._parsed_knip", explode)
+    found = _knip_half(_completed(0, " \n"), tmp_path, tmp_path)
+
+    assert isinstance(found, Dark)
+    assert render(found.reason, "en") == "knip: output could not be parsed"
+
+
+def test_a_bad_knip_document_keeps_the_parser_reason(tmp_path: Path) -> None:
+    found = _parsed_knip("{", tmp_path)
+
+    assert isinstance(found, Dark)
+    assert render(found.reason, "en") == "knip: output could not be parsed"
+
+
+def test_a_knip_version_failure_keeps_the_tool_reason(tmp_path: Path, monkeypatch) -> None:
+    def broken(_prefix: Path, _name: str) -> str:
+        raise ToolError(msg("tool.missing", tool="knip"))
+
+    monkeypatch.setattr("bob_quality.dead_code.installed_npm_version", broken)
+    found = _knip_half(_completed(0, '{"issues":[]}'), tmp_path, tmp_path)
+
+    assert isinstance(found, Dark)
+    assert render(found.reason, "en") == "missing tool: knip"
+
+
+def test_an_npm_prefix_failure_keeps_its_reason(monkeypatch) -> None:
+    def broken() -> Path:
+        raise ToolError(msg("dead.node_missing"))
+
+    monkeypatch.setattr("bob_quality.dead_code.node_missing_message", lambda: None)
+    monkeypatch.setattr("bob_quality.dead_code.npm_prefix", broken)
+    found = _knip_prefix()
+
+    assert isinstance(found, Dark)
+    assert render(found.reason, "en") == "Node missing: install Node.js to run knip"
+
+
+def test_a_missing_knip_package_names_knip(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.setattr("bob_quality.dead_code.node_missing_message", lambda: None)
+    monkeypatch.setattr("bob_quality.dead_code.npm_prefix", lambda: tmp_path)
+    found = _knip_prefix()
+
+    assert isinstance(found, Dark)
+    assert render(found.reason, "en") == "missing tool: knip"
+
+
+def test_spawn_exports_the_prefix_bin_and_hides_pytest(tmp_path: Path, monkeypatch) -> None:
+    captured: dict[str, dict[str, str]] = {}
+
+    def fake_run(args: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
+        env = kwargs["env"]
+        assert isinstance(env, dict)
+        captured["env"] = env
+        return subprocess.CompletedProcess(args, 0, "", "")
+
+    monkeypatch.setattr("bob_quality.dead_code.subprocess.run", fake_run)
+    monkeypatch.setenv("PYTEST_CURRENT_TEST", "dead")
+    monkeypatch.setenv("KEEP_ME", "1")
+    _spawn(tmp_path, ["knip"], tmp_path)
+
+    env = captured["env"]
+    bindir = str(tmp_path / "node_modules" / ".bin")
+    assert env["PATH"].startswith(bindir + os.pathsep)
+    assert "PYTEST_CURRENT_TEST" not in env
+    assert env["KEEP_ME"] == "1"
+
+
+def test_an_empty_dead_section_with_no_reason_is_one_sentence() -> None:
+    report = _plain()
+    report.gates = [GateResult("dead_code", "passed", None)]
+    report.dead_code = DeadSection()
+
+    assert to_markdown(report, "en").count("No unused symbol in the diff.") == 1

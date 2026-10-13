@@ -37,6 +37,17 @@ _KINDS = """\
 """
 
 
+def test_an_empty_namespace_keeps_the_bare_name(tmp_path: Path) -> None:
+    raw = (
+        '{"issues":[{"file":"src/app/orphan.ts","exports":'
+        '[{"name":"orphan","namespace":"","line":3}]}]}'
+    )
+
+    symbol = typescript_symbols(raw, tmp_path)[0]
+
+    assert symbol.name == "orphan"
+
+
 def test_a_knip_export_becomes_one_symbol(tmp_path: Path) -> None:
     assert typescript_symbols(_EXPORT, tmp_path) == (
         TypeScriptDead("src/app/orphan.ts", 3, "orphan", "export"),
