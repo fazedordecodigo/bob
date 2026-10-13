@@ -89,7 +89,7 @@ A caixa importa. `pt-br` é inválido. Os valores aceitos são os de `LANGUAGES`
 
 Um `--lang` ou `BOB_LANG` vazio é inválido. A CLI sai com `4`, imprime `invalid language: "" (use en or pt-BR)` no stderr e não grava relatório. Uma chave `language` vazia no YAML continua ausente.
 
-Idioma inválido, `language` que não é string, YAML que não é mapeamento, erro de sintaxe no `bob.yaml` e chave com tipo errado também saem com `4` em inglês no stderr, mesmo que se pretendesse `pt-BR`, e não gravam relatório. O mesmo vale para `paths`, `languages`, `base`, `dependencies` e as listas `include` e `exclude`, em `check`, `doctor`, `waive` e nos outros comandos.
+Idioma inválido, `language` que não é string, YAML que não é mapeamento, erro de sintaxe no `bob.yaml` e chave com tipo errado também saem com `4` em inglês no stderr, mesmo que se pretendesse `pt-BR`, e não gravam relatório. O mesmo vale para `paths`, `languages`, `base`, `dependencies` e as listas `include` e `exclude`, em `check`, `doctor`, `waive` e nos outros comandos. Uma entrada de `paths.include` que não existe no disco segue o mesmo caminho. O stderr cita o arquivo e cada entrada ausente, como `bob.yaml: paths.include does not exist: missing-root`. Um `paths.include` omitido ou vazio continua `src` e não é verificado.
 
 Uma chave `duplication` inválida também sai com `4`, em inglês no stderr, sem gravar relatório. `reject_config_types` percorre o schema inteiro, inclusive `duplication`. O [CHANGELOG.md](../CHANGELOG.md) descreve esse caso. Uma chave desconhecida segue o mesmo caminho. Ver [Exit codes](exit-codes.md#exit-4).
 

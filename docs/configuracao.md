@@ -50,6 +50,8 @@ O `bob.yaml` deste repositório é mais curto: `base`, `languages: [python]`, `p
 
 Um tipo errado sai com `4`. A mensagem em inglês no stderr cita o arquivo e a chave, por exemplo `bob.yaml: crap must be a mapping` ou `bob.yaml: crap.max_per_function must be a number`. Isso vale para `check`, `doctor`, `waive` e os outros comandos, e nenhum deles grava arquivo nesse caso. Ver [Exit 4](exit-codes.md#exit-4).
 
+Uma entrada de `paths.include` que não existe no disco sai com `4` do mesmo jeito. O stderr fica em inglês e cita cada entrada ausente, como `bob.yaml: paths.include does not exist: missing-root`. Uma lista omitida ou vazia continua `[src]` e não é verificada. Um arquivo que existe, mesmo sem ser diretório, passa dessa barreira.
+
 Uma chave repetida no mesmo mapeamento sai com `4`. O stderr fica em inglês e cita a chave e a linha, como `invalid YAML in bob.yaml: found duplicate key 'scope' on line 3`. Uma chave escrita nesse mapeamento ainda pode substituir um valor mesclado com `<<`.
 
 `duplication` que não é mapeamento, ou `min_tokens` que não é um inteiro maior que 0, sai com `4`. A mensagem em inglês no stderr cita o arquivo e a chave, e nada é gravado. O [CHANGELOG](../CHANGELOG.md) descreve esse caso.

@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+A `paths.include` entry that is not on disk exits `4`. English stderr names the config file and each missing entry, as in `bob.yaml: paths.include does not exist: missing-root`. Nothing is written. `check`, `crap`, `dry`, `deps`, `mutate`, `doctor`, and `waive` share that line, including when `--lang` is `pt-BR`. An omitted or empty `paths.include` still means `src` and is not checked.
+
+Uma entrada de `paths.include` que não está no disco sai com `4`. O stderr em inglês cita o arquivo de configuração e cada entrada ausente, como em `bob.yaml: paths.include does not exist: missing-root`. Nada é gravado. `check`, `crap`, `dry`, `deps`, `mutate`, `doctor` e `waive` usam a mesma linha, inclusive com `--lang pt-BR`. Um `paths.include` omitido ou vazio continua sendo `src` e não é verificado.
+
 `bob check --gates secrets` scans `paths.include` with gitleaks 8.30.1. A secret on a new diff line fails with exit `1`. The report lists the file, the line, and the rule id. It does not print the secret. Waive a finding in `.bob/waivers.yaml` with the id `secret:<rule>:<file>:<line>`. `secrets` in `bob.yaml` is an empty mapping and does not turn the gate on. The gate stays out of the default list, the pre-push hook, and the Action default. `bob doctor` pins gitleaks 8.30.1. A `.gitleaksignore` file under an include root exits `4` before the scan.
 
 `bob check --gates secrets` varre `paths.include` com o gitleaks 8.30.1. Um segredo numa linha nova do diff falha com exit `1`. O relatório lista o arquivo, a linha e o id da regra. Ele não imprime o segredo. O waiver em `.bob/waivers.yaml` usa o id `secret:<regra>:<arquivo>:<linha>`. `secrets` no `bob.yaml` é um mapeamento vazio e não liga o gate. O gate fica fora da lista padrão, do hook pre-push e do padrão da Action. O `bob doctor` pina o gitleaks 8.30.1. Um `.gitleaksignore` numa raiz de include sai com `4` antes da varredura.

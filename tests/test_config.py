@@ -41,6 +41,7 @@ def _config_error(path: Path) -> tuple[str, str]:
 
 
 def test_load_config_reads_every_key(tmp_path: Path) -> None:
+    (tmp_path / "lib").mkdir()
     (tmp_path / "bob.yaml").write_text(FULL_YAML)
 
     loaded = load_config(None, tmp_path)
@@ -401,6 +402,7 @@ def test_load_config_treats_null_and_empty_collections_as_defaults(tmp_path: Pat
 
 
 def test_load_config_keeps_numeric_thresholds_and_string_lists(tmp_path: Path) -> None:
+    (tmp_path / "lib").mkdir()
     (tmp_path / "bob.yaml").write_text(
         "base: trunk\n"
         "languages: [python, typescript]\n"
