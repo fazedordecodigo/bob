@@ -21,14 +21,13 @@ Estas partes funcionam na `main`:
 - CRAP em Python e TypeScript.
 - Duplicação com jscpd, aviso por padrão e falha acima de um teto no modo fail.
 - O gate de dependências, com a regra que proíbe ciclos.
-- Mutação diferencial em Python, e `bob waive`.
+- Mutação diferencial em Python e mutação incremental com Stryker em TypeScript, e `bob waive`.
 - A GitHub Action que comenta o relatório no pull request.
 - `bob doctor`, e o pacote `bob-quality` pronto para distribuir. Nada foi enviado ao PyPI.
 - Os manifestos de plugin para Claude Code, Cursor, Copilot e Devin, e o instalador de skills ([#10](https://github.com/fazedordecodigo/bob/issues/10)). Nada foi enviado a marketplace.
 
 Estas partes estão planejadas (planned):
 
-- Mutação em TypeScript com StrykerJS ([#8](https://github.com/fazedordecodigo/bob/issues/8)).
 - Um aviso para mutantes `no_coverage` no relatório ([#31](https://github.com/fazedordecodigo/bob/issues/31)).
 - O comando `bob report` que o `docs/SPEC.md` lista. A CLI ainda não o tem.
 - Publicação no PyPI e nos marketplaces dos agentes.
@@ -69,7 +68,7 @@ python -m pip install -e ".[dev]"
 npm ci
 ```
 
-Esses comandos instalam o comando `bob`, as ferramentas Python pinadas em `pyproject.toml` (`lizard`, `coverage`, `mutmut`, `import-linter`) e as ferramentas npm pinadas em `package.json` (`c8`, `vitest`, `jscpd`, `dependency-cruiser`). `bob doctor` mostra a versão esperada e a encontrada de cada ferramenta.
+Esses comandos instalam o comando `bob`, as ferramentas Python pinadas em `pyproject.toml` (`lizard`, `coverage`, `mutmut`, `import-linter`, `grimp`) e as ferramentas npm pinadas em `package.json` (`c8`, `vitest`, `jscpd`, `dependency-cruiser`). `bob doctor` mostra a versão esperada e a encontrada de cada ferramenta.
 
 ## Instalação nos agentes
 
@@ -169,8 +168,8 @@ O bob encapsula cada ferramenta num adaptador próprio e não copia código dela
 |---|---|---|
 | CRAP | `lizard` 1.24.1 para complexidade, `coverage` 7.16.2 rodando o pytest | `lizard` 1.24.1 para complexidade, `c8` 12.0.0 rodando o `vitest` 5.0.3 |
 | Duplicação | `jscpd` 5.4.1 | `jscpd` 5.4.1 |
-| Mutação | `mutmut` 3.8.0 | planejada ([#8](https://github.com/fazedordecodigo/bob/issues/8)) |
-| Dependências | `import-linter` 2.15 | `dependency-cruiser` 18.5.0 |
+| Mutação | `mutmut` 3.8.0 | `@stryker-mutator/core` 10.0.0 e `@stryker-mutator/vitest-runner` 10.0.0 |
+| Dependências | `import-linter` 2.15, `grimp` 3.17 | `dependency-cruiser` 18.5.0 |
 
 As ferramentas npm precisam do Node, e o jscpd precisa dele também num repositório só Python. Num repositório com Python e TypeScript, a falta do Node não é exit `4`. O bob continua medindo o Python e mostra o TypeScript como pulado, com aviso. O exit `4` continua quando a ferramenta ausente impede a medição pedida, como num repositório só TypeScript sem Node.
 
@@ -199,7 +198,7 @@ dependencies:
   typescript: .dependency-cruiser.cjs
 ```
 
-Com `crap.scope: changed`, só funções alteradas bloqueiam. `all` faz toda função medida contar. O valor é `changed` ou `all`. `languages` omitido, nulo ou lista vazia vale `[python]`. Não há autodetecção.
+Com `crap.scope: changed`, só funções alteradas bloqueiam. `all` faz toda função medida contar. O valor é `changed` ou `all`. `languages` omitido ou nulo vale `[python]`. Uma lista vazia sai com `4`. Não há autodetecção.
 
 Se o YAML não é um mapeamento, se o YAML tem erro de sintaxe, ou se uma chave tem o tipo errado, a execução sai com `4`. A mensagem vai para o stderr em inglês e cita o arquivo. Um tipo errado também cita a chave, como em `bob.yaml: crap must be a mapping` ou `bob.yaml: crap.max_per_function must be a number`. `check`, `doctor`, `waive` e os outros comandos fazem isso do mesmo jeito. Nenhum deles grava um arquivo.
 
@@ -216,7 +215,7 @@ O bob escreve o texto para humanos em inglês (`en`) ou em português do Brasil 
 
 A caixa importa (`pt-br` é inválido). Um `--lang` ou `BOB_LANG` vazio é inválido. A execução sai com `4`, imprime `invalid language: "" (use en or pt-BR)` no stderr e não grava nada. Uma chave `language` vazia no `bob.yaml` continua contando como ausente.
 
-Um valor de `language` inválido, um `language` numérico, um `bob.yaml` que não é um mapeamento, um YAML com erro de sintaxe, ou uma chave com o tipo errado, sai com `4`. A mensagem vai para o stderr em inglês, mesmo quando `--lang` ou `language` é `pt-BR`. A execução não grava relatório nem `waivers.yaml`. `check`, `doctor`, `waive` e os outros comandos fazem isso do mesmo jeito. Um `duplication` inválido, uma chave desconhecida, um `crap.scope` que não é `changed` nem `all`, um item de `languages` que não é `python` nem `typescript`, um `crap.max_per_function` que não é um número finito maior que 0 (um inteiro grande demais para virar float também não é finito), um `duplication.min_tokens` negativo, um `duplication.new_clones` que não é `warn` nem `fail`, um `duplication.max_new_clones` ou `duplication.min_lines` negativo, um `duplication.min_similarity` que não é um número finito de 0 a 100, um `waivers` igual a `0`, `false` ou `""`, e um `reason` vazio também saem com `4` em `check`, `doctor` e `waive`. O stderr em inglês cita o caminho e o campo, e a execução não grava nada.
+Um `--lang` ou `BOB_LANG` inválido, um `bob.yaml` que não é um mapeamento, um YAML com erro de sintaxe, ou uma chave com o tipo errado, sai com `4`. A mensagem vai para o stderr em inglês, mesmo quando `--lang` ou `language` é `pt-BR`. A execução não grava relatório nem `waivers.yaml`. `check`, `doctor`, `waive` e os outros comandos fazem isso do mesmo jeito. Um `duplication` inválido, uma chave desconhecida, um `language` numérico, um `language` que não é `en` nem `pt-BR`, um `crap.scope` que não é `changed` nem `all`, um item de `languages` que não é `python` nem `typescript`, um `crap.max_per_function` que não é um número finito maior que 0 (um inteiro grande demais para virar float também não é finito), uma lista `languages` vazia, um item de `languages` repetido, um `duplication.min_tokens` igual a 0 ou negativo, um `duplication.new_clones` que não é `warn` nem `fail`, um `duplication.max_new_clones` ou `duplication.min_lines` negativo, um `duplication.min_similarity` que não é um número finito de 0 a 100, um `waivers` igual a `0`, `false` ou `""`, e um `reason` vazio também saem com `4` em `check`, `doctor` e `waive`. O stderr em inglês cita o caminho e o campo, e a execução não grava nada.
 
 O `.bob/report.json` tem os mesmos bytes nos dois idiomas. Todo `reason` de gate, o nome da regra de ciclo e o `reproduce` ficam em inglês, então uma ferramenta pode casar esse texto sem saber o idioma da saída. O `reproduce` do JSON não leva `--lang`. Em inglês a regra de ciclo se chama `Forbidden dependency cycle`. Em `pt-BR` ela se chama `Proibido ciclo de dependência` no `report.md` e no comentário do pull request. Uma regra do dependency-cruiser sem nome é `dependency` no JSON e `dependência` no Markdown. A linha de reprodução do `report.md` inclui o `--lang` que produziu o relatório.
 
@@ -237,7 +236,7 @@ Os waivers ficam em `.bob/waivers.yaml`, versionado junto com o código. `bob wa
 - `author`, de `git config user.name`, ou `$USER`.
 - `date`, a data em UTC.
 
-Um waiver sem motivo de uma linha é rejeitado com exit `4`. Um waiver novo com o mesmo `id` substitui o antigo. Um waiver casa com um mutante pelo id do mutante, pelo nome da função, por `file:function` ou por `file::function`. Um `waivers.yaml` que é YAML válido com formato errado sai com `4`. A mensagem fica em inglês no stderr e cita `.bob/waivers.yaml` e o campo, como em `.bob/waivers.yaml: waivers[0].reason must be a string`. Uma lista no topo, um `waivers` que não é lista, um item que não é mapeamento e um campo ausente fazem isso. A execução não grava `report.md` nem `report.json`, e o arquivo permanece como está. `check`, `doctor` e `waive` fazem isso do mesmo jeito, mesmo quando `--lang` é `pt-BR`. Um erro de sintaxe YAML também sai com `4`. Essa mensagem cita `.bob/waivers.yaml` e o erro do parser. O agente grava o waiver, e o humano o aprova no review do pull request. Todo waiver aparece no topo do relatório.
+Um waiver sem motivo de uma linha é rejeitado com exit `4`. `bob waive` de um id que já aparece uma vez substitui essa linha e sai com 0. Um arquivo que já contém duas linhas com o mesmo id sai com 4 e os bytes permanecem. Um waiver casa com um mutante pelo id do mutante, pelo nome da função, por `file:function` ou por `file::function`. Um `waivers.yaml` que é YAML válido com formato errado sai com `4`. A mensagem fica em inglês no stderr e cita `.bob/waivers.yaml` e o campo, como em `.bob/waivers.yaml: waivers[0].reason must be a string`. Uma lista no topo, um `waivers` que não é lista, um item que não é mapeamento e um campo ausente fazem isso. A execução não grava `report.md` nem `report.json`, e o arquivo permanece como está. `check`, `doctor` e `waive` fazem isso do mesmo jeito, mesmo quando `--lang` é `pt-BR`. Um erro de sintaxe YAML também sai com `4`. Essa mensagem cita `.bob/waivers.yaml` e o erro do parser. O agente grava o waiver, e o humano o aprova no review do pull request. Todo waiver aparece no topo do relatório.
 
 ### O relatório
 
@@ -296,9 +295,9 @@ A cobertura mostra que uma linha rodou. Ela não mostra que um teste confere o r
 
 Por exemplo, um mutante troca `if total > limit:` por `if total >= limit:`. Se nenhum teste usa `total == limit`, o mutante sobrevive. Escreva esse teste, ou rode `bob waive` com um motivo.
 
-O bob muta Python com o mutmut. Ele roda os testes da baseline primeiro e sai com `2` se eles falham. Ele muta as funções alteradas, mais as funções que ainda têm sobreviventes sem waiver. O cache `.bob/mutation-cache.json` guarda um hash do texto de cada função. O reuso também exige que a versão do mutmut e a impressão da suíte batam. Uma diferença ainda remuta um sobrevivente sem waiver fora do diff. A GitHub Action restaura e publica o cache como o artefato `bob-mutation-cache`.
+O bob muta Python com o mutmut e TypeScript com o Stryker. Ele roda os testes da baseline primeiro e sai com `2` se eles falham. Ele muta as funções alteradas, mais as funções que ainda têm sobreviventes sem waiver. O cache `.bob/mutation-cache.json` guarda um hash do texto de cada função. O reuso também exige que a versão do mutmut e a impressão da suíte batam. Uma diferença ainda remuta um sobrevivente sem waiver fora do diff. A GitHub Action restaura e publica o cache como o artefato `bob-mutation-cache`. O TypeScript guarda o arquivo incremental do Stryker em `.bob/stryker-incremental.json`. Esse arquivo é local. A Action não o restaura.
 
-O limite é zero sobreviventes sem waiver. Qualquer sobrevivente assim reprova o gate com exit `3`. O relatório lista só os sobreviventes. Mutantes `killed`, `timeout` e `no_coverage` não bloqueiam. Um aviso para mutantes `no_coverage` está planejado ([#31](https://github.com/fazedordecodigo/bob/issues/31)), assim como a mutação em TypeScript ([#8](https://github.com/fazedordecodigo/bob/issues/8)).
+O limite é zero sobreviventes sem waiver. Qualquer sobrevivente assim reprova o gate com exit `3`. O relatório lista só os sobreviventes. Mutantes `killed`, `timeout` e `no_coverage` não bloqueiam. Um aviso para mutantes `no_coverage` está planejado ([#31](https://github.com/fazedordecodigo/bob/issues/31)).
 
 ### Dependências
 
@@ -329,7 +328,7 @@ O CI (`.github/workflows/ci.yml`) roda essa suíte em Python 3.10 e 3.12 com Nod
 
 ## GitHub Action
 
-A action composta em `.github/actions/bob` instala o `bob` e roda `bob check` com `crap,dry,deps,mutate`. Ela restaura e publica o artefato `bob-mutation-cache` (`.bob/mutation-cache.json`) e cria ou atualiza um único comentário no pull request com `.bob/report.md`. O exit code do job é o do `bob`, incluindo `4` para um uso inválido da linha de comando.
+A action composta em `.github/actions/bob` instala o `bob` e roda `bob check` com `crap,dry,deps,mutate`. Ela instala o Node 22.14.0 e o jscpd 5.4.1 antes, para o gate dry rodar quando quem chama a action não instalou os dois. Ela restaura e publica o artefato `bob-mutation-cache` (`.bob/mutation-cache.json`, guardado por 7 dias) e cria ou atualiza um único comentário no pull request com `.bob/report.md`. O exit code do job é o do `bob`, incluindo `4` para um uso inválido da linha de comando.
 
 A action aceita os inputs `base`, `gates`, `pip-spec` e `token`. Este repositório a usa em `.github/workflows/bob.yml`. O `bob-quality` ainda não está no PyPI, então no checkout deste repositório a action roda `pip install -e ".[dev]"`, e em outro repositório instala o código-fonte git da action. Publicação no GitHub Marketplace não faz parte desta fatia.
 
@@ -345,7 +344,7 @@ A action aceita os inputs `base`, `gates`, `pip-spec` e `token`. Este repositór
 
 Os gates seguem o fluxo do Uncle Bob. Os READMEs e as saídas das ferramentas dele [crapper](https://github.com/unclebob/crapper) e [mutator](https://github.com/unclebob/mutator) (0BSD) são a referência de comportamento, e o bob não reusa código delas. Os exit codes se inspiram no mutator. O gate de duplicação usa o jscpd. Um dryer estrutural próprio do bob, na linha do [dryer](https://github.com/unclebob/dryer) (0BSD) dele, fica fora do escopo do MVP. Os limites vêm dos posts recentes dele, CRAP < 10 para agentes ([post no X](https://x.com/unclebobmartin/status/2108946115169030596)) e matar mutantes dentro do razoável ([podcast da Aviator](https://www.aviator.co/podcast/uncle-bob-martin-ai-clean-code)).
 
-As ferramentas de mercado (lizard, coverage.py, c8, vitest, mutmut, jscpd, import-linter, dependency-cruiser) são dependências pinadas, e o bob não copia código delas.
+As ferramentas de mercado (lizard, coverage.py, c8, vitest, mutmut, jscpd, import-linter, grimp, dependency-cruiser) são dependências pinadas, e o bob não copia código delas. grimp não tem adaptador.
 
 ## Licença
 

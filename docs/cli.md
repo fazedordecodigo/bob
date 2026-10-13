@@ -16,7 +16,7 @@ bob doctor
 
 Todo comando aceita `--lang en|pt-BR` antes ou depois do nome. Ver [Idioma](#idioma---lang).
 
-Um uso inválido da linha de comando sai com `4`. O stderr é o texto de uso do argparse, não menciona baseline, e nada é gravado em `.bob/`. A ajuda (`-h`, `--help`) sai com `0`. Isso não é o exit `2` da suíte.
+Um uso inválido da linha de comando sai com `4`. O stderr é o texto de uso do argparse, não menciona baseline, e nada é gravado em `.bob/`. A ajuda (`-h`, `--help`) sai com `0`. Isso não é o exit `2` da suíte. Um valor fora da regra de `--threshold` ou de `--max-workers` também é uso inválido. A última linha do stderr fica em inglês, mesmo com `--lang pt-BR`, como `bob crap: error: argument --threshold: invalid value: 'nan' (use a finite number greater than 0)`.
 
 ## bob check
 
@@ -47,16 +47,18 @@ Quando mais de um gate devolve código, fica o maior (`_worse` em `check.py`).
 
 | Comando | Flags a mais |
 |---|---|
-| `bob crap` | `--threshold` substitui `crap.max_per_function` nesta execução. `--coverage-file` aponta um arquivo de cobertura já gerado |
+| `bob crap` | `--threshold` substitui `crap.max_per_function` nesta execução e segue a mesma regra, um número finito maior que `0`. `--coverage-file` aponta um arquivo de cobertura já gerado |
 | `bob dry` | `--dry-fail` e `--max-new-clones`, as mesmas de `bob check` |
 | `bob deps` | nenhuma além das compartilhadas |
 | `bob mutate` | `--max-workers` vira `--max-children` do mutmut (`src/bob_quality/mutmut_tool.py`). `--since-last-run` não muda a medição: a ajuda diz que reusar o cache já é o padrão. A flag só entra na linha `reproduce` do relatório quando foi passada |
+
+`--max-workers` aceita um inteiro de 1 a 64. O teto é `_WORKER_CEILING` em `src/bob_quality/cli.py`. O mutmut abre um pool com esse número de processos antes do primeiro mutante. Cada processo segura dois descritores de arquivo. Com 256 arquivos abertos, o limite padrão do macOS, 128 processos já falham. 64 é a maior potência de 2 que ainda abre ali.
 
 ## bob doctor
 
 Lista cada pino de `src/bob_quality/doctor.py` com a versão esperada e a encontrada. Sai com `0` quando todas coincidem e com `4` quando alguma falta ou diverge, e imprime o comando de instalação. Não grava `.bob/report.md`.
 
-Pinos, na ordem do código: lizard 1.24.1, coverage.py 7.16.2, node 22.14.0, c8 12.0.0, vitest 5.0.3, jscpd 5.4.1, mutmut 3.8.0, import-linter 2.15, dependency-cruiser 18.5.0.
+Pinos, na ordem do código: lizard 1.24.1, coverage.py 7.16.2, node 22.14.0, c8 12.0.0, vitest 5.0.3, jscpd 5.4.1, mutmut 3.8.0, import-linter 2.15, grimp 3.17, dependency-cruiser 18.5.0. A versão esperada de uma ferramenta Python vem do Requires-Dist instalado do `bob-quality`.
 
 `bob doctor --install` roda `npm ci` no pacote instalado e depois imprime o mesmo relatório. Ver [Instalação](instalacao.md#pacote-pip-bob-quality).
 
@@ -85,7 +87,7 @@ Vale a primeira fonte definida (`resolve_language` em `src/bob_quality/config.py
 
 A caixa importa. `pt-br` é inválido. Os valores aceitos são os de `LANGUAGES` em `messages.py`: `en` e `pt-BR`.
 
-Um `--lang` ou `BOB_LANG` vazio é inválido. A CLI sai com `4`, imprime `invalid language: "" (use en or pt-BR)` no stderr e não grava relatório. Uma chave `language` vazia no YAML conta como ausente (`_language` devolve `None`).
+Um `--lang` ou `BOB_LANG` vazio é inválido. A CLI sai com `4`, imprime `invalid language: "" (use en or pt-BR)` no stderr e não grava relatório. Uma chave `language` vazia no YAML continua ausente.
 
 Idioma inválido, `language` que não é string, YAML que não é mapeamento, erro de sintaxe no `bob.yaml` e chave com tipo errado também saem com `4` em inglês no stderr, mesmo que se pretendesse `pt-BR`, e não gravam relatório. O mesmo vale para `paths`, `languages`, `base`, `dependencies` e as listas `include` e `exclude`, em `check`, `doctor`, `waive` e nos outros comandos.
 

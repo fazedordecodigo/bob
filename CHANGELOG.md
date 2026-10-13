@@ -6,9 +6,17 @@ The DRY gate can fail. `duplication.new_clones` is `warn`, the default, or `fail
 
 O gate DRY pode falhar. `duplication.new_clones` é `warn`, o padrão, ou `fail`. Sem as chaves novas, um clone novo continua em aviso e o exit continua `0`. No modo fail, o gate falha com exit `1` quando os clones novos que passam em `duplication.min_similarity` e `duplication.min_lines` passam de `duplication.max_new_clones` (padrão `0`). O motivo cita a chave e o teto, como em `1 new clone exceeds duplication.max_new_clones 0`. Os dois filtros valem também no modo warn, e um clone que eles descartam fica fora do relatório. `bob dry` e `bob check` aceitam `--dry-fail` e `--max-new-clones N`, que vencem o arquivo nessa execução. Um `--max-new-clones` negativo, ou um valor inválido nas chaves novas, sai com `4` e não grava relatório. O hook pre-push não muda.
 
+`grimp==3.17` is a direct pin in `pyproject.toml`, and `bob doctor` lists it. `bob doctor` no longer treats a PATH binary as a pip tool. The version it expects is the one `bob-quality` declares.
+
+`grimp==3.17` é um pin direto no `pyproject.toml`, e o `bob doctor` lista essa versão. O `bob doctor` não trata mais um binário do PATH como ferramenta pip. A versão que ele espera é a que o `bob-quality` declara.
+
 Invalid command-line usage exits `4`, writes no report, and the stderr does not mention baseline. Help (`-h`, `--help`) stays `0`.
 
 Um uso inválido da linha de comando sai com `4`, não grava relatório, e o stderr não menciona baseline. A ajuda (`-h`, `--help`) continua saindo com `0`.
+
+`bob crap --threshold` accepts a finite number greater than 0, the same rule as `crap.max_per_function`. `bob mutate --max-workers` accepts an integer from 1 to 64. Any other value, including `nan`, `inf`, `-inf`, `1e309`, `0`, and a negative number, is a usage error. It exits `4`, prints the argparse usage and an English message on stderr, as in `bob crap: error: argument --threshold: invalid value: 'nan' (use a finite number greater than 0)`, and writes no report.
+
+`bob crap --threshold` aceita um número finito maior que 0, a mesma regra de `crap.max_per_function`. `bob mutate --max-workers` aceita um inteiro de 1 a 64. Qualquer outro valor, inclusive `nan`, `inf`, `-inf`, `1e309`, `0` e um número negativo, é uso inválido. Sai com `4`, imprime o uso do argparse e uma mensagem em inglês no stderr, como em `bob crap: error: argument --threshold: invalid value: 'nan' (use a finite number greater than 0)`, e não grava relatório.
 
 An invalid semantic value in `bob.yaml` or `.bob/waivers.yaml` exits `4`. The English stderr names the path and the field, as in `bob.yaml: crap.scope must be changed or all` or `.bob/waivers.yaml: waivers[0].reason must be one non-empty line`, and the run writes no report. `check`, `doctor`, and `waive` do this the same way. That covers an unknown key, a bad `crap.scope`, a bad `languages` member, a non-positive or non-finite `crap.max_per_function` (an integer too large to convert to float counts as not finite), a negative `duplication.min_tokens`, an invalid `duplication`, `waivers` set to `0`, `false`, or `""`, and an empty `reason`.
 

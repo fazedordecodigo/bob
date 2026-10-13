@@ -33,7 +33,7 @@ Mutação não entra num `bob check` sem flags. `DEFAULT_GATES` é `crap`, `dry`
 
 **CRAP.** Uma linha editada cobra a função inteira. A fórmula é `CC² × (1 − cov)³ + CC`. `cov` é a fração de statements no intervalo da função. O limite padrão é 10, e o bloqueio é maior ou igual. O campo `delta` existe e sai vazio. No Markdown a célula fica em branco.
 
-**DRY.** jscpd na árvore de include, com `min_tokens` padrão 50. Clone que cruza o diff vira aviso. Exit do gate continua 0.
+**DRY.** jscpd na árvore de include, com `min_tokens` padrão 50. Clone que cruza o diff vira aviso. No modo fail o exit do gate é 1.
 
 **Dependências.** Bloqueia aresta ligada a um arquivo alterado, ou a outro módulo do mesmo componente fortemente conexo em Python. A regra de ciclo entra sempre. `dependencies.violation` não é lido.
 
@@ -62,7 +62,7 @@ flowchart TD
  write --> worse["o maior entre 0, 1, 2, 3 e 4"]
 ```
 
-`bob.yaml` é lido até três vezes no `check`. Idioma, preflight, `load_config`. Sem arquivo, vale o padrão. Base `origin/main`, linguagens `["python"]`, include `src`, CRAP 10, escopo `changed`, `min_tokens` 50. Não há autodetecção. `languages` omitido ou lista vazia vira `["python"]`.
+`bob.yaml` é lido até três vezes no `check`. Idioma, preflight, `load_config`. Sem arquivo, vale o padrão. Base `origin/main`, linguagens `["python"]`, include `src`, CRAP 10, escopo `changed`, `min_tokens` 50. Não há autodetecção. Um `languages` omitido vira `["python"]`. Uma lista vazia sai com 4.
 
 `crap.scope` só filtra o veredito. A string exata `changed` olha funções tocadas. Qualquer outra string não vazia conta toda função medida.
 
@@ -94,7 +94,7 @@ A ordem do Markdown é waivers, cabeçalho, veredito, foco, top 5, dívida antig
 | Manifesto fonte | `.claude-plugin/plugin.json` |
 | Skills | `skills/bob-check`, `skills/harden`, `skills/review-report` |
 
-Pins pip em `pyproject.toml`: lizard 1.24.1, coverage.py 7.16.2, import-linter 2.15, mutmut 3.8.0. Pins npm, iguais na raiz e em `src/bob_quality/package.json`: c8 12.0.0, dependency-cruiser 18.5.0, jscpd 5.4.1, vitest 5.0.3. O `doctor` exige Node 22.14.0 exato. A issue #42 pede uma faixa.
+Pins pip em `pyproject.toml`: lizard 1.24.1, coverage.py 7.16.2, import-linter 2.15, grimp 3.17, mutmut 3.8.0. Pins npm, iguais na raiz e em `src/bob_quality/package.json`: c8 12.0.0, dependency-cruiser 18.5.0, jscpd 5.4.1, vitest 5.0.3. O `doctor` exige Node 22.14.0 exato. A issue #42 pede uma faixa.
 
 ## Armadilhas
 
@@ -241,7 +241,7 @@ Justificativa. O restante das ferramentas de mercado tem versão fixada porque o
 
 ### P2. Tirar do exemplo as chaves que o loader ignora
 
-`Config` não tem campo para `mutation.require_zero_unwaived_survivors`, `mutation.scope`, `mutation.differential`, `duplication.tool`, `duplication.new_clones` nem `dependencies.violation`. O loader recusa essas chaves com exit `4`. O exemplo de `bob.yaml` na spec e nos READMEs não as inclui. `languages` omitido fica `["python"]`.
+`Config` não tem campo para `mutation.require_zero_unwaived_survivors`, `mutation.scope`, `mutation.differential`, `duplication.tool` nem `dependencies.violation`. O loader recusa essas chaves com exit `4`. `duplication.new_clones`, `max_new_clones`, `min_similarity` e `min_lines` estão no schema. O exemplo de `bob.yaml` na spec e nos READMEs não inclui as chaves recusadas. `languages` omitido fica `["python"]`.
 
 Alvo. Tirar essas chaves de qualquer exemplo de `bob.yaml`. Não implementar os interruptores. O comportamento já está fixo no código.
 

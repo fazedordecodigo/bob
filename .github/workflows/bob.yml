@@ -24,9 +24,53 @@ jobs:
         env:
           BASE_REF: ${{ github.base_ref }}
         run: git fetch --no-tags origin "$BASE_REF"
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+      - name: DRY sem jscpd fica not run
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          python -m pip install --disable-pip-version-check -e '.[dev]'
+          bob check --base "origin/$BASE_REF" --gates dry --format json --out "$RUNNER_TEMP/dry-before"
+          python -c 'import json, os; report = json.load(open(os.environ["RUNNER_TEMP"] + "/dry-before/report.json")); dry = next(gate for gate in report["gates"] if gate["name"] == "dry"); print("dry-before", dry["status"], dry.get("reason")); raise SystemExit(0 if dry["status"] == "not_run" else 1)'
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: "22.14.0"
       - name: Ferramentas npm
         run: npm ci
       - uses: ./.github/actions/bob
+      - name: DRY rodou
+        if: always()
+        run: |
+          python -c 'import json; report = json.load(open(".bob/report.json")); dry = next(gate for gate in report["gates"] if gate["name"] == "dry"); print("dry-after", dry["status"], dry.get("reason"), report["tool_versions"].get("jscpd")); raise SystemExit(0 if dry["status"] in ("passed", "warn") and report["tool_versions"].get("jscpd") == "5.4.1" else 1)'
+
+  cold:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha }}
+      - name: Buscar a base do PR
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: git fetch --no-tags origin "$BASE_REF"
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "22.14.0"
+      - name: jscpd a frio
+        env:
+          BASE_REF: ${{ github.base_ref }}
+          JSCPD_VERSION: "5.4.1"
+        run: |
+          python -m pip install --disable-pip-version-check -e '.[dev]'
+          export COLD_START=$(date +%s.%N)
+          bash .github/actions/bob/install_jscpd.sh
+          export COLD_END=$(date +%s.%N)
+          python -c 'import os; print("cold-jscpd", round(float(os.environ["COLD_END"]) - float(os.environ["COLD_START"]), 2))'
+          bob check --base "origin/$BASE_REF" --gates dry --format json --out "$RUNNER_TEMP/dry-cold"
+          python -c 'import json, os; report = json.load(open(os.environ["RUNNER_TEMP"] + "/dry-cold/report.json")); dry = next(gate for gate in report["gates"] if gate["name"] == "dry"); print("cold-dry", dry["status"], report["tool_versions"].get("jscpd")); raise SystemExit(0 if dry["status"] in ("passed", "warn") and report["tool_versions"].get("jscpd") == "5.4.1" else 1)'

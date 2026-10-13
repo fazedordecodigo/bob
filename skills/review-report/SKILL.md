@@ -19,9 +19,9 @@ Fonte do formato: `docs/SPEC.md`. Rode `bob check` (skill `bob-check`) antes, pa
 Os comandos abaixo são os que a CLI registra.
 
 ```
-bob check   [--base REF] [--gates crap,dry,deps,mutate] [--config bob.yaml] [--format md|json|both] [--out .bob/]
+bob check   [--base REF] [--gates crap,dry,deps,mutate] [--config bob.yaml] [--format md|json|both] [--out .bob/] [--dry-fail] [--max-new-clones N]
 bob crap    [--base REF] [--threshold N] [--coverage-file PATH]
-bob dry     [--base REF]
+bob dry     [--base REF] [--dry-fail] [--max-new-clones N]
 bob deps
 bob mutate  [--base REF] [--since-last-run] [--max-workers N]
 bob waive   <mutant-id|function> --reason "texto de uma linha"

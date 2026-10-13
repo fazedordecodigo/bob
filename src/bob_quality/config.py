@@ -39,7 +39,7 @@ class _Check:
     choices: tuple[str, ...] = ()
 
     def __post_init__(self) -> None:
-        if self.kind in {"one_of", "members"} and len(self.choices) != 2:
+        if self.kind in {"one_of", "members", "language"} and len(self.choices) != 2:
             raise ValueError(self.kind)
 
 
@@ -72,12 +72,16 @@ _SCHEMA = _Node(
     checks=(),
     children=(
         _Node("base", "base", (_Check("string"),), empty_is_default=True),
-        _Node("language", "language", (_Check("language"),), empty_is_default=True),
+        _Node(
+            "language",
+            "language",
+            (_Check("language", choices=LANGUAGES),),
+            empty_is_default=True,
+        ),
         _Node(
             "languages",
             "languages",
             (_Check("members", choices=SOURCE_LANGUAGES),),
-            empty_is_default=True,
         ),
         _Node(
             "paths",
@@ -114,7 +118,7 @@ _SCHEMA = _Node(
                 _Node(
                     "min_tokens",
                     "min_tokens",
-                    (_Check("integer"), _Bound("at_least", 0)),
+                    (_Check("integer"), _Bound("gt", 0)),
                     null_is_default=False,
                 ),
                 _Node(
@@ -209,9 +213,12 @@ def configured_language(path: Path | None, cwd: Path) -> Language | None:
     if not config_path.is_file():
         return None
     raw = _read_mapping(config_path, cwd)
-    if "language" not in raw:
+    child = next(item for item in _SCHEMA.children if item.key == "language")
+    values = _read_child(child, raw, _config_label(config_path, cwd), "")
+    found = values.get("language")
+    if not isinstance(found, str):
         return None
-    return _optional_language(raw["language"])
+    return parse_language(found)
 
 
 def resolve_language(
@@ -259,14 +266,6 @@ def _config_label(config_path: Path, cwd: Path) -> str:
     if config_path == cwd / "bob.yaml":
         return "bob.yaml"
     return config_path.as_posix()
-
-
-def _optional_language(value: object) -> Language | None:
-    if value is None or value == "":
-        return None
-    if isinstance(value, str):
-        return parse_language(value)
-    raise ConfigError(msg("config.invalid_language", value=value))
 
 
 def _read_node(node: _Node, raw: dict[str, Any], label: str, prefix: str) -> dict[str, object]:
@@ -417,6 +416,9 @@ def _members(check: _Check, value: object) -> _Failure | None:
 
 
 def _member_at(check: _Check, value: list[str] | tuple[str, ...]) -> _Failure | None:
+    if len(value) == 0:
+        return ("config.key_non_empty", "", {})
+    seen: set[str] = set()
     for index, item in enumerate(value):
         if item not in check.choices:
             return (
@@ -424,13 +426,24 @@ def _member_at(check: _Check, value: list[str] | tuple[str, ...]) -> _Failure | 
                 f"[{index}]",
                 {"left": check.choices[0], "right": check.choices[1]},
             )
+        if item in seen:
+            return ("config.repeated_member", f"[{index}]", {"value": item})
+        seen.add(item)
     return None
 
 
 def _language(check: _Check, value: object) -> _Failure | None:
-    if value is None or value == "" or value in LANGUAGES:
+    if value is None:
         return None
-    raise ConfigError(msg("config.invalid_language", value=value))
+    if not isinstance(value, str):
+        return ("config.key_string", "", {})
+    if value in check.choices:
+        return None
+    return (
+        "config.key_one_of",
+        "",
+        {"left": check.choices[0], "right": check.choices[1]},
+    )
 
 
 _FailFn = Callable[[_Check, object], _Failure | None]

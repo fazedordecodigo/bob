@@ -1,5 +1,3 @@
-"""Adaptador do import-linter: texto da CLI → `DepViolation`."""
-
 from __future__ import annotations
 
 import re
@@ -9,10 +7,11 @@ from bob_quality.core import unique_violations
 from bob_quality.models import DepViolation
 
 _ANSI = re.compile(r"\x1b\[[0-9;]*m")
-_EMPTY_REPORT = re.compile(r"^Contracts: \d+ kept, 0 broken\.$")
+_SUMMARY_LINE = re.compile(r"^Contracts: \d+ kept, (\d+) broken\.$")
 _RELATIVE = re.compile(r"^\s*-\s+(\.\w+(?:\.\w+)*)\s+->\s+(\.\w+(?:\.\w+)*)")
 _ABSOLUTE = re.compile(r"^\s*-\s+(\w+(?:\.\w+)*)\s+->\s+(\w+(?:\.\w+)*)")
 _CYCLE_PACKAGE = "No cycles are allowed in "
+_BROKEN_SUFFIX = " BROKEN"
 _SKIP_HEADINGS = {"Contracts", "Broken contracts"}
 
 
@@ -25,20 +24,19 @@ class _ParseState:
 
 
 def is_empty_report(raw: str) -> bool:
-    """Verdadeiro quando o texto traz a linha `N kept, 0 broken`."""
-    for line in _ANSI.sub("", raw).splitlines():
-        if _EMPTY_REPORT.match(line.strip()):
-            return True
-    return False
+    broken = [
+        match.group(1)
+        for line in _ANSI.sub("", raw).splitlines()
+        if (match := _SUMMARY_LINE.match(line.strip()))
+    ]
+    return bool(broken) and broken[-1] == "0"
 
 
 def broken_contract_name(raw: str) -> str | None:
-    """Nome do contrato quando o relatório diz BROKEN e não há aresta `->`."""
     for line in _ANSI.sub("", raw).splitlines():
         stripped = line.strip()
-        if stripped.endswith(" BROKEN"):
-            name = stripped[: -len(" BROKEN")].strip()
-            return name
+        if stripped.endswith(_BROKEN_SUFFIX):
+            return stripped.removesuffix(_BROKEN_SUFFIX).strip()
     return None
 
 

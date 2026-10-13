@@ -235,6 +235,9 @@ _SEMANTIC_YAML = (
         "bob.yaml: languages[1] must be python or typescript\n",
     ),
     ("languages: ['']\n", "bob.yaml: languages[0] must be python or typescript\n"),
+    ("languages: []\n", "bob.yaml: languages must not be empty\n"),
+    ("languages: [python, python]\n", "bob.yaml: languages[1] repeats python\n"),
+    ("languages: [ruby, ruby]\n", "bob.yaml: languages[0] must be python or typescript\n"),
     ("crap:\n  max_per_function: true\n", "bob.yaml: crap.max_per_function must be a number\n"),
     (
         f"crap:\n  max_per_function: {_HUGE_THRESHOLD}\n",
@@ -271,7 +274,11 @@ _SEMANTIC_YAML = (
     ),
     (
         "duplication:\n  min_tokens: -1\n",
-        "bob.yaml: duplication.min_tokens must be at least 0\n",
+        "bob.yaml: duplication.min_tokens must be greater than 0\n",
+    ),
+    (
+        "duplication:\n  min_tokens: 0\n",
+        "bob.yaml: duplication.min_tokens must be greater than 0\n",
     ),
     (
         "duplication:\n  new_clones: block\n",
@@ -356,6 +363,43 @@ _BAD_WAIVER_VALUES = (
         "    author: ada\n"
         "    date: '2026-10-11'\n",
         ".bob/waivers.yaml: waivers[1].reason must be one non-empty line\n",
+    ),
+    (
+        "waivers:\n"
+        "  - id: fn\n"
+        "    reason: because\n"
+        "    author: ada\n"
+        "    date: '2026-10-11'\n"
+        "    note: ignored\n",
+        ".bob/waivers.yaml: unknown key waivers[0].note\n",
+    ),
+    (
+        "waivers:\n  - note: ignored\n",
+        ".bob/waivers.yaml: unknown key waivers[0].note\n",
+    ),
+    (
+        "waivers:\n"
+        "  - id: fn\n"
+        "    reason: one\n"
+        "    author: ada\n"
+        "    date: '2026-10-11'\n"
+        "  - id: fn\n"
+        "    reason: two\n"
+        "    author: ada\n"
+        "    date: '2026-10-11'\n",
+        ".bob/waivers.yaml: waivers[1].id repeats waivers[0].id\n",
+    ),
+    (
+        "waivers:\n"
+        '  - id: " fn "\n'
+        "    reason: one\n"
+        "    author: ada\n"
+        "    date: '2026-10-11'\n"
+        "  - id: fn\n"
+        "    reason: two\n"
+        "    author: ada\n"
+        "    date: '2026-10-11'\n",
+        ".bob/waivers.yaml: waivers[1].id repeats waivers[0].id\n",
     ),
 )
 
@@ -514,6 +558,34 @@ def test_waive_rejects_a_reason_that_is_not_one_line(tmp_path: Path, reason: str
             ".bob/waivers.yaml: waivers[0].reason must be one non-empty line",
             ".bob/waivers.yaml: waivers[0].reason deve ser uma linha não vazia",
         ),
+        (
+            "waivers:\n"
+            "  - id: fn\n"
+            "    reason: because\n"
+            "    author: ada\n"
+            "    date: '2026-10-11'\n"
+            "    note: ignored\n",
+            ".bob/waivers.yaml: unknown key waivers[0].note",
+            ".bob/waivers.yaml: chave desconhecida waivers[0].note",
+        ),
+        (
+            "waivers:\n  - note: ignored\n",
+            ".bob/waivers.yaml: unknown key waivers[0].note",
+            ".bob/waivers.yaml: chave desconhecida waivers[0].note",
+        ),
+        (
+            "waivers:\n"
+            "  - id: fn\n"
+            "    reason: one\n"
+            "    author: ada\n"
+            "    date: '2026-10-11'\n"
+            "  - id: fn\n"
+            "    reason: two\n"
+            "    author: ada\n"
+            "    date: '2026-10-11'\n",
+            ".bob/waivers.yaml: waivers[1].id repeats waivers[0].id",
+            ".bob/waivers.yaml: waivers[1].id repete waivers[0].id",
+        ),
     ],
 )
 def test_load_waivers_rejects_closed_values(
@@ -527,7 +599,7 @@ def test_load_waivers_rejects_closed_values(
     assert in_both(caught.value) == (english, portuguese)
 
 
-def test_load_waivers_keeps_an_entry_with_an_extra_key(tmp_path: Path) -> None:
+def test_load_waivers_rejects_an_entry_with_an_extra_key(tmp_path: Path) -> None:
     _write_waivers(
         tmp_path,
         "waivers:\n"
@@ -538,11 +610,38 @@ def test_load_waivers_keeps_an_entry_with_an_extra_key(tmp_path: Path) -> None:
         "    note: ignored\n",
     )
 
-    loaded = load_waivers(tmp_path)
+    with pytest.raises(WaiverError) as caught:
+        load_waivers(tmp_path)
 
-    assert [(item.id, item.reason, item.author, item.date) for item in loaded] == [
-        ("fn", "because", "ada", "2026-10-11")
+    assert in_both(caught.value) == (
+        ".bob/waivers.yaml: unknown key waivers[0].note",
+        ".bob/waivers.yaml: chave desconhecida waivers[0].note",
+    )
+
+
+@pytest.mark.parametrize("lang", [None, "pt-BR"])
+def test_waive_replaces_one_existing_id(tmp_path: Path, lang: str | None) -> None:
+    _write_waivers(
+        tmp_path,
+        "waivers:\n"
+        "  - id: fn\n"
+        "    reason: old\n"
+        "    author: ada\n"
+        "    date: '2026-10-11'\n",
+    )
+    args = ("waive", "fn", "--reason", "replaced")
+    if lang is not None:
+        args = ("--lang", lang, *args)
+
+    result = run_bob(tmp_path, *args)
+
+    assert result.returncode == 0
+    assert result.stderr == ""
+    assert [(item.id, item.reason) for item in load_waivers(tmp_path)] == [
+        ("fn", "replaced"),
     ]
+    assert not (tmp_path / ".bob" / "report.md").exists()
+    assert not (tmp_path / ".bob" / "report.json").exists()
 
 
 @pytest.mark.parametrize("command", _COMMANDS)
