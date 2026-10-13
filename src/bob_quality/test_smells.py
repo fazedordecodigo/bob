@@ -325,7 +325,7 @@ def _measure_eslint(
     binary = cwd / "node_modules" / ".bin" / "eslint"
     version = _version_when_present(cwd, binary)
     if not binary.is_file():
-        return LanguageBroken("typescript", msg("test_smells.eslint_missing"), version)
+        return LanguageBroken("typescript", msg("test_smells.eslint_missing"))
     completed = _completed_eslint(cwd, binary, paths, version)
     if isinstance(completed, LanguageBroken):
         return completed
@@ -474,7 +474,7 @@ def _spawn_eslint(
 def _eslint_package_version(cwd: Path) -> str | None:
     path = cwd / "node_modules" / "eslint" / "package.json"
     try:
-        loaded = json.loads(path.read_text(encoding="utf-8"))
+        loaded = json.loads(path.read_bytes().decode())
     except (OSError, UnicodeError, json.JSONDecodeError):
         return None
     if not isinstance(loaded, dict):
@@ -518,10 +518,7 @@ def _repo_relative(cwd: Path, raw: str) -> str | None:
     if path.is_absolute():
         candidate = path
     else:
-        text = path.as_posix()
-        if text.startswith("./"):
-            text = text[2:]
-        candidate = root / text
+        candidate = root / path
     try:
         relative = candidate.resolve().relative_to(root)
     except ValueError:
