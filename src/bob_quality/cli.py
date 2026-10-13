@@ -214,16 +214,20 @@ class _EarlyFlags(argparse.ArgumentParser):
         raise self.Unreadable
 
 
-# Module level so mutmut cannot replace add_help=False with None. argparse treats None like False.
-_EARLY = _EarlyFlags(add_help=False)
+_EARLY = _EarlyFlags(prog="bob")
 _EARLY.add_argument("--lang")
 _EARLY.add_argument("--config")
+
+
+def _without_help(argv: list[str] | None) -> list[str]:
+    tokens = sys.argv[1:] if argv is None else argv
+    return [token for token in tokens if token != "-h" and token != "--help"]
 
 
 def _language(argv: list[str] | None) -> Language:
     """Lido antes do parser completo, para a ajuda já sair no idioma escolhido."""
     try:
-        known, _rest = _EARLY.parse_known_args(argv)
+        known, _rest = _EARLY.parse_known_args(_without_help(argv))
     except _EarlyFlags.Unreadable:
         return DEFAULT_LANGUAGE
     cwd = Path.cwd()
