@@ -530,6 +530,7 @@ def test_found_version_reads_the_cli_of_the_named_executable(
         ("20.19.0", False),
         ("22.13.1", False),
         ("22.14.0", True),
+        ("22.14.0-rc.1", False),
         ("22.22.2", True),
         ("23.0.0", False),
         ("24.0.0", False),
@@ -542,6 +543,26 @@ def test_node_admits_the_22_line_from_22_14_0(found: str | None, admitted: bool)
 
 def test_node_range_prints_the_floor_and_the_next_major() -> None:
     assert node_range(NODE) == ">=22.14.0 <23"
+
+
+def test_assess_node_rejects_an_rc_suffix(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    _stub(bin_dir, "node", "v22.14.0-rc.1")
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("PATH", str(bin_dir))
+    assert _assess_node(NODE) == _PinRow(
+        msg("doctor.version", name="node", expected=">=22.14.0 <23", found="22.14.0-rc.1"),
+        False,
+        msg(
+            "doctor.install_node",
+            version=">=22.14.0 <23",
+            url="https://nodejs.org/dist/v22.14.0/",
+        ),
+        False,
+    )
 
 
 def test_assess_node_admits_22_22_2(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -579,6 +600,7 @@ def test_assess_node_rejects_24_with_the_install_line(monkeypatch: pytest.Monkey
     [
         ("v20.19.0", "20.19.0", 4),
         ("v22.14.0", "22.14.0", 0),
+        ("v22.14.0-rc.1", "22.14.0-rc.1", 4),
         ("v22.22.2", "22.22.2", 0),
         ("v24.0.0", "24.0.0", 4),
     ],

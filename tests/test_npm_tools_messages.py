@@ -165,6 +165,19 @@ def test_npm_prefix_takes_the_cache_only_when_installed_versions_match(
     assert npm_prefix() == {"cache": cache, "package": package}[winner]
 
 
+def test_npm_prefix_reuses_the_cache_for_an_rc_spec_when_the_package_is_present(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _package, cache = _cache_pair(
+        tmp_path,
+        monkeypatch,
+        {"name": "bob-quality-tools", "dependencies": {"c8": "12.0.0-rc.1"}},
+        {"c8": '{"name": "c8", "version": "9.9.9"}'},
+    )
+    assert npm_prefix() == cache
+
+
 def test_npm_prefix_rejects_a_cache_whose_dependencies_are_not_an_object(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

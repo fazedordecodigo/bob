@@ -219,7 +219,7 @@ In CI, set `language: pt-BR` in `bob.yaml`, or `BOB_LANG: pt-BR` in the job `env
 
 ### `bob doctor` and `--install`
 
-`bob doctor` lists each tool with the pinned and the found version. It exits with `0` when all match, and with `4` when a tool is missing or differs, together with the install command. Python and npm tools must match exactly. Node must be `>=22.14.0 <23`, so Node 20 or Node 24 gives `4`. If the package directory is not writable, the message asks for `bob doctor --install`.
+`bob doctor` lists each tool with the pinned and the found version. It exits with `0` when all match, and with `4` when a tool is missing or differs, together with the install command. Python and npm tools must match exactly. Node must be `>=22.14.0 <23`, so Node 20, Node 24, or `22.14.0-rc.1` gives `4`. If the package directory is not writable, the message asks for `bob doctor --install`.
 
 `bob doctor --install` runs `npm ci` in the installed package. When npm fails there with `EACCES`, `EPERM` or `EROFS`, it installs into a user cache (`$XDG_CACHE_HOME/bob-quality`, or `~/.cache/bob-quality`). Other npm errors exit with `4` and the exact command. Then it prints the same report.
 

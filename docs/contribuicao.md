@@ -11,7 +11,7 @@ A spec diz que merge e publicação em marketplace dependem da aprovação do Em
 Os passos do [AGENTS.md](../AGENTS.md), alinhados a `.github/workflows/ci.yml` e `.github/workflows/bob.yml`:
 
 1. Python 3.10 ou superior. O CI roda 3.10 e 3.12. A imagem precisa de `python3-venv`.
-2. Node `>=22.14.0 <23`, a faixa que o `bob doctor` aceita. Node 20 e Node 24 saem com `4`.
+2. Node `>=22.14.0 <23`, a faixa que o `bob doctor` aceita. Node 20, Node 24 e um sufixo `-rc` saem com `4`.
 3. `python3 -m venv .venv && . .venv/bin/activate`.
 4. `python -m pip install -e '.[dev]'`.
 5. `npm ci` na raiz.

@@ -17,7 +17,7 @@ from bob_quality.messages import DEFAULT_LANGUAGE, Language, Text, msg, reason, 
 from bob_quality.npm_tools import install_npm_dependencies, npm_prefix, npm_setup_hint
 from bob_quality.tools import ToolError
 
-_VERSION = re.compile(r"\d+\.\d+(?:\.\d+)?")
+_VERSION = re.compile(r"\d+\.\d+(?:\.\d+)?(?:-rc(?:\.\d+)*)?")
 _NODE_RELEASE = re.compile(r"(\d+)\.(\d+)\.(\d+)")
 _SELF = "bob-quality"
 
