@@ -56,6 +56,8 @@ PINS = (
     ("import-linter", "2.15", "lint-imports", "2.15"),
     ("grimp", "3.17", None, None),
     ("dependency-cruiser", "18.5.0", "dependency-cruiser", "18.5.0"),
+    ("vulture", "2.16", "vulture", "vulture 2.16"),
+    ("knip", "6.41.0", "knip", "knip 6.41.0"),
     ("stryker", "10.0.0", "stryker", "10.0.0"),
     ("stryker-vitest-runner", "10.0.0", "stryker-vitest-runner", "10.0.0"),
 )
@@ -385,6 +387,8 @@ def test_doctor_expected_versions_match_pip_and_npm_pins(tmp_path: Path) -> None
     assert npm["dependency-cruiser"] == expected["dependency-cruiser"]
     assert npm["eslint"] == expected["eslint"]
     assert npm["eslint-plugin-sonarjs"] == expected["eslint-plugin-sonarjs"]
+    assert npm["knip"] == expected["knip"]
+    assert requirements["vulture"] == expected["vulture"]
     assert npm["@stryker-mutator/core"] == expected["stryker"]
     assert npm["@stryker-mutator/vitest-runner"] == expected["stryker-vitest-runner"]
     assert set(npm) == {
@@ -395,6 +399,7 @@ def test_doctor_expected_versions_match_pip_and_npm_pins(tmp_path: Path) -> None
         "eslint",
         "eslint-plugin-sonarjs",
         "jscpd",
+        "knip",
         "vitest",
     }
 

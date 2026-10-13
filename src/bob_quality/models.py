@@ -88,6 +88,62 @@ class DepViolation:
     in_diff: bool
 
 
+VultureKind = Literal[
+    "attribute",
+    "class",
+    "function",
+    "import",
+    "method",
+    "property",
+    "variable",
+    "unreachable_code",
+]
+
+KnipKind = Literal[
+    "export",
+    "type",
+    "enum_member",
+    "namespace_member",
+    "ns_export",
+    "ns_type",
+]
+
+
+@dataclass(frozen=True)
+class PythonDead:
+    file: str
+    line: int
+    name: str
+    kind: VultureKind
+    confidence: int
+
+
+@dataclass(frozen=True)
+class TypeScriptDead:
+    file: str
+    line: int
+    name: str
+    kind: KnipKind
+
+
+DeadSymbol = PythonDead | TypeScriptDead
+
+
+@dataclass(frozen=True)
+class LedgerRow:
+    """Definição no diff. `waiver` é o id `dead:` ou None quando a linha conta para o aviso."""
+
+    symbol: DeadSymbol
+    waiver: str | None
+
+
+@dataclass(frozen=True)
+class DeadSection:
+    """Presente no relatório quando o gate rodou. `rows` vazio continua verdadeiro."""
+
+    rows: tuple[LedgerRow, ...] = ()
+
+
 @dataclass(frozen=True)
 class CognitiveFunction:
     """Função medida.
@@ -166,3 +222,4 @@ class Report:
     survivors: list[dict[str, object]] = field(default_factory=list)
     mutation: dict[str, object] | None = None
     cognitive: list[CognitiveFunction] = field(default_factory=list)
+    dead_code: DeadSection | None = None

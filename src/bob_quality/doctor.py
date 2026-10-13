@@ -75,6 +75,8 @@ PINS: tuple[Pin, ...] = (
         "dependency-cruiser",
         npm_package="dependency-cruiser",
     ),
+    RequiresDist("vulture", "vulture"),
+    NpmPin("knip", "6.41.0", "knip", npm_package="knip"),
     NpmPin(
         "stryker",
         "10.0.0",

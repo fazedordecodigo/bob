@@ -10,6 +10,7 @@ from bob_quality.cognitive_gate import run_cognitive_gate
 from bob_quality.config import Config, ConfigError, load_config
 from bob_quality.core import files_by_risk, informational_debt, top_changed_crap
 from bob_quality.crap_gate import run_crap_gate
+from bob_quality.dead_code import WarningOnly, run_dead_code_gate
 from bob_quality.deps_gate import run_deps_gate
 from bob_quality.diff import GitError, changed_lines, current_commit
 from bob_quality.dry_gate import run_dry_gate
@@ -18,6 +19,7 @@ from bob_quality.messages import DEFAULT_LANGUAGE, Language, Text, msg, reason
 from bob_quality.models import (
     Clone,
     CognitiveFunction,
+    DeadSection,
     DepViolation,
     FunctionMetric,
     GateResult,
@@ -113,6 +115,7 @@ class _Measured:
     loaded_waivers: list[dict[str, object]] = field(default_factory=list)
     baseline: int | None = None
     cognitive: list[CognitiveFunction] = field(default_factory=list)
+    dead_code: DeadSection | None = None
 
 
 def _measure(
@@ -191,6 +194,9 @@ def _absorb(
         state.cognitive = found
         _record(state, result, code, versions)
         return
+    if gate == "dead_code":
+        _record_dead(state, run_dead_code_gate(cwd, config, diff_lines))
+        return
     _record(
         state,
         GateResult(gate, "not_run", msg("check.gate_not_implemented")),
@@ -208,6 +214,12 @@ def _absorb_deps(
     result, code, versions, found = run_deps_gate(cwd, config, set(diff_lines))
     state.violations = found
     _record(state, result, code, versions)
+
+
+def _record_dead(state: _Measured, advisory: WarningOnly) -> None:
+    state.gates.append(advisory.as_gate())
+    state.versions.update(dict(advisory.versions))
+    state.dead_code = advisory.section
 
 
 def _record(
@@ -257,6 +269,7 @@ def _assemble(
         survivors=survivors,
         mutation=summary,
         cognitive=measured.cognitive,
+        dead_code=measured.dead_code,
     )
 
 
