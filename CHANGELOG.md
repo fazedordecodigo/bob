@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+`bob --config ci.yaml check` exits `4` and writes no report. The last stderr line is `bob: error: --config goes after the command: bob check --config ci.yaml`. A path with a space is quoted, as in `bob crap --config 'my ci.yaml'`. `doctor` and `waive` do not accept `--config`. `bob --help` does not list `--config`.
+
+`bob --config ci.yaml check` sai com `4` e não grava relatório. A última linha do stderr é `bob: error: --config goes after the command: bob check --config ci.yaml`. Um caminho com espaço sai entre aspas, como em `bob crap --config 'my ci.yaml'`. `doctor` e `waive` não aceitam `--config`. O `bob --help` não lista `--config`.
+
+A repeated key in one YAML mapping exits `4` and writes no report. The English stderr names the key and the line, as in `invalid YAML in bob.yaml: found duplicate key 'base' on line 2`. A repeated key in `.bob/waivers.yaml` names the key and the line the same way. A key written in the mapping can still override a value merged with `<<`.
+
+Uma chave repetida num mapeamento YAML sai com `4` e não grava relatório. O stderr em inglês cita a chave e a linha, como em `invalid YAML in bob.yaml: found duplicate key 'base' on line 2`. Uma chave repetida no `.bob/waivers.yaml` cita a chave e a linha do mesmo jeito. Uma chave escrita no mapeamento ainda pode substituir um valor mesclado com `<<`.
+
 `grimp==3.17` is a direct pin in `pyproject.toml`, and `bob doctor` lists it. `bob doctor` no longer treats a PATH binary as a pip tool. The version it expects is the one `bob-quality` declares.
 
 `grimp==3.17` é um pin direto no `pyproject.toml`, e o `bob doctor` lista essa versão. O `bob doctor` não trata mais um binário do PATH como ferramenta pip. A versão que ele espera é a que o `bob-quality` declara.

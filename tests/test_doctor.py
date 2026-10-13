@@ -20,9 +20,18 @@ if sys.version_info >= (3, 11):
 else:
     import tomli as tomllib
 
+from bob_quality.doctor import NODE, NodePin, NpmPin, RequiresDist, node_admits, node_range
 from bob_quality.doctor import PINS as DOCTOR_PINS
-from bob_quality.doctor import RequiresDist, ToolPin, unconditional_exact_pins
-from bob_quality.doctor import _assess, _assess_requires_dist, _assess_tool, _own_requirements
+from bob_quality.doctor import unconditional_exact_pins
+from bob_quality.doctor import (
+    _PinRow,
+    _assess,
+    _assess_node,
+    _assess_npm,
+    _assess_requires_dist,
+    _found_version,
+    _own_requirements,
+)
 from bob_quality.messages import msg
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -53,7 +62,7 @@ PINS = (
 INSTALL = {
     "lizard": "pip install 'lizard==1.24.1'",
     "coverage.py": "pip install 'coverage==7.16.2'",
-    "node": "Install Node.js 22.14.0 (https://nodejs.org/dist/v22.14.0/)",
+    "node": "Install Node.js >=22.14.0 <23 (https://nodejs.org/dist/v22.14.0/)",
     "c8": "npm install c8@12.0.0",
     "vitest": "npm install vitest@5.0.3",
     "jscpd": "npm install jscpd@5.4.1",
@@ -139,7 +148,10 @@ def test_doctor_exits_0_and_lists_pinned_versions_when_tools_match(tmp_path: Pat
     result = _run_doctor(repo, bin_dir)
 
     assert result.returncode == 0, result.stderr
+    assert "node expected >=22.14.0 <23 found 22.14.0" in result.stdout
     for name, expected, _executable, _banner in PINS:
+        if name == "node":
+            continue
         assert f"{name} expected {expected} found {expected}" in result.stdout
     assert "Install" not in result.stdout
 
@@ -159,7 +171,7 @@ def test_doctor_exits_4_and_prints_install_when_a_tool_is_missing(tmp_path: Path
     result = _run_doctor(repo, bin_dir)
 
     assert result.returncode == 4, result.stderr
-    assert "node expected 22.14.0 found missing" in result.stdout
+    assert "node expected >=22.14.0 <23 found missing" in result.stdout
     assert INSTALL["node"] in result.stdout
     assert INSTALL["lizard"] not in result.stdout
 
@@ -198,8 +210,8 @@ def test_doctor_speaks_portuguese_with_lang_pt_br(tmp_path: Path) -> None:
 
     assert result.returncode == 4, result.stderr
     assert "lizard esperada 1.24.1 encontrada 1.24.1" in result.stdout
-    assert "node esperada 22.14.0 encontrada ausente" in result.stdout
-    assert "Instale Node.js 22.14.0 (https://nodejs.org/dist/v22.14.0/)" in result.stdout
+    assert "node esperada >=22.14.0 <23 encontrada ausente" in result.stdout
+    assert "Instale Node.js >=22.14.0 <23 (https://nodejs.org/dist/v22.14.0/)" in result.stdout
 
 
 def test_doctor_exits_4_and_prints_install_when_version_differs(tmp_path: Path) -> None:
@@ -217,7 +229,7 @@ def test_doctor_exits_4_and_prints_install_when_version_differs(tmp_path: Path) 
     result = _run_doctor(repo, bin_dir)
 
     assert result.returncode == 4, result.stderr
-    assert "node expected 22.14.0 found 1.2.3" in result.stdout
+    assert "node expected >=22.14.0 <23 found 1.2.3" in result.stdout
     assert INSTALL["node"] in result.stdout
     assert INSTALL["lizard"] not in result.stdout
 
@@ -323,16 +335,16 @@ def test_doctor_pins_match_pyproject_and_package_json() -> None:
     for pin in DOCTOR_PINS:
         if isinstance(pin, RequiresDist):
             assert pin.distribution in requirements
-        elif pin.npm_package is not None:
+        elif isinstance(pin, NpmPin):
             assert npm[pin.npm_package] == pin.expected
         else:
-            assert pin.name == "node"
+            assert pin == NODE
     npm_pins = {
-        pin.npm_package: pin.expected
-        for pin in DOCTOR_PINS
-        if isinstance(pin, ToolPin) and pin.npm_package is not None
+        pin.npm_package: pin.expected for pin in DOCTOR_PINS if isinstance(pin, NpmPin)
     }
     assert npm_pins == npm
+    assert "node" not in npm_pins
+    assert [pin for pin in DOCTOR_PINS if isinstance(pin, NodePin)] == [NODE]
 
 
 def test_doctor_expected_versions_match_pip_and_npm_pins(tmp_path: Path) -> None:
@@ -472,33 +484,153 @@ def test_assess_reads_the_declared_distribution() -> None:
     assert row.line == msg("doctor.version", name="grimp", expected="3.17", found="3.17")
 
 
-def test_assess_tool_matches(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_assess_npm_matches(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr("bob_quality.doctor._found_version", lambda pin: pin.expected)
-    row = _assess_tool(ToolPin("node", "22.14.0", "node", "install node"))
-    assert row.line == msg(
-        "doctor.version", name="node", expected="22.14.0", found="22.14.0"
-    )
+    row = _assess_npm(NpmPin("c8", "12.0.0", "c8", npm_package="c8"))
+    assert row.line == msg("doctor.version", name="c8", expected="12.0.0", found="12.0.0")
     assert row.ok is True
     assert row.install is None
     assert row.npm_missing is False
 
 
-def test_assess_tool_mismatch_prints_the_install(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_assess_npm_mismatch_has_no_install_line(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr("bob_quality.doctor._found_version", lambda pin: "0")
-    row = _assess_tool(ToolPin("node", "22.14.0", "node", "install node"))
-    assert row.line == msg("doctor.version", name="node", expected="22.14.0", found="0")
-    assert row.ok is False
-    assert row.install == "install node"
-    assert row.npm_missing is False
-
-
-def test_assess_tool_npm_mismatch_has_no_install_line(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr("bob_quality.doctor._found_version", lambda pin: "0")
-    row = _assess_tool(ToolPin("c8", "12.0.0", "c8", "npm install c8@12.0.0", npm_package="c8"))
+    row = _assess_npm(NpmPin("c8", "12.0.0", "c8", npm_package="c8"))
     assert row.line == msg("doctor.version", name="c8", expected="12.0.0", found="0")
     assert row.ok is False
     assert row.install is None
     assert row.npm_missing is True
+
+
+def test_found_version_uses_the_installed_package_ahead_of_the_cli(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        "bob_quality.doctor._npm_package_version",
+        lambda package_name, executable: "12.0.0",
+    )
+    monkeypatch.setattr("bob_quality.doctor._cli_version", lambda executable: "9.9.9")
+    pin = NpmPin("c8", "12.0.0", "c8", npm_package="c8")
+    assert _found_version(pin) == "12.0.0"
+
+
+def test_found_version_reads_the_cli_of_the_named_executable(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        "bob_quality.doctor._npm_package_version",
+        lambda package_name, executable: None,
+    )
+    monkeypatch.setattr(
+        "bob_quality.doctor._cli_version",
+        lambda executable: "12.0.0" if executable == "c8" else None,
+    )
+    pin = NpmPin("c8", "12.0.0", "c8", npm_package="c8")
+    assert _found_version(pin) == "12.0.0"
+
+
+@pytest.mark.parametrize(
+    ("found", "admitted"),
+    [
+        ("20.19.0", False),
+        ("22.13.1", False),
+        ("22.14.0", True),
+        ("22.14.0-rc.1", False),
+        ("22.22.2", True),
+        ("23.0.0", False),
+        ("24.0.0", False),
+        (None, False),
+    ],
+)
+def test_node_admits_the_22_line_from_22_14_0(found: str | None, admitted: bool) -> None:
+    assert node_admits(NODE, found) is admitted
+
+
+def test_node_range_prints_the_floor_and_the_next_major() -> None:
+    assert node_range(NODE) == ">=22.14.0 <23"
+
+
+def test_assess_node_rejects_an_rc_suffix(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    _stub(bin_dir, "node", "v22.14.0-rc.1")
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("PATH", str(bin_dir))
+    assert _assess_node(NODE) == _PinRow(
+        msg("doctor.version", name="node", expected=">=22.14.0 <23", found="22.14.0-rc.1"),
+        False,
+        msg(
+            "doctor.install_node",
+            version=">=22.14.0 <23",
+            url="https://nodejs.org/dist/v22.14.0/",
+        ),
+        False,
+    )
+
+
+def test_assess_node_admits_22_22_2(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(
+        "bob_quality.doctor._cli_version",
+        lambda executable: {"node": "22.22.2"}.get(executable),
+    )
+    assert _assess_node(NODE) == _PinRow(
+        msg("doctor.version", name="node", expected=">=22.14.0 <23", found="22.22.2"),
+        True,
+        None,
+        False,
+    )
+
+
+def test_assess_node_rejects_24_with_the_install_line(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(
+        "bob_quality.doctor._cli_version",
+        lambda executable: {"node": "24.0.0"}.get(executable),
+    )
+    assert _assess_node(NODE) == _PinRow(
+        msg("doctor.version", name="node", expected=">=22.14.0 <23", found="24.0.0"),
+        False,
+        msg(
+            "doctor.install_node",
+            version=">=22.14.0 <23",
+            url="https://nodejs.org/dist/v22.14.0/",
+        ),
+        False,
+    )
+
+
+@pytest.mark.parametrize(
+    ("banner", "found", "code"),
+    [
+        ("v20.19.0", "20.19.0", 4),
+        ("v22.14.0", "22.14.0", 0),
+        ("v22.14.0-rc.1", "22.14.0-rc.1", 4),
+        ("v22.22.2", "22.22.2", 0),
+        ("v24.0.0", "24.0.0", 4),
+    ],
+)
+def test_doctor_accepts_node_22_from_22_14_0(
+    tmp_path: Path, banner: str, found: str, code: int
+) -> None:
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    for name, _expected, executable, pin_banner in PINS:
+        if name == "node":
+            pin_banner = banner
+        if executable is None or pin_banner is None:
+            continue
+        _stub(bin_dir, executable, pin_banner)
+
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    result = _run_doctor(repo, bin_dir)
+
+    assert result.returncode == code, result.stdout + result.stderr
+    assert f"node expected >=22.14.0 <23 found {found}" in result.stdout
+    install = "Install Node.js >=22.14.0 <23 (https://nodejs.org/dist/v22.14.0/)"
+    assert (install in result.stdout) is (code == 4)
+    assert not (repo / ".bob").exists()
 
 
 def _bob_metadata(parent: Path, *requires: str) -> Path:
