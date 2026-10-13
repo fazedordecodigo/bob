@@ -245,8 +245,8 @@ def _test_smell_lines(report: Report) -> list[Text]:
 
 
 def _test_smell_row(smell: TestSmell) -> str:
-    reason = smell.waiver or "—"
-    return f"| `{waiver_id(smell)}` | {reason.replace('|', '\\|')} |"
+    reason = (smell.waiver or "—").replace("|", "\\|")
+    return f"| `{waiver_id(smell)}` | {reason} |"
 
 
 def _footer(report: Report, lang: Language) -> list[Text]:
