@@ -4,6 +4,7 @@ import io
 import os
 import re
 import subprocess
+import sys
 from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
 
@@ -192,6 +193,21 @@ def test_main_returns_the_process_code(
     assert main(["--help"]) == 0
     assert main(["check", "--help"]) == 0
     assert main(["check", "--format", "xml"]) == 4
+    assert not (tmp_path / ".bob").exists()
+
+
+def test_omitted_argv_reads_lang_from_the_process_arguments(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.delenv("BOB_LANG", raising=False)
+    monkeypatch.setattr(sys, "argv", ["bob", "--lang", "pt-BR", "--help"])
+    stdout = io.StringIO()
+    with redirect_stdout(stdout):
+        code = main()
+
+    assert code == 0
+    assert "Gates de qualidade para agentes." in _flat(stdout.getvalue())
     assert not (tmp_path / ".bob").exists()
 
 
