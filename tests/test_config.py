@@ -135,6 +135,81 @@ def test_load_config_rejects_zero_min_tokens(tmp_path: Path) -> None:
     )
 
 
+@pytest.mark.parametrize(
+    "text",
+    [
+        "{}\n",
+        "dead_code:\n",
+        "dead_code: null\n",
+        "dead_code: {}\n",
+        "dead_code:\n  min_confidence:\n",
+        "dead_code:\n  min_confidence: null\n",
+    ],
+)
+def test_load_config_omits_min_confidence_when_the_key_is_absent(
+    tmp_path: Path, text: str
+) -> None:
+    (tmp_path / "bob.yaml").write_text(text)
+
+    assert load_config(None, tmp_path).dead_code_min_confidence is None
+
+
+@pytest.mark.parametrize(("text", "value"), [("0", 0), ("80", 80), ("100", 100)])
+def test_load_config_stores_a_present_min_confidence(
+    tmp_path: Path, text: str, value: int
+) -> None:
+    (tmp_path / "bob.yaml").write_text(f"dead_code:\n  min_confidence: {text}\n")
+
+    assert load_config(None, tmp_path).dead_code_min_confidence == value
+
+
+@pytest.mark.parametrize(
+    ("text", "english", "portuguese"),
+    [
+        (
+            "dead_code:\n  min_confidence: 101\n",
+            "bob.yaml: dead_code.min_confidence must be an integer from 0 to 100",
+            "bob.yaml: dead_code.min_confidence deve ser um inteiro de 0 a 100",
+        ),
+        (
+            "dead_code:\n  min_confidence: -1\n",
+            "bob.yaml: dead_code.min_confidence must be an integer from 0 to 100",
+            "bob.yaml: dead_code.min_confidence deve ser um inteiro de 0 a 100",
+        ),
+        (
+            "dead_code:\n  min_confidence: true\n",
+            "bob.yaml: dead_code.min_confidence must be an integer",
+            "bob.yaml: dead_code.min_confidence deve ser um inteiro",
+        ),
+        (
+            "dead_code:\n  min_confidence: 1.5\n",
+            "bob.yaml: dead_code.min_confidence must be an integer",
+            "bob.yaml: dead_code.min_confidence deve ser um inteiro",
+        ),
+    ],
+)
+def test_load_config_rejects_an_illegal_min_confidence(
+    tmp_path: Path, text: str, english: str, portuguese: str
+) -> None:
+    (tmp_path / "bob.yaml").write_text(text)
+
+    assert _config_error(tmp_path) == (english, portuguese)
+
+
+def test_config_accepts_absent_and_zero_min_confidence() -> None:
+    assert Config().dead_code_min_confidence is None
+    assert Config(dead_code_min_confidence=0).dead_code_min_confidence == 0
+    assert Config(dead_code_min_confidence=100).dead_code_min_confidence == 100
+
+
+@pytest.mark.parametrize("value", [101, -1, True, 1.5])
+def test_config_rejects_an_illegal_min_confidence(value: object) -> None:
+    with pytest.raises(ValueError) as caught:
+        Config(dead_code_min_confidence=value)
+
+    assert caught.value.args == ("dead_code_min_confidence",)
+
+
 def test_load_config_stores_one_min_token(tmp_path: Path) -> None:
     (tmp_path / "bob.yaml").write_text("duplication:\n  min_tokens: 1\n")
 
