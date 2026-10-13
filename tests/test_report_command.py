@@ -220,7 +220,16 @@ def test_report_renders_a_failed_gate_a_clone_and_a_metric(tmp_path: Path) -> No
             "cc": 2,
             "crap": 2.25,
             "delta": 1.5,
-        }
+        },
+        {
+            "name": "old",
+            "file": "old.py",
+            "start_line": 9,
+            "coverage": 1,
+            "cc": 1,
+            "crap": 1,
+            "delta": None,
+        },
     ]
     payload["clones"] = [
         {
@@ -253,6 +262,7 @@ def test_report_renders_a_failed_gate_a_clone_and_a_metric(tmp_path: Path) -> No
     assert "- ⏭️ `mutate`: not run" in markdown
     assert "- `app.py` (risk 12, clone)" in markdown
     assert "| add | app.py:4 | 2 | 50% | 2.25 | 1.5 |" in markdown
+    assert "| old | old.py:9 | 1 | 100% | 1 | — |" in markdown
     assert (
         "- `a.py:1-2` ↔ `b.py:3-4` — 2 lines, 10 tokens, similarity 100%" in markdown
     )
