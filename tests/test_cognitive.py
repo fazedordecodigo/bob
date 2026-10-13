@@ -466,6 +466,33 @@ def test_function_fields_read_a_complexipy_row_and_reject_a_broken_one() -> None
         with pytest.raises(ValueError) as caught:
             _function_fields(item)
         assert str(caught.value) == message
+    missing_attribute = [
+        SimpleNamespace(name="save", line_start=1, line_end=2),
+        SimpleNamespace(name="save", complexity=1, line_end=2),
+        SimpleNamespace(name="save", complexity=1, line_start=1),
+    ]
+    for item in missing_attribute:
+        with pytest.raises(ValueError) as caught:
+            _function_fields(item)
+        assert str(caught.value) == message
+
+
+def test_python_functions_rejects_a_result_without_functions(tmp_path: Path) -> None:
+    source = tmp_path / "src"
+    source.mkdir()
+    (source / "a.py").write_text("x = 1\n")
+
+    def measure(path: str, **kwargs: object) -> object:
+        return SimpleNamespace()
+
+    with pytest.raises(ValueError) as caught:
+        _python_functions(
+            tmp_path,
+            Config(include=("src",)),
+            SimpleNamespace(file_complexity=measure),
+        )
+
+    assert str(caught.value) == "function is missing name, complexity, line_start, or line_end"
 
 
 def test_whole_rejects_a_bool_and_items_copy_a_non_list() -> None:
