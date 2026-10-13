@@ -177,8 +177,10 @@ def test_an_unreadable_measured_source_is_a_tool_error(tmp_path: Path) -> None:
         "não foi possível analisar src/app/bad.py:1: '(' was never closed",
     )
     (app / "bad.py").write_bytes(b"def f():\n    return '\xff'\n")
-    with pytest.raises(ToolError):
+    with pytest.raises(ToolError) as undecodable:
         _named_for_mutmut(tmp_path, [row])
+    assert "utf-8" in str(undecodable.value)
+    assert "0xff" in str(undecodable.value)
 
 
 def test_a_source_that_ast_cannot_read_names_the_file_and_line() -> None:
