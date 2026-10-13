@@ -185,13 +185,24 @@ def test_a_report_row_without_an_exact_target_shows_none() -> None:
     ]
     blind = Mutant("app.m.x_f__mutmut_3", "f", "", 0, "", "survived")
 
-    outcome = _finish([*twins, blind], ["src/app/m.py::f"], [], {}, [])
+    outcome = _finish(
+        [*twins, blind],
+        {"src/app/m.py": {2, 3}},
+        ["src/app/m.py::f"],
+        [],
+        {"mutmut": "3.8.0"},
+        [],
+    )
 
     assert [(row["id"], row["target"]) for row in outcome.survivors] == [
         ("app.m.x_f__mutmut_1", None),
         ("app.m.x_f__mutmut_2", None),
         ("app.m.x_f__mutmut_3", None),
     ]
+    assert outcome.summary["remutated"] == ["src/app/m.py::f"]
+    assert outcome.summary["reused"] == []
+    assert outcome.versions == {"mutmut": "3.8.0"}
+    assert outcome.waivers == []
 
 
 @pytest.mark.parametrize("prefixed", ["cognitive:src/app/m.py:f", "coverage:src/app/m.py"])
