@@ -12,6 +12,9 @@ from __future__ import annotations
 
 import json
 import os
+import signal
+import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -252,11 +255,17 @@ def test_waive_rejects_a_reason_that_is_missing_blank_or_multiline(tmp_path: Pat
     assert not (repo / ".bob" / "waivers.yaml").exists()
 
 
+def _survivors(repo: Path) -> list[dict[str, object]]:
+    return json.loads((repo / ".bob" / "report.json").read_text())["survivors"]
+
+
 def test_waive_puts_the_reason_at_the_top_of_the_report(tmp_path: Path) -> None:
     repo = _repo_with_surviving_mutant(tmp_path)
     reason = "o contrato exige estritamente maior que zero"
 
-    saved = run_bob(repo, "waive", "classify", "--reason", reason)
+    assert run_bob(repo, "mutate", "--base", "main").returncode == 3
+    target = f"{_survivors(repo)[0]['file']}::classify"
+    saved = run_bob(repo, "waive", target, "--reason", reason)
     result = run_bob(repo, "mutate", "--base", "main")
     markdown = (repo / ".bob" / "report.md").read_text()
     payload = json.loads((repo / ".bob" / "report.json").read_text())
@@ -356,7 +365,7 @@ def test_check_lists_an_existing_waiver_at_the_top(tmp_path: Path) -> None:
     bob.mkdir()
     (bob / "waivers.yaml").write_text(
         "waivers:\n"
-        "  - id: classify\n"
+        "  - id: src/app/weak.py::classify\n"
         "    reason: o contrato exige estritamente maior que zero\n"
         "    author: bob-test\n"
         "    date: '2026-10-11'\n",
@@ -377,7 +386,8 @@ def test_removed_waiver_fails_the_survivor_again(tmp_path: Path) -> None:
     reason = "o contrato exige estritamente maior que zero"
 
     assert run_bob(repo, "mutate", "--base", "main").returncode == 3
-    assert run_bob(repo, "waive", "classify", "--reason", reason).returncode == 0
+    waived = run_bob(repo, "waive", "src/app/weak.py::classify", "--reason", reason)
+    assert waived.returncode == 0
     assert run_bob(repo, "mutate", "--base", "main").returncode == 0
 
     (repo / ".bob" / "waivers.yaml").unlink()
@@ -386,6 +396,106 @@ def test_removed_waiver_fails_the_survivor_again(tmp_path: Path) -> None:
 
     assert result.returncode == 3
     assert reason not in markdown.split("## Verdict")[0]
+
+
+def test_waiving_each_target_from_the_report_passes_the_next_run(tmp_path: Path) -> None:
+    repo = _repo_with_surviving_mutant(tmp_path)
+
+    assert run_bob(repo, "mutate", "--base", "main").returncode == 3
+    targets = [str(item["target"]) for item in _survivors(repo)]
+    saved = [
+        run_bob(repo, "waive", target, "--reason", "equivalente no contrato").returncode
+        for target in targets
+    ]
+    result = run_bob(repo, "mutate", "--base", "main")
+
+    assert targets
+    assert all(target.startswith("src/app/weak.py::classify::") for target in targets)
+    assert saved == [0] * len(targets)
+    assert result.returncode == 0
+    assert all(item["waiver"] == "equivalente no contrato" for item in _survivors(repo))
+
+
+def test_waive_rejects_a_bare_function_name_and_keeps_the_yaml_absent(tmp_path: Path) -> None:
+    repo = _repo_with_surviving_mutant(tmp_path)
+
+    assert run_bob(repo, "mutate", "--base", "main").returncode == 3
+    survivor = str(_survivors(repo)[0]["id"])
+    bare = run_bob(repo, "waive", "classify", "--reason", "x")
+    tool_id = run_bob(repo, "waive", survivor, "--reason", "x")
+
+    assert bare.returncode == 4
+    assert bare.stdout == ""
+    assert bare.stderr == (
+        "no survivor matches classify:"
+        " copy file::function or a Target from the last mutation report\n"
+    )
+    assert tool_id.returncode == 4
+    assert not (repo / ".bob" / "waivers.yaml").exists()
+
+
+def test_waive_before_any_mutation_run_exits_4(tmp_path: Path) -> None:
+    repo = _repo_with_surviving_mutant(tmp_path)
+
+    result = run_bob(repo, "waive", "src/app/weak.py::classify", "--reason", "x")
+
+    assert result.returncode == 4
+    assert result.stderr.startswith("no survivor matches src/app/weak.py::classify:")
+    assert not (repo / ".bob" / "waivers.yaml").exists()
+
+
+def test_exact_waivers_survive_an_edit_above_the_waived_site(tmp_path: Path) -> None:
+    repo = _repo_with_surviving_mutant(tmp_path)
+
+    assert run_bob(repo, "mutate", "--base", "main").returncode == 3
+    before = _survivors(repo)
+    for item in before:
+        assert run_bob(repo, "waive", str(item["target"]), "--reason", "equivalente").returncode == 0
+    shifted = CLASSIFY.replace("str:\n", "str:\n    n = int(n)\n", 1)
+    commit_on_branch(repo, "weak", "src/app/weak.py", shifted, "coerce before classifying")
+    result = run_bob(repo, "mutate", "--base", "main")
+    after = {item["target"]: item for item in _survivors(repo)}
+
+    assert result.returncode == 0, result.stderr
+    for item in before:
+        moved = after[item["target"]]
+        assert moved["id"] != item["id"]
+        assert moved["line"] == item["line"] + 1
+        assert moved["waiver"] == "equivalente"
+
+
+def test_a_killed_mutation_run_leaves_setup_cfg_and_mutants_untouched(tmp_path: Path) -> None:
+    repo = init_python_repo(tmp_path / "repo")
+    commit_on_main(repo, "setup.cfg", "[metadata]\nname = app\n", "add setup.cfg")
+    commit_on_branch(repo, "weak", "src/app/weak.py", CLASSIFY, "add classify")
+    commit_on_branch(repo, "weak", "tests/test_classify.py", WEAK_TEST, "weak classify test")
+    before = (repo / "setup.cfg").read_bytes()
+    script = (
+        "import os, runpy, signal, sys\n"
+        "from pathlib import Path\n"
+        "import bob_quality.mutate as mutate\n"
+        "def die(cwd, patterns, max_workers):\n"
+        "    assert '[mutmut]' in (Path(cwd) / 'setup.cfg').read_text()\n"
+        "    os.kill(os.getpid(), signal.SIGKILL)\n"
+        "mutate.run_mutmut = die\n"
+        "sys.argv = ['bob', 'mutate', '--base', 'main']\n"
+        "runpy.run_module('bob_quality', run_name='__main__')\n"
+    )
+
+    killed = subprocess.run(
+        [sys.executable, "-c", script], cwd=repo, capture_output=True, text=True
+    )
+
+    assert killed.returncode == -signal.SIGKILL, killed.stderr
+    assert (repo / "setup.cfg").read_bytes() == before
+    assert not (repo / "mutants").exists()
+
+    rerun = run_bob(repo, "mutate", "--base", "main")
+
+    assert rerun.returncode == 3, rerun.stderr
+    assert (repo / "setup.cfg").read_bytes() == before
+    assert not (repo / "mutants").exists()
+    assert (repo / ".bob" / "mutmut" / "mutants").is_dir()
 
 
 def _repo_with_tally(tmp_path: Path, touched: str) -> Path:
@@ -463,7 +573,7 @@ def test_a_waiver_clears_a_survivor_on_a_changed_line(tmp_path: Path) -> None:
     reason = "o incremento só muda o total quando n é positivo"
 
     blocked = run_bob(repo, "mutate", "--base", "main")
-    saved = run_bob(repo, "waive", "tally", "--reason", reason)
+    saved = run_bob(repo, "waive", "src/app/tally.py::tally", "--reason", reason)
     result = run_bob(repo, "mutate", "--base", "main")
     markdown = (repo / ".bob" / "report.md").read_text()
     payload = json.loads((repo / ".bob" / "report.json").read_text())

@@ -19,9 +19,11 @@ O schema está em `src/bob_quality/schemas/report_v1.json`. `schema_version` é 
 7. `## Informação (dívida antiga)`, só se existir função fora do diff no limite ou acima. O item termina com `fora do diff; não bloqueia`.
 8. `## Violações e ciclos de dependência`, e em seguida `## Informação (dependências fora do diff)` quando há violações fora do diff.
 9. `## Clones novos`. Cada par traz arquivos, linhas, tokens e similaridade.
-10. `## Mutantes sobreviventes`, só se a mutação rodou. Colunas: id, função, local, operador, waiver. Sobrevivente sem waiver que não bloqueia leva, no local, `fora do diff; não bloqueia`. O JSON guarda `blocking` em cada linha. O cache de mutação não guarda esse campo.
+10. `## Mutantes sobreviventes`, só se a mutação rodou. Colunas: alvo, função, local, operador, waiver. O alvo é `arquivo::função::<descrição>`, o valor que `bob waive` aceita para dispensar esse sobrevivente. Ele vira `—` quando outro sobrevivente da mesma função tem a mesma descrição. Nesse caso só `arquivo::função` dispensa. O `report.json` traz o mesmo valor em `survivors[].target`, ou `null`.
 11. `## Mutantes sem teste`, só se o resumo de mutação traz `no_coverage`. Total, e tabela por função e arquivo. A linha do total diz que não bloqueia.
-12. `## Como reproduzir`: o comando, dentro de uma cerca, com `--lang` do idioma que gerou o arquivo.
+12. `## Segredos`, só quando o gate de segredos mediu. A tabela traz o alvo `secret:<regra>:<arquivo>:<linha>`, o arquivo, a linha e a regra. Sem segredo novo, o texto é `Nenhum segredo novo no diff.` A linha `Fora do diff; não bloqueia.` introduz os achados que não mudam o exit. Sem medição, a seção não aparece.
+13. `## Código morto`, só quando o gate foi pedido. Um símbolo por linha. Sem símbolo no diff, o texto é `Nenhum símbolo morto no diff.` Sem medição, a seção não aparece.
+14. `## Como reproduzir`: o comando, dentro de uma cerca, com `--lang` do idioma que gerou o arquivo.
 
 Seções vazias de dívida e de mutação somem. Foco, top 5, clones e veredito aparecem mesmo vazios, com a frase de “nenhum”.
 
@@ -29,7 +31,7 @@ A [SPEC](SPEC.md) descreve a ordem começando pelo cabeçalho e pelo veredito, e
 
 ## report.json
 
-Campos obrigatórios no schema: `schema_version`, `commit`, `base`, `generated_at`, `tool_versions`, `gates`, `focus`, `top_crap`, `reproduce`, `exit_code`. O render também escreve `old_debt`, `dependencies`, `old_dependencies`, `clones`, `waivers`, `survivors` e `mutation` quando `to_json` os inclui.
+Campos obrigatórios no schema: `schema_version`, `commit`, `base`, `generated_at`, `tool_versions`, `gates`, `focus`, `top_crap`, `reproduce`, `exit_code`. O render também escreve `old_debt`, `dependencies`, `old_dependencies`, `clones`, `waivers`, `survivors` e `mutation` quando `to_json` os inclui. `secrets` entra só quando o gate mediu, depois de `mutation` e antes de `reproduce`. O array traz os achados que bloqueiam. Cada objeto tem `file`, `line` e `rule_id`. `dead_code` entra só quando o gate foi pedido, depois de `exit_code`. O objeto tem `symbols`. Sem medição, a chave não vai no JSON. `schema_version` continua `1`.
 
 `gates[].status` é `passed`, `warn`, `failed` ou `not_run`. O `reason` no JSON é renderizado em inglês (`JSON_LANGUAGE`).
 
@@ -53,4 +55,4 @@ O artefato `bob-mutation-cache` sobe com `.bob/mutation-cache.json` mesmo quando
 
 - `bob doctor` imprime no stdout.
 - `bob waive` só mexe em `.bob/waivers.yaml`.
-- Configuração inválida barrada em `cli.main` antes do `run_check` não grava relatório. Isso inclui `duplication` inválida e chave desconhecida. Um uso inválido da linha de comando também não grava relatório. Um `--config` inexistente em `check`, `crap`, `dry`, `deps` ou `mutate` grava o relatório de falha precoce. Ver [Exit 4](exit-codes.md#exit-4).
+- Configuração inválida barrada em `cli.main` antes do `run_check` não grava relatório. Isso inclui `duplication` inválida e chave desconhecida. Um uso inválido da linha de comando também não grava relatório. Um `--config` inexistente em `check`, `crap`, `dry`, `deps` ou `mutate` também não grava. O stderr fica em inglês e cita o caminho. Ver [Exit 4](exit-codes.md#exit-4).
