@@ -417,8 +417,12 @@ def test_absorb_records_every_gate_argument_and_result(
         ["crap", "dry", "deps", "mutate", "nope"],
         out,
         4,
+        "origin/main",
     )
 
+    memo = seen["crap"].pop("memo")
+    assert memo.want_json is True
+    assert memo.want_lcov is False
     assert seen["crap"] == {
         "cwd": tmp_path,
         "config": config,
