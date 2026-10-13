@@ -9,7 +9,6 @@ from bob_quality.config import (
     ConfigError,
     _Bound,
     _Check,
-    configured_language,
     load_config,
     resolve_language,
 )
@@ -30,6 +29,10 @@ dependencies:
   typescript: deps.cjs
 duplication:
   min_tokens: 80
+  new_clones: fail
+  max_new_clones: 2
+  min_similarity: 90
+  min_lines: 8
 """
 
 
@@ -41,11 +44,13 @@ def _config_error(path: Path) -> tuple[str, str]:
 
 
 def test_load_config_reads_every_key(tmp_path: Path) -> None:
+    (tmp_path / "lib").mkdir()
     (tmp_path / "bob.yaml").write_text(FULL_YAML)
 
     loaded = load_config(None, tmp_path)
 
     assert type(loaded.max_crap) is float
+    assert type(loaded.min_similarity) is float
     assert loaded == Config(
         base="origin/develop",
         languages=["python", "typescript"],
@@ -56,6 +61,10 @@ def test_load_config_reads_every_key(tmp_path: Path) -> None:
         python_deps_config="deps.ini",
         typescript_deps_config="deps.cjs",
         min_tokens=80,
+        new_clones="fail",
+        max_new_clones=2,
+        min_similarity=90.0,
+        min_lines=8,
         language="pt-BR",
     )
 
@@ -71,6 +80,10 @@ def test_load_config_defaults_without_a_file(tmp_path: Path) -> None:
         python_deps_config=".importlinter",
         typescript_deps_config=".dependency-cruiser.cjs",
         min_tokens=50,
+        new_clones="warn",
+        max_new_clones=0,
+        min_similarity=0.0,
+        min_lines=0,
         language=None,
     )
 
@@ -217,6 +230,40 @@ def test_load_config_stores_one_min_token(tmp_path: Path) -> None:
     assert load_config(None, tmp_path).min_tokens == 1
 
 
+@pytest.mark.parametrize(
+    "text",
+    [
+        "duplication:\n  new_clones:\n",
+        'duplication:\n  new_clones: ""\n',
+        "duplication:\n  max_new_clones: 3\n",
+    ],
+)
+def test_load_config_keeps_warn_when_new_clones_is_absent(tmp_path: Path, text: str) -> None:
+    (tmp_path / "bob.yaml").write_text(text)
+
+    assert load_config(None, tmp_path).new_clones == "warn"
+
+
+@pytest.mark.parametrize(
+    ("text", "attr", "expected"),
+    [
+        ("duplication:\n  min_similarity: 100\n", "min_similarity", 100.0),
+        ("duplication:\n  min_similarity: 0\n", "min_similarity", 0.0),
+        ("duplication:\n  min_similarity: 57.5\n", "min_similarity", 57.5),
+        ("duplication:\n  max_new_clones: 0\n  new_clones: fail\n", "max_new_clones", 0),
+        ("duplication:\n  max_new_clones:\n", "max_new_clones", 0),
+        ("duplication:\n  min_lines: 0\n", "min_lines", 0),
+        ("duplication:\n  min_lines:\n", "min_lines", 0),
+    ],
+)
+def test_load_config_accepts_the_duplication_limits_at_their_bounds(
+    tmp_path: Path, text: str, attr: str, expected: object
+) -> None:
+    (tmp_path / "bob.yaml").write_text(text)
+
+    assert getattr(load_config(None, tmp_path), attr) == expected
+
+
 def test_load_config_stores_all_as_the_crap_scope(tmp_path: Path) -> None:
     (tmp_path / "bob.yaml").write_text("crap:\n  scope: all\n")
 
@@ -361,6 +408,31 @@ def test_load_config_rejects_min_tokens_that_is_not_an_integer(
             "bob.yaml: base must be a string",
             "bob.yaml: base deve ser um texto",
         ),
+        (
+            "duplication:\n  new_clones: 5\n",
+            "bob.yaml: duplication.new_clones must be a string",
+            "bob.yaml: duplication.new_clones deve ser um texto",
+        ),
+        (
+            'duplication:\n  min_similarity: "90"\n',
+            "bob.yaml: duplication.min_similarity must be a number",
+            "bob.yaml: duplication.min_similarity deve ser um número",
+        ),
+        (
+            "duplication:\n  max_new_clones: 1.5\n",
+            "bob.yaml: duplication.max_new_clones must be an integer",
+            "bob.yaml: duplication.max_new_clones deve ser um inteiro",
+        ),
+        (
+            "duplication:\n  max_new_clones: true\n",
+            "bob.yaml: duplication.max_new_clones must be an integer",
+            "bob.yaml: duplication.max_new_clones deve ser um inteiro",
+        ),
+        (
+            "duplication:\n  min_lines: true\n",
+            "bob.yaml: duplication.min_lines must be an integer",
+            "bob.yaml: duplication.min_lines deve ser um inteiro",
+        ),
     ],
 )
 def test_load_config_rejects_a_wrong_value_type(
@@ -401,6 +473,7 @@ def test_load_config_treats_null_and_empty_collections_as_defaults(tmp_path: Pat
 
 
 def test_load_config_keeps_numeric_thresholds_and_string_lists(tmp_path: Path) -> None:
+    (tmp_path / "lib").mkdir()
     (tmp_path / "bob.yaml").write_text(
         "base: trunk\n"
         "languages: [python, typescript]\n"
@@ -425,6 +498,46 @@ def test_load_config_keeps_numeric_thresholds_and_string_lists(tmp_path: Path) -
     assert loaded.crap_scope == "all"
     assert loaded.python_deps_config == "deps.ini"
     assert loaded.typescript_deps_config == "deps.cjs"
+
+
+def test_load_config_rejects_a_missing_include_path(tmp_path: Path) -> None:
+    (tmp_path / "bob.yaml").write_text("paths:\n  include: [missing-root]\n")
+
+    assert _config_error(tmp_path) == (
+        "bob.yaml: paths.include does not exist: missing-root",
+        "bob.yaml: paths.include não existe: missing-root",
+    )
+
+
+def test_load_config_names_every_missing_include_in_order(tmp_path: Path) -> None:
+    (tmp_path / "bob.yaml").write_text(
+        "paths:\n  include: [missing-root, also-gone]\n"
+    )
+
+    assert _config_error(tmp_path) == (
+        "bob.yaml: paths.include does not exist: missing-root, also-gone",
+        "bob.yaml: paths.include não existe: missing-root, also-gone",
+    )
+
+
+def test_load_config_names_only_the_missing_include(tmp_path: Path) -> None:
+    (tmp_path / "src").mkdir()
+    (tmp_path / "bob.yaml").write_text("paths:\n  include: [src, gone]\n")
+
+    assert _config_error(tmp_path) == (
+        "bob.yaml: paths.include does not exist: gone",
+        "bob.yaml: paths.include não existe: gone",
+    )
+
+
+def test_load_config_keeps_an_include_entry_that_exists(tmp_path: Path) -> None:
+    (tmp_path / "lib").mkdir()
+    (tmp_path / "one.py").write_text("x = 1\n")
+    (tmp_path / "bob.yaml").write_text("paths:\n  include: [lib, one.py]\n")
+
+    loaded = load_config(None, tmp_path)
+
+    assert loaded.include == ("lib", "one.py")
 
 
 def test_load_config_rejects_invalid_yaml(tmp_path: Path) -> None:
@@ -497,80 +610,113 @@ def test_load_config_treats_an_empty_language_as_unset(tmp_path: Path, line: str
     assert load_config(None, tmp_path) == Config()
 
 
+def _set_bob_lang(monkeypatch: pytest.MonkeyPatch, env: str | None) -> None:
+    monkeypatch.delenv("BOB_LANG", raising=False)
+    if env is not None:
+        monkeypatch.setenv("BOB_LANG", env)
+
+
 @pytest.mark.parametrize("language", ["en", "pt-BR"])
-def test_configured_language_reads_bob_yaml(tmp_path: Path, language: str) -> None:
+def test_resolve_language_reads_bob_yaml(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, language: str
+) -> None:
+    _set_bob_lang(monkeypatch, None)
     (tmp_path / "bob.yaml").write_text(f"language: {language}\n")
 
-    assert configured_language(None, tmp_path) == language
+    assert resolve_language(None, None, tmp_path) == language
 
 
-def test_configured_language_reads_an_explicit_path(tmp_path: Path) -> None:
+def test_resolve_language_reads_an_explicit_path(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _set_bob_lang(monkeypatch, None)
     explicit = tmp_path / "custom.yaml"
     explicit.write_text("language: pt-BR\n")
 
-    assert configured_language(explicit, tmp_path) == "pt-BR"
+    assert resolve_language(None, explicit, tmp_path) == "pt-BR"
 
 
-def test_configured_language_rejects_an_unknown_language(tmp_path: Path) -> None:
+def test_resolve_language_rejects_an_unknown_yaml_language(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _set_bob_lang(monkeypatch, None)
     (tmp_path / "bob.yaml").write_text("language: fr\n")
 
     with pytest.raises(ConfigError) as caught:
-        configured_language(None, tmp_path)
+        resolve_language(None, None, tmp_path)
 
     assert render(reason(caught.value), "en") == "bob.yaml: language must be en or pt-BR"
 
 
-def test_configured_language_rejects_a_number(tmp_path: Path) -> None:
+def test_resolve_language_rejects_a_numeric_yaml_language(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _set_bob_lang(monkeypatch, None)
     (tmp_path / "bob.yaml").write_text("language: 5\n")
 
     with pytest.raises(ConfigError) as caught:
-        configured_language(None, tmp_path)
+        resolve_language(None, None, tmp_path)
 
     assert render(reason(caught.value), "en") == "bob.yaml: language must be a string"
 
 
-def test_configured_language_rejects_a_list(tmp_path: Path) -> None:
+def test_resolve_language_rejects_a_yaml_list(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _set_bob_lang(monkeypatch, None)
     (tmp_path / "bob.yaml").write_text("- base\n")
 
     with pytest.raises(ConfigError) as caught:
-        configured_language(None, tmp_path)
+        resolve_language(None, None, tmp_path)
 
     assert render(reason(caught.value), "en") == "bob.yaml must be a mapping"
 
 
-def test_configured_language_rejects_invalid_yaml(tmp_path: Path) -> None:
+def test_resolve_language_rejects_invalid_yaml(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _set_bob_lang(monkeypatch, None)
     (tmp_path / "bob.yaml").write_text(":\n  - [\n")
 
     with pytest.raises(ConfigError) as caught:
-        configured_language(None, tmp_path)
+        resolve_language(None, None, tmp_path)
 
     assert render(reason(caught.value), "en") == (
         "invalid YAML in bob.yaml: while parsing a block mapping"
     )
 
 
-def test_configured_language_rejects_a_duplicate_key(tmp_path: Path) -> None:
+def test_resolve_language_rejects_a_duplicate_key(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _set_bob_lang(monkeypatch, None)
     (tmp_path / "bob.yaml").write_text("language: en\nlanguage: pt-BR\n")
 
     with pytest.raises(ConfigError) as caught:
-        configured_language(None, tmp_path)
+        resolve_language(None, None, tmp_path)
 
     assert render(reason(caught.value), "en") == (
         "invalid YAML in bob.yaml: found duplicate key 'language' on line 2"
     )
 
 
-def test_configured_language_keeps_pt_br_when_another_key_is_invalid(tmp_path: Path) -> None:
+def test_resolve_language_keeps_pt_br_when_another_key_is_invalid(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _set_bob_lang(monkeypatch, None)
     (tmp_path / "bob.yaml").write_text("language: pt-BR\nduplication: [1]\n")
 
-    assert configured_language(None, tmp_path) == "pt-BR"
+    assert resolve_language(None, None, tmp_path) == "pt-BR"
 
 
 @pytest.mark.parametrize("text", ["base: trunk\n", "language:\n", 'language: ""\n'])
-def test_configured_language_is_unset_without_a_language_value(tmp_path: Path, text: str) -> None:
+def test_resolve_language_falls_back_to_en_without_a_language_value(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, text: str
+) -> None:
+    _set_bob_lang(monkeypatch, None)
     (tmp_path / "bob.yaml").write_text(text)
 
-    assert configured_language(None, tmp_path) is None
+    assert resolve_language(None, None, tmp_path) == "en"
 
 
 @pytest.mark.parametrize(
@@ -586,17 +732,29 @@ def test_configured_language_is_unset_without_a_language_value(tmp_path: Path, t
     ],
 )
 def test_resolve_language_prefers_flag_then_env_then_yaml_then_en(
-    flag: str | None, env: str | None, configured: str | None, expected: str
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    flag: str | None,
+    env: str | None,
+    configured: str | None,
+    expected: str,
 ) -> None:
-    assert resolve_language(flag, env, configured) == expected
+    _set_bob_lang(monkeypatch, env)
+    if configured is not None:
+        (tmp_path / "bob.yaml").write_text(f"language: {configured}\n")
+
+    assert resolve_language(flag, None, tmp_path) == expected
 
 
 @pytest.mark.parametrize(("flag", "env", "shown"), [("fr", None, "fr"), (None, "pt-br", "pt-br")])
 def test_resolve_language_rejects_an_unknown_value(
-    flag: str | None, env: str | None, shown: str
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, flag: str | None, env: str | None, shown: str
 ) -> None:
+    _set_bob_lang(monkeypatch, env)
+    (tmp_path / "bob.yaml").write_text("language: pt-BR\n")
+
     with pytest.raises(ConfigError) as caught:
-        resolve_language(flag, env, "pt-BR")
+        resolve_language(flag, None, tmp_path)
 
     assert render(reason(caught.value), "en") == f"invalid language: {shown} (use en or pt-BR)"
 
@@ -605,11 +763,48 @@ def test_resolve_language_rejects_an_unknown_value(
     ("flag", "env"),
     [("", "pt-BR"), (None, ""), ("", None)],
 )
-def test_resolve_language_rejects_an_empty_string(flag: str | None, env: str | None) -> None:
+def test_resolve_language_rejects_an_empty_string(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, flag: str | None, env: str | None
+) -> None:
+    _set_bob_lang(monkeypatch, env)
+    (tmp_path / "bob.yaml").write_text("language: pt-BR\n")
+
     with pytest.raises(ConfigError) as caught:
-        resolve_language(flag, env, "pt-BR")
+        resolve_language(flag, None, tmp_path)
 
     assert render(reason(caught.value), "en") == 'invalid language: "" (use en or pt-BR)'
+
+
+@pytest.mark.parametrize(
+    ("flag", "env", "shown"),
+    [("fr", None, "fr"), (None, "fr", "fr"), (None, "", '""')],
+)
+def test_flag_error_comes_before_the_yaml_error(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    flag: str | None,
+    env: str | None,
+    shown: str,
+) -> None:
+    _set_bob_lang(monkeypatch, env)
+    (tmp_path / "bob.yaml").write_text("language: pt-br\n")
+
+    with pytest.raises(ConfigError) as caught:
+        resolve_language(flag, None, tmp_path)
+
+    assert render(reason(caught.value), "en") == f"invalid language: {shown} (use en or pt-BR)"
+
+
+def test_bad_yaml_language_fails_even_when_the_flag_wins(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _set_bob_lang(monkeypatch, None)
+    (tmp_path / "bob.yaml").write_text("language: pt-br\n")
+
+    with pytest.raises(ConfigError) as caught:
+        resolve_language("en", None, tmp_path)
+
+    assert render(reason(caught.value), "en") == "bob.yaml: language must be en or pt-BR"
 
 
 @pytest.mark.parametrize(
@@ -722,6 +917,41 @@ def test_resolve_language_rejects_an_empty_string(flag: str | None, env: str | N
             "bob.yaml: security.fail_severities must be a list of strings",
             "bob.yaml: security.fail_severities deve ser uma lista de textos",
         ),
+        (
+            "duplication:\n  new_clones: block\n",
+            "bob.yaml: duplication.new_clones must be warn or fail",
+            "bob.yaml: duplication.new_clones deve ser warn ou fail",
+        ),
+        (
+            "duplication:\n  max_new_clones: -1\n",
+            "bob.yaml: duplication.max_new_clones must be at least 0",
+            "bob.yaml: duplication.max_new_clones deve ser no mínimo 0",
+        ),
+        (
+            "duplication:\n  min_lines: -1\n",
+            "bob.yaml: duplication.min_lines must be at least 0",
+            "bob.yaml: duplication.min_lines deve ser no mínimo 0",
+        ),
+        (
+            "duplication:\n  min_similarity: 101\n",
+            "bob.yaml: duplication.min_similarity must be at most 100",
+            "bob.yaml: duplication.min_similarity deve ser no máximo 100",
+        ),
+        (
+            "duplication:\n  min_similarity: 100.5\n",
+            "bob.yaml: duplication.min_similarity must be at most 100",
+            "bob.yaml: duplication.min_similarity deve ser no máximo 100",
+        ),
+        (
+            "duplication:\n  min_similarity: -1\n",
+            "bob.yaml: duplication.min_similarity must be at least 0",
+            "bob.yaml: duplication.min_similarity deve ser no mínimo 0",
+        ),
+        (
+            "duplication:\n  min_similarity: .nan\n",
+            "bob.yaml: duplication.min_similarity must be finite",
+            "bob.yaml: duplication.min_similarity deve ser finito",
+        ),
     ],
 )
 def test_load_config_rejects_an_illegal_semantic_value(
@@ -743,6 +973,10 @@ def test_load_config_rejects_an_illegal_semantic_value(
         ({"min_tokens": -1}, "min_tokens"),
         ({"min_tokens": 0}, "min_tokens"),
         ({"min_tokens": True}, "min_tokens"),
+        ({"new_clones": "block"}, "new_clones"),
+        ({"max_new_clones": -1}, "max_new_clones"),
+        ({"min_similarity": 101}, "min_similarity"),
+        ({"min_lines": -1}, "min_lines"),
         ({"languages": ("python", "ruby")}, "languages"),
         ({"languages": ()}, "languages"),
         ({"languages": ("python", "python")}, "languages"),
@@ -801,6 +1035,7 @@ def test_schema_literals_match_config_fields() -> None:
 
     assert set(config_module.SOURCE_LANGUAGES) == set(get_args(config_module.SourceLanguage))
     assert set(config_module.CRAP_SCOPES) == set(get_args(config_module.CrapScope))
+    assert set(config_module.NEW_CLONES_MODES) == set(get_args(config_module.NewClonesMode))
     assert {item.name for item in fields(config_module.Config)} == _schema_attrs(
         config_module._SCHEMA
     )

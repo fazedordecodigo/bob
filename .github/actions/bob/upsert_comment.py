@@ -9,7 +9,7 @@ import sys
 import urllib.error
 from pathlib import Path
 
-from bob_quality.config import ConfigError, parse_language
+from bob_quality.config import ConfigError, resolve_language
 from bob_quality.messages import DEFAULT_LANGUAGE, Language, reason, render, t
 from github_http import GitHubStatus, next_link, raise_for_status, request
 
@@ -102,18 +102,6 @@ def _write_step_summary(text: str) -> None:
     path.write_text(existing + body, encoding="utf-8")
 
 
-def _action_language(flag: str | None) -> Language:
-    if flag is not None:
-        return parse_language(flag)
-    action = os.environ.get("BOB_LANGUAGE")
-    if action:
-        return parse_language(action)
-    env = os.environ.get("BOB_LANG")
-    if env is not None:
-        return parse_language(env)
-    return DEFAULT_LANGUAGE
-
-
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Comenta o relatório do bob no PR")
     parser.add_argument("--report", default=".bob/report.md")
@@ -121,10 +109,10 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--pr", default=os.environ.get("BOB_PR_NUMBER", ""))
     parser.add_argument("--api-base", default=os.environ.get("GITHUB_API_URL", "https://api.github.com"))
     parser.add_argument("--token", default=os.environ.get("GITHUB_TOKEN", ""))
-    parser.add_argument("--lang", default=None)
+    parser.add_argument("--lang", default=os.environ.get("BOB_LANGUAGE") or None)
     args = parser.parse_args(argv)
     try:
-        lang = _action_language(args.lang)
+        lang = resolve_language(args.lang, None, Path.cwd())
     except ConfigError as exc:
         print(render(reason(exc), DEFAULT_LANGUAGE), file=sys.stderr)
         return 4

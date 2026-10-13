@@ -462,7 +462,17 @@ def test_measure_forwards_security_and_assemble_publishes_it(tmp_path: Path, mon
     config = Config()
     diff = {"src/app.py": {1}}
     state = check_mod._measure(
-        tmp_path, config, "main", diff, 10.0, None, ["security"], tmp_path, None
+        tmp_path,
+        config,
+        "main",
+        diff,
+        10.0,
+        None,
+        ["security"],
+        tmp_path,
+        None,
+        False,
+        None,
     )
     assert seen["call"] == (tmp_path, config, "main", diff)
     assert state.security is security
@@ -629,6 +639,8 @@ def test_run_check_pins_arguments_and_the_waiver_report(
         gates: list[str],
         out_dir: Path,
         max_workers: int | None,
+        dry_fail: bool,
+        max_new_clones: int | None,
     ) -> check_mod._Measured:
         measures.append(
             (
@@ -641,6 +653,8 @@ def test_run_check_pins_arguments_and_the_waiver_report(
                 gates,
                 out_dir,
                 max_workers,
+                dry_fail,
+                max_new_clones,
             )
         )
         state = check_mod._Measured()
@@ -689,7 +703,19 @@ def test_run_check_pins_arguments_and_the_waiver_report(
         (tmp_path, "origin/main", config_path, 12.5, "bob check", list(check_mod.DEFAULT_GATES))
     ]
     assert measures == [
-        (tmp_path, config, "origin/main", diff, 12.5, coverage, list(check_mod.DEFAULT_GATES), out_dir, 3)
+        (
+            tmp_path,
+            config,
+            "origin/main",
+            diff,
+            12.5,
+            coverage,
+            list(check_mod.DEFAULT_GATES),
+            out_dir,
+            3,
+            False,
+            None,
+        )
     ]
     assert loads == [(tmp_path, "origin/main", "bob check", list(check_mod.DEFAULT_GATES))]
     report, got_out, fmt, lang = written[0]
