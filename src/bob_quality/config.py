@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import math
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any, Callable, Literal, TypeGuard
 
@@ -17,6 +17,15 @@ CrapScope = Literal["changed", "all"]
 
 SOURCE_LANGUAGES: tuple[SourceLanguage, ...] = ("python", "typescript")
 CRAP_SCOPES: tuple[CrapScope, ...] = ("changed", "all")
+_SUFFIX_LANGUAGE: dict[str, SourceLanguage] = {
+    ".py": "python",
+    ".ts": "typescript",
+    ".tsx": "typescript",
+    ".js": "typescript",
+    ".jsx": "typescript",
+    ".mjs": "typescript",
+    ".cjs": "typescript",
+}
 
 _CheckKind = Literal[
     "string",
@@ -182,15 +191,21 @@ def load_config(path: Path | None, cwd: Path) -> Config:
     if not config_path.is_file():
         if path is not None:
             raise ConfigError(msg("config.not_found", path=config_path))
-        return Config()
+        return _detected(Config(), cwd)
     return _config_from_file(config_path, cwd)
 
 
+def detect_languages(
+    cwd: Path, include: tuple[str, ...], exclude: tuple[str, ...]
+) -> tuple[SourceLanguage, ...]:
+    found: set[SourceLanguage] = set()
+    for root in include:
+        _scan(cwd / root, cwd, exclude, found)
+    return tuple(language for language in SOURCE_LANGUAGES if language in found)
+
+
 def reject_config_types(path: Path | None, cwd: Path) -> None:
-    config_path = path if path is not None else cwd / "bob.yaml"
-    if not config_path.is_file():
-        return
-    _config_from_file(config_path, cwd)
+    load_config(path, cwd)
 
 
 def configured_language(path: Path | None, cwd: Path) -> Language | None:
@@ -231,7 +246,58 @@ def _config_from_file(config_path: Path, cwd: Path) -> Config:
     label = _config_label(config_path, cwd)
     values = _read_node(_SCHEMA, raw, label, "")
     _reject_missing_include(values.get("include"), label, cwd)
-    return Config(**values)
+    config = Config(**values)
+    if "languages" in values:
+        return config
+    return _detected(config, cwd)
+
+
+def _detected(config: Config, cwd: Path) -> Config:
+    found = detect_languages(cwd, config.include, config.exclude)
+    if not found:
+        return config
+    return replace(config, languages=found)
+
+
+def _scan(
+    base: Path, cwd: Path, exclude: tuple[str, ...], found: set[SourceLanguage]
+) -> None:
+    if base.is_symlink():
+        return
+    if _excluded(_inside(base, cwd), exclude):
+        return
+    if base.is_file():
+        _note(base, found)
+        return
+    if not base.is_dir():
+        return
+    for child in base.iterdir():
+        _scan(child, cwd, exclude, found)
+
+
+def _inside(path: Path, cwd: Path) -> Path:
+    try:
+        return path.relative_to(cwd)
+    except ValueError:
+        return path
+
+
+def _note(path: Path, found: set[SourceLanguage]) -> None:
+    suffix = path.suffix
+    if suffix not in _SUFFIX_LANGUAGE:
+        return
+    found.add(_SUFFIX_LANGUAGE[suffix])
+
+
+def _excluded(relative: Path, exclude: tuple[str, ...]) -> bool:
+    text = relative.as_posix()
+    for item in exclude:
+        pattern = item.strip("/")
+        if text == pattern or text.startswith(pattern + "/"):
+            return True
+        if pattern in relative.parts:
+            return True
+    return False
 
 
 def _reject_missing_include(include: object, label: str, cwd: Path) -> None:

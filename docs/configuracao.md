@@ -6,7 +6,7 @@ Dois arquivos. `bob.yaml` na raiz do repositório (ou o caminho de `--config`) d
 
 ## bob.yaml
 
-Se o arquivo não existe e `--config` não foi passado, `load_config` devolve os padrões de `Config` em `src/bob_quality/config.py`. Se `--config` aponta para um arquivo que não existe, `check`, `crap`, `dry`, `deps` e `mutate` saem com `4`, gravam `.bob/report.md` e `.bob/report.json`, e deixam o stdout e o stderr vazios. Cada gate pedido fica `not_run`. O `reason` do JSON é `config file not found: <caminho>`, com o caminho que `load_config` recebeu. O `report.md` segue o idioma da saída. `doctor` e `waive` não aceitam `--config`.
+Se o arquivo não existe e `--config` não foi passado, `load_config` devolve os padrões de `Config` em `src/bob_quality/config.py`. Se `--config` aponta para um arquivo que não existe, `check`, `crap`, `dry`, `deps` e `mutate` saem com `4`. O stderr fica em inglês e cita o caminho que `load_config` recebeu (`config file not found: <caminho>`). Nada é gravado. `doctor` e `waive` não aceitam `--config`.
 
 Padrões quando não há `bob.yaml`:
 
@@ -58,9 +58,11 @@ Uma chave repetida no mesmo mapeamento sai com `4`. O stderr fica em inglês e c
 
 ### languages
 
-`languages` omitido ou nulo (`languages:` ou `languages: null`) vira `["python"]`, o padrão de `Config`. Não há autodetecção. O mesmo vale quando o arquivo `bob.yaml` não existe e `--config` não foi passado. Para medir TypeScript é preciso listar `typescript` (e `python` também, num monorepo misto).
+`languages` omitido ou nulo (`languages:` ou `languages: null`) é autodetectado. O mesmo vale quando o arquivo `bob.yaml` não existe e `--config` não foi passado. A varredura lê `paths.include` e ignora `paths.exclude`. Ela não segue symlink. Um link para arquivo ou diretório não escolhe linguagem, e um link que aponta de volta para um pai não entra em ciclo. `.py` escolhe `python`. `.ts`, `.tsx`, `.js`, `.jsx`, `.mjs` e `.cjs` escolhem `typescript`. O resultado sai nessa ordem. Sem nenhum desses arquivos, o resultado é `["python"]`. Uma lista explícita permanece como foi escrita.
 
-Uma lista vazia ou um item repetido sai com 4. Uma chave ausente ou nula continua `[python]`.
+`paths.exclude` casa por prefixo de caminho, não por glob. O item casa com o caminho inteiro, com o prefixo `item/`, ou com um componente do caminho. `*.py` não deixa `src/app.py` de fora. `tests` deixa de fora `tests/a.py` e `src/tests/a.py`. `node_modules` deixa de fora `src/node_modules`.
+
+Uma lista vazia ou um item repetido sai com 4.
 
 O gate DRY mapeia `typescript` para os formatos `typescript` e `javascript` do jscpd (`dry_gate.py`).
 
@@ -89,7 +91,7 @@ Formato que `load_waivers` aceita:
 
 ```yaml
 waivers:
-  - id: app.billing.x_charge__mutmut_2
+  - id: 'src/app/billing.py::charge::if total > limit: -> if total >= limit:'
     reason: equivalente; o limite inclusivo não muda o contrato.
     author: Ada
     date: '2026-10-11'
@@ -97,14 +99,14 @@ waivers:
 
 | Campo | Origem em `bob waive` | Regra |
 |---|---|---|
-| `id` | o argumento (id do mutante ou nome da função), com `strip` | string não vazia |
+| `id` | o argumento (`arquivo::função` ou o Alvo do relatório), com `strip` | string não vazia |
 | `reason` | `--reason`, uma linha, com `strip` | string; vazio ou com `\n` / `\r` é rejeitado |
 | `author` | `git config user.name`; se falhar ou vier vazio, `$USER`; senão `unknown` | string não vazia no arquivo |
 | `date` | data UTC de hoje, `YYYY-MM-DD` | string não vazia |
 
-`bob waive` de um id que já existe uma vez substitui essa linha e sai com 0 quando o resto do arquivo é válido. Um arquivo que já contém duas entradas com o mesmo id sai com 4, em inglês no stderr, e não é reescrito.
+`bob waive` só grava um alvo de um sobrevivente do último relatório de mutação: `.bob/mutation-cache.json` no Python e `.bob/stryker-mutants.json` no TypeScript. Outro alvo, como o id do mutante ou o nome nu da função, sai com 4 e nada é gravado. `bob waive` de um id que já existe uma vez substitui essa linha e sai com 0 quando o resto do arquivo é válido. Um arquivo que já contém duas entradas com o mesmo id sai com 4, em inglês no stderr, e não é reescrito.
 
-Na hora de aplicar, um waiver casa com um mutante se o `id` é igual ao id do mutante, ao nome da função, a `arquivo:função` ou a `arquivo::função` (`_matching_reason`).
+Na hora de aplicar, um waiver casa com um sobrevivente em duas formas (`_matching_reason`). `arquivo::função` casa com todo sobrevivente da função. `arquivo::função::<descrição>` casa com um sobrevivente. A descrição é o operador do mutante, sem espaço nas pontas: o diff do `mutmut show` no Python, e `{mutatorName}@{linha}:{coluna}-{linha}:{coluna}`, mais ` -> {replacement}` quando houver, no TypeScript. Essa forma só existe quando nenhum outro sobrevivente da função tem a mesma descrição. A coluna Alvo do relatório mostra a forma exata de cada sobrevivente, ou `—` quando ela não existe. Um id que não casa com nenhum sobrevivente, escrito à mão, deixa o sobrevivente sem waiver. Ver a [ADR 0006](adr/0006-chave-estavel-do-waiver.md).
 
 ### Arquivo inválido
 

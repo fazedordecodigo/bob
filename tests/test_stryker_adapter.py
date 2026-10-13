@@ -27,13 +27,36 @@ def test_recorded_report_maps_every_status_and_drops_ignored_and_out_of_span() -
     mutants = _mapped()
 
     assert [(item.id, item.status, item.function, item.file, item.line, item.operator) for item in mutants] == [
-        ("src/safe.ts:0", "killed", "add", "src/safe.ts", 2, "ArithmeticOperator"),
-        ("src/safe.ts:1", "survived", "add", "src/safe.ts", 3, "ConditionalExpression"),
-        ("src/safe.ts:2", "no_coverage", "inner", "src/safe.ts", 4, "BlockStatement"),
-        ("src/safe.ts:3", "timeout", "add", "src/safe.ts", 5, "StringLiteral"),
-        ("src/safe.ts:4", "killed", "add", "src/safe.ts", 6, "BooleanLiteral"),
-        ("src/safe.ts:5", "killed", "add", "src/safe.ts", 7, "EqualityOperator"),
-        ("src/other.ts:0", "killed", "scale", "src/other.ts", 12, "ArithmeticOperator"),
+        ("src/safe.ts:0", "killed", "add", "src/safe.ts", 2, "ArithmeticOperator@2:10-2:11"),
+        ("src/safe.ts:1", "survived", "add", "src/safe.ts", 3, "ConditionalExpression@3:3-3:12"),
+        ("src/safe.ts:2", "no_coverage", "inner", "src/safe.ts", 4, "BlockStatement@4:1-4:2"),
+        ("src/safe.ts:3", "timeout", "add", "src/safe.ts", 5, "StringLiteral@5:1-5:8"),
+        ("src/safe.ts:4", "killed", "add", "src/safe.ts", 6, "BooleanLiteral@6:1-6:4"),
+        ("src/safe.ts:5", "killed", "add", "src/safe.ts", 7, "EqualityOperator@7:1-7:6"),
+        ("src/other.ts:0", "killed", "scale", "src/other.ts", 12, "ArithmeticOperator@12:3-12:8"),
+    ]
+
+
+def test_the_operator_tells_two_mutants_of_one_mutator_apart_and_shows_the_replacement() -> None:
+    def at(mutant_id: str, column: int, replacement: object) -> dict[str, object]:
+        row = _mutant(
+            mutant_id=mutant_id,
+            status="Survived",
+            location={
+                "start": {"line": 2, "column": column},
+                "end": {"line": 3, "column": column + 1},
+            },
+        )
+        row["replacement"] = replacement
+        return row
+
+    payload = {"files": {"src/safe.ts": {"mutants": [at("0", 5, "a - b"), at("1", 9, None)]}}}
+
+    mutants = mutants_from_report(payload, _SPANS)
+
+    assert [item.operator for item in mutants] == [
+        "ArithmeticOperator@2:5-3:6 -> a - b",
+        "ArithmeticOperator@2:9-3:10",
     ]
 
 
@@ -54,7 +77,7 @@ def test_no_coverage_keeps_file_and_innermost_function() -> None:
     assert uncovered.file == "src/safe.ts"
     assert uncovered.function == "inner"
     assert uncovered.line == 4
-    assert uncovered.operator == "BlockStatement"
+    assert uncovered.operator == "BlockStatement@4:1-4:2"
 
 
 def test_pending_outside_every_span_raises() -> None:
@@ -151,6 +174,13 @@ def test_each_malformed_row_names_the_report_file() -> None:
         {"mutants": [_mutant(line=0)]},
         {"mutants": [_mutant(line=True)]},
         {"mutants": [_mutant(line="2")]},
+        {"mutants": [_mutant(location={"start": {"line": 2, "column": 1}})]},
+        {"mutants": [_mutant(location={"start": {"line": 2, "column": 1}, "end": []})]},
+        {"mutants": [_mutant(location={"start": {"line": 2}, "end": {"line": 2, "column": 2}})]},
+        {"mutants": [_mutant(location={"start": {"line": 2, "column": 0}, "end": {"line": 2, "column": 2}})]},
+        {"mutants": [_mutant(location={"start": {"line": 2, "column": True}, "end": {"line": 2, "column": 2}})]},
+        {"mutants": [_mutant(location={"start": {"line": 2, "column": 1}, "end": {"line": 0, "column": 2}})]},
+        {"mutants": [_mutant(location={"start": {"line": 2, "column": 1}, "end": {"line": 2, "column": "2"}})]},
     ]
 
     with pytest.raises(StrykerParseError) as caught:
