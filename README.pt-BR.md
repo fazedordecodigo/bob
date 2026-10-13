@@ -21,14 +21,13 @@ Estas partes funcionam na `main`:
 - CRAP em Python e TypeScript.
 - Duplicação com jscpd, só como aviso.
 - O gate de dependências, com a regra que proíbe ciclos.
-- Mutação diferencial em Python, e `bob waive`.
+- Mutação diferencial em Python e mutação incremental com Stryker em TypeScript, e `bob waive`.
 - A GitHub Action que comenta o relatório no pull request.
 - `bob doctor`, e o pacote `bob-quality` pronto para distribuir. Nada foi enviado ao PyPI.
 - Os manifestos de plugin para Claude Code, Cursor, Copilot e Devin, e o instalador de skills ([#10](https://github.com/fazedordecodigo/bob/issues/10)). Nada foi enviado a marketplace.
 
 Estas partes estão planejadas (planned):
 
-- Mutação em TypeScript com StrykerJS ([#8](https://github.com/fazedordecodigo/bob/issues/8)).
 - Um aviso para mutantes `no_coverage` no relatório ([#31](https://github.com/fazedordecodigo/bob/issues/31)).
 - O comando `bob report` que o `docs/SPEC.md` lista. A CLI ainda não o tem.
 - Publicação no PyPI e nos marketplaces dos agentes.
@@ -169,7 +168,7 @@ O bob encapsula cada ferramenta num adaptador próprio e não copia código dela
 |---|---|---|
 | CRAP | `lizard` 1.24.1 para complexidade, `coverage` 7.16.2 rodando o pytest | `lizard` 1.24.1 para complexidade, `c8` 12.0.0 rodando o `vitest` 5.0.3 |
 | Duplicação | `jscpd` 5.4.1 | `jscpd` 5.4.1 |
-| Mutação | `mutmut` 3.8.0 | planejada ([#8](https://github.com/fazedordecodigo/bob/issues/8)) |
+| Mutação | `mutmut` 3.8.0 | `@stryker-mutator/core` 10.0.0 e `@stryker-mutator/vitest-runner` 10.0.0 |
 | Dependências | `import-linter` 2.15, `grimp` 3.17 | `dependency-cruiser` 18.5.0 |
 | Cobertura do diff | `diff-cover` 10.6.0 sobre `coverage.xml` | `diff-cover` 10.6.0 sobre o lcov do c8 |
 
@@ -291,9 +290,9 @@ A cobertura mostra que uma linha rodou. Ela não mostra que um teste confere o r
 
 Por exemplo, um mutante troca `if total > limit:` por `if total >= limit:`. Se nenhum teste usa `total == limit`, o mutante sobrevive. Escreva esse teste, ou rode `bob waive` com um motivo.
 
-O bob muta Python com o mutmut. Ele roda os testes da baseline primeiro e sai com `2` se eles falham. Ele muta as funções alteradas, mais as funções que ainda têm sobreviventes sem waiver. O cache `.bob/mutation-cache.json` guarda um hash do texto de cada função. O reuso também exige que a versão do mutmut e a impressão da suíte batam. Uma diferença ainda remuta um sobrevivente sem waiver fora do diff. A GitHub Action restaura e publica o cache como o artefato `bob-mutation-cache`.
+O bob muta Python com o mutmut e TypeScript com o Stryker. Ele roda os testes da baseline primeiro e sai com `2` se eles falham. Ele muta as funções alteradas, mais as funções que ainda têm sobreviventes sem waiver. O cache `.bob/mutation-cache.json` guarda um hash do texto de cada função. O reuso também exige que a versão do mutmut e a impressão da suíte batam. Uma diferença ainda remuta um sobrevivente sem waiver fora do diff. A GitHub Action restaura e publica o cache como o artefato `bob-mutation-cache`. O TypeScript guarda o arquivo incremental do Stryker em `.bob/stryker-incremental.json`. Esse arquivo é local. A Action não o restaura.
 
-O limite é zero sobreviventes sem waiver. Qualquer sobrevivente assim reprova o gate com exit `3`. O relatório lista só os sobreviventes. Mutantes `killed`, `timeout` e `no_coverage` não bloqueiam. Um aviso para mutantes `no_coverage` está planejado ([#31](https://github.com/fazedordecodigo/bob/issues/31)), assim como a mutação em TypeScript ([#8](https://github.com/fazedordecodigo/bob/issues/8)).
+O limite é zero sobreviventes sem waiver. Qualquer sobrevivente assim reprova o gate com exit `3`. O relatório lista só os sobreviventes. Mutantes `killed`, `timeout` e `no_coverage` não bloqueiam. Um aviso para mutantes `no_coverage` está planejado ([#31](https://github.com/fazedordecodigo/bob/issues/31)).
 
 ### Dependências
 
