@@ -22,7 +22,9 @@ O schema está em `src/bob_quality/schemas/report_v1.json`. `schema_version` é 
 10. `## Mutantes sobreviventes`, só se a mutação rodou. Colunas: id, função, local, operador, waiver. Sobrevivente sem waiver que não bloqueia leva, no local, `fora do diff; não bloqueia`. O JSON guarda `blocking` em cada linha. O cache de mutação não guarda esse campo.
 11. `## Mutantes sem teste`, só se o resumo de mutação traz `no_coverage`. Total, e tabela por função e arquivo. A linha do total diz que não bloqueia.
 12. `## Cobertura do diff` em `pt-BR` e `## Diff coverage` em `en`, só quando o gate `coverage` está no veredito. Lista o percentual medido de cada linguagem e cada linha descoberta, no formato `` `arquivo:linha` ``. Se o gate rodou e nenhuma linguagem mediu, a seção mostra o motivo e não mostra a tabela.
-13. `## Como reproduzir`: o comando, dentro de uma cerca, com `--lang` do idioma que gerou o arquivo.
+13. `## Segredos`, só quando o gate de segredos mediu. A tabela traz o alvo `secret:<regra>:<arquivo>:<linha>`, o arquivo, a linha e a regra. Sem segredo novo, o texto é `Nenhum segredo novo no diff.` A linha `Fora do diff; não bloqueia.` introduz os achados que não mudam o exit. Sem medição, a seção não aparece.
+14. `## Código morto`, só quando o gate foi pedido. Um símbolo por linha. Sem símbolo no diff, o texto é `Nenhum símbolo morto no diff.` Sem medição, a seção não aparece.
+15. `## Como reproduzir`: o comando, dentro de uma cerca, com `--lang` do idioma que gerou o arquivo.
 
 Seções vazias de dívida e de mutação somem. Foco, top 5, clones e veredito aparecem mesmo vazios, com a frase de “nenhum”.
 
@@ -30,7 +32,7 @@ A [SPEC](SPEC.md) descreve a ordem começando pelo cabeçalho e pelo veredito, e
 
 ## report.json
 
-Campos obrigatórios no schema: `schema_version`, `commit`, `base`, `generated_at`, `tool_versions`, `gates`, `focus`, `top_crap`, `reproduce`, `exit_code`. O render também escreve `old_debt`, `dependencies`, `old_dependencies`, `clones`, `waivers`, `survivors` e `mutation` quando `to_json` os inclui. `diff_coverage` entra só quando ao menos uma linguagem mediu. Um check que não rodou o gate omite a chave. O objeto traz o percentual de cada linguagem medida e a lista `uncovered`, com `file` e `line`. `schema_version` continua 1.
+Campos obrigatórios no schema: `schema_version`, `commit`, `base`, `generated_at`, `tool_versions`, `gates`, `focus`, `top_crap`, `reproduce`, `exit_code`. O render também escreve `old_debt`, `dependencies`, `old_dependencies`, `clones`, `waivers`, `survivors` e `mutation` quando `to_json` os inclui. `diff_coverage` entra só quando ao menos uma linguagem mediu, depois de `mutation`. Um check que não rodou o gate omite a chave. O objeto traz o percentual de cada linguagem medida e a lista `uncovered`, com `file` e `line`. `secrets` entra só quando o gate mediu, depois de `diff_coverage` quando essa chave existe e antes de `reproduce`. O array traz os achados que bloqueiam. Cada objeto tem `file`, `line` e `rule_id`. `dead_code` entra só quando o gate foi pedido, depois de `exit_code`. O objeto tem `symbols`. Sem medição, a chave não vai no JSON. `schema_version` continua `1`.
 
 `gates[].status` é `passed`, `warn`, `failed` ou `not_run`. O `reason` no JSON é renderizado em inglês (`JSON_LANGUAGE`).
 
