@@ -14,11 +14,10 @@ from bob_quality.adapters.lizard import LizardParseError, parse_lizard_csv
 from bob_quality.adapters.mutmut import (
     MutmutParseError,
     ids_for_show,
-    label_id_prefix,
     mutants_from_raw,
     mutation_targets,
+    mutmut_id_prefix,
     mutmut_run_patterns,
-    mutmut_target_of,
 )
 from bob_quality.config import Config
 from bob_quality.diff import function_is_changed
@@ -30,7 +29,7 @@ from bob_quality.exit_codes import (
     pytest_passed,
 )
 from bob_quality.messages import Text, msg, reason
-from bob_quality.models import GateResult, Mutant, MutantStatus, MutationTarget
+from bob_quality.models import CyclomaticFunction, GateResult, Mutant, MutantStatus
 from bob_quality.mutmut_tool import (
     mutmut_results,
     mutmut_show,
@@ -69,15 +68,10 @@ def run_mutation_gate(
     if isinstance(prepared, MutationOutcome):
         return prepared
     versions, waivers, waiver_rows, cache, plan = prepared
-    reused = [target for target, _entry in plan.reuse]
     if not plan.remutate:
         _write_cache(cache, _publish_body(plan, {}))
         return _finish(
-            plan.reused_mutants,
-            [item.key() for item in plan.remutate],
-            [item.key() for item in reused],
-            versions,
-            waiver_rows,
+            plan.reused_mutants, plan.remutated_labels, plan.reused_labels, versions, waiver_rows
         )
     blocked = _baseline_outcome(cwd, baseline, versions, waiver_rows)
     if blocked is not None:
@@ -87,11 +81,7 @@ def run_mutation_gate(
         return fresh
     _write_cache(cache, _publish_body(plan, _cache_body(cwd, plan.remutate, fresh)))
     return _finish(
-        fresh + plan.reused_mutants,
-        [item.key() for item in plan.remutate],
-        [item.key() for item in reused],
-        versions,
-        waiver_rows,
+        fresh + plan.reused_mutants, plan.remutated_labels, plan.reused_labels, versions, waiver_rows
     )
 
 
@@ -113,9 +103,11 @@ class _CacheLineError(ValueError):
 
 @dataclass
 class _Plan:
-    remutate: list[MutationTarget]
-    reuse: list[tuple[MutationTarget, dict[str, object]]]
+    remutate: list[CyclomaticFunction]
+    reuse: list[tuple[str, dict[str, object]]]
     reused_mutants: list[Mutant]
+    remutated_labels: list[str]
+    reused_labels: list[str]
     carried: dict[str, dict[str, object]]
 
 
@@ -174,10 +166,10 @@ def _safe_measured(
     config: Config,
     versions: dict[str, str],
     waiver_rows: list[dict[str, object]],
-) -> tuple[list[MutationTarget], MutationOutcome | None]:
+) -> tuple[list[CyclomaticFunction], MutationOutcome | None]:
     try:
         return _measured_functions(cwd, config), None
-    except (ToolError, OSError, UnicodeDecodeError, LizardParseError, MutmutParseError) as exc:
+    except (ToolError, OSError, LizardParseError) as exc:
         return [], _tool_outcome(reason(exc), versions, waiver_rows)
 
 
@@ -203,25 +195,27 @@ def _safe_cache(
 
 
 def _plan_functions(
-    measured: list[MutationTarget],
+    measured: list[CyclomaticFunction],
     diff_lines: dict[str, set[int]],
     view: _CacheView,
     cwd: Path,
     waivers: list[Waiver],
 ) -> _Plan:
     remutate, reuse = _split_functions(measured, diff_lines, view, cwd, waivers)
-    by_key = {item.key(): item for item in measured}
+    by_key = {f"{item.file}::{item.name}": item for item in measured}
     return _Plan(
         remutate=remutate,
         reuse=reuse,
-        reused_mutants=apply_waivers(_mutants_from_cache(reuse), waivers),
+        reused_mutants=apply_waivers(_mutants_from_cache(reuse, by_key), waivers),
+        remutated_labels=[f"{item.file}::{item.name}" for item in remutate],
+        reused_labels=[key for key, _entry in reuse],
         carried=_carried_rows(view, by_key, waivers),
     )
 
 
 def _carried_rows(
     view: _CacheView,
-    by_key: dict[str, MutationTarget],
+    by_key: dict[str, CyclomaticFunction],
     waivers: list[Waiver],
 ) -> dict[str, dict[str, object]]:
     return {
@@ -254,7 +248,7 @@ def _baseline_outcome(
 def _collect_fresh(
     cwd: Path,
     config: Config,
-    remutate: list[MutationTarget],
+    remutate: list[CyclomaticFunction],
     max_workers: int | None,
     versions: dict[str, str],
     waiver_rows: list[dict[str, object]],
@@ -273,12 +267,14 @@ def _collect_fresh(
 
 def _run_and_parse(
     cwd: Path,
-    remutate: list[MutationTarget],
+    remutate: list[CyclomaticFunction],
     max_workers: int | None,
     versions: dict[str, str],
     waiver_rows: list[dict[str, object]],
 ) -> tuple[list[Mutant], MutationOutcome | None]:
-    patterns = [pattern for item in remutate for pattern in mutmut_run_patterns(item)]
+    patterns = [
+        pattern for item in remutate for pattern in mutmut_run_patterns(item.file, item.name)
+    ]
     try:
         run_mutmut(cwd, patterns, max_workers)
         raw_results = mutmut_results(cwd)
@@ -293,8 +289,8 @@ def _run_and_parse(
         return [], _tool_outcome(reason(exc), versions, waiver_rows)
 
 
-def _with_file_lines(mutants: list[Mutant], functions: list[MutationTarget]) -> list[Mutant]:
-    """O diff do mutmut 3.8 começa no alvo. A linha do arquivo é start_line + relativa - 1."""
+def _with_file_lines(mutants: list[Mutant], functions: list[CyclomaticFunction]) -> list[Mutant]:
+    """O diff do mutmut 3.8 começa na função. A linha do arquivo é start_line + relativa - 1."""
     located: list[Mutant] = []
     for mutant in mutants:
         start = _start_line(mutant, functions)
@@ -305,9 +301,11 @@ def _with_file_lines(mutants: list[Mutant], functions: list[MutationTarget]) -> 
     return located
 
 
-def _start_line(mutant: Mutant, functions: list[MutationTarget]) -> int | None:
-    owner = mutmut_target_of(mutant.id, functions)
-    return None if owner is None else owner.start_line
+def _start_line(mutant: Mutant, functions: list[CyclomaticFunction]) -> int | None:
+    for item in functions:
+        if mutant.id.startswith(mutmut_id_prefix(item.file, item.name)):
+            return item.start_line
+    return None
 
 
 def _shows_for(cwd: Path, mutant_ids: list[str]) -> dict[str, str]:
@@ -335,25 +333,25 @@ def _tool_outcome(
 
 
 def _split_functions(
-    measured: list[MutationTarget],
+    measured: list[CyclomaticFunction],
     diff_lines: dict[str, set[int]],
     view: _CacheView,
     cwd: Path,
     waivers: list[Waiver],
-) -> tuple[list[MutationTarget], list[tuple[MutationTarget, dict[str, object]]]]:
-    by_key = {item.key(): item for item in measured}
+) -> tuple[list[CyclomaticFunction], list[tuple[str, dict[str, object]]]]:
+    by_key = {f"{item.file}::{item.name}": item for item in measured}
     survivor_keys = frozenset(
         name for name, entry in view.held.items() if _has_unwaived_survivor(entry, waivers)
     )
     keys = _candidate_keys(measured, diff_lines, survivor_keys, by_key)
-    remutate: list[MutationTarget] = []
-    reuse: list[tuple[MutationTarget, dict[str, object]]] = []
+    remutate: list[CyclomaticFunction] = []
+    reuse: list[tuple[str, dict[str, object]]] = []
     for key in sorted(keys):
         item = by_key[key]
         entry = _reusable_entry(view, key)
         digest = _function_hash(cwd, item.file, item.start_line, item.end_line)
         if entry is not None and not _needs_remutation(entry, digest, waivers):
-            reuse.append((item, entry))
+            reuse.append((key, entry))
         else:
             remutate.append(item)
     return remutate, reuse
@@ -366,13 +364,13 @@ def _reusable_entry(view: _CacheView, key: str) -> dict[str, object] | None:
 
 
 def _candidate_keys(
-    measured: list[MutationTarget],
+    measured: list[CyclomaticFunction],
     diff_lines: dict[str, set[int]],
     survivor_keys: frozenset[str],
-    by_key: dict[str, MutationTarget],
+    by_key: dict[str, CyclomaticFunction],
 ) -> set[str]:
     keys = {
-        item.key()
+        f"{item.file}::{item.name}"
         for item in measured
         if function_is_changed(item.file, item.start_line, item.end_line, diff_lines)
     }
@@ -430,18 +428,40 @@ def _view_cache(raw: object, key: dict[str, str]) -> _CacheView:
     return _CacheView(held, may_reuse)
 
 
-def _mutants_from_cache(reuse: list[tuple[MutationTarget, dict[str, object]]]) -> list[Mutant]:
-    """Uma linha antiga, sem `line_base`, ainda é relativa ao início do alvo atual."""
+def _mutants_from_cache(
+    reuse: list[tuple[str, dict[str, object]]],
+    functions: dict[str, CyclomaticFunction] | None = None,
+) -> list[Mutant]:
     mutants: list[Mutant] = []
-    for target, entry in reuse:
+    for key, entry in reuse:
         rows = entry.get("mutants")
         if not isinstance(rows, list):
             continue
-        start = None if entry.get("line_base") == "file" else target.start_line
+        start = _reuse_start(key, entry, functions or {})
         for row in rows:
             if isinstance(row, dict) and isinstance(row.get("id"), str):
                 mutants.append(_mutant_from_row(row, start))
     return mutants
+
+
+def _reuse_start(
+    key: str, entry: dict[str, object], functions: dict[str, CyclomaticFunction]
+) -> int | None:
+    if entry.get("line_base") == "file":
+        return None
+    current = functions.get(key)
+    if current is not None and current.start_line > 0:
+        return current.start_line
+    return _cached_start(entry)
+
+
+def _cached_start(entry: dict[str, object]) -> int | None:
+    if entry.get("line_base") == "file":
+        return None
+    start = entry.get("start_line")
+    if isinstance(start, int) and start > 0:
+        return start
+    return None
 
 
 def _mutant_line(row: dict[str, object]) -> int:
@@ -513,7 +533,6 @@ def no_coverage_summary(mutants: list[Mutant], labels: list[str]) -> dict[str, o
     """O mutmut deixa `file` vazio sem `show`, então o id casa o prefixo.
 
     O Stryker preenche arquivo e função, e o id não tem esse prefixo.
-    Um rótulo `arquivo::Classe.método` usa o prefixo `xǁ`.
     """
     counts = [row for row in (_label_count(mutants, label) for label in labels) if row]
     counts.sort(key=_count_order)
@@ -525,7 +544,7 @@ def no_coverage_summary(mutants: list[Mutant], labels: list[str]) -> dict[str, o
 
 def _label_count(mutants: list[Mutant], label: str) -> tuple[int, str, str] | None:
     file, function = label.split("::")
-    prefix = label_id_prefix(file, function)
+    prefix = mutmut_id_prefix(file, function)
     count = sum(1 for item in mutants if _uncovered(item, file, function, prefix))
     if not count:
         return None
@@ -579,28 +598,58 @@ def focus_with_survivors(
     return rows
 
 
-def _measured_functions(cwd: Path, config: Config) -> list[MutationTarget]:
-    """O lizard mede e `mutation_targets` nomeia. Cada arquivo medido é lido uma vez."""
+def _measured_functions(cwd: Path, config: Config) -> list[CyclomaticFunction]:
     raw = run_lizard_csv(cwd, config.include, config.exclude)
-    rows = [replace(item, file=relative_path(cwd, item.file)) for item in parse_lizard_csv(raw)]
-    sources = {file: (cwd / file).read_text() for file in {item.file for item in rows}}
-    return mutation_targets(rows, sources)
+    functions = parse_lizard_csv(raw)
+    measured: list[CyclomaticFunction] = []
+    for item in functions:
+        measured.append(
+            CyclomaticFunction(
+                file=relative_path(cwd, item.file),
+                name=item.name,
+                start_line=item.start_line,
+                end_line=item.end_line,
+                cc=item.cc,
+            )
+        )
+    return _named_for_mutmut(cwd, measured)
 
 
-def _belongs(mutant: Mutant, functions: list[MutationTarget]) -> bool:
-    return mutmut_target_of(mutant.id, functions) is not None
+def _named_for_mutmut(cwd: Path, measured: list[CyclomaticFunction]) -> list[CyclomaticFunction]:
+    """O nome do cache é o qualname. A linha inicial é a que o `mutmut show` imprime."""
+    try:
+        targets = mutation_targets(measured, _read_sources(cwd, measured))
+    except MutmutParseError as exc:
+        raise ToolError(*exc.args) from exc
+    named: list[CyclomaticFunction] = []
+    for row, target in zip(measured, targets):
+        named.append(replace(row, name=target.qualname(), start_line=target.start_line))
+    return named
+
+
+def _read_sources(cwd: Path, measured: list[CyclomaticFunction]) -> dict[str, str]:
+    try:
+        return {item.file: (cwd / item.file).read_text() for item in measured}
+    except UnicodeDecodeError as exc:
+        raise ToolError(str(exc)) from exc
+
+
+def _belongs(mutant: Mutant, functions: list[CyclomaticFunction]) -> bool:
+    return any(mutant.id.startswith(mutmut_id_prefix(item.file, item.name)) for item in functions)
 
 
 def _cache_body(
-    cwd: Path, functions: list[MutationTarget], mutants: list[Mutant]
+    cwd: Path, functions: list[CyclomaticFunction], mutants: list[Mutant]
 ) -> dict[str, object]:
     body: dict[str, object] = {}
     for item in functions:
-        own = [mutant for mutant in mutants if mutmut_target_of(mutant.id, functions) == item]
-        body[item.key()] = {
+        prefix = mutmut_id_prefix(item.file, item.name)
+        own = [mutant for mutant in mutants if mutant.id.startswith(prefix)]
+        key = f"{item.file}::{item.name}"
+        body[key] = {
             "hash": _function_hash(cwd, item.file, item.start_line, item.end_line),
             "file": item.file,
-            "name": item.qualname(),
+            "name": item.name,
             "start_line": item.start_line,
             "end_line": item.end_line,
             "line_base": "file",
@@ -617,7 +666,7 @@ def _function_hash(cwd: Path, file: str, start: int, end: int) -> str:
 
 def _publish_body(plan: _Plan, fresh: dict[str, object]) -> dict[str, object]:
     body: dict[str, object] = dict(plan.carried)
-    body.update({target.key(): entry for target, entry in plan.reuse})
+    body.update(dict(plan.reuse))
     body.update(fresh)
     return body
 

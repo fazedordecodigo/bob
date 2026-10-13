@@ -13,7 +13,6 @@ import pytest
 from bob_quality import mutmut_tool, tools
 from bob_quality.adapters.mutmut import mutmut_run_patterns, suite_failed
 from bob_quality.exit_codes import pytest_passed
-from bob_quality.models import MutationTarget
 from bob_quality.tools import ToolError, run_coverage
 
 from helpers import (
@@ -308,12 +307,8 @@ STATS = {
     "bob_quality.crap.x_calculate_crap_delta": {"tests/test_crap.py::test_delta"},
     "bob_quality.cli.x_main": {"tests/test_cli.py::test_main"},
 }
-CALCULATE_CRAP = MutationTarget("src/bob_quality/crap.py", "calculate_crap", 4, 9)
-BOX_OPEN = MutationTarget("src/app/box.py", "open", 6, 7, owner="Box")
-
-
 def test_the_clean_run_picks_only_the_tests_of_the_function() -> None:
-    patterns = mutmut_run_patterns(CALCULATE_CRAP)
+    patterns = mutmut_run_patterns("src/bob_quality/crap.py", "calculate_crap")
 
     assert patterns == [
         "bob_quality.crap.x_calculate_crap__mutmut*",
@@ -333,7 +328,7 @@ def test_the_run_patterns_select_only_the_mutants_of_the_function() -> None:
         "bob_quality.cli.x_main__mutmut_3",
     ]
 
-    patterns = mutmut_run_patterns(CALCULATE_CRAP)
+    patterns = mutmut_run_patterns("src/bob_quality/crap.py", "calculate_crap")
 
     assert _mutants_run(patterns, own + siblings) == own
 
@@ -351,7 +346,7 @@ def test_the_run_patterns_of_a_method_select_only_its_mutants_and_tests() -> Non
         "app.box.xǁCrateǁopen": {"tests/test_box.py::test_crate_open"},
     }
 
-    patterns = mutmut_run_patterns(BOX_OPEN)
+    patterns = mutmut_run_patterns("src/app/box.py", "Box.open")
 
     assert patterns == ["app.box.xǁBoxǁopen__mutmut*", "*app.box.xǁBoxǁopen"]
     assert _mutants_run(patterns, own + siblings) == own

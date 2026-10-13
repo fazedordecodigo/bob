@@ -98,55 +98,36 @@ def mutation_targets(
     return [_target(item, indexes[item.file]) for item in functions]
 
 
-def mutmut_run_patterns(target: MutationTarget) -> list[str]:
-    """Padrões do `mutmut run`: os mutantes do alvo e a chave dele no stats.
+def mutmut_id_prefix(file: str, name: str) -> str:
+    """Prefixo do id que o mutmut 3.8 gera.
+
+    Sem ponto, função de topo: `x_<nome>`. Com ponto, o último ponto separa o
+    dono do método (`Box.open`, `Box.Inner.open`): `xǁ<dono>ǁ<nome>`. O nome
+    aninhado do lizard (`outer.inner`) tem a mesma forma e não é um id que o
+    mutmut emite.
+    """
+    module = file.removesuffix(".py").replace("\\", "/").replace("/", ".")
+    if module.startswith("src."):
+        module = module[len("src.") :]
+    if "." not in name:
+        return f"{module}.x_{name}__mutmut"
+    owner, method = name.rsplit(".", 1)
+    return f"{module}.xǁ{owner}ǁ{method}__mutmut"
+
+
+def mutmut_stats_key(file: str, name: str) -> str:
+    """Chave da função em `tests_by_mangled_function_name` do mutmut 3.8."""
+    return mutmut_id_prefix(file, name).removesuffix("__mutmut")
+
+
+def mutmut_run_patterns(file: str, name: str) -> list[str]:
+    """Padrões do `mutmut run`: os mutantes da função e a chave dela no stats.
 
     O mutmut 3.8 escolhe os testes da execução limpa casando cada padrão com `*`
     contra as chaves do stats, por fnmatch. Sem o segundo padrão nada casa, e a
     execução limpa roda a suíte inteira.
     """
-    mangled = _mangled_name(target)
-    return [f"{mangled}__mutmut*", f"*{mangled}"]
-
-
-def mutmut_target_of(mutant_id: str, targets: Iterable[MutationTarget]) -> MutationTarget | None:
-    """O alvo cujo prefixo abre o id. Todo prefixo termina em `__mutmut`, e o id tem um alvo só."""
-    for target in targets:
-        if mutant_id.startswith(f"{_mangled_name(target)}__mutmut"):
-            return target
-    return None
-
-
-def label_id_prefix(file: str, qualname: str) -> str:
-    """Prefixo `__mutmut` de um rótulo `arquivo::qualname`.
-
-    Sem ponto, a grafia é a de função de topo. Com ponto, o último ponto separa
-    o dono do método (`Box.open`, `Box.Inner.open`). O nome aninhado do lizard
-    (`outer.inner`) tem a mesma forma e não é um id que o mutmut emite.
-    """
-    owner = None
-    name = qualname
-    if "." in qualname:
-        owner, name = qualname.rsplit(".", 1)
-    return f"{_mangle(file, name, owner)}__mutmut"
-
-
-def _mangled_name(target: MutationTarget) -> str:
-    """Chave do alvo em `tests_by_mangled_function_name` do mutmut 3.8."""
-    return _mangle(target.file, target.name, target.owner)
-
-
-def _mangle(file: str, name: str, owner: str | None) -> str:
-    """`<módulo>.x_<nome>` sem dono, `<módulo>.xǁ<Classe>ǁ<nome>` com dono.
-
-    Espelha a regra pública `src.` + `x_` ou `xǁ`, sem copiar o código.
-    """
-    module = file.removesuffix(".py").replace("\\", "/").replace("/", ".")
-    if module.startswith("src."):
-        module = module[len("src.") :]
-    if owner is None:
-        return f"{module}.x_{name}"
-    return f"{module}.xǁ{owner}ǁ{name}"
+    return [f"{mutmut_id_prefix(file, name)}*", f"*{mutmut_stats_key(file, name)}"]
 
 
 _NESTED = "nested"
@@ -197,7 +178,7 @@ def _class_index(source: str, file: str) -> _ClassIndex:
     muda a regra. A primeira linha do método é o primeiro decorador.
     """
     try:
-        tree = ast.parse(source, filename=file)
+        tree = ast.parse(source)
     except SyntaxError as exc:
         raise MutmutParseError(
             msg("mutmut.unreadable_source", file=file, line=exc.lineno, detail=exc.msg)
@@ -206,9 +187,8 @@ def _class_index(source: str, file: str) -> _ClassIndex:
     bodies: list[range] = []
     for cls, owner in _class_owners(tree):
         bodies.append(range(cls.lineno, (cls.end_lineno or cls.lineno) + 1))
-        for node, direct in _scope_defs(cls.body, direct=True):
+        for node, method_owner in _scope_defs(cls.body, owner):
             first = min([node.lineno, *(item.lineno for item in node.decorator_list)])
-            method_owner = owner if direct else qualified_name(_NESTED, owner)
             methods[node.lineno] = _ClassMethod(method_owner, node.name, first)
     return _ClassIndex(methods, bodies)
 
@@ -226,14 +206,14 @@ def _class_owners(tree: ast.Module) -> Iterator[tuple[ast.ClassDef, str]]:
 
 
 def _scope_defs(
-    nodes: Iterable[ast.AST], direct: bool
-) -> Iterator[tuple[ast.FunctionDef | ast.AsyncFunctionDef, bool]]:
-    """Os `def` do escopo de uma classe: direto no corpo, ou sob `if`, `try` e afins."""
+    nodes: Iterable[ast.AST], owner: str
+) -> Iterator[tuple[ast.FunctionDef | ast.AsyncFunctionDef, str]]:
+    """Os `def` do escopo de uma classe. Sob `if` ou `try`, o dono ganha `nested`."""
     for node in nodes:
         if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
-            yield node, direct
+            yield node, owner
         elif not isinstance(node, ast.ClassDef):
-            yield from _scope_defs(ast.iter_child_nodes(node), direct=False)
+            yield from _scope_defs(ast.iter_child_nodes(node), qualified_name(_NESTED, owner))
 
 
 def _parse_results(raw: str) -> list[tuple[str, MutantStatus]]:

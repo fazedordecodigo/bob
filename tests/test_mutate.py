@@ -11,8 +11,10 @@ Seams combinados em docs/SPEC.md (aceite da issue #3):
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 
+import pytest
 from jsonschema import Draft202012Validator
 
 from helpers import commit_on_branch, commit_on_main, init_python_repo, run_bob
@@ -67,7 +69,13 @@ def test_mutate_exits_3_when_changed_function_has_unwaived_survivor(tmp_path: Pa
     assert "src/app/weak.py" in markdown
 
 
+def _skip_inside_mutmut() -> None:
+    if os.environ.get("MUTANT_UNDER_TEST") or os.environ.get("BOB_SKIP_MUTMUT_DOGFOOD"):
+        pytest.skip("não reentrar na coleta do mutmut")
+
+
 def test_mutate_exits_3_when_a_changed_method_has_an_unwaived_survivor(tmp_path: Path) -> None:
+    _skip_inside_mutmut()
     repo = _repo_with_surviving_method(tmp_path)
 
     result = run_bob(repo, "mutate", "--base", "main")
@@ -117,6 +125,7 @@ def test_mutate_exits_3_when_a_changed_method_has_an_unwaived_survivor(tmp_path:
 
 
 def test_a_waiver_on_the_method_label_clears_the_method(tmp_path: Path) -> None:
+    _skip_inside_mutmut()
     repo = _repo_with_surviving_method(tmp_path)
     reason = "o contrato exige estritamente maior que zero"
 
@@ -139,6 +148,7 @@ def test_a_waiver_on_the_method_label_clears_the_method(tmp_path: Path) -> None:
 
 def test_a_lone_change_to_a_nested_class_method_still_exits_4(tmp_path: Path) -> None:
     """O mutmut 3.8 não gera mutante para o método de uma classe aninhada."""
+    _skip_inside_mutmut()
     repo = init_python_repo(tmp_path / "repo")
     commit_on_branch(repo, "nested", "src/app/shelf.py", NESTED_METHOD, "add Shelf.Slot.label")
 
