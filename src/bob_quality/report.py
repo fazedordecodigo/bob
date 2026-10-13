@@ -72,6 +72,8 @@ def to_json(report: Report) -> dict[str, object]:
         payload["security"] = _security_json(report.security)
     if report.secrets is not None:
         payload["secrets"] = [secret_row(row) for row in report.secrets.blocking]
+    if report.typing is not None:
+        payload["typing"] = report.typing
     payload["reproduce"] = report.reproduce
     payload["exit_code"] = report.exit_code
     if report.dead_code is not None:
@@ -111,6 +113,7 @@ def to_markdown(report: Report, lang: Language) -> str:
     lines.extend(_clone_lines(report))
     lines.extend(_survivor_lines(report, lang))
     lines.extend(_no_coverage_lines(report))
+    lines.extend(_types_lines(report))
     lines.extend(_secrets_lines(report))
     lines.extend(_dead_lines(report))
     lines.extend(_security_lines(report))
@@ -316,8 +319,47 @@ def _security_row(item: Judged) -> Message:
     )
 
 
-def _cell(value: str) -> str:
-    return value.replace("|", "\\|")
+def _types_lines(report: Report) -> list[Text]:
+    found = report.typing
+    if not isinstance(found, dict):
+        return []
+    lines: list[Text] = ["", msg("report.types"), ""]
+    lines.extend(_type_body(report, found))
+    return lines
+
+
+def _type_body(report: Report, found: dict[str, object]) -> list[Text]:
+    skipped = _not_run_line(report)
+    if skipped is not None:
+        return [skipped]
+    return _finding_table(found.get("findings"))
+
+
+def _not_run_line(report: Report) -> Text | None:
+    gate = _gate_named(report, "typing")
+    if gate is None or gate.status != "not_run" or gate.reason is None:
+        return None
+    return msg("report.types_line", reason=gate.reason)
+
+
+def _finding_table(findings: object) -> list[Text]:
+    if not isinstance(findings, list) or not findings:
+        return [msg("report.types_none")]
+    rows: list[Text] = [msg("report.types_header"), "|---|---:|---|---|---|"]
+    rows.extend(_finding_row(item) for item in findings if isinstance(item, dict))
+    return rows
+
+
+def _finding_row(item: dict[str, object]) -> str:
+    file = _cell(item.get("file"))
+    code = _cell(item.get("code"))
+    waiver = _cell(item.get("waiver_id"))
+    disposition = _cell(item.get("disposition"))
+    return f"| `{file}` | {item.get('line')} | `{code}` | {disposition} | `{waiver}` |"
+
+
+def _cell(value: object) -> str:
+    return str(value).replace("|", "\\|")
 
 
 def _secrets_lines(report: Report) -> list[Text]:
