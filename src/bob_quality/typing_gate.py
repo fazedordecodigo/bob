@@ -16,14 +16,16 @@ from pathlib import Path, PurePosixPath
 from types import ModuleType
 from typing import ClassVar, Literal, NewType, TypedDict
 
+def _unreachable(value: object) -> None:
+    # O 3.10 não tem typing.assert_never. A mensagem é a do 3.11.
+    text = repr(value)
+    raise AssertionError(f"Expected code to be unreachable, but got: {text}")
+
+
 try:
     from typing import assert_never
 except ImportError:
-
-    def assert_never(value: object) -> None:
-        # O 3.10 não tem typing.assert_never. A mensagem é a do 3.11.
-        text = repr(value)
-        raise AssertionError(f"Expected code to be unreachable, but got: {text}")
+    assert_never = _unreachable
 
 from bob_quality.config import Config, SourceLanguage
 from bob_quality.messages import Message, msg
