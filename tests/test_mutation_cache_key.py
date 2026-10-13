@@ -92,6 +92,9 @@ waivers:
 def test_stats_key_is_the_mutant_prefix_without_the_mutmut_suffix() -> None:
     assert mutmut_stats_key("src/app/safe.py", "add") == "app.safe.x_add"
     assert mutmut_stats_key("pkg/mod.py", "fn") == "pkg.mod.x_fn"
+    assert mutmut_stats_key("src/app/gauge.py", "Gauge.classify") == "app.gauge.xǁGaugeǁclassify"
+    assert mutmut_stats_key("src/app/box.py", "Box.Inner.open") == "app.box.xǁBox.Innerǁopen"
+    assert mutmut_stats_key("src\\app\\box.py", "Box.open") == "app.box.xǁBoxǁopen"
 
 
 def _repo(tmp_path: Path, source: str = ADD_TOUCHED) -> Path:

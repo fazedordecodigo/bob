@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from bob_quality.adapters.mutmut import _method_id_prefix, id_matches_function
+from bob_quality.adapters.mutmut import id_matches_function
 from bob_quality.messages import Language, render
 from bob_quality.models import CyclomaticFunction, GateResult, Mutant, Report
 from bob_quality.mutate import (
@@ -25,6 +25,8 @@ from bob_quality.report import to_markdown
 def _verdict(result: GateResult, lang: Language) -> tuple[str, str, str | None]:
     shown = render(result.reason, lang) if result.reason is not None else None
     return result.name, result.status, shown
+
+ORPHAN = "src/app/orphan.py::orphan"
 
 _LABELS = [
     "src/app/b.py::a",
@@ -70,6 +72,23 @@ def test_no_coverage_summary_groups_uncovered_mutants_by_listed_function() -> No
     assert no_coverage_summary(_MUTANTS, _LABELS) == _SUMMARY
 
 
+def test_no_coverage_counts_a_method_apart_from_the_same_named_function() -> None:
+    mutants = [
+        Mutant("app.box.xǁBoxǁopen__mutmut_1", "Box.open", "", 0, "", "no_coverage"),
+        Mutant("app.box.x_open__mutmut_1", "open", "", 0, "", "no_coverage"),
+        Mutant("app.box.x_open__mutmut_2", "open", "", 0, "", "no_coverage"),
+    ]
+    labels = ["src/app/box.py::Box.open", "src/app/box.py::open"]
+
+    assert no_coverage_summary(mutants, labels) == {
+        "total": 3,
+        "functions": [
+            {"file": "src/app/box.py", "function": "open", "count": 2},
+            {"file": "src/app/box.py", "function": "Box.open", "count": 1},
+        ],
+    }
+
+
 def test_no_coverage_summary_counts_a_typescript_id_by_file_and_function() -> None:
     mutants = [
         Mutant("src/safe.ts:2", "add", "src/safe.ts", 2, "BlockStatement", "no_coverage"),
@@ -111,7 +130,6 @@ def test_id_matches_function_accepts_a_method_id() -> None:
     assert id_matches_function(
         "app.box.xǁBoxǁopen__mutmut_1", "src/app/box.py", "Box.open_extra"
     ) is False
-    assert _method_id_prefix("src/app/a.py", "foo") == ""
 
 
 def test_summary_does_not_count_foo_bar_as_foo() -> None:
@@ -137,7 +155,7 @@ def test_summary_keeps_a_function_name_after_the_first_separator() -> None:
 
 def test_finish_fails_for_one_uncovered_mutant_and_passes_when_there_are_none() -> None:
     uncovered = Mutant("app.orphan.x_orphan__mutmut_1", "orphan", "", 0, "", "no_coverage")
-    blocked = _finish([uncovered], {}, ["src/app/orphan.py::orphan"], [], {}, [])
+    blocked = _finish([uncovered], {}, [ORPHAN], [], {}, [])
     passed = _finish(
         [Mutant("app.a.x_add__mutmut_1", "add", "src/app/a.py", 1, "AOR", "killed")],
         {},
@@ -233,7 +251,7 @@ def test_finish_keeps_a_waived_survivor_while_warning_about_uncovered_mutants() 
     outcome = _finish(
         [survivor, uncovered],
         {"src/app/orphan.py": {2}},
-        ["src/app/orphan.py::orphan"],
+        [ORPHAN],
         [],
         {"mutmut": "3.8.0"},
         waivers,
@@ -286,7 +304,7 @@ def test_finish_fails_with_the_uncovered_total() -> None:
         Mutant("app.orphan.x_orphan__mutmut_1", "orphan", "", 0, "", "no_coverage"),
         Mutant("app.orphan.x_orphan__mutmut_2", "orphan", "", 0, "", "no_coverage"),
     ]
-    outcome = _finish(mutants, {}, ["src/app/orphan.py::orphan"], [], {}, [])
+    outcome = _finish(mutants, {}, [ORPHAN], [], {}, [])
 
     assert outcome.exit_code == 3
     assert _verdict(outcome.result, "pt-BR") == ("mutate", "failed", "2 mutantes sem teste")

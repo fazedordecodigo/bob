@@ -140,6 +140,88 @@
     },
     "reproduce": { "type": "string" },
     "exit_code": { "type": "integer" },
+    "typing": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["absent", "checkers", "findings"],
+      "properties": {
+        "absent": {
+          "type": "array",
+          "items": { "enum": ["python", "typescript"] }
+        },
+        "checkers": {
+          "type": "array",
+          "items": {
+            "oneOf": [
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["language", "tool", "outcome"],
+                "properties": {
+                  "language": { "enum": ["python", "typescript"] },
+                  "tool": { "enum": ["mypy", "pyright", "tsc"] },
+                  "outcome": { "const": "measured" }
+                }
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["language", "tool", "outcome", "reason"],
+                "properties": {
+                  "language": { "enum": ["python", "typescript"] },
+                  "tool": { "enum": ["mypy", "pyright", "tsc"] },
+                  "outcome": { "const": "unmeasured" },
+                  "reason": {
+                    "enum": [
+                      "missing_executable",
+                      "unparseable_output",
+                      "exit_outside_measurement",
+                      "crashed"
+                    ]
+                  }
+                }
+              }
+            ]
+          }
+        },
+        "findings": {
+          "type": "array",
+          "items": {
+            "oneOf": [
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["kind", "disposition", "file", "line", "code", "tool", "waiver_id"],
+                "properties": {
+                  "kind": { "const": "diagnostic" },
+                  "disposition": { "enum": ["blocking", "waived", "off_diff"] },
+                  "file": { "type": "string" },
+                  "line": { "type": "integer" },
+                  "code": { "type": "string" },
+                  "tool": { "enum": ["mypy", "pyright", "tsc"] },
+                  "waiver_id": { "type": "string" }
+                }
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["kind", "disposition", "file", "line", "code", "waiver_id"],
+                "properties": {
+                  "kind": { "const": "escape" },
+                  "disposition": { "enum": ["blocking", "waived"] },
+                  "file": { "type": "string" },
+                  "line": { "type": "integer" },
+                  "code": {
+                    "enum": ["Any", "type: ignore", "as any", "@ts-ignore", "@ts-expect-error"]
+                  },
+                  "waiver_id": { "type": "string" }
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
     "dead_code": {
       "type": "object",
       "required": ["symbols"],
