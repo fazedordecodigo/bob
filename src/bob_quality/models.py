@@ -236,5 +236,6 @@ class Report:
     waivers: list[dict[str, object]] = field(default_factory=list)
     survivors: list[dict[str, object]] = field(default_factory=list)
     mutation: dict[str, object] | None = None
+    typing: dict[str, object] | None = None
     secrets: SecretLedger | None = None
     dead_code: DeadSection | None = None
