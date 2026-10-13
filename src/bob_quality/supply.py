@@ -1,5 +1,3 @@
-"""Política do gate supply. Pura: sem processo, sem HTTP, sem relógio."""
-
 from __future__ import annotations
 
 from collections.abc import Callable, Mapping
@@ -50,8 +48,6 @@ _UNDECLARED = frozenset({"DEP001", "DEP003"})
 
 @dataclass(frozen=True)
 class Judgment:
-    """Saída de `judge`. O exit aqui é 0 ou 1. O 4 nasce só em `finish`."""
-
     status: Literal["passed", "warn", "failed"]
     exit_code: Literal[0, 1]
     reason: Text | None

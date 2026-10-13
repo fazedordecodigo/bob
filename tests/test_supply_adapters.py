@@ -1,5 +1,3 @@
-"""Adaptadores do gate supply. O transporte e o processo são injetados."""
-
 import io
 import json
 import socket

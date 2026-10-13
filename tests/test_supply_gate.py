@@ -1,5 +1,3 @@
-"""`run_supply_gate` com processo e HTTP injetados."""
-
 import json
 import subprocess
 from pathlib import Path

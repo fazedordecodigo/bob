@@ -1,5 +1,3 @@
-"""CLI `bob check --gates supply` sobre um repositório pequeno."""
-
 import json
 import subprocess
 from pathlib import Path

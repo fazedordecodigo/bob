@@ -1,5 +1,3 @@
-"""Um processo knip, reporter JSON, sem filtro e sem cache."""
-
 from __future__ import annotations
 
 import json

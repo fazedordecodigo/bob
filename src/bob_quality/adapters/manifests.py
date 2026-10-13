@@ -1,5 +1,3 @@
-"""Nomes diretos no HEAD que o manifesto da base não tem."""
-
 from __future__ import annotations
 
 import json

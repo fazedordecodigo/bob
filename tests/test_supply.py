@@ -1,5 +1,3 @@
-"""Política pura do gate supply: judge, finish e tool_measured."""
-
 from bob_quality.messages import render
 from bob_quality.models import (
     Advisory,

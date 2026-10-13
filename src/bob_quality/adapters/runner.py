@@ -1,5 +1,3 @@
-"""Resultado de um processo injetável. O exit não vira veredito aqui."""
-
 from __future__ import annotations
 
 import subprocess

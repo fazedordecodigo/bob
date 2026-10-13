@@ -1,5 +1,3 @@
-"""deptry JSON → violações. O exit fica no capture para `tool_measured`."""
-
 from __future__ import annotations
 
 import json

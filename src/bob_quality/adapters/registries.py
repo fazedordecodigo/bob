@@ -1,5 +1,3 @@
-"""PyPI, npm e o batch do OSV. Timeout não é exit 4."""
-
 from __future__ import annotations
 
 import json
