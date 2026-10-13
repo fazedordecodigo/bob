@@ -197,6 +197,35 @@ def test_run_supply_gate_blocks_a_critical_advisory_from_the_vuln_document(
     )
 
 
+def test_run_supply_gate_names_a_fetched_advisory_with_no_published_severity(
+    tmp_path: Path,
+) -> None:
+    repo = _repo(tmp_path)
+    _pyproject(repo, "dependencies = [\n]\n")
+    _commit(repo, "base")
+    _git(repo, "checkout", "-b", "head")
+    _pyproject(repo, 'dependencies = [\n  "left==1.0.0",\n]\n')
+    _commit(repo, "head")
+
+    result, code, _versions, supply = run_supply_gate(
+        repo, Config(), _diff(repo), "main", _deptry("[]"), _no_severity()
+    )
+
+    assert code == 0
+    assert result.status == "warn"
+    assert supply.rows == (
+        RowWarn(
+            UnverifiedAdvisory(
+                "pypi", "left", "pyproject.toml", 5, "no_severity", "GHSA-0000-0000-0000"
+            )
+        ),
+    )
+    assert (
+        "| `left` | `pyproject.toml:5` | advisory GHSA-0000-0000-0000, no severity published | warns |"
+        in _english(result, supply)
+    )
+
+
 def test_run_supply_gate_warns_when_the_vuln_document_times_out(tmp_path: Path) -> None:
     repo = _repo(tmp_path)
     _pyproject(repo, "dependencies = [\n]\n")
@@ -407,6 +436,33 @@ def _critical():
                             {
                                 "id": "GHSA-crit-0000-0001",
                                 "modified": "2024-06-01T00:00:00Z",
+                            }
+                        ]
+                    }
+                ]
+            }
+            return HttpOk(200, json.dumps(payload).encode())
+        return HttpOk(200, b'{"info":{"name":"left"}}')
+
+    return transport
+
+
+def _no_severity():
+    document = (_VULNS / "GHSA-0000-0000-0000.json").read_bytes()
+
+    def transport(method: str, url: str, body: bytes | None, timeout: int) -> HttpOk:
+        assert timeout == 30
+        if url.startswith("https://api.osv.dev/v1/vulns/"):
+            assert body is None
+            return HttpOk(200, document)
+        if method == "POST":
+            payload = {
+                "results": [
+                    {
+                        "vulns": [
+                            {
+                                "id": "GHSA-0000-0000-0000",
+                                "modified": "2024-01-04T00:00:00Z",
                             }
                         ]
                     }

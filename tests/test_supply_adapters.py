@@ -277,7 +277,7 @@ def test_probe_advisories_posts_one_batch_per_index_and_skips_an_unpinned_name()
             DecidedAdvisory("GHSA-1111-2222-3333", "CRITICAL"),
             DecidedAdvisory("GHSA-aaaa-bbbb-cccc", "MODERATE"),
             DecidedAdvisory("PYSEC-1", "HIGH"),
-            UndecidedRecord("undecided", "GHSA-0000-0000-0000"),
+            UndecidedRecord("no_severity", "GHSA-0000-0000-0000"),
         )
     )
     assert probes[1] == AdvisoriesFound(())
@@ -354,7 +354,7 @@ def test_probe_advisories_keeps_the_batch_id_when_the_alias_has_no_severity() ->
         AdvisoriesFound(
             (
                 DecidedAdvisory("GHSA-crit-0000-0001", "CRITICAL"),
-                UndecidedRecord("undecided", "PYSEC-9"),
+                UndecidedRecord("no_severity", "PYSEC-9"),
             )
         ),
     )

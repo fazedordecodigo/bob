@@ -73,6 +73,72 @@ def test_markdown_renders_each_supply_row_literally() -> None:
     ) in english
 
 
+def test_markdown_names_a_fetched_advisory_with_no_published_severity() -> None:
+    supply = SupplyReport(
+        ("python",),
+        (),
+        (
+            RowWarn(
+                UnverifiedAdvisory(
+                    "pypi", "left", "pyproject.toml", 5, "no_severity", "GHSA-0000-0000-0000"
+                )
+            ),
+        ),
+    )
+
+    english = to_markdown(_report(supply=supply), "en")
+    portuguese = to_markdown(_report(supply=supply), "pt-BR")
+
+    assert (
+        "| `left` | `pyproject.toml:5` | advisory GHSA-0000-0000-0000, no severity published | warns |"
+        in english
+    )
+    assert (
+        "| `left` | `pyproject.toml:5` | advisory GHSA-0000-0000-0000, sem severidade publicada | avisa |"
+        in portuguese
+    )
+
+
+def test_markdown_keeps_fetch_failure_wording_for_a_named_advisory() -> None:
+    supply = SupplyReport(
+        ("python",),
+        (),
+        (
+            RowWarn(
+                UnverifiedAdvisory(
+                    "pypi", "left", "pyproject.toml", 5, "undecided", "GHSA-fail-0000-0003"
+                )
+            ),
+            RowWarn(
+                UnverifiedAdvisory(
+                    "pypi", "left", "pyproject.toml", 6, "timeout", "GHSA-fail-0000-0001"
+                )
+            ),
+            RowWarn(UnverifiedAdvisory("pypi", "left", "pyproject.toml", 7, "dns", "GHSA-fail-0000-0002")),
+        ),
+    )
+
+    english = to_markdown(_report(supply=supply), "en")
+    portuguese = to_markdown(_report(supply=supply), "pt-BR")
+
+    assert (
+        "| `left` | `pyproject.toml:5` | advisory GHSA-fail-0000-0003 left unverified (undecided answer) | warns |"
+        in english
+    )
+    assert (
+        "| `left` | `pyproject.toml:6` | advisory GHSA-fail-0000-0001 left unverified (timeout) | warns |"
+        in english
+    )
+    assert (
+        "| `left` | `pyproject.toml:7` | advisory GHSA-fail-0000-0002 left unverified (DNS failure) | warns |"
+        in english
+    )
+    assert (
+        "| `left` | `pyproject.toml:5` | advisory GHSA-fail-0000-0003 ficou não verificado (resposta sem decisão) | avisa |"
+        in portuguese
+    )
+
+
 def test_unverified_advisory_without_an_id_names_the_cause() -> None:
     supply = SupplyReport(
         ("python",),

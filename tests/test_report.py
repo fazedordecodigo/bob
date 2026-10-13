@@ -181,6 +181,33 @@ def test_json_supply_sits_after_mutation_and_matches_the_rows() -> None:
     Draft202012Validator(SCHEMA).validate(payload)
 
 
+def test_json_records_no_severity_when_the_fetched_advisory_has_no_band() -> None:
+    finding = UnverifiedAdvisory(
+        "pypi", "left", "pyproject.toml", 5, "no_severity", "GHSA-0000-0000-0000"
+    )
+    report = _bare(supply=SupplyReport(("python",), (), (RowWarn(finding),)))
+
+    payload = to_json(report)
+
+    assert payload["supply"]["findings"] == [
+        {
+            "kind": "unverified",
+            "question": "advisory",
+            "advisory": "GHSA-0000-0000-0000",
+            "index": "pypi",
+            "name": "left",
+            "file": "pyproject.toml",
+            "line": 5,
+            "cause": "no_severity",
+            "effect": "warn",
+            "waiver": None,
+        }
+    ]
+    Draft202012Validator(SCHEMA).validate(payload)
+    assert "advisory GHSA-0000-0000-0000, no severity published" in to_markdown(report, "en")
+    assert "advisory GHSA-0000-0000-0000, sem severidade publicada" in to_markdown(report, "pt-BR")
+
+
 def test_markdown_supply_section_follows_mutants_and_translates() -> None:
     report = _bare(supply=SupplyReport(("python", "typescript"), (), _ROWS[:3]))
 
