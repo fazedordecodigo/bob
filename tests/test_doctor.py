@@ -533,6 +533,33 @@ def test_assess_binary_mismatch_names_the_url_and_sha256(
     )
 
 
+def test_assess_binary_rejects_a_gitleaks_prerelease(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    _stub(bin_dir, "gitleaks", "8.30.1-beta.1")
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("PATH", str(bin_dir))
+    pin = next(item for item in DOCTOR_PINS if isinstance(item, BinaryPin))
+    assert _assess_binary(pin) == _PinRow(
+        msg(
+            "doctor.version",
+            name="gitleaks",
+            expected="8.30.1",
+            found="8.30.1-beta.1",
+        ),
+        False,
+        msg(
+            "doctor.install_gitleaks",
+            version=pin.expected,
+            url=pin.url,
+            sha256=pin.sha256,
+        ),
+        False,
+    )
+
+
 def test_gitleaks_checksum_is_the_one_the_workflows_check() -> None:
     pin = next(item for item in DOCTOR_PINS if isinstance(item, BinaryPin))
     for name in (
@@ -599,17 +626,47 @@ def test_found_version_reads_the_cli_of_the_named_executable(
     assert _found_version(pin) == "12.0.0"
 
 
+_NODE_PRERELEASES = (
+    "v22.14.0-rc.1",
+    "v22.14.0-beta.1",
+    "v22.14.0-nightly20260101a1b2c3d4e5",
+    "v22.14.0-pre",
+    "v22.14.0-RC.1",
+)
+
+_NODE_BANNERS = (
+    ("v20.19.0", 4),
+    ("v22.14.0", 0),
+    ("v22.15.0", 0),
+    ("v22.22.2", 0),
+    ("v24.0.0", 4),
+    *((banner, 4) for banner in _NODE_PRERELEASES),
+)
+
+_NODE_TEXT = {
+    "en": (
+        "node expected >=22.14.0 <23 found {found}",
+        "Install Node.js >=22.14.0 <23 (https://nodejs.org/dist/v22.14.0/)",
+    ),
+    "pt-BR": (
+        "node esperada >=22.14.0 <23 encontrada {found}",
+        "Instale Node.js >=22.14.0 <23 (https://nodejs.org/dist/v22.14.0/)",
+    ),
+}
+
+
 @pytest.mark.parametrize(
     ("found", "admitted"),
     [
         ("20.19.0", False),
         ("22.13.1", False),
         ("22.14.0", True),
-        ("22.14.0-rc.1", False),
+        ("22.15.0", True),
         ("22.22.2", True),
         ("23.0.0", False),
         ("24.0.0", False),
         (None, False),
+        *((banner.removeprefix("v"), False) for banner in _NODE_PRERELEASES),
     ],
 )
 def test_node_admits_the_22_line_from_22_14_0(found: str | None, admitted: bool) -> None:
@@ -620,16 +677,22 @@ def test_node_range_prints_the_floor_and_the_next_major() -> None:
     assert node_range(NODE) == ">=22.14.0 <23"
 
 
-def test_assess_node_rejects_an_rc_suffix(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+@pytest.mark.parametrize("banner", _NODE_PRERELEASES)
+def test_assess_node_rejects_a_prerelease_suffix(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, banner: str
 ) -> None:
     bin_dir = tmp_path / "bin"
     bin_dir.mkdir()
-    _stub(bin_dir, "node", "v22.14.0-rc.1")
+    _stub(bin_dir, "node", banner)
     monkeypatch.chdir(tmp_path)
     monkeypatch.setenv("PATH", str(bin_dir))
     assert _assess_node(NODE) == _PinRow(
-        msg("doctor.version", name="node", expected=">=22.14.0 <23", found="22.14.0-rc.1"),
+        msg(
+            "doctor.version",
+            name="node",
+            expected=">=22.14.0 <23",
+            found=banner.removeprefix("v"),
+        ),
         False,
         msg(
             "doctor.install_node",
@@ -670,18 +733,10 @@ def test_assess_node_rejects_24_with_the_install_line(monkeypatch: pytest.Monkey
     )
 
 
-@pytest.mark.parametrize(
-    ("banner", "found", "code"),
-    [
-        ("v20.19.0", "20.19.0", 4),
-        ("v22.14.0", "22.14.0", 0),
-        ("v22.14.0-rc.1", "22.14.0-rc.1", 4),
-        ("v22.22.2", "22.22.2", 0),
-        ("v24.0.0", "24.0.0", 4),
-    ],
-)
+@pytest.mark.parametrize("lang", ("en", "pt-BR"))
+@pytest.mark.parametrize(("banner", "code"), _NODE_BANNERS)
 def test_doctor_accepts_node_22_from_22_14_0(
-    tmp_path: Path, banner: str, found: str, code: int
+    tmp_path: Path, lang: str, banner: str, code: int
 ) -> None:
     bin_dir = tmp_path / "bin"
     bin_dir.mkdir()
@@ -694,11 +749,11 @@ def test_doctor_accepts_node_22_from_22_14_0(
 
     repo = tmp_path / "repo"
     repo.mkdir()
-    result = _run_doctor(repo, bin_dir)
+    result = _run_doctor(repo, bin_dir, "--lang", lang)
 
+    line, install = _NODE_TEXT[lang]
     assert result.returncode == code, result.stdout + result.stderr
-    assert f"node expected >=22.14.0 <23 found {found}" in result.stdout
-    install = "Install Node.js >=22.14.0 <23 (https://nodejs.org/dist/v22.14.0/)"
+    assert line.format(found=banner.removeprefix("v")) in result.stdout
     assert (install in result.stdout) is (code == 4)
     assert not (repo / ".bob").exists()
 

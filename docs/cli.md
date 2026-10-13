@@ -10,7 +10,7 @@ bob crap --base main
 bob dry --base main
 bob deps --base main
 bob mutate --base main
-bob waive <mutant-id|função> --reason "texto de uma linha"
+bob waive <arquivo::função|Alvo> --reason "texto de uma linha"
 bob doctor
 ```
 
@@ -33,7 +33,7 @@ Roda os gates pedidos e grava `.bob/` (ou `--out`).
 | `--format` | `both` | `md`, `json` ou `both` |
 | `--lang` | ver [Idioma](#idioma---lang) | `en` ou `pt-BR` |
 
-Um `--config` que aponta para um arquivo inexistente sai com `4` e grava `.bob/report.md` e `.bob/report.json`. O stdout e o stderr ficam vazios. Detalhe em [Exit 4](exit-codes.md#exit-4).
+Um `--config` que aponta para um arquivo inexistente sai com `4`. O stderr fica em inglês e cita o caminho, como em `config file not found: <caminho>`. Nada é gravado. O mesmo vale para `crap`, `dry`, `deps` e `mutate`. Detalhe em [Exit 4](exit-codes.md#exit-4).
 
 Um nome de gate que o código não trata vira status `not_run`, com o motivo `gate não implementado nesta fatia` em `pt-BR`, e esse gate contribui exit `0` (`check.py`, ramo final de `_absorb`). Os nomes implementados são `crap`, `dry`, `deps`, `mutate`, `typing`, `secrets` e `dead_code`. `typing`, `secrets` e `dead_code` só entram por `--gates` no `bob check`. Não há comando `bob typing`, `bob secrets` nem `bob dead_code`.
 
@@ -67,12 +67,14 @@ Pinos, na ordem do código: lizard 1.24.1, coverage.py 7.16.2, node `>=22.14.0 <
 ## bob waive
 
 ```bash
-bob waive <id-ou-função> --reason "uma linha"
+bob waive <arquivo::função|Alvo> --reason "uma linha"
 ```
 
 Grava ou substitui uma entrada em `.bob/waivers.yaml` e sai com `0`. Não gera `report.md`. Os campos e as regras de formato estão em [Waivers](configuracao.md#bobwaiversyaml).
 
-`--reason` é obrigatório na prática: ausência, string vazia ou quebra de linha levantam `WaiverError` e o processo sai com `4`. Essa mensagem segue o idioma resolvido (`waiver sem motivo: informe --reason com uma linha` em `pt-BR`). Um alvo vazio sai com `4` e `waiver sem alvo`.
+O alvo é `arquivo::função`, que dispensa todo sobrevivente da função, ou o valor da coluna Alvo do último relatório de mutação, que dispensa um sobrevivente. O comando lê os sobreviventes de `.bob/mutation-cache.json` e `.bob/stryker-mutants.json`. Rode a mutação antes.
+
+`--reason` é obrigatório na prática: ausência, string vazia ou quebra de linha levantam `WaiverError` e o processo sai com `4`. Essa mensagem segue o idioma resolvido (`waiver sem motivo: informe --reason com uma linha` em `pt-BR`). Um alvo vazio sai com `4` e `waiver sem alvo`. Um alvo que nenhum sobrevivente tem, como o id do mutante ou o nome nu da função, sai com `4` e `nenhum sobrevivente casa com <alvo>: copie arquivo::função ou um Alvo do último relatório de mutação`. Nos três casos nada é gravado.
 
 Um `.bob/waivers.yaml` que já está inválido é recusado antes, em inglês no stderr, também com `4`, e o arquivo não é reescrito. Ver [Exit codes](exit-codes.md#exit-4).
 
@@ -89,7 +91,7 @@ A caixa importa. `pt-br` é inválido. Os valores aceitos são os de `LANGUAGES`
 
 Um `--lang` ou `BOB_LANG` vazio é inválido. A CLI sai com `4`, imprime `invalid language: "" (use en or pt-BR)` no stderr e não grava relatório. Uma chave `language` vazia no YAML continua ausente.
 
-Idioma inválido, `language` que não é string, YAML que não é mapeamento, erro de sintaxe no `bob.yaml` e chave com tipo errado também saem com `4` em inglês no stderr, mesmo que se pretendesse `pt-BR`, e não gravam relatório. O mesmo vale para `paths`, `languages`, `base`, `dependencies` e as listas `include` e `exclude`, em `check`, `doctor`, `waive` e nos outros comandos.
+Idioma inválido, `language` que não é string, YAML que não é mapeamento, erro de sintaxe no `bob.yaml` e chave com tipo errado também saem com `4` em inglês no stderr, mesmo que se pretendesse `pt-BR`, e não gravam relatório. O mesmo vale para `paths`, `languages`, `base`, `dependencies` e as listas `include` e `exclude`, em `check`, `doctor`, `waive` e nos outros comandos. Uma entrada de `paths.include` que não existe no disco segue o mesmo caminho. O stderr cita o arquivo e cada entrada ausente, como `bob.yaml: paths.include does not exist: missing-root`. Um `paths.include` omitido ou vazio continua `src` e não é verificado.
 
 Uma chave `duplication` inválida também sai com `4`, em inglês no stderr, sem gravar relatório. `reject_config_types` percorre o schema inteiro, inclusive `duplication`. O [CHANGELOG.md](../CHANGELOG.md) descreve esse caso. Uma chave desconhecida segue o mesmo caminho. Ver [Exit codes](exit-codes.md#exit-4).
 

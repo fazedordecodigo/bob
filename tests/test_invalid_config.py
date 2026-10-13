@@ -483,6 +483,61 @@ def test_invalid_semantic_config_exits_4_in_english_and_writes_nothing(
     assert _files(tmp_path) == before
 
 
+_MISSING_INCLUDE = (
+    (
+        "paths:\n  include: [missing-root]\n",
+        "bob.yaml: paths.include does not exist: missing-root\n",
+    ),
+)
+
+
+@pytest.mark.parametrize("command", _COMMANDS)
+@pytest.mark.parametrize(("text", "stderr"), _MISSING_INCLUDE)
+@pytest.mark.parametrize("lang", [None, "pt-BR"])
+def test_missing_include_exits_4_in_english_and_writes_nothing(
+    tmp_path: Path,
+    command: tuple[str, ...],
+    text: str,
+    stderr: str,
+    lang: str | None,
+) -> None:
+    (tmp_path / "bob.yaml").write_text(text)
+    before = _files(tmp_path)
+    args = ("--lang", lang, *command) if lang is not None else command
+
+    result = run_bob(tmp_path, *args)
+
+    assert result.returncode == 4
+    assert result.stderr == stderr
+    assert result.stdout == ""
+    assert "Traceback" not in result.stderr
+    assert _files(tmp_path) == before
+
+
+def test_missing_include_names_each_absent_entry(tmp_path: Path) -> None:
+    (tmp_path / "src").mkdir()
+    (tmp_path / "bob.yaml").write_text("paths:\n  include: [src, gone, also-gone]\n")
+
+    result = run_bob(tmp_path, "check", "--lang", "pt-BR")
+
+    assert result.returncode == 4
+    assert result.stderr == "bob.yaml: paths.include does not exist: gone, also-gone\n"
+    assert result.stdout == ""
+    assert not (tmp_path / ".bob").exists()
+
+
+def test_explicit_config_names_a_missing_include(tmp_path: Path) -> None:
+    custom = tmp_path / "custom.yaml"
+    custom.write_text("paths:\n  include: [nope]\n")
+
+    result = run_bob(tmp_path, "crap", "--config", "custom.yaml")
+
+    assert result.returncode == 4
+    assert result.stderr == f"{custom.as_posix()}: paths.include does not exist: nope\n"
+    assert result.stdout == ""
+    assert not (tmp_path / ".bob").exists()
+
+
 @pytest.mark.parametrize("command", _COMMANDS)
 @pytest.mark.parametrize(("text", "stderr"), _BAD_WAIVER_VALUES)
 @pytest.mark.parametrize("lang", [None, "pt-BR"])
@@ -647,27 +702,43 @@ def test_load_waivers_rejects_an_entry_with_an_extra_key(tmp_path: Path) -> None
     )
 
 
-@pytest.mark.parametrize("lang", [None, "pt-BR"])
-def test_waive_replaces_one_existing_id(tmp_path: Path, lang: str | None) -> None:
+@pytest.mark.parametrize(
+    ("lang", "stderr"),
+    [
+        (
+            None,
+            "no survivor matches src/app/m.py::fn:"
+            " copy file::function or a Target from the last mutation report\n",
+        ),
+        (
+            "pt-BR",
+            "nenhum sobrevivente casa com src/app/m.py::fn:"
+            " copie arquivo::função ou um Alvo do último relatório de mutação\n",
+        ),
+    ],
+)
+def test_waive_without_a_mutation_report_keeps_the_yaml(
+    tmp_path: Path, lang: str | None, stderr: str
+) -> None:
     _write_waivers(
         tmp_path,
         "waivers:\n"
-        "  - id: fn\n"
+        "  - id: src/app/m.py::fn\n"
         "    reason: old\n"
         "    author: ada\n"
         "    date: '2026-10-11'\n",
     )
-    args = ("waive", "fn", "--reason", "replaced")
+    before = (tmp_path / ".bob" / "waivers.yaml").read_bytes()
+    args = ("waive", "src/app/m.py::fn", "--reason", "replaced")
     if lang is not None:
         args = ("--lang", lang, *args)
 
     result = run_bob(tmp_path, *args)
 
-    assert result.returncode == 0
-    assert result.stderr == ""
-    assert [(item.id, item.reason) for item in load_waivers(tmp_path)] == [
-        ("fn", "replaced"),
-    ]
+    assert result.returncode == 4
+    assert result.stdout == ""
+    assert result.stderr == stderr
+    assert (tmp_path / ".bob" / "waivers.yaml").read_bytes() == before
     assert not (tmp_path / ".bob" / "report.md").exists()
     assert not (tmp_path / ".bob" / "report.json").exists()
 

@@ -14,6 +14,7 @@ SURVIVOR = {
     "line": 2,
     "operator": "ROR",
     "waiver": "m.x__mutmut_1",
+    "target": "src/app/weak.py::classify::ROR",
 }
 MESSY = {
     "name": "messy",
@@ -129,9 +130,9 @@ RICH_EN = """# bob report
 
 ## Surviving mutants
 
-| Id | Function | Location | Operator | Waiver |
+| Target | Function | Location | Operator | Waiver |
 |---|---|---|---|---|
-| `app.weak.x_classify__mutmut_1` | classify | src/app/weak.py:2 | ROR | m.x__mutmut_1 |
+| `src/app/weak.py::classify::ROR` | classify | src/app/weak.py:2 | ROR | m.x__mutmut_1 |
 
 ## Mutants without tests
 
@@ -200,9 +201,9 @@ RICH_PT_BR = """# Relatório bob
 
 ## Mutantes sobreviventes
 
-| Id | Função | Local | Operador | Waiver |
+| Alvo | Função | Local | Operador | Waiver |
 |---|---|---|---|---|
-| `app.weak.x_classify__mutmut_1` | classify | src/app/weak.py:2 | ROR | m.x__mutmut_1 |
+| `src/app/weak.py::classify::ROR` | classify | src/app/weak.py:2 | ROR | m.x__mutmut_1 |
 
 ## Mutantes sem teste
 
@@ -394,6 +395,27 @@ def test_waiver_rows_escape_pipes_and_leave_missing_fields_blank() -> None:
     ) in to_markdown(report, "en")
 
 
+def test_survivor_rows_escape_pipes_in_the_target_and_dash_a_missing_one() -> None:
+    piped = {
+        **SURVIVOR,
+        "operator": "a or b -> a | b",
+        "waiver": None,
+        "target": "src/app/weak.py::classify::a or b -> a | b",
+    }
+    blind = {**SURVIVOR, "file": "", "line": 0, "operator": "", "waiver": None, "target": None}
+    report = replace(
+        _empty([]), survivors=[piped, blind], mutation={"remutated": [], "reused": []}
+    )
+
+    assert (
+        "| Target | Function | Location | Operator | Waiver |\n"
+        "|---|---|---|---|---|\n"
+        "| `src/app/weak.py::classify::a or b -> a \\| b` | classify | src/app/weak.py:2"
+        " | a or b -> a \\| b | — |\n"
+        "| — | classify | :0 | — | — |\n"
+    ) in to_markdown(report, "en")
+
+
 def test_markdown_marks_an_unwaived_survivor_outside_the_diff() -> None:
     outside = {**SURVIVOR, "waiver": None, "blocking": False}
     blocking = {**SURVIVOR, "waiver": None, "blocking": True}
@@ -401,18 +423,18 @@ def test_markdown_marks_an_unwaived_survivor_outside_the_diff() -> None:
     report = replace(_rich(), survivors=[outside])
 
     assert (
-        "| `app.weak.x_classify__mutmut_1` | classify | "
+        "| `src/app/weak.py::classify::ROR` | classify | "
         "src/app/weak.py:2 (outside the diff; does not block) | ROR | — |"
     ) in to_markdown(report, "en")
     assert (
-        "| `app.weak.x_classify__mutmut_1` | classify | "
+        "| `src/app/weak.py::classify::ROR` | classify | "
         "src/app/weak.py:2 (fora do diff; não bloqueia) | ROR | — |"
     ) in to_markdown(report, "pt-BR")
     assert to_json(report)["survivors"] == [outside]
     blocking_md = to_markdown(replace(_rich(), survivors=[blocking]), "en")
     waived_md = to_markdown(replace(_rich(), survivors=[waived]), "en")
     assert (
-        "| `app.weak.x_classify__mutmut_1` | classify | src/app/weak.py:2 | ROR | — |"
+        "| `src/app/weak.py::classify::ROR` | classify | src/app/weak.py:2 | ROR | — |"
     ) in blocking_md
-    waived_row = next(line for line in waived_md.splitlines() if "x_classify" in line)
+    waived_row = next(line for line in waived_md.splitlines() if "::classify::ROR" in line)
     assert "outside the diff" not in waived_row
