@@ -20,7 +20,7 @@ if sys.version_info >= (3, 11):
 else:
     import tomli as tomllib
 
-from bob_quality.doctor import NODE, NodePin, NpmPin, ReleasePin, RequiresDist, node_admits, node_range
+from bob_quality.doctor import NODE, BinaryPin, NodePin, NpmPin, RequiresDist, node_admits, node_range
 from bob_quality.doctor import PINS as DOCTOR_PINS
 from bob_quality.doctor import unconditional_exact_pins
 from bob_quality.doctor import (
@@ -28,7 +28,7 @@ from bob_quality.doctor import (
     _assess,
     _assess_node,
     _assess_npm,
-    _assess_release,
+    _assess_binary,
     _assess_requires_dist,
     _found_version,
     _own_requirements,
@@ -339,15 +339,16 @@ def test_doctor_pins_match_pyproject_and_package_json() -> None:
         elif isinstance(pin, NodePin):
             assert pin == NODE
         else:
-            assert isinstance(pin, ReleasePin)
+            assert isinstance(pin, BinaryPin)
             assert (pin.name, pin.expected, pin.executable) == ("gitleaks", "8.30.1", "gitleaks")
+            assert pin.sha256 == "551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb"
     npm_pins = {
         pin.npm_package: pin.expected for pin in DOCTOR_PINS if isinstance(pin, NpmPin)
     }
     assert npm_pins == npm
     assert "node" not in npm_pins
     assert [pin for pin in DOCTOR_PINS if isinstance(pin, NodePin)] == [NODE]
-    assert [pin.name for pin in DOCTOR_PINS if isinstance(pin, ReleasePin)] == ["gitleaks"]
+    assert [pin.name for pin in DOCTOR_PINS if isinstance(pin, BinaryPin)] == ["gitleaks"]
 
 
 def test_doctor_expected_versions_match_pip_and_npm_pins(tmp_path: Path) -> None:
@@ -486,32 +487,31 @@ def test_assess_reads_the_declared_distribution() -> None:
 
 
 
-def test_assess_release_matches_the_cli(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_assess_binary_matches_the_cli(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
         "bob_quality.doctor._cli_version",
         lambda executable: "8.30.1" if executable == "gitleaks" else None,
     )
-    pin = ReleasePin("gitleaks", "8.30.1", "gitleaks", "install gitleaks")
-    row = _assess_release(pin)
+    pin = BinaryPin(
+        "gitleaks",
+        "8.30.1",
+        "gitleaks",
+        "https://example.test/gitleaks.tar.gz",
+        "abc",
+    )
+    row = _assess(pin, {})
     assert row.line == msg("doctor.version", name="gitleaks", expected="8.30.1", found="8.30.1")
     assert row.ok is True
     assert row.install is None
     assert row.npm_missing is False
 
 
-def test_assess_release_mismatch_names_the_install(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_assess_binary_mismatch_names_the_url_and_sha256(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     monkeypatch.setattr("bob_quality.doctor._cli_version", lambda executable: None)
-    pin = ReleasePin(
-        "gitleaks",
-        "8.30.1",
-        "gitleaks",
-        msg(
-            "doctor.install_gitleaks",
-            version="8.30.1",
-            url="https://github.com/gitleaks/gitleaks/releases/tag/v8.30.1",
-        ),
-    )
-    row = _assess(pin, {})
+    pin = next(item for item in DOCTOR_PINS if isinstance(item, BinaryPin))
+    row = _assess_binary(pin)
     assert row.line == msg(
         "doctor.version",
         name="gitleaks",
@@ -519,8 +519,26 @@ def test_assess_release_mismatch_names_the_install(monkeypatch: pytest.MonkeyPat
         found=msg("doctor.missing"),
     )
     assert row.ok is False
-    assert row.install == pin.install
     assert row.npm_missing is False
+    assert row.install == msg(
+        "doctor.install_gitleaks",
+        version=pin.expected,
+        url=pin.url,
+        sha256=pin.sha256,
+    )
+
+
+def test_gitleaks_checksum_is_the_one_the_workflows_check() -> None:
+    pin = next(item for item in DOCTOR_PINS if isinstance(item, BinaryPin))
+    for name in (
+        ".github/workflows/ci.yml",
+        ".github/workflows/bob.yml",
+        ".github/workflows/package.yml",
+    ):
+        text = (ROOT / name).read_text()
+        assert pin.url in text
+        assert f"{pin.sha256}  /tmp/gitleaks_8.30.1_linux_x64.tar.gz" in text
+        assert "sha256sum -c" in text
 
 
 def test_assess_sends_an_npm_pin_to_the_npm_row(monkeypatch: pytest.MonkeyPatch) -> None:

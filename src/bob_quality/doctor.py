@@ -48,14 +48,15 @@ class NodePin:
 
 
 @dataclass(frozen=True)
-class ReleasePin:
+class BinaryPin:
     name: str
     expected: str
     executable: str
-    install: Text
+    url: str
+    sha256: str
 
 
-Pin = RequiresDist | NpmPin | NodePin | ReleasePin
+Pin = RequiresDist | NpmPin | NodePin | BinaryPin
 
 NODE = NodePin(floor=NodeVersion(22, 14, 0))
 
@@ -75,15 +76,12 @@ PINS: tuple[Pin, ...] = (
         "dependency-cruiser",
         npm_package="dependency-cruiser",
     ),
-    ReleasePin(
+    BinaryPin(
         "gitleaks",
         "8.30.1",
         "gitleaks",
-        msg(
-            "doctor.install_gitleaks",
-            version="8.30.1",
-            url="https://github.com/gitleaks/gitleaks/releases/tag/v8.30.1",
-        ),
+        "https://github.com/gitleaks/gitleaks/releases/download/v8.30.1/gitleaks_8.30.1_linux_x64.tar.gz",
+        "551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb",
     ),
     NpmPin(
         "stryker",
@@ -208,9 +206,9 @@ def _assess(pin: Pin, declared: Mapping[str, str]) -> _PinRow:
         return _assess_requires_dist(pin, declared.get(pin.distribution))
     if isinstance(pin, NodePin):
         return _assess_node(pin)
-    if isinstance(pin, NpmPin):
-        return _assess_npm(pin)
-    return _assess_release(pin)
+    if isinstance(pin, BinaryPin):
+        return _assess_binary(pin)
+    return _assess_npm(pin)
 
 
 def _assess_requires_dist(pin: RequiresDist, expected: str | None) -> _PinRow:
@@ -277,12 +275,21 @@ def _assess_npm(pin: NpmPin) -> _PinRow:
     return _PinRow(line, False, None, True)
 
 
-def _assess_release(pin: ReleasePin) -> _PinRow:
+def _assess_binary(pin: BinaryPin) -> _PinRow:
     found = _cli_version(pin.executable)
     line = msg("doctor.version", name=pin.name, expected=pin.expected, found=_shown(found))
     if found == pin.expected:
         return _PinRow(line, True, None, False)
-    return _PinRow(line, False, pin.install, False)
+    return _PinRow(line, False, _binary_install(pin), False)
+
+
+def _binary_install(pin: BinaryPin) -> Text:
+    return msg(
+        "doctor.install_gitleaks",
+        version=pin.expected,
+        url=pin.url,
+        sha256=pin.sha256,
+    )
 
 
 def _shown(found: str | None) -> Text:
