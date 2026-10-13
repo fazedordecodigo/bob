@@ -14,7 +14,7 @@ O exit code do `bob check` é o maior entre os gates que rodaram. Aviso não aum
 | [Mutação](#mutação) | mutmut (Python), StrykerJS (TypeScript) | sobrevivente sem waiver | `3` |
 | [Dependências](#dependências) | import-linter, dependency-cruiser, mais a regra de ciclo | violação cuja origem, destino ou outro módulo do ciclo está no diff | `1` |
 
-Versões pinadas: lizard 1.24.1, coverage 7.16.2, c8 12.0.0, vitest 5.0.3, jscpd 5.4.1, mutmut 3.8.0, complexipy 8.0.1, `@stryker-mutator/core` 10.0.0, `@stryker-mutator/vitest-runner` 10.0.0, import-linter 2.15, grimp 3.17, dependency-cruiser 18.5.0, eslint 9.39.5, eslint-plugin-sonarjs 2.0.4. Node 22.14.0. Fonte: `pyproject.toml`, `package.json` e `doctor.py`. O doctor lê os pinos pip do Requires-Dist instalado.
+Versões pinadas: lizard 1.24.1, coverage 7.16.2, c8 12.0.0, vitest 5.0.3, jscpd 5.4.1, mutmut 3.8.0, complexipy 8.0.1, `@stryker-mutator/core` 10.0.0, `@stryker-mutator/vitest-runner` 10.0.0, import-linter 2.15, grimp 3.17, dependency-cruiser 18.5.0, eslint 9.39.5, eslint-plugin-sonarjs 2.0.4. Node `>=22.14.0 <23`. Fonte: `pyproject.toml`, `package.json` e `doctor.py`. O doctor lê os pinos pip do Requires-Dist instalado.
 
 ## CRAP
 
@@ -56,7 +56,7 @@ O gate avisa quando uma função alterada tem complexidade cognitiva maior ou ig
 
 Entra no veredito a função cujo intervalo inclusivo toca o diff (`function_is_changed`). O id do waiver é `cognitive:<arquivo>:<nome>`, montado só por `waiver_id()`. `complexipy` nomeia um método `Classe::metodo`. TypeScript usa o mesmo `::` (`Foo::save`, `outer::inner`). Uma função sem nome fica `anonymous@<linha>`. O waiver `save` não cobre `Foo::save`.
 
-Python mede com `complexipy` 8.0.1. A chamada é `file_complexity(path, check_script=False, no_ignore=True)`, importada dentro do medidor. Sem o pacote, esse idioma não entra no veredito. TypeScript mede com ESLint 9.39.5 e `eslint-plugin-sonarjs` 2.0.4, regra `sonarjs/cognitive-complexity`. O número passado à regra é `limit - 1`, porque a regra só reporta acima do limiar. O bob guarda a função se o score lido ainda é `>= limit`. Um arquivo que o ESLint não analisa é pulado. Se todos os arquivos falham, o idioma não entra. Se todo idioma configurado falha, o status é `not_run` e o exit é `0`.
+Python mede com `complexipy` 8.0.1. A chamada é `file_complexity(path, no_ignore=True)`, importada dentro do medidor. `check_script` fica no padrão, falso. Sem o pacote, esse idioma não entra no veredito. TypeScript mede com ESLint 9.39.5 e `eslint-plugin-sonarjs` 2.0.4, regra `sonarjs/cognitive-complexity`. O número passado à regra é `limit - 1`, porque a regra só reporta acima do limiar. O bob guarda a função se o score lido ainda é `>= limit`. Um arquivo que o ESLint não analisa é pulado. Se todos os arquivos falham, o idioma não entra. Se todo idioma configurado falha, o status é `not_run` e o exit é `0`.
 
 O gate não entra em `DEFAULT_GATES`, no hook `pre-push` nem na Action. Quem pede `bob check --gates cognitive` é que o roda.
 
