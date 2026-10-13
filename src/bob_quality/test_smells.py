@@ -165,7 +165,7 @@ def measure_python(
         source = _read_source(cwd / relative)
         if source is None:
             continue
-        changed = frozenset(diff_lines.get(relative, ()))
+        changed = frozenset(diff_lines[relative])
         findings.extend(python_smells(source, relative, changed))
     return LanguageMeasured("python", tuple(findings))
 

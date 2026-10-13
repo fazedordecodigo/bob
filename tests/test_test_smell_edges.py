@@ -5,8 +5,11 @@ from pathlib import Path
 import pytest
 
 import bob_quality.test_smells as smells
+from bob_quality import check as check_mod
 from bob_quality.check import _Measured, _assemble, run_check
 from bob_quality.config import Config
+from bob_quality.messages import msg
+from bob_quality.waivers import Waiver
 from bob_quality.models import (
     Clone,
     DepViolation,
@@ -16,7 +19,6 @@ from bob_quality.models import (
     TestSmell as SmellRow,
 )
 from bob_quality.mutate import MutationOutcome
-from bob_quality.messages import msg
 from bob_quality.report import to_json, to_markdown
 from helpers import init_python_repo
 
@@ -81,6 +83,22 @@ def test_a_set_of_markers_and_a_plain_assignment_add_only_the_marker() -> None:
     )
 
 
+def test_a_sleep_after_another_call_in_the_same_statement_counts() -> None:
+    source = "import time\ndef test_one():\n    (helper(), time.sleep(1))\n    assert True\n"
+
+    assert smells.python_smells(source, _FILE, frozenset(range(1, 5))) == (
+        SmellRow(_FILE, 3, "sleep"),
+    )
+
+
+def test_a_skipped_name_that_is_not_pytestmark_stays_an_empty_test() -> None:
+    source = "import pytest\nvalue = pytest.mark.skip\ndef test_one():\n    pass\n"
+
+    assert smells.python_smells(source, _FILE, frozenset(range(1, 5))) == (
+        SmellRow(_FILE, 3, "empty-test"),
+    )
+
+
 def test_two_skip_calls_and_two_sleeps_all_count() -> None:
     source = (
         "import time\n"
@@ -104,11 +122,15 @@ def test_assertion_name_shapes() -> None:
     underscore = "def test_one():\n    self.assert_equal(1, 1)\n"
     bare = "def test_one():\n    self.assert()\n"
     lower = "def test_one():\n    self.assertfoo(1)\n"
+    helper = "def test_one():\n    helper()\n"
     changed = frozenset(range(1, 4))
 
     assert smells.python_smells(underscore, _FILE, changed) == ()
     assert smells.python_smells(bare, _FILE, changed) == ()
     assert smells.python_smells(lower, _FILE, changed) == (
+        SmellRow(_FILE, 1, "missing-assert"),
+    )
+    assert smells.python_smells(helper, _FILE, changed) == (
         SmellRow(_FILE, 1, "missing-assert"),
     )
 
@@ -146,28 +168,35 @@ def test_changed_paths_follow_the_language_and_reject_any_other() -> None:
         "src/app.py": {1},
         "src/a.test.ts": {1},
         "src/a.ts": {1},
+        "src/__tests__/gap.ts": {1},
+        "src/__tests__/types.d.ts": {1},
+        "src/__TESTS__/gap.ts": {1},
     }
 
     assert smells.changed_test_paths(diff, "python") == ("tests/test_a.py",)
-    assert smells.changed_test_paths(diff, "typescript") == ("src/a.test.ts",)
+    assert smells.changed_test_paths(diff, "typescript") == (
+        "src/__tests__/gap.ts",
+        "src/a.test.ts",
+    )
     with pytest.raises(AssertionError, match="nope"):
         smells.changed_test_paths(diff, "nope")  # type: ignore[arg-type]
 
 
 def test_measure_python_reads_every_changed_utf8_file(tmp_path: Path) -> None:
-    (tmp_path / "test_a.py").write_text("def test_a():\n    pass\n", encoding="utf-8")
-    (tmp_path / "test_b.py").write_text("def test_b():\n    café = 1\n", encoding="utf-8")
+    (tmp_path / "test_a.py").write_bytes(b"def test_a():\n    \xff\n")
+    (tmp_path / "test_b.py").write_text("def test_b():\n    pass\n", encoding="utf-8")
+    (tmp_path / "test_c.py").write_text("def test_c():\n    café = 1\n", encoding="utf-8")
 
     measured = smells.measure_python(
         tmp_path,
-        {"test_a.py": {1, 2}, "test_b.py": {1, 2}},
+        {"test_a.py": {1, 2}, "test_b.py": {1, 2}, "test_c.py": {1, 2}},
     )
 
     assert measured == smells.LanguageMeasured(
         "python",
         (
-            SmellRow("test_a.py", 1, "empty-test"),
-            SmellRow("test_b.py", 1, "missing-assert"),
+            SmellRow("test_b.py", 1, "empty-test"),
+            SmellRow("test_c.py", 1, "missing-assert"),
         ),
     )
 
@@ -203,6 +232,8 @@ def test_json_and_markdown_name_the_smell_and_escape_a_pipe() -> None:
         {"file": _FILE, "line": 1, "rule": "missing-assert", "waiver": "a|b"}
     ]
     assert "## Diff tests" in markdown
+    assert "XXXX" not in markdown
+    assert "|---|---|" in markdown
     assert "| `tests:tests/test_gap.py:1:missing-assert` | a\\|b |" in markdown
 
 
@@ -272,6 +303,8 @@ def test_assemble_keeps_mutation_fields_and_both_dependency_sides() -> None:
     assert report.survivors == [survivor]
     assert report.mutation == summary
     assert report.test_smells == (smell,)
+    assert report.clones == measured.clones
+    assert report.generated_at.endswith("+00:00")
     assert {"file": "src/extra.py", "risk": 100.0} in report.focus
 
 
@@ -330,6 +363,152 @@ def test_bad_waivers_after_dry_still_name_the_base(tmp_path: Path) -> None:
             "reason": ".bob/waivers.yaml: waivers must be a list",
         }
     ]
+
+
+def test_apply_test_waivers_keeps_every_row_and_only_the_matching_reason() -> None:
+    rows = (
+        SmellRow("a.py", 1, "sleep"),
+        SmellRow("b.py", 2, "empty-test"),
+        SmellRow("c.py", 3, "sleep"),
+    )
+    waivers = [
+        Waiver(
+            id="tests:a.py:1:sleep",
+            reason="the sandbox clock is real",
+            author="ada",
+            date="2026-10-12",
+        ),
+        Waiver(
+            id="tests:c.py:3:sleep",
+            reason="the sandbox clock is real",
+            author="ada",
+            date="2026-10-12",
+        ),
+    ]
+
+    applied = smells.apply_test_waivers(rows, waivers)
+
+    assert applied == (
+        SmellRow("a.py", 1, "sleep", "the sandbox clock is real"),
+        SmellRow("b.py", 2, "empty-test"),
+        SmellRow("c.py", 3, "sleep", "the sandbox clock is real"),
+    )
+
+
+def test_outcomes_measure_python_then_skip_typescript(tmp_path: Path) -> None:
+    class _Order:
+        languages = ("python", "typescript", "python")
+
+    (tmp_path / "test_gap.py").write_text("def test_gap():\n    pass\n", encoding="utf-8")
+    measured = smells.LanguageMeasured(
+        "python", (SmellRow("test_gap.py", 1, "empty-test"),)
+    )
+
+    found = smells._outcomes(_Order(), tmp_path, {"test_gap.py": {1, 2}})  # type: ignore[arg-type]
+
+    assert found == (measured, smells.LanguageSkipped("typescript"), measured)
+
+
+def test_outcomes_reject_an_unknown_language(tmp_path: Path) -> None:
+    class _Lang:
+        languages = ("nope",)
+
+    with pytest.raises(AssertionError, match="nope"):
+        smells._outcomes(_Lang(), tmp_path, {})  # type: ignore[arg-type]
+
+
+def test_versions_keep_the_eslint_version_from_either_outcome() -> None:
+    detail = msg("dry.node_missing")
+    measured = smells.LanguageMeasured("typescript", (), "9.14.0")
+    broken = smells.LanguageBroken("typescript", detail, "9.14.0")
+
+    assert smells._versions((measured,)) == {"eslint": "9.14.0"}
+    assert smells._versions((broken,)) == {"eslint": "9.14.0"}
+    assert smells._versions((smells.LanguageSkipped("typescript"),)) == {}
+
+
+def test_waive_one_keeps_language_and_version() -> None:
+    smell = SmellRow("a.py", 1, "sleep")
+    outcome = smells.LanguageMeasured("typescript", (smell,), "9.14.0")
+    waivers = [
+        Waiver(
+            id="tests:a.py:1:sleep",
+            reason="the sandbox clock is real",
+            author="ada",
+            date="2026-10-12",
+        )
+    ]
+
+    waived = smells._waive_one(outcome, waivers)
+
+    assert waived == smells.LanguageMeasured(
+        "typescript",
+        (SmellRow("a.py", 1, "sleep", "the sandbox clock is real"),),
+        "9.14.0",
+    )
+    with pytest.raises(AssertionError, match="int"):
+        smells._waive_one(1, [])  # type: ignore[arg-type]
+    with pytest.raises(AssertionError, match="int"):
+        smells._eslint_version(1)  # type: ignore[arg-type]
+
+
+def test_run_check_forwards_threshold_workers_and_the_command(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    repo = init_python_repo(tmp_path / "repo")
+    seen: dict[str, object] = {}
+    coverage = tmp_path / "cov.json"
+
+    def fake_open(
+        cwd: Path,
+        base: str | None,
+        config_path: Path | None,
+        threshold: float | None,
+        command: str,
+        gates: list[str],
+    ) -> tuple[Config, str, float, str, dict[str, set[int]]]:
+        seen["open"] = (threshold, command, tuple(gates))
+        return Config(), base or "", 12.5, "c" * 40, {}
+
+    def fake_measure(
+        cwd: Path,
+        config: Config,
+        diff_lines: dict[str, set[int]],
+        max_crap: float,
+        coverage_file: Path | None,
+        gates: list[str],
+        out_dir: Path,
+        max_workers: int | None,
+    ) -> check_mod._Measured:
+        seen["measure"] = (max_crap, coverage_file, max_workers)
+        return check_mod._Measured()
+
+    monkeypatch.setattr(check_mod, "_open", fake_open)
+    monkeypatch.setattr(check_mod, "_measure", fake_measure)
+
+    code = run_check(
+        repo,
+        base="main",
+        threshold=12.5,
+        coverage_file=coverage,
+        max_workers=3,
+        reproduce="bob check --gates crap",
+    )
+
+    assert code == 0
+    assert seen["open"] == (12.5, "bob check --gates crap", ("crap", "dry", "deps"))
+    assert seen["measure"] == (12.5, coverage, 3)
+
+
+def test_a_missing_base_keeps_the_reproduce_command(tmp_path: Path) -> None:
+    repo = init_python_repo(tmp_path / "repo")
+
+    code = run_check(repo, base="no-such-ref", reproduce="bob check --gates crap")
+    payload = json.loads((repo / ".bob" / "report.json").read_text())
+
+    assert code == 4
+    assert payload["reproduce"] == "bob check --gates crap"
+    assert payload["base"] == "no-such-ref"
 
 
 def _metric(name: str, changed: bool, crap: float) -> FunctionMetric:
