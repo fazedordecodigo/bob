@@ -45,6 +45,16 @@ def test_run_vitest_under_c8_names_the_missing_node(
     )
 
 
+def test_lcov_reporter_is_forwarded_to_c8(tmp_path: Path) -> None:
+    reports = tmp_path / "coverage"
+
+    code = run_vitest_under_c8(FIXTURE_TS, ["src"], reports, _EXCLUDE, ("lcov",))
+
+    assert code == 0
+    assert (reports / "lcov.info").is_file()
+    assert (reports / "coverage-final.json").is_file() is False
+
+
 def test_c8_creates_a_nested_reports_directory_and_can_run_again(tmp_path: Path) -> None:
     reports = tmp_path / "missing-parent" / "coverage"
 

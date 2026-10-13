@@ -91,6 +91,7 @@ def test_diff_coverage_is_omitted_until_a_language_is_measured() -> None:
     assert "diff_coverage" not in payload
     Draft202012Validator(SCHEMA).validate(payload)
     assert english.index("## Mutants without tests") < english.index("## Diff coverage")
+    assert "\n\n## Diff coverage\n\n" in english
     assert english.index("## Diff coverage") < english.index("## How to reproduce")
     assert "baseline tests failed before measuring" in english
     assert "| Language | Percent |" not in english
