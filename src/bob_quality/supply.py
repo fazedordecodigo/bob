@@ -4,8 +4,26 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Literal
 
+from bob_quality.adapters.deptry import DeptryRun, run_deptry
+from bob_quality.adapters.knip import KnipDocument, KnipHit, run_knip
+from bob_quality.adapters.manifests import AddedPackage, added_packages
+from bob_quality.adapters.registries import (
+    AdvisoriesFound,
+    AdvisoriesUndecided,
+    DecidedAdvisory,
+    Existence,
+    PackageMissing,
+    PackageUndecided,
+    Transport,
+    UndecidedRecord,
+    probe_advisories,
+    probe_existence,
+)
+from bob_quality.adapters.runner import Runner, default_runner
+from bob_quality.config import Config
 from bob_quality.exit_codes import CONFIG_OR_TOOL, GATE_FAILED, PASSED
 from bob_quality.messages import Text, msg
 from bob_quality.models import (
@@ -17,13 +35,17 @@ from bob_quality.models import (
     RowWaived,
     SupplyFinding,
     SupplyLanguage,
+    SupplyReport,
     SupplyRow,
     UndeclaredImport,
     UnverifiedAdvisory,
     UnverifiedExistence,
     Waiverable,
 )
-from bob_quality.waivers import Waiver
+from bob_quality.waivers import Waiver, load_waivers
+
+_FOUND_EXITS = frozenset({1})
+_UNDECLARED = frozenset({"DEP001", "DEP003"})
 
 
 @dataclass(frozen=True)
@@ -199,3 +221,233 @@ def _block_reason(row: RowBlock) -> Text:
 
 def _copy(judgment: Judgment) -> tuple[GateResult, Literal[0, 1]]:
     return GateResult("supply", judgment.status, judgment.reason), judgment.exit_code
+
+
+def run_supply_gate(
+    cwd: Path,
+    config: Config,
+    diff_lines: Mapping[str, set[int]],
+    base: str,
+    runner: Runner | None = None,
+    transport: Transport | None = None,
+) -> tuple[GateResult, int, dict[str, str], SupplyReport]:
+    process = default_runner if runner is None else runner
+    client = transport
+    measured: list[SupplyLanguage] = []
+    skipped: list[SupplyLanguage] = []
+    findings: list[SupplyFinding] = []
+    versions: dict[str, str] = {}
+    for language in config.languages:
+        if _measure_language(
+            language, cwd, config, diff_lines, base, process, client, findings, versions
+        ):
+            measured.append(language)
+        else:
+            skipped.append(language)
+    languages = tuple(measured)
+    judgment = judge(
+        tuple(findings),
+        diff_lines,
+        frozenset(config.osv_fail_severities),
+        supply_waiver_ids(tuple(load_waivers(cwd))),
+    )
+    result, code = finish(judgment, languages)
+    rows = judgment.rows if languages else ()
+    return result, code, versions, SupplyReport(languages, tuple(skipped), rows)
+
+
+def _measure_language(
+    language: SupplyLanguage,
+    cwd: Path,
+    config: Config,
+    diff_lines: Mapping[str, set[int]],
+    base: str,
+    runner: Runner,
+    transport: Transport | None,
+    findings: list[SupplyFinding],
+    versions: dict[str, str],
+) -> bool:
+    if language == "python":
+        return _python(cwd, config, diff_lines, base, runner, transport, findings, versions)
+    if language == "typescript":
+        return _typescript(cwd, config, diff_lines, base, runner, transport, findings, versions)
+    return False
+
+
+def _python(
+    cwd: Path,
+    config: Config,
+    diff_lines: Mapping[str, set[int]],
+    base: str,
+    runner: Runner,
+    transport: Transport | None,
+    findings: list[SupplyFinding],
+    versions: dict[str, str],
+) -> bool:
+    capture = run_deptry(cwd, config.include, config.supply_timeout_seconds, runner)
+    if not _captured(capture.exit_code, capture.parsed):
+        return False
+    document = capture.document
+    if document is None:
+        return False
+    versions["deptry"] = document.version
+    findings.extend(_deptry_findings(cwd, document))
+    findings.extend(_registry_findings(cwd, config, diff_lines, base, "pypi", transport))
+    return True
+
+
+def _typescript(
+    cwd: Path,
+    config: Config,
+    diff_lines: Mapping[str, set[int]],
+    base: str,
+    runner: Runner,
+    transport: Transport | None,
+    findings: list[SupplyFinding],
+    versions: dict[str, str],
+) -> bool:
+    capture = run_knip(cwd, config.supply_timeout_seconds, runner)
+    if not _captured(capture.exit_code, capture.parsed):
+        return False
+    document = capture.document
+    if document is None:
+        return False
+    versions["knip"] = document.version
+    findings.extend(_knip_findings(cwd, document))
+    findings.extend(_registry_findings(cwd, config, diff_lines, base, "npm", transport))
+    return True
+
+
+def _captured(exit_code: int | None, parsed: bool) -> bool:
+    if exit_code is None:
+        return False
+    return tool_measured(exit_code, parsed, _FOUND_EXITS)
+
+
+def _deptry_findings(cwd: Path, document: DeptryRun) -> tuple[UndeclaredImport, ...]:
+    rows: list[UndeclaredImport] = []
+    for violation in document.violations:
+        if violation.code not in _UNDECLARED or violation.line is None:
+            continue
+        rows.append(UndeclaredImport(_relative(cwd, violation.file), violation.module, violation.line))
+    return tuple(rows)
+
+
+def _knip_findings(cwd: Path, document: KnipDocument) -> tuple[UndeclaredImport, ...]:
+    rows: list[UndeclaredImport] = []
+    for item in document.files:
+        rows.extend(_knip_file(cwd, item.file, item.by_type))
+    return tuple(rows)
+
+
+def _knip_file(
+    cwd: Path, file: str, by_type: Mapping[str, tuple[KnipHit, ...]]
+) -> tuple[UndeclaredImport, ...]:
+    rows: list[UndeclaredImport] = []
+    for kind in ("unlisted", "unresolved"):
+        for hit in by_type.get(kind, ()):
+            rows.extend(_knip_hit(cwd, file, kind, hit))
+    return tuple(rows)
+
+
+def _knip_hit(cwd: Path, file: str, kind: str, hit: KnipHit) -> tuple[UndeclaredImport, ...]:
+    if kind == "unresolved" and (hit.name.startswith(".") or hit.name.startswith("/")):
+        return ()
+    if hit.line is not None:
+        return (UndeclaredImport(file, hit.name, hit.line),)
+    return tuple(
+        UndeclaredImport(file, hit.name, number) for number in _import_lines(cwd, file, hit.name)
+    )
+
+
+def _import_lines(cwd: Path, file: str, specifier: str) -> tuple[int, ...]:
+    path = cwd / file
+    if not path.is_file():
+        return ()
+    numbers = []
+    for number, text in enumerate(path.read_text(errors="replace").splitlines(), 1):
+        if specifier in text and _import_line(text):
+            numbers.append(number)
+    return tuple(numbers)
+
+
+def _import_line(text: str) -> bool:
+    stripped = text.strip()
+    if stripped.startswith(("import ", "import(", "export ")):
+        return True
+    return " from " in stripped or "require(" in stripped
+
+
+def _registry_findings(
+    cwd: Path,
+    config: Config,
+    diff_lines: Mapping[str, set[int]],
+    base: str,
+    index: Literal["pypi", "npm"],
+    transport: Transport | None,
+) -> tuple[SupplyFinding, ...]:
+    packages = added_packages(cwd, base, diff_lines, index, config.include, config.exclude)
+    if not packages:
+        return ()
+    timeout = config.supply_timeout_seconds
+    rows: list[SupplyFinding] = []
+    for package in packages:
+        rows.extend(_existence_finding(package, probe_existence(package, timeout, transport)))
+    probes = probe_advisories(packages, timeout, transport)
+    for package, probe in zip(packages, probes):
+        rows.extend(_advisory_findings(package, probe))
+    return tuple(rows)
+
+
+def _existence_finding(package: AddedPackage, existence: Existence) -> tuple[SupplyFinding, ...]:
+    if isinstance(existence, PackageMissing):
+        return (MissingPackage(package.index, package.name, package.file, package.line),)
+    if isinstance(existence, PackageUndecided):
+        return (
+            UnverifiedExistence(
+                package.index, package.name, package.file, package.line, existence.cause
+            ),
+        )
+    return ()
+
+
+def _advisory_findings(
+    package: AddedPackage, probe: AdvisoriesFound | AdvisoriesUndecided
+) -> tuple[SupplyFinding, ...]:
+    if isinstance(probe, AdvisoriesUndecided):
+        return (
+            UnverifiedAdvisory(package.index, package.name, package.file, package.line, probe.cause),
+        )
+    return tuple(_advisory_record(package, record) for record in probe.records)
+
+
+def _advisory_record(
+    package: AddedPackage, record: DecidedAdvisory | UndecidedRecord
+) -> SupplyFinding:
+    if isinstance(record, DecidedAdvisory):
+        return Advisory(
+            record.advisory_id,
+            package.index,
+            package.name,
+            record.severity,
+            package.file,
+            package.line,
+        )
+    return UnverifiedAdvisory(
+        package.index,
+        package.name,
+        package.file,
+        package.line,
+        record.cause,
+        record.advisory_id,
+    )
+
+
+def _relative(cwd: Path, file: str) -> str:
+    path = Path(file)
+    if not path.is_absolute():
+        return path.as_posix()
+    try:
+        return path.relative_to(cwd).as_posix()
+    except ValueError:
+        return path.as_posix()
