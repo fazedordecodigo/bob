@@ -593,16 +593,17 @@ def test_a_rule_id_with_a_colon_matches_by_equality() -> None:
     assert judge(finding, off_diff, policy, (broad,)) == OffDiff(finding)
 
 
-def test_a_missing_include_root_measures_nothing(tmp_path: Path) -> None:
+def test_a_missing_include_root_exits_4_before_the_scan(tmp_path: Path) -> None:
     repo = _init(tmp_path, "python")
     shutil.rmtree(repo / "src")
 
     result = _check(repo)
 
-    assert result.returncode == 0
-    payload, _markdown = _report(repo)
-    assert _gate(payload)["status"] == "passed"
-    assert payload["security"] == {"findings": [], "unmeasured": []}
+    assert result.returncode == 4
+    assert result.stdout == ""
+    assert result.stderr == "bob.yaml: paths.include does not exist: src\n"
+    assert not (repo / ".bob" / "report.json").exists()
+    assert not (repo / ".bob" / "report.md").exists()
 
 
 def test_invalid_semgrep_rules_are_unmeasured(tmp_path: Path) -> None:
