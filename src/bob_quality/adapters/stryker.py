@@ -32,8 +32,8 @@ def mutants_from_report(
             status = _status(raw)
             if status is None:
                 continue
-            line = _line(report_file, raw)
-            span = _innermost(str(report_file), line, spans)
+            start, end = _location(report_file, raw)
+            span = _innermost(str(report_file), start[0], spans)
             if span is None:
                 continue
             mutants.append(
@@ -41,8 +41,8 @@ def mutants_from_report(
                     id=f"{span.file}:{_raw_id(report_file, raw)}",
                     function=span.name,
                     file=span.file,
-                    line=line,
-                    operator=_operator(report_file, raw),
+                    line=start[0],
+                    operator=_operator(report_file, raw, start, end),
                     status=status,
                 )
             )
@@ -87,24 +87,46 @@ def _raw_id(report_file: str, raw: Mapping[str, object]) -> str:
     return str(mutant_id)
 
 
-def _operator(report_file: str, raw: Mapping[str, object]) -> str:
+def _operator(
+    report_file: str,
+    raw: Mapping[str, object],
+    start: tuple[int, int],
+    end: tuple[int, int],
+) -> str:
+    """O relatório não traz diff.
+
+    Sem o trecho, dois mutantes do mesmo mutador na mesma função teriam o mesmo alvo de waiver.
+    """
     name = raw.get("mutatorName")
     if not isinstance(name, str) or not name:
         raise StrykerParseError(msg("stryker.bad_report", detail=report_file))
-    return name
+    described = f"{name}@{start[0]}:{start[1]}-{end[0]}:{end[1]}"
+    replacement = raw.get("replacement")
+    if isinstance(replacement, str):
+        return f"{described} -> {replacement}"
+    return described
 
 
-def _line(report_file: str, raw: Mapping[str, object]) -> int:
+def _location(
+    report_file: str, raw: Mapping[str, object]
+) -> tuple[tuple[int, int], tuple[int, int]]:
     location = raw.get("location")
     if not isinstance(location, Mapping):
         raise StrykerParseError(msg("stryker.bad_report", detail=report_file))
-    start = location.get("start")
-    if not isinstance(start, Mapping):
+    return _position(report_file, location, "start"), _position(report_file, location, "end")
+
+
+def _position(report_file: str, location: Mapping[str, object], key: str) -> tuple[int, int]:
+    position = location.get(key)
+    if not isinstance(position, Mapping):
         raise StrykerParseError(msg("stryker.bad_report", detail=report_file))
-    line = start.get("line")
-    if isinstance(line, bool) or not isinstance(line, int) or line < 1:
+    return _counted(report_file, position.get("line")), _counted(report_file, position.get("column"))
+
+
+def _counted(report_file: str, value: object) -> int:
+    if isinstance(value, bool) or not isinstance(value, int) or value < 1:
         raise StrykerParseError(msg("stryker.bad_report", detail=report_file))
-    return line
+    return value
 
 
 def _innermost(

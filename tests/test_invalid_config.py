@@ -663,27 +663,43 @@ def test_load_waivers_rejects_an_entry_with_an_extra_key(tmp_path: Path) -> None
     )
 
 
-@pytest.mark.parametrize("lang", [None, "pt-BR"])
-def test_waive_replaces_one_existing_id(tmp_path: Path, lang: str | None) -> None:
+@pytest.mark.parametrize(
+    ("lang", "stderr"),
+    [
+        (
+            None,
+            "no survivor matches src/app/m.py::fn:"
+            " copy file::function or a Target from the last mutation report\n",
+        ),
+        (
+            "pt-BR",
+            "nenhum sobrevivente casa com src/app/m.py::fn:"
+            " copie arquivo::função ou um Alvo do último relatório de mutação\n",
+        ),
+    ],
+)
+def test_waive_without_a_mutation_report_keeps_the_yaml(
+    tmp_path: Path, lang: str | None, stderr: str
+) -> None:
     _write_waivers(
         tmp_path,
         "waivers:\n"
-        "  - id: fn\n"
+        "  - id: src/app/m.py::fn\n"
         "    reason: old\n"
         "    author: ada\n"
         "    date: '2026-10-11'\n",
     )
-    args = ("waive", "fn", "--reason", "replaced")
+    before = (tmp_path / ".bob" / "waivers.yaml").read_bytes()
+    args = ("waive", "src/app/m.py::fn", "--reason", "replaced")
     if lang is not None:
         args = ("--lang", lang, *args)
 
     result = run_bob(tmp_path, *args)
 
-    assert result.returncode == 0
-    assert result.stderr == ""
-    assert [(item.id, item.reason) for item in load_waivers(tmp_path)] == [
-        ("fn", "replaced"),
-    ]
+    assert result.returncode == 4
+    assert result.stdout == ""
+    assert result.stderr == stderr
+    assert (tmp_path / ".bob" / "waivers.yaml").read_bytes() == before
     assert not (tmp_path / ".bob" / "report.md").exists()
     assert not (tmp_path / ".bob" / "report.json").exists()
 
