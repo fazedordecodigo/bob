@@ -6,6 +6,7 @@ from pathlib import Path
 from jsonschema import Draft202012Validator
 
 from bob_quality.models import DiffCoverage, DiffLine, GateResult, LanguageDiff, Report
+from bob_quality.models import flatten_uncovered
 from bob_quality.report import to_json, to_markdown
 from helpers import RISKY_SOURCE, commit_on_branch, init_python_repo, run_bob
 
@@ -122,3 +123,18 @@ def test_diff_coverage_json_lists_measured_percents_and_uncovered_lines() -> Non
     assert "| python | 75.00% |" in english
     assert "| typescript | 100.00% |" in english
     assert "`src/app/gap.py:12`" in english
+
+
+def test_uncovered_lines_are_sorted_by_file_then_line() -> None:
+    coverage = DiffCoverage(
+        (
+            LanguageDiff("typescript", 0.0, (DiffLine("b.ts", 2), DiffLine("b.ts", 1))),
+            LanguageDiff("python", 50.0, (DiffLine("a.py", 3),)),
+        )
+    )
+
+    assert flatten_uncovered(coverage) == (
+        DiffLine("a.py", 3),
+        DiffLine("b.ts", 1),
+        DiffLine("b.ts", 2),
+    )

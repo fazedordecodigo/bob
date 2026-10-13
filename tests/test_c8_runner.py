@@ -10,7 +10,7 @@ from pathlib import Path
 import pytest
 
 from bob_quality.adapters.istanbul import parse_coverage_final
-from bob_quality.npm_tools import run_vitest_under_c8
+from bob_quality.npm_tools import _coverage_report_exists, run_vitest_under_c8
 from bob_quality.tools import ToolError
 from helpers import in_both
 
@@ -331,3 +331,13 @@ def test_c8_failure_without_stderr_reports_stdout(
         run_vitest_under_c8(FIXTURE_TS, ["src"], tmp_path / "coverage", _EXCLUDE)
 
     assert str(caught.value) == "C8_STDOUT_UNIQUE"
+
+
+def test_either_coverage_artifact_counts(tmp_path: Path) -> None:
+    assert _coverage_report_exists(tmp_path) is False
+    (tmp_path / "lcov.info").write_text("TN:\n")
+    assert _coverage_report_exists(tmp_path) is True
+    (tmp_path / "lcov.info").unlink()
+    assert _coverage_report_exists(tmp_path) is False
+    (tmp_path / "coverage-final.json").write_text("{}\n")
+    assert _coverage_report_exists(tmp_path) is True

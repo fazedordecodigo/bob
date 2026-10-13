@@ -9,8 +9,19 @@ import pytest
 from bob_quality.adapters.lizard import LizardParseError
 from bob_quality.adapters.stryker import StrykerParseError
 from bob_quality.config import Config
+from bob_quality.coverage_gate import CoverageOutcome
 from bob_quality.messages import msg
-from bob_quality.models import Clone, CyclomaticFunction, DepViolation, FunctionMetric, GateResult
+from bob_quality.check import _Measured, _assemble
+from bob_quality.models import (
+    Clone,
+    CyclomaticFunction,
+    DepViolation,
+    DiffCoverage,
+    DiffLine,
+    FunctionMetric,
+    GateResult,
+    LanguageDiff,
+)
 from bob_quality.mutate import MutationOutcome
 from bob_quality.tools import ToolError
 from bob_quality.waivers import WaiverError
@@ -403,10 +414,18 @@ def test_absorb_records_every_gate_argument_and_result(
         seen["mutate"] = kwargs
         return mutation
 
+    closed: list[object] = []
+    real_close = check_mod.SuiteMemo.close
+
+    def spy_close(self: object) -> None:
+        closed.append(self)
+        real_close(self)
+
     monkeypatch.setattr(check_mod, "run_crap_gate", crap)
     monkeypatch.setattr(check_mod, "run_dry_gate", dry)
     monkeypatch.setattr(check_mod, "run_deps_gate", deps)
     monkeypatch.setattr(check_mod, "run_mutate_gate", mutate)
+    monkeypatch.setattr(check_mod.SuiteMemo, "close", spy_close)
 
     state = check_mod._measure(
         tmp_path,
@@ -464,6 +483,131 @@ def test_absorb_records_every_gate_argument_and_result(
         "gate not implemented in this slice",
         "gate não implementado nesta fatia",
     )
+    assert closed == [memo]
+    assert memo._closed is True
+
+    diff_coverage = DiffCoverage((LanguageDiff("python", 90.0, (DiffLine("src/app.py", 4),)),))
+    outcome = CoverageOutcome(
+        GateResult("coverage", "failed"),
+        1,
+        {"diff-cover": "10.6.0"},
+        diff_coverage,
+    )
+
+    def coverage_gate(
+        cwd: Path,
+        got_config: Config,
+        base: str,
+        coverage_file: Path | None,
+        gate_memo: object,
+    ) -> CoverageOutcome:
+        seen["coverage"] = {
+            "cwd": cwd,
+            "config": got_config,
+            "base": base,
+            "coverage_file": coverage_file,
+            "memo": gate_memo,
+        }
+        return outcome
+
+    monkeypatch.setattr(check_mod, "run_coverage_gate", coverage_gate)
+    covered = check_mod._measure(
+        tmp_path,
+        config,
+        diff,
+        10.0,
+        coverage,
+        ["coverage"],
+        out,
+        4,
+        "origin/main",
+    )
+    coverage_memo = seen["coverage"].pop("memo")
+
+    assert coverage_memo.want_lcov is True
+    assert coverage_memo.want_json is False
+    assert seen["coverage"] == {
+        "cwd": tmp_path,
+        "config": config,
+        "base": "origin/main",
+        "coverage_file": coverage,
+    }
+    assert covered.diff_coverage is diff_coverage
+    assert covered.exit_code == 1
+    assert covered.versions == {"diff-cover": "10.6.0"}
+    assert covered.gates == [outcome.result]
+    assert closed[-1] is coverage_memo
+    assert coverage_memo._closed is True
+
+
+def test_assemble_copies_every_measured_field() -> None:
+    clone = Clone("src/a.py", 1, 4, "src/b.py", 1, 4, 4, 20)
+    metric = FunctionMetric(
+        lang="python",
+        module="app",
+        name="add",
+        file="src/app/safe.py",
+        start_line=1,
+        end_line=2,
+        cc=1,
+        coverage=1.0,
+        crap=1.0,
+        changed=True,
+    )
+    coverage = DiffCoverage((LanguageDiff("python", 80.0, (DiffLine("src/app/safe.py", 2),)),))
+    state = _Measured()
+    state.metrics = [metric]
+    state.clones = [clone]
+    state.versions = {"lizard": "1.24.1"}
+    state.exit_code = 0
+    state.loaded_waivers = [{"id": "idle", "reason": "kept", "author": "ada", "date": "2026-10-12"}]
+    state.diff_coverage = coverage
+
+    idle = _assemble(state, "abc123", "origin/main", {"src/a.py": {1}}, 10.0, "bob check")
+
+    assert idle.schema_version == 1
+    assert idle.commit == "abc123"
+    assert idle.base == "origin/main"
+    assert idle.generated_at.startswith("20") and "T" in idle.generated_at
+    assert idle.tool_versions == {"lizard": "1.24.1"}
+    assert idle.exit_code == 0
+    assert idle.reproduce == "bob check"
+    assert idle.waivers == state.loaded_waivers
+    assert idle.survivors == []
+    assert idle.mutation is None
+    assert idle.diff_coverage is coverage
+    assert idle.gates == []
+    assert idle.clones == [clone]
+    assert idle.focus == [
+        {"file": "src/app/safe.py", "risk": 1.0},
+        {"file": "src/a.py", "risk": 0.0, "clone": True},
+    ]
+    assert idle.top_crap[0]["name"] == "add"
+
+    mutation = _outcome(
+        0,
+        status="passed",
+        versions={"mutmut": "3.8.0"},
+        waivers=[{"id": "live", "reason": "kept", "author": "ada", "date": "2026-10-12"}],
+        survivors=[
+            {
+                "id": "src/a.py:add",
+                "function": "add",
+                "file": "src/a.py",
+                "line": 1,
+                "status": "survived",
+            }
+        ],
+        summary={"remutated": ["src/a.py::add"], "reused": [], "no_coverage": {"total": 1}},
+    )
+    state.mutation = mutation
+    reported = _assemble(state, "abc123", "origin/main", {"src/a.py": {1}}, 10.0, "bob check")
+
+    assert reported.survivors == mutation.survivors
+    assert reported.waivers == mutation.waivers
+    assert reported.mutation == mutation.summary
+    assert reported.diff_coverage is coverage
+    assert reported.focus[0] == {"file": "src/a.py", "risk": 100.0, "clone": True}
 
 
 def _lizard(file: str, name: str, start: int, end: int, cc: int) -> str:
