@@ -150,7 +150,7 @@ def test_assemble_copies_measurement_and_keeps_secrets() -> None:
             SecretRow("src/a.py", 2, "aws-access-token"),
         )
     )
-    survivor = {"id": "m", "file": "src/app.py", "waiver": None}
+    survivor = {"id": "m", "file": "src/app.py", "waiver": None, "blocking": True}
     summary = {"remutated": ["src/app.py::add"], "reused": []}
     waivers = [{"id": "kept"}]
     measured = _Measured(
