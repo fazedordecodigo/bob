@@ -25,7 +25,7 @@ def _forbid(monkeypatch: pytest.MonkeyPatch) -> None:
         "run_crap_gate",
         "run_dry_gate",
         "run_deps_gate",
-        "run_mutation_gate",
+        "run_mutate_gate",
         "run_typing_gate",
     ):
         monkeypatch.setattr("bob_quality.check." + name, boom)
@@ -147,7 +147,7 @@ def test_mutate_keeps_the_baseline_and_the_worker_count(
         }
         return outcome
 
-    monkeypatch.setattr("bob_quality.check.run_mutation_gate", fake)
+    monkeypatch.setattr("bob_quality.check.run_mutate_gate", fake)
     state = _Measured(baseline=7)
 
     _absorb(state, "mutate", tmp_path, config, DIFF, 10.0, None, out, 2)
