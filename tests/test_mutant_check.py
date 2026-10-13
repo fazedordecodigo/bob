@@ -92,7 +92,7 @@ def test_assemble_keeps_every_report_field() -> None:
     clone = Clone("src/fresh.py", 1, 4, "src/old.py", 1, 4, 4, 20)
     in_diff = DepViolation("app", "legacy", "cycle", True)
     parked = DepViolation("app", "old", "layer", False)
-    survivor = {"id": "m1", "file": "src/fresh.py", "waiver": None}
+    survivor = {"id": "m1", "file": "src/fresh.py", "waiver": None, "blocking": True}
     measured = _Measured(
         versions={"lizard": "1.24.1"},
         gates=[GateResult("crap", "passed")],
