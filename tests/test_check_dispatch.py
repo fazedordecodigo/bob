@@ -67,7 +67,7 @@ def test_absorb_records_each_gate_from_the_arguments_it_received(monkeypatch) ->
     monkeypatch.setattr(check, "run_crap_gate", crap)
     monkeypatch.setattr(check, "run_dry_gate", dry)
     monkeypatch.setattr(check, "run_deps_gate", deps)
-    monkeypatch.setattr(check, "run_mutation_gate", mutate)
+    monkeypatch.setattr(check, "run_mutate_gate", mutate)
     monkeypatch.setattr(check, "run_secrets_gate", secrets)
 
     state = _Measured()
