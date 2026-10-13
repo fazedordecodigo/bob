@@ -249,10 +249,10 @@ Um waiver sem motivo de uma linha é rejeitado com exit `4`. `bob waive` de um i
 7. `Violações e ciclos de dependência`, e `Informação (dependências fora do diff)`.
 8. `Clones novos`.
 9. `Mutantes sobreviventes`.
-10. `Rotatividade`, a contagem de commits dos arquivos alterados dentro dos caminhos incluídos. O título aparece sempre, e a seção não muda o código de saída.
+10. `Rotatividade`, a contagem de commits e a taxa relativa (linhas alteradas divididas pelo tamanho do arquivo) dos arquivos alterados dentro dos caminhos incluídos. O título aparece sempre, e a seção não muda o código de saída.
 11. `Como reproduzir`, o comando exato para rodar localmente, incluindo `--lang`. O mesmo comando no `report.json` não leva `--lang`.
 
-A rotatividade conta os commits que o `git log` lista para cada arquivo alterado dentro de `paths.include`, em `churn.window_days` dias de calendário (padrão 90) terminando na data do próprio commit. O hotspot de uma função alterada é essa contagem vezes a complexidade ciclomática. A difusão é quantos desses arquivos mudaram e quantos diretórios pais eles ocupam. Quando a contagem não pode ser lida, o título fica e os números não. O campo no JSON é `churn`, e `schema_version` continua 1.
+A rotatividade conta os commits que o `git log` lista para cada arquivo alterado dentro de `paths.include`, em `churn.window_days` dias de calendário (padrão 90) terminando na data do próprio commit. O churn relativo de um arquivo é as linhas alteradas divididas pelo número de linhas dele. A taxa fica nula quando o arquivo não tem linhas ou não pode ser lido, e a contagem de commits permanece. O hotspot de uma função alterada é a contagem de commits vezes a complexidade ciclomática. A difusão é quantos desses arquivos mudaram e quantos diretórios pais eles ocupam. Quando a contagem não pode ser lida, o título fica e os números não. O campo no JSON é `churn`, e `schema_version` continua 1.
 
 ## Conceitos
 

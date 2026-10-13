@@ -148,10 +148,11 @@
               "items": {
                 "type": "object",
                 "additionalProperties": false,
-                "required": ["path", "commits"],
+                "required": ["path", "commits", "relative"],
                 "properties": {
                   "path": { "type": "string" },
-                  "commits": { "type": "integer", "minimum": 0 }
+                  "commits": { "type": "integer", "minimum": 0 },
+                  "relative": { "type": ["number", "null"] }
                 }
               }
             },

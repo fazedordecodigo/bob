@@ -80,7 +80,7 @@ def test_threshold_is_the_crap_limit_for_changed_and_old_functions(tmp_path: Pat
         }
     ]
     assert payload["churn"]["window_days"] == 90
-    assert payload["churn"]["files"] == [{"path": "src/new.py", "commits": 2}]
+    assert payload["churn"]["files"] == [{"path": "src/new.py", "commits": 2, "relative": 0.5}]
     assert payload["churn"]["hotspots"] == [
         {
             "file": "src/new.py",
@@ -365,7 +365,7 @@ def test_assemble_copies_every_measured_field() -> None:
     )
     section = ChurnMeasured(
         ChurnWindow(7, date(2020, 1, 2)),
-        (FileChurn("src/new.py", 4),),
+        (FileChurn("src/new.py", 4, None),),
         (Hotspot("src/new.py", "fresh", 1, 2, 4),),
     )
 
@@ -465,7 +465,7 @@ def test_assemble_copies_every_measured_field() -> None:
             "kind": "measured",
             "window_days": 7,
             "ends_on": "2020-01-02",
-            "files": [{"path": "src/new.py", "commits": 4}],
+            "files": [{"path": "src/new.py", "commits": 4, "relative": None}],
             "hotspots": [
                 {
                     "file": "src/new.py",

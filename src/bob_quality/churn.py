@@ -44,6 +44,7 @@ class ChurnWindow:
 class FileChurn:
     path: str
     commits: int
+    relative: float | None
 
 
 @dataclass(frozen=True)
@@ -126,7 +127,13 @@ def measure_churn(
         logged = _git_stdout(cwd, _file_log_argv(commit, since, until, path))
         if logged is None:
             return ChurnUnavailable()
-        counted.append(FileChurn(path, _commit_count(logged)))
+        counted.append(
+            FileChurn(
+                path,
+                _commit_count(logged),
+                _relative(cwd, path, changed_lines[path]),
+            )
+        )
     return ChurnMeasured(
         ChurnWindow(window_days, ends_on),
         tuple(counted),
@@ -188,6 +195,17 @@ def _commit_date(stdout: str) -> tuple[date, str] | None:
 
 def _commit_count(stdout: str) -> int:
     return sum(1 for line in stdout.splitlines() if _COMMIT_LINE.fullmatch(line))
+
+
+def _relative(cwd: Path, path: str, changed: set[int]) -> float | None:
+    try:
+        text = (cwd / path).read_text(encoding="utf-8")
+    except (OSError, UnicodeError):
+        return None
+    size = len(text.splitlines())
+    if size == 0:
+        return None
+    return len(changed) / size
 
 
 def _hotspots(

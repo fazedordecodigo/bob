@@ -253,7 +253,10 @@ def _churn_json(section: ChurnSection) -> dict[str, object]:
             "kind": "measured",
             "window_days": section.window.days,
             "ends_on": section.window.ends_on.isoformat(),
-            "files": [{"path": item.path, "commits": item.commits} for item in section.files],
+            "files": [
+                {"path": item.path, "commits": item.commits, "relative": item.relative}
+                for item in section.files
+            ],
             "hotspots": [
                 {
                     "file": row.file,
@@ -301,8 +304,16 @@ def _measured_churn_lines(section: ChurnMeasured) -> list[Text]:
     lines.append("")
     if section.files:
         lines.append(msg("report.churn_file_header"))
-        lines.append("|---|---:|")
-        lines.extend(f"| `{item.path}` | {item.commits} |" for item in section.files)
+        lines.append("|---|---:|---:|")
+        lines.extend(
+            msg(
+                "report.churn_file_row",
+                path=item.path,
+                commits=item.commits,
+                relative=_relative_text(item.relative),
+            )
+            for item in section.files
+        )
     else:
         lines.append(msg("report.churn_no_files"))
     lines.append("")
@@ -313,6 +324,12 @@ def _measured_churn_lines(section: ChurnMeasured) -> list[Text]:
     else:
         lines.append(msg("report.churn_no_hotspots"))
     return lines
+
+
+def _relative_text(value: float | None) -> Text:
+    if value is None:
+        return msg("report.churn_relative_missing")
+    return f"{value:.4f}"
 
 
 def _hotspot_row(row: Hotspot) -> str:

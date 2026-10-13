@@ -36,7 +36,7 @@ def test_window_keeps_start_midnight_and_the_end_second(tmp_path: Path) -> None:
 
     assert counted == ChurnMeasured(
         ChurnWindow(90, date(2026, 10, 12)),
-        (FileChurn("src/a.py", 3),),
+        (FileChurn("src/a.py", 3, 1.0),),
         (),
     )
     assert counted.file_count() == 1
@@ -44,12 +44,12 @@ def test_window_keeps_start_midnight_and_the_end_second(tmp_path: Path) -> None:
     assert counted.module_names() == ("src",)
     assert one_day == ChurnMeasured(
         ChurnWindow(1, date(2026, 10, 12)),
-        (FileChurn("src/a.py", 2),),
+        (FileChurn("src/a.py", 2, 1.0),),
         (),
     )
     assert measure_churn(repo, tip, 90, {"src/a.py": {9}}, ("src",), ()) == ChurnMeasured(
         ChurnWindow(90, date(2026, 10, 12)),
-        (FileChurn("src/a.py", 3),),
+        (FileChurn("src/a.py", 3, 1.0),),
         (),
     )
 
@@ -71,13 +71,13 @@ def test_hotspot_is_commits_times_cc(tmp_path: Path) -> None:
 
     assert scored == ChurnMeasured(
         ChurnWindow(90, date(2026, 10, 12)),
-        (FileChurn("src/a.py", 3),),
+        (FileChurn("src/a.py", 3, 1.0),),
         (Hotspot("src/a.py", "alpha", 1, 4, 3),),
     )
     assert scored.hotspots[0].hotspot == 12
     assert empty == ChurnMeasured(
         ChurnWindow(90, date(2026, 10, 12)),
-        (FileChurn("src/a.py", 3),),
+        (FileChurn("src/a.py", 3, 0.0),),
         (),
     )
     payload = to_json(_report(scored))
@@ -86,7 +86,7 @@ def test_hotspot_is_commits_times_cc(tmp_path: Path) -> None:
         "kind": "measured",
         "window_days": 90,
         "ends_on": "2026-10-12",
-        "files": [{"path": "src/a.py", "commits": 3}],
+        "files": [{"path": "src/a.py", "commits": 3, "relative": 1.0}],
         "hotspots": [
             {
                 "file": "src/a.py",
@@ -107,9 +107,9 @@ def test_hotspot_is_commits_times_cc(tmp_path: Path) -> None:
         "Diffusion: 1 files, 1 modules.\n"
         "Modules: `src`.\n"
         "\n"
-        "| File | Commits |\n"
-        "|---|---:|\n"
-        "| `src/a.py` | 3 |\n"
+        "| File | Commits | Relative |\n"
+        "|---|---:|---:|\n"
+        "| `src/a.py` | 3 | 1.0000 |\n"
         "\n"
         "| Function | File | CC | Commits | Hotspot |\n"
         "|---|---|---:|---:|---:|\n"
@@ -123,9 +123,9 @@ def test_hotspot_is_commits_times_cc(tmp_path: Path) -> None:
         "Difusão: 1 arquivos, 1 módulos.\n"
         "Módulos: `src`.\n"
         "\n"
-        "| Arquivo | Commits |\n"
-        "|---|---:|\n"
-        "| `src/a.py` | 3 |\n"
+        "| Arquivo | Commits | Relativo |\n"
+        "|---|---:|---:|\n"
+        "| `src/a.py` | 3 | 1.0000 |\n"
         "\n"
         "| Função | Arquivo | CC | Commits | Hotspot |\n"
         "|---|---|---:|---:|---:|\n"
@@ -157,20 +157,20 @@ def test_include_is_a_segment_prefix_and_a_glob_does_not_widen(tmp_path: Path) -
     kept = measure_churn(repo, tip, 90, changed, ("src",), (outside, first, again))
 
     assert under_src.files == (
-        FileChurn("src/*.py", 0),
-        FileChurn("src/a.py", 1),
-        FileChurn("src/b.py", 2),
+        FileChurn("src/*.py", 0, None),
+        FileChurn("src/a.py", 1, 1.0),
+        FileChurn("src/b.py", 2, 1.0),
     )
     assert dotted.files == under_src.files
     assert slashed.files == under_src.files
     assert under_src.module_names() == ("src",)
     assert everywhere.files == (
-        FileChurn("a.py", 1),
-        FileChurn("src/*.py", 0),
-        FileChurn("src/a.py", 1),
-        FileChurn("src/b.py", 2),
-        FileChurn("src2/a.py", 1),
-        FileChurn("tests/a.py", 1),
+        FileChurn("a.py", 1, 1.0),
+        FileChurn("src/*.py", 0, None),
+        FileChurn("src/a.py", 1, 1.0),
+        FileChurn("src/b.py", 2, 1.0),
+        FileChurn("src2/a.py", 1, 1.0),
+        FileChurn("tests/a.py", 1, 1.0),
     )
     assert everywhere.module_names() == (".", "src", "src2", "tests")
     assert everywhere.file_count() == 6
@@ -221,7 +221,7 @@ def test_dot_include_counts_every_relative_file(tmp_path: Path) -> None:
 
     assert section == ChurnMeasured(
         ChurnWindow(90, date(2020, 1, 15)),
-        (FileChurn("a.py", 1), FileChurn("src/a.py", 1)),
+        (FileChurn("a.py", 1, 1.0), FileChurn("src/a.py", 1, 1.0)),
         (),
     )
 
@@ -280,7 +280,7 @@ def test_signature_text_is_not_a_commit(
 
     assert measure_churn(repo, tip, 90, {"src/a.py": {1}}, ("src",), ()) == ChurnMeasured(
         ChurnWindow(90, date(2026, 10, 12)),
-        (FileChurn("src/a.py", 3),),
+        (FileChurn("src/a.py", 3, 1.0),),
         (),
     )
 
@@ -288,7 +288,7 @@ def test_signature_text_is_not_a_commit(
 def test_two_modules_render_with_a_blank_line_before_the_heading() -> None:
     section = ChurnMeasured(
         ChurnWindow(90, date(2020, 1, 15)),
-        (FileChurn("lib/a.py", 1), FileChurn("src/b.py", 2)),
+        (FileChurn("lib/a.py", 1, None), FileChurn("src/b.py", 2, None)),
         (),
     )
 
@@ -331,7 +331,7 @@ def test_run_check_keeps_the_gate_exit(tmp_path: Path) -> None:
         "kind": "measured",
         "window_days": 90,
         "ends_on": "2026-10-12",
-        "files": [{"path": "src/a.py", "commits": 3}],
+        "files": [{"path": "src/a.py", "commits": 3, "relative": 1.0}],
         "hotspots": [],
         "diffusion": {"files": 1, "modules": 1},
     }
@@ -343,9 +343,9 @@ def test_run_check_keeps_the_gate_exit(tmp_path: Path) -> None:
         "Diffusion: 1 files, 1 modules.\n"
         "Modules: `src`.\n"
         "\n"
-        "| File | Commits |\n"
-        "|---|---:|\n"
-        "| `src/a.py` | 3 |\n"
+        "| File | Commits | Relative |\n"
+        "|---|---:|---:|\n"
+        "| `src/a.py` | 3 | 1.0000 |\n"
         "\n"
         "No changed function to score.\n"
         "\n"
@@ -360,9 +360,9 @@ def test_run_check_keeps_the_gate_exit(tmp_path: Path) -> None:
         "Difusão: 1 arquivos, 1 módulos.\n"
         "Módulos: `src`.\n"
         "\n"
-        "| Arquivo | Commits |\n"
-        "|---|---:|\n"
-        "| `src/a.py` | 3 |\n"
+        "| Arquivo | Commits | Relativo |\n"
+        "|---|---:|---:|\n"
+        "| `src/a.py` | 3 | 1.0000 |\n"
         "\n"
         "Nenhuma função alterada para pontuar.\n"
         "\n"
@@ -437,6 +437,131 @@ def test_gates_churn_stays_a_missing_gate(tmp_path: Path) -> None:
         "\n"
     )
     Draft202012Validator(SCHEMA).validate(payload)
+
+
+def test_relative_is_changed_lines_over_file_size(tmp_path: Path) -> None:
+    repo = tmp_path / "ratio"
+    repo.mkdir()
+    _git(repo, "init", "-b", "main")
+    _commit(
+        repo,
+        "src/quarter.py",
+        "one\ntwo\nthree\nfour\n",
+        "quarter",
+        _stamp("2020-01-15", "10:00:00"),
+    )
+    _commit(
+        repo,
+        "src/third.py",
+        "one\ntwo\nthree\n",
+        "third",
+        _stamp("2020-01-15", "11:00:00"),
+    )
+    _commit(repo, "src/empty.py", "", "empty", _stamp("2020-01-15", "12:00:00"))
+    binary = repo / "src/binary.bin"
+    binary.write_bytes(b"\xff\xfe")
+    _git(repo, "add", "src/binary.bin")
+    _git(repo, "commit", "-m", "binary", when=_stamp("2020-01-15", "13:00:00"))
+    tip = _git(repo, "rev-parse", "HEAD")
+    changed = _metric("src/quarter.py", "kept", 1, 5, True)
+
+    section = measure_churn(
+        repo,
+        tip,
+        90,
+        {
+            "src/quarter.py": {1, 3},
+            "src/third.py": {2},
+            "src/empty.py": {1},
+            "src/gone.py": {1},
+            "src/binary.bin": {1},
+        },
+        ("src",),
+        (changed,),
+    )
+
+    assert section == ChurnMeasured(
+        ChurnWindow(90, date(2020, 1, 15)),
+        (
+            FileChurn("src/binary.bin", 1, None),
+            FileChurn("src/empty.py", 1, None),
+            FileChurn("src/gone.py", 0, None),
+            FileChurn("src/quarter.py", 1, 0.5),
+            FileChurn("src/third.py", 1, 1 / 3),
+        ),
+        (Hotspot("src/quarter.py", "kept", 1, 5, 1),),
+    )
+    assert section.hotspots[0].hotspot == 5
+    payload = to_json(_report(section))
+    assert payload["churn"]["files"] == [
+        {"path": "src/binary.bin", "commits": 1, "relative": None},
+        {"path": "src/empty.py", "commits": 1, "relative": None},
+        {"path": "src/gone.py", "commits": 0, "relative": None},
+        {"path": "src/quarter.py", "commits": 1, "relative": 0.5},
+        {"path": "src/third.py", "commits": 1, "relative": 1 / 3},
+    ]
+    Draft202012Validator(SCHEMA).validate(payload)
+    english = to_markdown(_report(section), "en")
+    assert "| `src/quarter.py` | 1 | 0.5000 |" in english
+    assert "| `src/third.py` | 1 | 0.3333 |" in english
+    assert "| `src/empty.py` | 1 | n/a |" in english
+    assert "| `src/gone.py` | 0 | n/a |" in english
+    portuguese = to_markdown(_report(section), "pt-BR")
+    assert "| `src/quarter.py` | 1 | 0.5000 |" in portuguese
+    assert "| `src/empty.py` | 1 | n/d |" in portuguese
+    assert "| `kept` | `src/quarter.py:1` | 5 | 1 | 5 |" in portuguese
+
+
+def test_a_shallow_clone_or_a_git_log_error_keeps_the_exit(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    repo, tip = _boundary(tmp_path)
+    assert run_check(repo, base="main", gates=["nope"], reproduce="bob check") == 0
+    measured = json.loads((repo / ".bob" / "report.json").read_text())
+    assert measured["exit_code"] == 0
+    assert measured["churn"]["kind"] == "measured"
+    assert measured["churn"]["files"] == [
+        {"path": "src/a.py", "commits": 3, "relative": 1.0}
+    ]
+
+    shallow = tmp_path / "shallow"
+    subprocess.run(
+        ["git", "clone", "--depth", "1", "--branch", "work", str(repo), str(shallow)],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    full_tip = run_check(repo, base=tip, gates=["nope"], reproduce="bob check")
+    shallow_exit = run_check(shallow, base="HEAD", gates=["nope"], reproduce="bob check")
+    shallow_payload = json.loads((shallow / ".bob" / "report.json").read_text())
+
+    assert full_tip == 0
+    assert shallow_exit == full_tip
+    assert shallow_payload["exit_code"] == 0
+    assert shallow_payload["schema_version"] == 1
+
+    bindir = tmp_path / "bin"
+    bindir.mkdir()
+    wrapper = bindir / "git"
+    wrapper.write_text(
+        "#!/bin/sh\n"
+        "PATH=${PATH#*:}\n"
+        'if [ "$2" = log ]; then\n'
+        "  echo 'fatal: git log failed' >&2\n"
+        "  exit 1\n"
+        "fi\n"
+        'exec git "$@"\n'
+    )
+    wrapper.chmod(0o755)
+    monkeypatch.setenv("PATH", f"{bindir}{os.pathsep}{os.environ['PATH']}")
+
+    assert run_check(repo, base="main", gates=["nope"], reproduce="bob check") == 0
+    broken = json.loads((repo / ".bob" / "report.json").read_text())
+    broken_md = (repo / ".bob" / "report.md").read_text()
+    assert broken["exit_code"] == measured["exit_code"]
+    assert broken["churn"] == {"kind": "unavailable"}
+    assert "Churn counts are unavailable. The exit code is unchanged." in broken_md
+    Draft202012Validator(SCHEMA).validate(broken)
 
 
 def _section(markdown: str, heading: str, footer: str) -> str:
