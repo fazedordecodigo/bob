@@ -47,6 +47,8 @@ PINS = (
     ("import-linter", "2.15", "lint-imports", "2.15"),
     ("grimp", "3.17", None, None),
     ("dependency-cruiser", "18.5.0", "dependency-cruiser", "18.5.0"),
+    ("stryker", "10.0.0", "stryker", "10.0.0"),
+    ("stryker-vitest-runner", "10.0.0", "stryker-vitest-runner", "10.0.0"),
 )
 
 INSTALL = {
@@ -63,6 +65,8 @@ INSTALL = {
     "grimp": "pip install 'grimp==3.17'",
     "complexipy": "pip install 'complexipy==8.0.1'",
     "dependency-cruiser": "npm install dependency-cruiser@18.5.0",
+    "stryker": "npm install @stryker-mutator/core@10.0.0",
+    "stryker-vitest-runner": "npm install @stryker-mutator/vitest-runner@10.0.0",
 }
 
 
@@ -369,7 +373,11 @@ def test_doctor_expected_versions_match_pip_and_npm_pins(tmp_path: Path) -> None
     assert npm["dependency-cruiser"] == expected["dependency-cruiser"]
     assert npm["eslint"] == expected["eslint"]
     assert npm["eslint-plugin-sonarjs"] == expected["eslint-plugin-sonarjs"]
+    assert npm["@stryker-mutator/core"] == expected["stryker"]
+    assert npm["@stryker-mutator/vitest-runner"] == expected["stryker-vitest-runner"]
     assert set(npm) == {
+        "@stryker-mutator/core",
+        "@stryker-mutator/vitest-runner",
         "c8",
         "dependency-cruiser",
         "eslint",
