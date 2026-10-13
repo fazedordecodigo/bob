@@ -8,7 +8,7 @@ from pathlib import Path
 import pytest
 from helpers import init_python_repo, run_bob
 
-from bob_quality.config import Config, load_config
+from bob_quality.config import Config, _Node, load_config
 
 _COMMANDS = (
     ("check", "--gates", "nope"),
@@ -81,3 +81,10 @@ def test_bad_typing_value_exits_4_and_writes_nothing(
     assert result.stdout == ""
     assert "Traceback" not in result.stderr
     assert _files(tmp_path) == before
+
+
+def test_empty_typing_mapping_rejects_a_child() -> None:
+    child = _Node("threshold", "threshold", ())
+
+    with pytest.raises(ValueError, match="typing"):
+        _Node("typing", "", (), (child,), empty_mapping=True)

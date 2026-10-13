@@ -4,10 +4,14 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
 from pathlib import Path
+from typing import cast
+
+import pytest
 
 from helpers import commit_on_branch, commit_on_main, init_python_repo, init_ts_repo
 from jsonschema import Draft202012Validator
@@ -15,11 +19,13 @@ from jsonschema import Draft202012Validator
 from bob_quality.models import GateResult, Report
 from bob_quality.report import to_markdown
 from bob_quality.typing_gate import (
+    _CheckerSpec,
     Absent,
     Blocked,
     Blocking,
     CheckerName,
     Clear,
+    CheckerRun,
     Configured,
     Diagnostic,
     DiagnosticCode,
@@ -30,6 +36,7 @@ from bob_quality.typing_gate import (
     OffDiff,
     Unmeasured,
     Waived,
+    _subject_key,
     typing_verdict,
     waiver_id,
 )
@@ -80,33 +87,73 @@ def test_verdict_without_a_configured_slot_is_not_run_even_with_an_escape() -> N
 
 
 def test_verdict_ignores_escapes_when_every_checker_missed() -> None:
-    miss = Unmeasured("mypy", "missing_executable")
+    first = Unmeasured("mypy", "missing_executable")
+    second = Unmeasured("pyright", "crashed")
     verdict = typing_verdict(
-        (Configured("python", miss),),
+        (Configured("python", first, (second,)),),
         (Escape("src/app.py", 1, "Any"),),
         {"src/app.py": {1}},
         frozenset(),
     )
 
-    assert verdict == NothingMeasured(miss)
+    assert verdict == NothingMeasured(first, (second,))
+    assert verdict.misses() == (first, second)
     assert verdict.status == "not_run"
     assert verdict.exit_code == 4
 
+    unknown = Configured("python", cast(CheckerRun, object()))
+    with pytest.raises(AssertionError, match="object object"):
+        typing_verdict((unknown,), (), {}, frozenset())
+
 
 def test_verdict_blocks_on_an_unwaived_diff_diagnostic() -> None:
-    diagnostic = _diagnostic("src/app.py", 12, "assignment")
+    blocking = _diagnostic("src/b.py", 2, "assignment")
+    waived = _diagnostic("src/a.py", 1, "assignment")
+    off_pyright = _diagnostic("src/c.py", 3, "assignment", "pyright")
+    off_mypy = _diagnostic("src/c.py", 3, "assignment", "mypy")
+    miss = Unmeasured("pyright", "missing_executable")
+    escape = Escape("src/b.py", 9, "Any")
+    waived_escape = Escape("src/a.py", 4, "type: ignore")
+    same_escape = Escape("src/a.py", 8, "Any")
+    same_diagnostic = _diagnostic("src/a.py", 8, "Any")
+    assert _subject_key(same_escape) == ("src/a.py", 8, "Any", "")
+    assert _subject_key(same_diagnostic) == ("src/a.py", 8, "Any", "mypy")
     verdict = typing_verdict(
-        (Configured("python", Measured("mypy", (diagnostic,))),),
-        (),
-        {"src/app.py": {12}},
-        frozenset(),
+        (
+            Configured(
+                "python",
+                Measured(
+                    "mypy",
+                    (off_pyright, blocking, waived, off_mypy, same_diagnostic),
+                ),
+                (miss,),
+            ),
+        ),
+        (escape, waived_escape, same_escape),
+        {"src/a.py": {1, 4, 8}, "src/b.py": {2, 9}},
+        frozenset(
+            {
+                "typing:src/a.py:1:assignment",
+                "typing:src/a.py:4:type: ignore",
+                "typing:src/a.py:8:Any",
+            }
+        ),
     )
 
-    assert isinstance(verdict, Blocked)
+    assert verdict == Blocked(
+        Blocking(blocking),
+        (
+            Waived(waived),
+            Waived(waived_escape),
+            Waived(same_escape),
+            Waived(same_diagnostic),
+        ),
+        (OffDiff(off_mypy), OffDiff(off_pyright)),
+        (miss,),
+        (Blocking(escape),),
+    )
     assert verdict.status == "failed"
     assert verdict.exit_code == 1
-    assert verdict.head == Blocking(diagnostic)
-    assert verdict.rest == ()
 
 
 def test_verdict_waives_an_exact_id_and_keeps_a_sibling_miss() -> None:
@@ -116,9 +163,10 @@ def test_verdict_waives_an_exact_id_and_keeps_a_sibling_miss() -> None:
         (Configured("python", Measured("mypy", (diagnostic,)), (miss,)),),
         (),
         {"src/app.py": {12}},
-        frozenset({waiver_id("src/app.py", 12, "assignment")}),
+        frozenset({"typing:src/app.py:12:assignment"}),
     )
 
+    assert waiver_id("src/app.py", 12, "assignment") == "typing:src/app.py:12:assignment"
     assert verdict == Clear((Waived(diagnostic),), (), (miss,))
     assert verdict.status == "passed"
     assert verdict.exit_code == 0
@@ -153,9 +201,34 @@ def test_verdict_orders_blocking_findings_by_file_line_code_and_tool() -> None:
         frozenset(),
     )
 
-    assert isinstance(verdict, Blocked)
+    assert verdict == Blocked(Blocking(earlier), (), (), (), (Blocking(later),))
     assert verdict.blocking() == (Blocking(earlier), Blocking(later))
     assert verdict.exit_code == 1
+
+
+def test_unmeasured_keeps_a_code_only_for_an_exit_outside_measurement() -> None:
+    kept = Unmeasured("mypy", "exit_outside_measurement", 2)
+
+    assert kept.code == 2
+    with pytest.raises(ValueError, match="exit_outside_measurement"):
+        Unmeasured("mypy", "exit_outside_measurement")
+    with pytest.raises(ValueError, match="crashed"):
+        Unmeasured("mypy", "crashed", 2)
+
+
+def test_checker_spec_rejects_an_exit_in_both_sets() -> None:
+    with pytest.raises(ValueError, match="1"):
+        _CheckerSpec(
+            "mypy",
+            frozenset({0, 1}),
+            frozenset({1}),
+            re.compile("x"),
+            re.compile("y"),
+            None,
+            lambda _cwd: "absent",
+            lambda *_args: ("mypy",),
+            False,
+        )
 
 
 def test_types_section_follows_uncovered_mutants_and_precedes_reproduce() -> None:
@@ -178,11 +251,11 @@ def test_types_section_follows_uncovered_mutants_and_precedes_reproduce() -> Non
                 {
                     "kind": "diagnostic",
                     "disposition": "off_diff",
-                    "file": "src/app.py",
+                    "file": "src/a|b.py",
                     "line": 4,
                     "code": "assignment",
                     "tool": "mypy",
-                    "waiver_id": "typing:src/app.py:4:assignment",
+                    "waiver_id": "typing:src/a|b.py:4:assignment",
                 }
             ],
         },
@@ -196,7 +269,12 @@ def test_types_section_follows_uncovered_mutants_and_precedes_reproduce() -> Non
         < english.index("## Types")
         < english.index("## How to reproduce")
     )
-    assert "| `src/app.py` | 4 | `assignment` | off_diff | `typing:src/app.py:4:assignment` |" in english
+    assert (
+        "\n\n## Types\n\n| File | Line | Code | Disposition | Waiver |\n"
+        "|---|---:|---|---|---|\n"
+        "| `src/a\\|b.py` | 4 | `assignment` | off_diff | `typing:src/a\\|b.py:4:assignment` |"
+    ) in english
+    assert "\n\n## Tipos\n\n" in portuguese
     assert (
         portuguese.index("## Mutantes sem teste")
         < portuguese.index("## Tipos")
@@ -204,6 +282,71 @@ def test_types_section_follows_uncovered_mutants_and_precedes_reproduce() -> Non
     )
     assert "off_diff" in portuguese
     assert "No type findings." not in english
+
+    empty = Report(
+        schema_version=1,
+        commit="abc",
+        base="main",
+        generated_at="2026-10-12T00:00:00+00:00",
+        tool_versions={},
+        gates=[GateResult("typing", "passed", "checker missing")],
+        focus=[],
+        top_crap=[],
+        reproduce="bob check --gates typing",
+        exit_code=0,
+        typing={"findings": []},
+    )
+    passed = to_markdown(empty, "en")
+    assert "No type findings." in passed
+    assert "- checker missing" not in passed
+
+    skipped = Report(
+        schema_version=1,
+        commit="abc",
+        base="main",
+        generated_at="2026-10-12T00:00:00+00:00",
+        tool_versions={},
+        gates=[GateResult("typing", "not_run", "checker missing")],
+        focus=[],
+        top_crap=[],
+        reproduce="bob check --gates typing",
+        exit_code=0,
+        typing={"findings": []},
+    )
+    skipped_text = to_markdown(skipped, "en")
+    assert "- checker missing" in skipped_text
+    assert "No type findings." not in skipped_text
+
+    silent = Report(
+        schema_version=1,
+        commit="abc",
+        base="main",
+        generated_at="2026-10-12T00:00:00+00:00",
+        tool_versions={},
+        gates=[GateResult("typing", "not_run", None)],
+        focus=[],
+        top_crap=[],
+        reproduce="bob check --gates typing",
+        exit_code=0,
+        typing={"findings": []},
+    )
+    assert "No type findings." in to_markdown(silent, "en")
+    assert "- None" not in to_markdown(silent, "en")
+
+    without_gate = Report(
+        schema_version=1,
+        commit="abc",
+        base="main",
+        generated_at="2026-10-12T00:00:00+00:00",
+        tool_versions={},
+        gates=[],
+        focus=[],
+        top_crap=[],
+        reproduce="bob check --gates typing",
+        exit_code=0,
+        typing={"findings": []},
+    )
+    assert "No type findings." in to_markdown(without_gate, "en")
 
 
 def _path(home: Path, *bindirs: Path) -> str:
