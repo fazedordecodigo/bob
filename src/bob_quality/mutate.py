@@ -15,6 +15,7 @@ from bob_quality.adapters.mutmut import (
     MutmutParseError,
     ids_for_show,
     mutants_from_raw,
+    mutation_targets,
     mutmut_id_prefix,
     mutmut_run_patterns,
 )
@@ -646,7 +647,26 @@ def _measured_functions(cwd: Path, config: Config) -> list[CyclomaticFunction]:
                 cc=item.cc,
             )
         )
-    return measured
+    return _named_for_mutmut(cwd, measured)
+
+
+def _named_for_mutmut(cwd: Path, measured: list[CyclomaticFunction]) -> list[CyclomaticFunction]:
+    """O nome do cache é o qualname. A linha inicial é a que o `mutmut show` imprime."""
+    try:
+        targets = mutation_targets(measured, _read_sources(cwd, measured))
+    except MutmutParseError as exc:
+        raise ToolError(*exc.args) from exc
+    named: list[CyclomaticFunction] = []
+    for row, target in zip(measured, targets):
+        named.append(replace(row, name=target.qualname(), start_line=target.start_line))
+    return named
+
+
+def _read_sources(cwd: Path, measured: list[CyclomaticFunction]) -> dict[str, str]:
+    try:
+        return {item.file: (cwd / item.file).read_text() for item in measured}
+    except UnicodeDecodeError as exc:
+        raise ToolError(str(exc)) from exc
 
 
 def _belongs(mutant: Mutant, functions: list[CyclomaticFunction]) -> bool:

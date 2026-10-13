@@ -148,6 +148,10 @@ _EN: dict[str, str] = {
     "stryker.bad_report": "invalid Stryker report: {detail}",
     "stryker.no_report": "Stryker did not write the report",
     "mutmut.bad_id": "mutant id outside the contract: {mutant_id}",
+    "mutmut.unreadable_source": "cannot parse {file}:{line}: {detail}",
+    "mutmut.unmatched_method": (
+        "lizard function {name} at {file}:{line} is inside a class and matches no def"
+    ),
     "mutmut.suite_fails_in_mutants": (
         "the suite passes in the repository and fails inside mutants/;"
         " check also_copy and the [mutmut] configuration: {detail}"
@@ -246,6 +250,10 @@ _EN: dict[str, str] = {
     "report.churn_relative_missing": "n/a",
     "report.churn_hotspot_header": "| Function | File | CC | Commits | Hotspot |",
     "report.churn_no_hotspots": "No changed function to score.",
+    "report.types": "## Types",
+    "report.types_header": "| File | Line | Code | Disposition | Waiver |",
+    "report.types_line": "- {reason}",
+    "report.types_none": "No type findings.",
     "report.dead": "## Dead code",
     "report.no_dead": "No unused symbol in the diff.",
     "report.dead_not_run": "Not run ({reason}).",
@@ -265,6 +273,11 @@ _EN: dict[str, str] = {
     "report.dead_kind.ns_export": "ns_export",
     "report.dead_kind.ns_type": "ns_type",
     "report.reproduce": "## How to reproduce",
+    "typing.crashed": "{tool} crashed",
+    "typing.exited": "{tool} exited {code}",
+    "typing.missing_executable": "{tool} missing from PATH",
+    "typing.no_config": "no checker config",
+    "typing.unparseable": "{tool} output was unparseable",
     "action.truncated": "\n\n_…report truncated to fit in the GitHub comment._\n",
     "action.required": "repo, pr, and token are required",
     "action.report_missing": "`{path}` was not generated.",
@@ -373,6 +386,11 @@ _PT_BR: dict[str, str] = {
     "stryker.bad_report": "relatório do Stryker inválido: {detail}",
     "stryker.no_report": "o Stryker não gravou o relatório",
     "mutmut.bad_id": "id de mutante fora do contrato: {mutant_id}",
+    "mutmut.unreadable_source": "não foi possível analisar {file}:{line}: {detail}",
+    "mutmut.unmatched_method": (
+        "a função {name} do lizard em {file}:{line} está dentro de uma classe"
+        " e não casa com nenhum def"
+    ),
     "mutmut.suite_fails_in_mutants": (
         "a suíte passa no repositório e falha dentro de mutants/;"
         " confira also_copy e a configuração [mutmut]: {detail}"
@@ -472,6 +490,10 @@ _PT_BR: dict[str, str] = {
     "report.churn_relative_missing": "n/d",
     "report.churn_hotspot_header": "| Função | Arquivo | CC | Commits | Hotspot |",
     "report.churn_no_hotspots": "Nenhuma função alterada para pontuar.",
+    "report.types": "## Tipos",
+    "report.types_header": "| Arquivo | Linha | Código | Disposição | Waiver |",
+    "report.types_line": "- {reason}",
+    "report.types_none": "Nenhum achado de tipo.",
     "report.dead": "## Código morto",
     "report.no_dead": "Nenhum símbolo morto no diff.",
     "report.dead_not_run": "Não executado ({reason}).",
@@ -491,6 +513,11 @@ _PT_BR: dict[str, str] = {
     "report.dead_kind.ns_export": "exportação de namespace",
     "report.dead_kind.ns_type": "tipo de namespace",
     "report.reproduce": "## Como reproduzir",
+    "typing.crashed": "{tool} quebrou",
+    "typing.exited": "{tool} saiu com {code}",
+    "typing.missing_executable": "{tool} ausente no PATH",
+    "typing.no_config": "sem configuração de checker",
+    "typing.unparseable": "saída de {tool} fora do formato",
     "action.truncated": "\n\n_…relatório truncado para caber no comentário do GitHub._\n",
     "action.required": "repo, pr e token são obrigatórios",
     "action.report_missing": "`{path}` não foi gerado.",

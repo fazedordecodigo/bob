@@ -132,6 +132,41 @@ def test_show_line_is_the_file_line_when_the_function_is_not_at_the_top(
     assert parsed[0].line == 480
 
 
+SHOW_DECORATED = """\
+# app.box.xǁBoxǁmake__mutmut_1: survived
+--- src/app/box.py
++++ src/app/box.py
+@@ -1,3 +1,3 @@
+ @staticmethod
+ def make(n: int) -> int:
+-    return n * 2
++    return n / 2
+"""
+
+
+def test_a_decorated_method_counts_its_lines_from_the_decorator(
+    monkeypatch, tmp_path: Path
+) -> None:
+    """O `mutmut show` 3.8 de um método decorado começa no decorador da linha 9."""
+    monkeypatch.setattr(mutate_module, "run_mutmut", lambda *_args: None)
+    monkeypatch.setattr(
+        mutate_module,
+        "mutmut_results",
+        lambda _cwd: "    app.box.xǁBoxǁmake__mutmut_1: survived\n",
+    )
+    monkeypatch.setattr(mutate_module, "mutmut_show", lambda _cwd, _id: SHOW_DECORATED)
+    make = CyclomaticFunction(
+        file="src/app/box.py", name="Box.make", start_line=9, end_line=11, cc=1
+    )
+
+    parsed, failed = _run_and_parse(tmp_path, [make], 1, VERSIONS, WAIVERS)
+
+    assert failed is None
+    assert [(item.function, item.file, item.line, item.operator) for item in parsed] == [
+        ("Box.make", "src/app/box.py", 11, "return n * 2 -> return n / 2")
+    ]
+
+
 def test_a_function_relative_line_of_one_lands_on_the_function_start(
     monkeypatch, tmp_path: Path
 ) -> None:
