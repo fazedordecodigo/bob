@@ -1,8 +1,3 @@
-"""Restaura o cache de mutação do artefato mais recente de outra execução.
-
-O zip traz `.bob/mutation-cache.json` e, quando existe, `.bob/stryker-incremental.json`.
-"""
-
 from __future__ import annotations
 
 import argparse
