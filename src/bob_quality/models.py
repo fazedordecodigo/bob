@@ -13,7 +13,6 @@ GateStatus = Literal["passed", "warn", "failed", "not_run"]
 @dataclass(frozen=True)
 class CyclomaticFunction:
     """Função com CC. Produzido pelo adaptador lizard a partir da saída bruta."""
-
     file: str
     name: str
     start_line: int
@@ -24,7 +23,6 @@ class CyclomaticFunction:
 @dataclass(frozen=True)
 class FileCoverage:
     """Cobertura por linha de um arquivo. Produzido pelo adaptador coverage.py."""
-
     executed_lines: frozenset[int]
     missing_lines: frozenset[int]
 
@@ -50,7 +48,6 @@ MutantStatus = Literal["killed", "survived", "timeout", "no_coverage"]
 @dataclass(frozen=True)
 class Mutant:
     """Mutante. Produzido pelo adaptador mutmut a partir da saída bruta."""
-
     id: str
     function: str
     file: str
@@ -63,7 +60,6 @@ class Mutant:
 @dataclass(frozen=True)
 class Clone:
     """Par duplicado. Produzido pelo adaptador jscpd a partir do JSON."""
-
     first_file: str
     first_start: int
     first_end: int
@@ -79,11 +75,64 @@ class Clone:
 @dataclass(frozen=True)
 class DepViolation:
     """Aresta proibida ou de ciclo. `origin → destination`."""
-
     origin: str
     destination: str
     rule: Text
     in_diff: bool
+
+
+VultureKind = Literal[
+    "attribute",
+    "class",
+    "function",
+    "import",
+    "method",
+    "property",
+    "variable",
+    "unreachable_code",
+]
+
+KnipKind = Literal[
+    "export",
+    "type",
+    "enum_member",
+    "namespace_member",
+    "ns_export",
+    "ns_type",
+]
+
+
+@dataclass(frozen=True)
+class PythonDead:
+    file: str
+    line: int
+    name: str
+    kind: VultureKind
+    confidence: int
+
+
+@dataclass(frozen=True)
+class TypeScriptDead:
+    file: str
+    line: int
+    name: str
+    kind: KnipKind
+
+
+DeadSymbol = PythonDead | TypeScriptDead
+
+
+@dataclass(frozen=True)
+class LedgerRow:
+    """Definição no diff. `waiver` é o id `dead:` ou None quando a linha conta para o aviso."""
+    symbol: DeadSymbol
+    waiver: str | None
+
+
+@dataclass(frozen=True)
+class DeadSection:
+    """Presente no relatório quando o gate rodou. `rows` vazio continua verdadeiro."""
+    rows: tuple[LedgerRow, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -138,3 +187,4 @@ class Report:
     survivors: list[dict[str, object]] = field(default_factory=list)
     mutation: dict[str, object] | None = None
     diff_coverage: DiffCoverage | None = None
+    dead_code: DeadSection | None = None
