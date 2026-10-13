@@ -376,7 +376,7 @@ def _registry_findings(
         existences.append(existence)
         rows.extend(_existence_finding(package, existence))
     probes = probe_advisories(packages, timeout, transport)
-    for package, existence, probe in zip(packages, existences, probes, strict=True):
+    for package, existence, probe in zip(packages, existences, probes):
         if _offline_package(existence, probe):
             continue
         rows.extend(_advisory_findings(package, probe))

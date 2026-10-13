@@ -145,6 +145,33 @@ def test_run_supply_gate_warns_when_only_osv_times_out(tmp_path: Path) -> None:
     assert _english(result, supply).count("`left`") == 1
 
 
+def test_run_supply_gate_keeps_a_later_package_when_an_earlier_one_is_offline(
+    tmp_path: Path,
+) -> None:
+    repo = _repo(tmp_path)
+    _pyproject(repo, "dependencies = [\n]\n")
+    _commit(repo, "base")
+    _git(repo, "checkout", "-b", "head")
+    _pyproject(repo, 'dependencies = [\n  "left==1.0.0",\n  "right==2.0.0",\n]\n')
+    _commit(repo, "head")
+
+    def transport(method: str, url: str, body: bytes | None, timeout: int) -> HttpOk | HttpFault:
+        if method == "POST" or url.endswith("/left/json"):
+            return HttpFault("timeout")
+        return HttpOk(200, b'{"info":{"name":"right"}}')
+
+    result, code, _versions, supply = run_supply_gate(
+        repo, Config(), _diff(repo), "main", _deptry("[]"), transport
+    )
+
+    assert code == 0
+    assert result.status == "warn"
+    assert supply.rows == (
+        RowWarn(UnverifiedExistence("pypi", "left", "pyproject.toml", 5, "timeout")),
+        RowWarn(UnverifiedAdvisory("pypi", "right", "pyproject.toml", 6, "timeout")),
+    )
+
+
 def test_run_supply_gate_blocks_a_critical_advisory_from_the_vuln_document(
     tmp_path: Path,
 ) -> None:

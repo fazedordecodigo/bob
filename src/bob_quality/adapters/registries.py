@@ -230,8 +230,7 @@ def _resolve(probe: AdvisoryProbe, timeout: int, transport: Transport) -> Adviso
 def _vuln_document(
     advisory_id: str, timeout: int, transport: Transport
 ) -> DecidedAdvisory | UndecidedRecord:
-    url = _VULN + urllib.parse.quote(advisory_id, safe="")
-    result = transport("GET", url, None, timeout)
+    result = transport("GET", f"{_VULN}{advisory_id}", None, timeout)
     if isinstance(result, HttpFault):
         return UndecidedRecord(result.cause, advisory_id)
     if result.status != 200:
@@ -242,6 +241,8 @@ def _vuln_document(
     record = _record(document)
     if isinstance(record, DecidedAdvisory):
         return record
+    if isinstance(record, UndecidedRecord):
+        return UndecidedRecord(record.cause, advisory_id)
     return UndecidedRecord("undecided", advisory_id)
 
 
