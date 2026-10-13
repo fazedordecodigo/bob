@@ -112,6 +112,85 @@ def test_npm_prefix_prefers_a_ready_user_cache(
     assert npm_prefix() == cache
 
 
+def _cache_pair(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    manifest: dict[str, object],
+    files: dict[str, str],
+) -> tuple[Path, Path]:
+    package = tmp_path / "pkg"
+    package.mkdir()
+    encoded = json.dumps(manifest)
+    (package / "package.json").write_text(encoded)
+    cache_root = tmp_path / "cache"
+    cache = cache_root / "bob-quality"
+    (cache / "node_modules").mkdir(parents=True)
+    (cache / "package.json").write_text(encoded)
+    for name, body in files.items():
+        destination = cache / "node_modules" / name
+        destination.mkdir()
+        (destination / "package.json").write_text(body)
+    monkeypatch.setattr("bob_quality.npm_tools._plugin_packages", lambda: [package])
+    monkeypatch.setenv("XDG_CACHE_HOME", str(cache_root))
+    return package, cache
+
+
+@pytest.mark.parametrize(
+    ("dependencies", "files", "winner"),
+    [
+        ({"c8": "12.0.0"}, {"c8": '{"name": "c8", "version": "12.0.0"}'}, "cache"),
+        ({"c8": "12.0.0"}, {"c8": '{"name": "c8", "version": "11.0.0"}'}, "package"),
+        ({"c8": "12.0.0"}, {}, "package"),
+        (
+            {"tiny": "file:../tiny/tiny-1.0.0.tgz"},
+            {"tiny": '{"name": "tiny", "version": "1.0.0"}'},
+            "cache",
+        ),
+        ({"c8": "12.0.0"}, {"c8": "[]"}, "package"),
+    ],
+)
+def test_npm_prefix_takes_the_cache_only_when_installed_versions_match(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    dependencies: dict[str, str],
+    files: dict[str, str],
+    winner: str,
+) -> None:
+    package, cache = _cache_pair(
+        tmp_path,
+        monkeypatch,
+        {"name": "bob-quality-tools", "dependencies": dependencies},
+        files,
+    )
+    assert npm_prefix() == {"cache": cache, "package": package}[winner]
+
+
+def test_npm_prefix_reuses_the_cache_for_an_rc_spec_when_the_package_is_present(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _package, cache = _cache_pair(
+        tmp_path,
+        monkeypatch,
+        {"name": "bob-quality-tools", "dependencies": {"c8": "12.0.0-rc.1"}},
+        {"c8": '{"name": "c8", "version": "9.9.9"}'},
+    )
+    assert npm_prefix() == cache
+
+
+def test_npm_prefix_rejects_a_cache_whose_dependencies_are_not_an_object(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    package, _cache = _cache_pair(
+        tmp_path,
+        monkeypatch,
+        {"name": "bob-quality-tools", "dependencies": []},
+        {},
+    )
+    assert npm_prefix() == package
+
+
 def test_missing_npm_package_message_keeps_the_prefix_and_the_hint(tmp_path: Path) -> None:
     with pytest.raises(ToolError) as caught:
         installed_npm_version(tmp_path, "c8")
@@ -128,10 +207,11 @@ def test_installed_npm_version_returns_the_declared_version(tmp_path: Path) -> N
     assert installed_npm_version(tmp_path, "c8") == "12.0.0"
 
 
-def test_illegible_npm_version_names_the_package(tmp_path: Path) -> None:
+@pytest.mark.parametrize("body", ["{", "[]", "{}"])
+def test_illegible_npm_version_names_the_package(tmp_path: Path, body: str) -> None:
     pkg = tmp_path / "node_modules" / "c8"
     pkg.mkdir(parents=True)
-    (pkg / "package.json").write_text("{")
+    (pkg / "package.json").write_text(body)
     with pytest.raises(ToolError) as caught:
         installed_npm_version(tmp_path, "c8")
     assert in_both(caught.value) == ("unreadable c8 version", "versão de c8 ilegível")

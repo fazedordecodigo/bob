@@ -296,6 +296,11 @@ def test_invalid_duplication_exits_4_in_english_and_writes_no_report(
             ["Gates de qualidade para agentes.", "Roda os gates pedidos e grava .bob/"],
         ),
         (
+            ("--lang", PT, "-h"),
+            None,
+            ["Gates de qualidade para agentes.", "Roda os gates pedidos e grava .bob/"],
+        ),
+        (
             ("check", "--help"),
             PT,
             ["Lista separada por vírgula (padrão: crap,dry,deps)", "Idioma da saída: en ou pt-BR"],
