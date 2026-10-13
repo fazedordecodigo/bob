@@ -1,10 +1,35 @@
 from __future__ import annotations
 
+import io
 import json
+import os
+import subprocess
+from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
 
 import pytest
-from helpers import run_bob
+
+from bob_quality.cli import main
+
+
+def _invoke(repo: Path, *args: str) -> subprocess.CompletedProcess[str]:
+    previous_cwd = Path.cwd()
+    previous_env = os.environ.copy()
+    stdout = io.StringIO()
+    stderr = io.StringIO()
+    try:
+        os.environ.pop("BOB_LANG", None)
+        os.chdir(repo)
+        with redirect_stdout(stdout), redirect_stderr(stderr):
+            code = main(list(args))
+    finally:
+        os.chdir(previous_cwd)
+        os.environ.clear()
+        os.environ.update(previous_env)
+    return subprocess.CompletedProcess(
+        ["bob", *args], code, stdout.getvalue(), stderr.getvalue()
+    )
+
 
 _MINIMAL = {
     "schema_version": 1,
@@ -100,7 +125,7 @@ def test_report_renders_the_saved_json_and_keeps_the_exit_code(tmp_path: Path) -
     saved = _save(tmp_path, _MINIMAL)
     before = saved.read_bytes()
 
-    result = run_bob(tmp_path, "report")
+    result = _invoke(tmp_path, "report")
 
     assert result.returncode == 0
     assert result.stderr == ""
@@ -113,7 +138,7 @@ def test_report_renders_the_saved_json_and_keeps_the_exit_code(tmp_path: Path) -
 def test_report_follows_the_language_flag(tmp_path: Path) -> None:
     _save(tmp_path, _MINIMAL)
 
-    result = run_bob(tmp_path, "report", "--lang", "pt-BR")
+    result = _invoke(tmp_path, "report", "--lang", "pt-BR")
 
     assert result.returncode == 0
     assert (tmp_path / ".bob" / "report.md").read_text() == _PT
@@ -122,15 +147,15 @@ def test_report_follows_the_language_flag(tmp_path: Path) -> None:
 def test_report_language_before_the_command(tmp_path: Path) -> None:
     _save(tmp_path, _MINIMAL)
 
-    result = run_bob(tmp_path, "--lang", "pt-BR", "report")
+    result = _invoke(tmp_path, "--lang", "pt-BR", "report")
 
     assert result.returncode == 0
     assert (tmp_path / ".bob" / "report.md").read_text() == _PT
 
 
 def test_report_help_follows_the_language(tmp_path: Path) -> None:
-    english = run_bob(tmp_path, "report", "--help")
-    portuguese = run_bob(tmp_path, "report", "--lang", "pt-BR", "--help")
+    english = _invoke(tmp_path, "report", "--help")
+    portuguese = _invoke(tmp_path, "report", "--lang", "pt-BR", "--help")
 
     assert english.returncode == 0
     assert "Render report.json from a directory as Markdown" in english.stdout
@@ -142,7 +167,7 @@ def test_report_help_follows_the_language(tmp_path: Path) -> None:
 def test_report_reads_another_directory_and_writes_another_file(tmp_path: Path) -> None:
     _save(tmp_path, _MINIMAL, folder="saved")
 
-    result = run_bob(tmp_path, "report", "--in", "saved", "--out", "out/summary.md")
+    result = _invoke(tmp_path, "report", "--in", "saved", "--out", "out/summary.md")
 
     assert result.returncode == 0
     assert (tmp_path / "out" / "summary.md").read_text() == _EN
@@ -152,10 +177,10 @@ def test_report_reads_another_directory_and_writes_another_file(tmp_path: Path) 
 
 def test_report_is_idempotent(tmp_path: Path) -> None:
     _save(tmp_path, _MINIMAL)
-    first = run_bob(tmp_path, "report")
+    first = _invoke(tmp_path, "report")
     written = (tmp_path / ".bob" / "report.md").read_bytes()
 
-    second = run_bob(tmp_path, "report")
+    second = _invoke(tmp_path, "report")
 
     assert first.returncode == 0
     assert second.returncode == 0
@@ -168,7 +193,7 @@ def test_report_returns_the_stored_exit_code(tmp_path: Path, code: int) -> None:
     payload["exit_code"] = code
     _save(tmp_path, payload)
 
-    result = run_bob(tmp_path, "report")
+    result = _invoke(tmp_path, "report")
 
     assert result.returncode == code
     assert (tmp_path / ".bob" / "report.md").read_text().startswith("# bob report\n")
@@ -216,7 +241,7 @@ def test_report_renders_a_failed_gate_a_clone_and_a_metric(tmp_path: Path) -> No
     ]
     _save(tmp_path, payload)
 
-    result = run_bob(tmp_path, "report")
+    result = _invoke(tmp_path, "report")
     markdown = (tmp_path / ".bob" / "report.md").read_text()
 
     assert result.returncode == 1
@@ -262,7 +287,7 @@ def test_report_renders_an_exact_clone_and_old_debt(tmp_path: Path) -> None:
     ]
     _save(tmp_path, payload)
 
-    result = run_bob(tmp_path, "report")
+    result = _invoke(tmp_path, "report")
     markdown = (tmp_path / ".bob" / "report.md").read_text()
 
     assert result.returncode == 0
@@ -275,7 +300,7 @@ def test_report_renders_an_exact_clone_and_old_debt(tmp_path: Path) -> None:
 
 
 def test_missing_report_exits_4_and_writes_nothing(tmp_path: Path) -> None:
-    result = run_bob(tmp_path, "report", "--lang", "pt-BR")
+    result = _invoke(tmp_path, "report", "--lang", "pt-BR")
     missing = tmp_path / ".bob" / "report.json"
 
     assert result.returncode == 4
@@ -291,7 +316,7 @@ def test_invalid_report_does_not_truncate_an_existing_file(tmp_path: Path) -> No
     destination = tmp_path / ".bob" / "report.md"
     destination.write_text("keep\n")
 
-    result = run_bob(tmp_path, "report")
+    result = _invoke(tmp_path, "report")
 
     assert result.returncode == 4
     assert result.stderr == f"invalid report: {saved}\n"
@@ -375,7 +400,7 @@ def test_invalid_saved_report_exits_4(tmp_path: Path, payload: object) -> None:
     else:
         saved = _save(tmp_path, payload)
 
-    result = run_bob(tmp_path, "report")
+    result = _invoke(tmp_path, "report")
 
     assert result.returncode == 4
     assert result.stderr == f"invalid report: {saved}\n"
@@ -388,7 +413,7 @@ def test_report_accepts_a_null_mutation_and_empty_tools(tmp_path: Path) -> None:
     payload["tool_versions"] = {}
     _save(tmp_path, payload)
 
-    result = run_bob(tmp_path, "report")
+    result = _invoke(tmp_path, "report")
     markdown = (tmp_path / ".bob" / "report.md").read_text()
 
     assert result.returncode == 0
@@ -402,7 +427,7 @@ def test_report_rejects_bytes_that_are_not_utf8(tmp_path: Path) -> None:
     saved = directory / "report.json"
     saved.write_bytes(b"\xff")
 
-    result = run_bob(tmp_path, "report")
+    result = _invoke(tmp_path, "report")
 
     assert result.returncode == 4
     assert result.stderr == f"invalid report: {saved}\n"
@@ -415,7 +440,7 @@ def test_report_rejects_an_output_parent_that_is_a_file(tmp_path: Path) -> None:
     blocked.write_text("keep\n")
     destination = blocked / "report.md"
 
-    result = run_bob(tmp_path, "report", "--in", "saved", "--out", "out/report.md")
+    result = _invoke(tmp_path, "report", "--in", "saved", "--out", "out/report.md")
 
     assert result.returncode == 4
     assert result.stderr == f"could not write report: {destination}\n"
@@ -427,7 +452,7 @@ def test_report_does_not_replace_a_directory_at_the_output_path(tmp_path: Path) 
     blocked = tmp_path / "out"
     blocked.mkdir()
 
-    result = run_bob(tmp_path, "report", "--in", "saved", "--out", "out")
+    result = _invoke(tmp_path, "report", "--in", "saved", "--out", "out")
 
     assert result.returncode == 4
     assert result.stderr == f"could not write report: {blocked}\n"

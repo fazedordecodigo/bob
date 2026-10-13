@@ -174,7 +174,12 @@ _SUB_HELP = {
         "Reuse the cache; already the default behavior",
         "--max-workers MAX_WORKERS",
     ),
-    "report": ("usage: bob report", "--in DIR", "--out FILE"),
+    "report": (
+        "usage: bob report",
+        "--in DIR",
+        "--out FILE",
+        "Render report.json from a directory as Markdown",
+    ),
     "waive": (
         "usage: bob waive",
         "--reason REASON",
