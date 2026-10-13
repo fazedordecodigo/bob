@@ -84,7 +84,7 @@ def _tooling() -> tuple[dict[str, str], _Dry | None]:
 def _verdict(budget: _Budget, fresh: list[Clone], versions: dict[str, str]) -> _Dry:
     counted = [clone for clone in fresh if _qualifies(clone, budget.floors)]
     if not counted:
-        return GateResult("dry", "passed", None), [], PASSED, versions
+        return GateResult("dry", "passed"), [], PASSED, versions
     count = len(counted)
     if isinstance(budget, _Block) and count > budget.allowed:
         key = "dry.exceeded_one" if count == 1 else "dry.exceeded_many"

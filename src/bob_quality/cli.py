@@ -151,7 +151,7 @@ def _add_lang(parser: argparse.ArgumentParser, lang: Language) -> None:
 
 def _add_dry_limits(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--dry-fail", action="store_true")
-    parser.add_argument("--max-new-clones", type=int, default=None)
+    parser.add_argument("--max-new-clones", type=int)
 
 
 def _parse(argv: list[str] | None) -> _Invocation:
@@ -394,9 +394,9 @@ def _reproduce(command: str, args: argparse.Namespace) -> str:
     _append_flag(parts, "--threshold", getattr(args, "threshold", None))
     _append_flag(parts, "--coverage-file", getattr(args, "coverage_file", None))
     _append_flag(parts, "--max-workers", getattr(args, "max_workers", None))
-    if getattr(args, "since_last_run", False):
+    if vars(args).get("since_last_run") is True:
         parts.append("--since-last-run")
-    if getattr(args, "dry_fail", False):
+    if vars(args).get("dry_fail") is True:
         parts.append("--dry-fail")
     _append_flag(parts, "--max-new-clones", getattr(args, "max_new_clones", None))
     return " ".join(parts)
