@@ -495,7 +495,7 @@ def _config_files(cwd: Path):
 
 def _text_mentions_plugin(path: Path) -> bool:
     try:
-        text = path.read_text(encoding="utf-8")
+        text = path.read_bytes().decode()
     except (OSError, UnicodeError):
         return False
     return any(marker in text for marker in _PLUGIN_MARKERS)
@@ -503,7 +503,7 @@ def _text_mentions_plugin(path: Path) -> bool:
 
 def _package_mentions_plugin(path: Path) -> bool:
     try:
-        loaded = json.loads(path.read_text(encoding="utf-8"))
+        loaded = json.loads(path.read_bytes().decode())
     except (OSError, UnicodeError, json.JSONDecodeError):
         return False
     if not isinstance(loaded, dict) or "eslintConfig" not in loaded:

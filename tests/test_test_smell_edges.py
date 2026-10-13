@@ -439,6 +439,27 @@ def test_measure_typescript_uses_changed_paths_and_skips_an_empty_diff(
     assert seen["args"] == (tmp_path, filled, ("src/a.test.ts",))
 
 
+def test_plugin_mentions_reject_noise_and_a_directory(tmp_path: Path) -> None:
+    plain = tmp_path / "eslint.config.js"
+    plain.write_text("no plugin here\n", encoding="utf-8")
+    broken = tmp_path / "broken.json"
+    broken.write_text("{", encoding="utf-8")
+    array = tmp_path / "array.json"
+    array.write_text("[1]\n", encoding="utf-8")
+    bare = tmp_path / "bare.json"
+    bare.write_text("{}\n", encoding="utf-8")
+    empty_config = tmp_path / "empty.json"
+    empty_config.write_text('{"eslintConfig":{}}\n', encoding="utf-8")
+
+    assert smells._text_mentions_plugin(plain) is False
+    assert smells._text_mentions_plugin(tmp_path) is False
+    assert smells._package_mentions_plugin(broken) is False
+    assert smells._package_mentions_plugin(array) is False
+    assert smells._package_mentions_plugin(bare) is False
+    assert smells._package_mentions_plugin(empty_config) is False
+    assert smells._package_mentions_plugin(tmp_path) is False
+
+
 def test_a_hidden_package_marker_still_configures_eslint(tmp_path: Path) -> None:
     raw = '{"eslintConfig":{"plugins":["eslint-plugin-\\u006aest"]}}\n'
     (tmp_path / "package.json").write_text(raw, encoding="utf-8")
