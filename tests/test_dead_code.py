@@ -6,9 +6,11 @@ import subprocess
 import sys
 from pathlib import Path
 
+import pytest
+
 from jsonschema import Draft202012Validator
 
-from bob_quality.check import _Measured, _record_dead
+from bob_quality.check import _Measured, _assemble, _record_dead
 from bob_quality.config import Config
 from bob_quality.dead_code import (
     Dark,
@@ -17,11 +19,17 @@ from bob_quality.dead_code import (
     Quiet,
     _knip_half,
     _knip_prefix,
+    _language,
     _parsed_knip,
     _parsed_vulture,
     _spawn,
+    _vulture_blocked,
     _vulture_half,
+    _vulture_version,
+    read_knip,
+    read_vulture,
     definition_is_new,
+    in_measurement,
     knip_command,
     settle,
     vulture_command,
@@ -30,7 +38,10 @@ from bob_quality.tools import ToolError
 from bob_quality.diff import function_is_changed, line_is_changed
 from bob_quality.messages import msg, render
 from bob_quality.models import (
+    Clone,
     DeadSection,
+    DepViolation,
+    FunctionMetric,
     GateResult,
     LedgerRow,
     Mutant,
@@ -38,7 +49,8 @@ from bob_quality.models import (
     Report,
     TypeScriptDead,
 )
-from bob_quality.report import to_json, to_markdown
+from bob_quality.mutate import MutationOutcome
+from bob_quality.report import _dead_body, _dead_suffix, dead_row, to_json, to_markdown
 from bob_quality.waivers import Waiver, apply_waivers
 
 ORPHAN = PythonDead("src/app/orphan.py", 3, "orphan", "function", 60)
@@ -522,13 +534,49 @@ def test_a_missing_knip_package_names_knip(tmp_path: Path, monkeypatch) -> None:
     assert render(found.reason, "en") == "missing tool: knip"
 
 
-def test_spawn_exports_the_prefix_bin_and_hides_pytest(tmp_path: Path, monkeypatch) -> None:
-    captured: dict[str, dict[str, str]] = {}
+def test_an_empty_dead_section_with_no_reason_is_one_sentence() -> None:
+    report = _plain()
+    report.gates = [GateResult("dead_code", "passed", None)]
+    report.dead_code = DeadSection()
+
+    assert to_markdown(report, "en").count("No unused symbol in the diff.") == 1
+
+
+def test_a_not_run_dead_section_uses_the_empty_reason_placeholder() -> None:
+    lines = _dead_body(_plain(), GateResult("dead_code", "not_run", None))
+
+    assert [render(line, "en") for line in lines] == ["Not run ()."]
+
+
+def test_language_names_the_symbol_family() -> None:
+    assert _language(ORPHAN) == "python"
+    assert _language(TypeScriptDead("src/app/orphan.ts", 1, "orphan", "export")) == "typescript"
+    with pytest.raises(TypeError, match="^str$"):
+        _language("nope")  # type: ignore[arg-type]
+
+
+def test_an_unknown_symbol_is_rejected_by_the_report_row() -> None:
+    row = LedgerRow("nope", None)  # type: ignore[arg-type]
+
+    with pytest.raises(TypeError, match="^str$"):
+        _dead_suffix(row)
+    with pytest.raises(TypeError, match="^str$"):
+        dead_row(row)
+
+
+def test_in_measurement_rejects_an_absolute_path_and_a_parent_segment() -> None:
+    config = Config(include=["/src", "src"])
+
+    assert in_measurement(PythonDead("/src/a.py", 1, "a", "function", 60), config) is False
+    assert in_measurement(PythonDead("src/../secret.py", 1, "secret", "function", 60), config) is False
+
+
+def test_spawn_copies_path_and_passes_devnull(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    captured: dict[str, object] = {}
 
     def fake_run(args: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
-        env = kwargs["env"]
-        assert isinstance(env, dict)
-        captured["env"] = env
+        captured["env"] = kwargs["env"]
+        captured["stdin"] = kwargs["stdin"]
         return subprocess.CompletedProcess(args, 0, "", "")
 
     monkeypatch.setattr("bob_quality.dead_code.subprocess.run", fake_run)
@@ -537,15 +585,133 @@ def test_spawn_exports_the_prefix_bin_and_hides_pytest(tmp_path: Path, monkeypat
     _spawn(tmp_path, ["knip"], tmp_path)
 
     env = captured["env"]
+    assert isinstance(env, dict)
     bindir = str(tmp_path / "node_modules" / ".bin")
-    assert env["PATH"].startswith(bindir + os.pathsep)
+    assert env["PATH"] == bindir + os.pathsep + os.environ["PATH"]
+    assert captured["stdin"] is subprocess.DEVNULL
     assert "PYTEST_CURRENT_TEST" not in env
     assert env["KEEP_ME"] == "1"
 
+    monkeypatch.delenv("PATH")
+    _spawn(tmp_path, ["knip"], tmp_path)
+    env_without = captured["env"]
+    assert isinstance(env_without, dict)
+    assert env_without["PATH"] == bindir + os.pathsep
 
-def test_an_empty_dead_section_with_no_reason_is_one_sentence() -> None:
-    report = _plain()
-    report.gates = [GateResult("dead_code", "passed", None)]
-    report.dead_code = DeadSection()
 
-    assert to_markdown(report, "en").count("No unused symbol in the diff.") == 1
+def test_read_vulture_names_vulture_when_spawn_fails(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    def explode(*_args: object, **_kwargs: object) -> subprocess.CompletedProcess[str]:
+        raise OSError("boom")
+
+    monkeypatch.setattr("bob_quality.dead_code._spawn", explode)
+    (tmp_path / "src").mkdir()
+    found = read_vulture(tmp_path, Config())
+
+    assert isinstance(found, Dark)
+    assert render(found.reason, "en") == "missing tool: vulture"
+
+
+def test_read_knip_spawns_inside_the_repo_with_the_prefix(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    prefix = tmp_path / "tools"
+    calls: list[tuple[Path, list[str], Path]] = []
+
+    def fake_spawn(cwd: Path, args: list[str], prefix: Path | None = None) -> subprocess.CompletedProcess[str]:
+        assert prefix is not None
+        calls.append((cwd, args, prefix))
+        return _completed(0, '{"issues":[]}')
+
+    monkeypatch.setattr("bob_quality.dead_code._knip_prefix", lambda: prefix)
+    monkeypatch.setattr("bob_quality.dead_code._spawn", fake_spawn)
+    monkeypatch.setattr(
+        "bob_quality.dead_code._knip_half",
+        lambda *_args: MeasuredTypeScript((), "6.41.0"),
+    )
+    found = read_knip(tmp_path, Config(languages=["typescript"]))
+
+    assert isinstance(found, MeasuredTypeScript)
+    assert calls == [(tmp_path, knip_command(prefix), prefix)]
+
+
+def test_two_missing_include_dirs_are_joined_with_a_comma(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr("bob_quality.dead_code._vulture_version", lambda: "2.16")
+    found = _vulture_blocked(tmp_path, Config(include=["missing", "also"]))
+
+    assert isinstance(found, Dark)
+    assert render(found.reason, "en") == "vulture: include path missing: missing, also"
+
+
+def test_a_parsed_vulture_report_keeps_the_installed_version(tmp_path: Path) -> None:
+    source = tmp_path / "src" / "app"
+    source.mkdir(parents=True)
+    (source / "orphan.py").write_text("def orphan():\n    return 1\n")
+    line = f"{source / 'orphan.py'}:1: unused function 'orphan' (60% confidence)\n"
+    found = _parsed_vulture(line, tmp_path, "2.16")
+
+    assert isinstance(found, MeasuredPython)
+    assert found.version == "2.16"
+    assert found.symbols[0].name == "orphan"
+
+
+def test_vulture_version_reads_the_pinned_distribution() -> None:
+    assert _vulture_version() == "2.16"
+
+
+def test_assemble_copies_each_measurement_into_the_report() -> None:
+    changed = FunctionMetric("python", "app", "kept", "src/app.py", 1, 4, 1, 1.0, 1.0, True, None)
+    debt = FunctionMetric("python", "app", "old", "src/old.py", 1, 4, 2, 0.0, 10.0, False, None)
+    clone = Clone("src/app.py", 1, 4, "src/other.py", 1, 4, 4, 60, 1.0, "exact")
+    fresh = DepViolation("src/app.py", "src/other.py", "cycle", True)
+    stale = DepViolation("src/old.py", "src/other.py", "cycle", False)
+    section = DeadSection((LedgerRow(ORPHAN, None),))
+    outcome = MutationOutcome(
+        GateResult("mutate", "failed"),
+        3,
+        {"mutmut": "3.8.0"},
+        [{"id": "w", "reason": "because"}],
+        [{"file": "src/survivor.py", "waiver": None}],
+        {"remutated": ["kept"]},
+    )
+    measured = _Measured(
+        versions={"vulture": "2.16"},
+        gates=[GateResult("dead_code", "warn", msg("dead.one", count=1))],
+        metrics=[changed, debt],
+        clones=[clone],
+        violations=[fresh, stale],
+        exit_code=3,
+        mutation=outcome,
+        loaded_waivers=[{"id": "idle"}],
+        dead_code=section,
+    )
+
+    report = _assemble(measured, "abc123", "origin/main", {"src/app.py": {1}}, 10.0, "bob check")
+
+    assert report.schema_version == 1
+    assert report.commit == "abc123"
+    assert report.base == "origin/main"
+    assert report.generated_at.endswith("+00:00")
+    assert report.tool_versions == {"vulture": "2.16"}
+    assert report.exit_code == 3
+    assert report.reproduce == "bob check"
+    assert report.clones == [clone]
+    assert report.dead_code == section
+    assert report.waivers == [{"id": "w", "reason": "because"}]
+    assert report.survivors == [{"file": "src/survivor.py", "waiver": None}]
+    assert report.mutation == {"remutated": ["kept"]}
+    assert report.focus[0]["file"] == "src/survivor.py"
+    assert report.top_crap[0]["name"] == "kept"
+    assert report.old_debt[0]["name"] == "old"
+    assert report.dependencies[0]["origin"] == "src/app.py"
+    assert report.old_dependencies[0]["origin"] == "src/old.py"
+
+
+def test_assemble_without_mutation_keeps_the_loaded_waivers() -> None:
+    measured = _Measured(loaded_waivers=[{"id": "idle"}], exit_code=0)
+
+    report = _assemble(measured, "abc123", "origin/main", {}, 10.0, "bob check")
+
+    assert report.waivers == [{"id": "idle"}]
+    assert report.survivors == []
+    assert report.mutation is None
+    assert report.focus == []

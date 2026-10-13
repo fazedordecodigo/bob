@@ -66,15 +66,17 @@ def line_is_changed(file: str, line: int, changed: Mapping[str, Set[int]]) -> bo
 def as_diff_path(cwd: Path, raw: str) -> str | None:
     if raw == "":
         return None
-    text = raw[2:] if raw.startswith("./") else raw
-    path = Path(text)
+    path = Path(raw)
+    if ".." in path.parts:
+        return None
     root = cwd.resolve()
-    candidate = path if path.is_absolute() else root / path
+    if path.is_absolute():
+        candidate = path
+    else:
+        candidate = root / path
     try:
         relative = candidate.resolve().relative_to(root)
     except ValueError:
-        return None
-    if ".." in relative.parts:
         return None
     return relative.as_posix()
 
