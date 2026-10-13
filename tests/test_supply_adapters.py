@@ -33,9 +33,11 @@ from bob_quality.diff import changed_lines
 from bob_quality.messages import msg, render
 
 RAW = Path(__file__).parent / "fixtures" / "raw"
+VULNS = RAW / "osv"
 DEPTRY = (RAW / "deptry.json").read_text()
 KNIP = (RAW / "knip.json").read_text()
 OSV = (RAW / "osv-batch.json").read_bytes()
+_VULN = "https://api.osv.dev/v1/vulns/"
 
 
 def test_parse_deptry_json_keeps_every_code_and_a_null_line() -> None:
@@ -218,12 +220,17 @@ def test_probe_existence_keeps_timeout_and_dns_as_undecided() -> None:
 
 
 def test_probe_advisories_posts_one_batch_per_index_and_skips_an_unpinned_name() -> None:
-    calls: list[tuple[str, str, object]] = []
+    calls: list[tuple[str, str, int, object]] = []
 
     def transport(method: str, url: str, body: bytes | None, timeout: int) -> HttpOk:
+        if method == "GET":
+            assert body is None
+            calls.append((method, url, timeout, None))
+            name = url.removeprefix(_VULN)
+            return HttpOk(200, (VULNS / f"{name}.json").read_bytes())
         assert body is not None
         payload = json.loads(body)
-        calls.append((method, url, payload))
+        calls.append((method, url, timeout, payload))
         ecosystem = payload["queries"][0]["package"]["ecosystem"]
         if ecosystem == "PyPI":
             return HttpOk(200, OSV)
@@ -242,6 +249,7 @@ def test_probe_advisories_posts_one_batch_per_index_and_skips_an_unpinned_name()
         (
             "POST",
             "https://api.osv.dev/v1/querybatch",
+            30,
             {
                 "queries": [
                     {"package": {"name": "requests", "ecosystem": "PyPI"}, "version": "2.32.3"},
@@ -249,9 +257,14 @@ def test_probe_advisories_posts_one_batch_per_index_and_skips_an_unpinned_name()
                 ]
             },
         ),
+        ("GET", f"{_VULN}CVE-2024-0001", 30, None),
+        ("GET", f"{_VULN}GHSA-aaaa-bbbb-cccc", 30, None),
+        ("GET", f"{_VULN}PYSEC-1", 30, None),
+        ("GET", f"{_VULN}GHSA-0000-0000-0000", 30, None),
         (
             "POST",
             "https://api.osv.dev/v1/querybatch",
+            30,
             {
                 "queries": [
                     {"package": {"name": "left-pad", "ecosystem": "npm"}, "version": "1.2.3"},
@@ -270,6 +283,32 @@ def test_probe_advisories_posts_one_batch_per_index_and_skips_an_unpinned_name()
     assert probes[1] == AdvisoriesFound(())
     assert probes[2] == AdvisoriesUndecided("undecided")
     assert probes[3] == AdvisoriesFound(())
+
+
+def test_probe_advisories_leaves_the_id_undecided_when_the_vuln_document_fails() -> None:
+    def transport(method: str, url: str, body: bytes | None, timeout: int) -> HttpOk | HttpFault:
+        assert timeout == 11
+        if method == "POST":
+            payload = {
+                "results": [
+                    {"vulns": [{"id": "GHSA-fail-0000-0001", "modified": "2024-01-01T00:00:00Z"}]},
+                    {"vulns": [{"id": "GHSA-fail-0000-0002", "modified": "2024-01-02T00:00:00Z"}]},
+                ]
+            }
+            return HttpOk(200, json.dumps(payload).encode())
+        if url.endswith("GHSA-fail-0000-0001"):
+            return HttpFault("timeout")
+        return HttpOk(500, b"no")
+
+    packages = (
+        AddedPackage("pypi", "left", "1.0.0", "pyproject.toml", 4),
+        AddedPackage("pypi", "right", "2.0.0", "pyproject.toml", 5),
+    )
+
+    assert probe_advisories(packages, 11, transport) == (
+        AdvisoriesFound((UndecidedRecord("timeout", "GHSA-fail-0000-0001"),)),
+        AdvisoriesFound((UndecidedRecord("undecided", "GHSA-fail-0000-0002"),)),
+    )
 
 
 def test_probe_advisories_marks_the_whole_batch_when_the_body_is_not_aligned() -> None:

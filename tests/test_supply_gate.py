@@ -7,15 +7,21 @@ from bob_quality.adapters.registries import HttpFault, HttpOk
 from bob_quality.adapters.runner import ProcessExit, ProcessFault
 from bob_quality.config import Config
 from bob_quality.diff import changed_lines
+from bob_quality.messages import render
 from bob_quality.models import (
+    Advisory,
     MissingPackage,
+    Report,
     RowBlock,
     RowWarn,
     UndeclaredImport,
     UnverifiedAdvisory,
     UnverifiedExistence,
 )
+from bob_quality.report import supply_lines
 from bob_quality.supply import run_supply_gate
+
+_VULNS = Path(__file__).parent / "fixtures" / "raw" / "osv"
 
 _IMPORT = json.dumps(
     [
@@ -83,8 +89,8 @@ def test_run_supply_gate_warns_when_the_registry_and_osv_time_out(tmp_path: Path
     assert versions == {"deptry": "0.25.1"}
     assert supply.rows == (
         RowWarn(UnverifiedExistence("pypi", "left", "pyproject.toml", 5, "timeout")),
-        RowWarn(UnverifiedAdvisory("pypi", "left", "pyproject.toml", 5, "timeout")),
     )
+    assert _english(result, supply).count("`left`") == 1
 
 
 def test_run_supply_gate_blocks_an_undeclared_import_while_the_registry_times_out(
@@ -106,8 +112,62 @@ def test_run_supply_gate_blocks_an_undeclared_import_while_the_registry_times_ou
 
     assert code == 1
     assert result.status == "failed"
-    assert supply.rows[0] == RowBlock(UndeclaredImport("src/app.py", "requests", 1))
-    assert RowWarn(UnverifiedExistence("pypi", "left", "pyproject.toml", 5, "dns")) in supply.rows
+    assert supply.rows == (
+        RowBlock(UndeclaredImport("src/app.py", "requests", 1)),
+        RowWarn(UnverifiedExistence("pypi", "left", "pyproject.toml", 5, "dns")),
+    )
+
+
+def test_run_supply_gate_blocks_a_critical_advisory_from_the_vuln_document(
+    tmp_path: Path,
+) -> None:
+    repo = _repo(tmp_path)
+    _pyproject(repo, "dependencies = [\n]\n")
+    _commit(repo, "base")
+    _git(repo, "checkout", "-b", "head")
+    _pyproject(repo, 'dependencies = [\n  "left==1.0.0",\n]\n')
+    _commit(repo, "head")
+
+    result, code, _versions, supply = run_supply_gate(
+        repo, Config(), _diff(repo), "main", _deptry("[]"), _critical()
+    )
+
+    assert code == 1
+    assert result.status == "failed"
+    assert supply.rows == (
+        RowBlock(Advisory("GHSA-crit-0000-0001", "pypi", "left", "CRITICAL", "pyproject.toml", 5)),
+    )
+    assert (
+        "| `left` | `pyproject.toml:5` | CRITICAL advisory GHSA-crit-0000-0001 | blocks |"
+        in _english(result, supply)
+    )
+
+
+def test_run_supply_gate_warns_when_the_vuln_document_times_out(tmp_path: Path) -> None:
+    repo = _repo(tmp_path)
+    _pyproject(repo, "dependencies = [\n]\n")
+    _commit(repo, "base")
+    _git(repo, "checkout", "-b", "head")
+    _pyproject(repo, 'dependencies = [\n  "left==1.0.0",\n]\n')
+    _commit(repo, "head")
+
+    result, code, _versions, supply = run_supply_gate(
+        repo, Config(), _diff(repo), "main", _deptry("[]"), _vuln_timeout()
+    )
+
+    assert code == 0
+    assert result.status == "warn"
+    assert supply.rows == (
+        RowWarn(
+            UnverifiedAdvisory(
+                "pypi", "left", "pyproject.toml", 5, "timeout", "GHSA-fail-0000-0001"
+            )
+        ),
+    )
+    assert (
+        "| `left` | `pyproject.toml:5` | advisory GHSA-fail-0000-0001 left unverified (timeout) | warns |"
+        in _english(result, supply)
+    )
 
 
 def test_run_supply_gate_exits_4_when_no_language_measures(tmp_path: Path) -> None:
@@ -260,6 +320,72 @@ def _knip(raw: str):
         return ProcessExit(1, raw, "")
 
     return runner
+
+
+def _english(result: object, supply: object) -> str:
+    report = Report(
+        schema_version=1,
+        commit="abc",
+        base="main",
+        generated_at="2026-10-13T00:00:00Z",
+        tool_versions={"deptry": "0.25.1"},
+        gates=[result],
+        focus=[],
+        top_crap=[],
+        supply=supply,
+    )
+    return "\n".join(render(line, "en") for line in supply_lines(report))
+
+
+def _critical():
+    document = (_VULNS / "GHSA-crit-0000-0001.json").read_bytes()
+
+    def transport(method: str, url: str, body: bytes | None, timeout: int) -> HttpOk:
+        assert timeout == 30
+        if url.startswith("https://api.osv.dev/v1/vulns/"):
+            assert body is None
+            return HttpOk(200, document)
+        if method == "POST":
+            payload = {
+                "results": [
+                    {
+                        "vulns": [
+                            {
+                                "id": "GHSA-crit-0000-0001",
+                                "modified": "2024-06-01T00:00:00Z",
+                            }
+                        ]
+                    }
+                ]
+            }
+            return HttpOk(200, json.dumps(payload).encode())
+        return HttpOk(200, b'{"info":{"name":"left"}}')
+
+    return transport
+
+
+def _vuln_timeout():
+    def transport(method: str, url: str, body: bytes | None, timeout: int) -> HttpOk | HttpFault:
+        assert timeout == 30
+        if url.startswith("https://api.osv.dev/v1/vulns/"):
+            return HttpFault("timeout")
+        if method == "POST":
+            payload = {
+                "results": [
+                    {
+                        "vulns": [
+                            {
+                                "id": "GHSA-fail-0000-0001",
+                                "modified": "2024-01-01T00:00:00Z",
+                            }
+                        ]
+                    }
+                ]
+            }
+            return HttpOk(200, json.dumps(payload).encode())
+        return HttpOk(200, b'{"info":{"name":"left"}}')
+
+    return transport
 
 
 def _status(status: int):

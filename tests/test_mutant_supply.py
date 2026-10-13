@@ -266,7 +266,6 @@ def test_measure_typescript_keeps_the_npm_package_and_the_registry_timeout(tmp_p
     assert versions == {"knip": "6.41.0"}
     assert findings == [
         UnverifiedExistence("npm", "left-pad", "package.json", 3, "dns"),
-        UnverifiedAdvisory("npm", "left-pad", "package.json", 3, "dns"),
     ]
 
 
