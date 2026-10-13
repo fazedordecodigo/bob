@@ -194,20 +194,20 @@ def test_missing_vulture_is_not_run_and_still_writes_the_report(
     assert (repo / ".bob" / "report.md").is_file()
 
 
-def test_a_missing_include_path_is_not_run(tmp_path: Path) -> None:
+def test_a_missing_include_path_exits_4_before_the_gate(tmp_path: Path) -> None:
     repo = _init(tmp_path / "repo")
     (repo / "bob.yaml").write_text("paths:\n  include: [missing]\n")
 
     code = run_check(repo, gates=["dead_code"], base="main")
     payload = _payload(repo)
 
-    assert code == 0
-    assert payload["exit_code"] == 0
+    assert code == 4
+    assert payload["exit_code"] == 4
     assert payload["gates"] == [
         {
             "name": "dead_code",
             "status": "not_run",
-            "reason": "vulture: include path missing: missing",
+            "reason": "bob.yaml: paths.include does not exist: missing",
         }
     ]
 

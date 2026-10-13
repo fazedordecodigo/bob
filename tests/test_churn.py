@@ -373,7 +373,7 @@ def test_early_failure_has_no_zero_diffusion(tmp_path: Path) -> None:
     repo = tmp_path / "repo"
     repo.mkdir()
 
-    english = run_bob(repo, "check", "--config", "missing.yaml", "--gates", "nope")
+    english = run_bob(repo, "check", "--gates", "nope")
     english_md = (repo / ".bob" / "report.md").read_text()
     english_json = json.loads((repo / ".bob" / "report.json").read_text())
 
@@ -387,9 +387,7 @@ def test_early_failure_has_no_zero_diffusion(tmp_path: Path) -> None:
     assert "Diffusion:" not in english_md
     Draft202012Validator(SCHEMA).validate(english_json)
 
-    portuguese = run_bob(
-        repo, "--lang", "pt-BR", "check", "--config", "missing.yaml", "--gates", "nope"
-    )
+    portuguese = run_bob(repo, "--lang", "pt-BR", "check", "--gates", "nope")
     portuguese_md = (repo / ".bob" / "report.md").read_text()
     portuguese_json = json.loads((repo / ".bob" / "report.json").read_text())
 

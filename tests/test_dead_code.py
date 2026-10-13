@@ -152,7 +152,7 @@ def test_a_dead_waiver_does_not_waive_a_mutant() -> None:
         status="survived",
     )
     dead = _waiver("dead:src/app/orphan.py:3:orphan")
-    matched = _waiver("app.keep_x__mutmut_1", "equivalent")
+    matched = _waiver("src/app/orphan.py::keep::AOR", "equivalent")
 
     ignored = apply_waivers([mutant], [dead])
     applied = apply_waivers([mutant], [matched])

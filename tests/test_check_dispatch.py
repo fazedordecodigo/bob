@@ -72,7 +72,7 @@ def test_absorb_records_each_gate_from_the_arguments_it_received(monkeypatch) ->
     monkeypatch.setattr(check, "run_secrets_gate", secrets)
 
     state = _Measured()
-    _absorb(state, "crap", cwd, config, diff, 10.0, coverage, out, 2)
+    _absorb(state, "crap", cwd, config, diff, 10.0, coverage, out, 2, True, 0)
     assert seen["crap"] == {
         "cwd": cwd,
         "config": config,
@@ -87,18 +87,24 @@ def test_absorb_records_each_gate_from_the_arguments_it_received(monkeypatch) ->
     assert state.gates == [GateResult("crap", "failed")]
     assert set(seen) == {"crap"}
 
-    _absorb(state, "dry", cwd, config, diff, 10.0, coverage, out, 2)
-    assert seen["dry"] == {"cwd": cwd, "config": config, "diff_lines": diff}
+    _absorb(state, "dry", cwd, config, diff, 10.0, coverage, out, 2, True, 0)
+    assert seen["dry"] == {
+        "cwd": cwd,
+        "config": config,
+        "diff_lines": diff,
+        "dry_fail": True,
+        "max_new_clones": 0,
+    }
     assert state.clones == [_clone()]
     assert state.versions["jscpd"] == "5.4.1"
     assert set(seen) == {"crap", "dry"}
 
-    _absorb(state, "deps", cwd, config, diff, 10.0, coverage, out, 2)
+    _absorb(state, "deps", cwd, config, diff, 10.0, coverage, out, 2, True, 0)
     assert seen["deps"] == (cwd, config, {"src/app.py"})
     assert state.violations == [violation]
     assert set(seen) == {"crap", "dry", "deps"}
 
-    _absorb(state, "mutate", cwd, config, diff, 10.0, coverage, out, 2)
+    _absorb(state, "mutate", cwd, config, diff, 10.0, coverage, out, 2, True, 0)
     assert seen["mutate"] == {
         "cwd": cwd,
         "config": config,
@@ -111,7 +117,7 @@ def test_absorb_records_each_gate_from_the_arguments_it_received(monkeypatch) ->
     assert state.exit_code == 3
     assert set(seen) == {"crap", "dry", "deps", "mutate"}
 
-    _absorb(state, "secrets", cwd, config, diff, 10.0, coverage, out, 2)
+    _absorb(state, "secrets", cwd, config, diff, 10.0, coverage, out, 2, True, 0)
     assert seen["secrets"] == {"cwd": cwd, "config": config, "diff_lines": diff}
     assert state.secrets == ledger
     assert state.versions["gitleaks"] == "8.30.1"
@@ -122,7 +128,7 @@ def test_absorb_records_each_gate_from_the_arguments_it_received(monkeypatch) ->
 
 def test_absorb_unknown_gate_stays_not_run_and_exit_0() -> None:
     state = _Measured()
-    _absorb(state, "nope", Path("/repo"), Config(), {}, 10.0, None, Path("/out"), None)
+    _absorb(state, "nope", Path("/repo"), Config(), {}, 10.0, None, Path("/out"), None, False, None)
 
     assert state.exit_code == 0
     assert state.versions == {}

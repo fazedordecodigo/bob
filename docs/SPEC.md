@@ -52,13 +52,13 @@ As ferramentas de mercado (lizard, coverage.py, c8, mutmut, StrykerJS, jscpd, im
 
 **Interfaces da CLI** (Python ≥ 3.10, distribuída via pip como `bob-quality`; adaptadores TS chamam ferramentas npm fixadas via `npx`; complexidade via lizard nas duas linguagens)
 ```
-bob check   [--base REF] [--gates crap,dry,deps,mutate] [--config bob.yaml] [--format md|json|both] [--out .bob/]
+bob check   [--base REF] [--gates crap,dry,deps,mutate] [--config bob.yaml] [--format md|json|both] [--out .bob/] [--dry-fail] [--max-new-clones N]
 bob crap    [--base REF] [--threshold N] [--coverage-file PATH]
-bob dry     [--base REF]
+bob dry     [--base REF] [--dry-fail] [--max-new-clones N]
 bob deps
 bob mutate  [--base REF] [--since-last-run] [--max-workers N]
 bob report  [--in .bob/] [--out .bob/report.md]
-bob waive   <mutant-id|function> --reason "texto de uma linha"
+bob waive   <file::function|Target> --reason "texto de uma linha"
 bob doctor  # verifica ferramentas e versões instaladas
 bob <comando> [--lang en|pt-BR]  # idioma da saída (padrão: en)
 ```
@@ -82,11 +82,11 @@ language: en                      # idioma da saída: en ou pt-BR
 languages: [python, typescript]
 paths: { include: [src], exclude: [tests, node_modules, dist] }
 crap: { max_per_function: 10, scope: changed }
-duplication: { min_tokens: 50 }
+duplication: { min_tokens: 50, new_clones: warn, max_new_clones: 0, min_similarity: 0, min_lines: 0 }
 dependencies: { python: .importlinter, typescript: .dependency-cruiser.cjs }
 ```
 
-`crap.scope` é `changed` ou `all`. Cada item de `languages` é `python` ou `typescript`. Uma lista `languages` presente não é vazia e não repete item. A chave `languages` omitida continua `python`. `crap.max_per_function` é um número finito maior que 0. Um inteiro que não cabe em float também não é finito. `duplication.min_tokens` é um inteiro maior que 0. Uma chave desconhecida sai com 4.
+`crap.scope` é `changed` ou `all`. Cada item de `languages` é `python` ou `typescript`. Uma lista `languages` presente não é vazia, não repete item e não é reescrita pela detecção. A chave `languages` omitida ou nula é autodetectada pelos arquivos em `paths.include`, fora de `paths.exclude`. A varredura não segue symlink, então um ciclo de link não entra no alvo. `paths.exclude` casa por prefixo de caminho, não por glob. `.py` escolhe `python`. `.ts`, `.tsx`, `.js`, `.jsx`, `.mjs` e `.cjs` escolhem `typescript`. O resultado sai nessa ordem. Sem nenhum desses arquivos, o resultado é `python`. `crap.max_per_function` é um número finito maior que 0. Um inteiro que não cabe em float também não é finito. `duplication.min_tokens` é um inteiro maior que 0. `duplication.new_clones` é `warn` ou `fail`, e vazio continua `warn`. `duplication.max_new_clones` e `duplication.min_lines` são inteiros maiores ou iguais a 0. `duplication.min_similarity` é um número finito de 0 a 100. Uma chave desconhecida sai com 4.
 
 **Formato do relatório (`.bob/report.md`, espelhado em `report.json`)**
 1. Cabeçalho: commit, base, data, versões das ferramentas.
@@ -100,9 +100,9 @@ dependencies: { python: .importlinter, typescript: .dependency-cruiser.cjs }
 
 O JSON segue um schema versionado (`schema_version: 1`). Os títulos e os textos do `report.md` seguem o idioma da saída. O `report.json` não muda com o idioma (decisão 12).
 
-**Waivers**: arquivo `.bob/waivers.yaml` versionado no repo. Cada entrada tem id do mutante ou função, motivo de uma linha, autor e data. Um waiver sem motivo é inválido. Todo waiver aparece no relatório.
+**Waivers**: arquivo `.bob/waivers.yaml` versionado no repo. Cada entrada tem id, motivo de uma linha, autor e data. Um waiver sem motivo é inválido. Todo waiver aparece no relatório. O id de um mutante tem duas formas. `arquivo::função` dispensa todo sobrevivente da função. `arquivo::função::<descrição>` dispensa um sobrevivente. A descrição é o operador do mutante, sem espaço nas pontas. No Python é o diff do `mutmut show`: as linhas removidas, ` -> ` e as linhas acrescentadas. No TypeScript é `{mutatorName}@{linha}:{coluna}-{linha}:{coluna}` do Stryker, mais ` -> {replacement}` quando o relatório traz o texto. A forma exata só existe quando nenhum outro sobrevivente da mesma função tem a mesma descrição. Mutante morto, com timeout ou sem teste não tem alvo. A coluna Alvo do relatório mostra a forma exata de cada sobrevivente, ou `—` quando ela não existe. O id da ferramenta (`__mutmut_N` ou `arquivo:número` do Stryker), o nome nu da função e `arquivo:função` não casam mais. `bob waive` só grava um alvo de um sobrevivente do último `.bob/mutation-cache.json` ou `.bob/stryker-mutants.json`. Outro alvo sai com 4 e nada é gravado. Um id editado à mão que não casa com nenhum sobrevivente deixa o sobrevivente sem waiver, e o gate sai com 3. No TypeScript, uma linha inserida acima do mutante muda a descrição. O waiver antigo deixa de casar e o gate sai com 3. Ele não passa para outro mutante. No Python a descrição é o texto do diff e não muda com uma linha inserida acima. Ver a [ADR 0006](adr/0006-chave-estavel-do-waiver.md).
 
-**Mutação diferencial**: um cache (`.bob/mutation-cache.json`, artefato do CI) guarda o hash do texto de cada função, a versão do mutmut e uma impressão da suíte. A impressão é o hash dos arquivos versionados ou não ignorados que a suíte lê além das funções (`tests/`, `test/`, `conftest*`, `test_*.py`, `*_test.py`, configuração do pytest, lockfiles e o `also_copy` do mutmut). Só remuta funções alteradas ou com sobreviventes. Uma versão nova do mutmut ou uma impressão nova da suíte torna os resultados de mutantes guardados inelegíveis para reuso. A corrida remuta as funções alteradas e as funções que ainda têm um sobrevivente sem waiver nesse arquivo. Resultados que estão só como `killed`, com waiver ou `no_coverage`, fora do diff, não são copiados adiante. Para TS usa o `--incremental` nativo do Stryker. Para Python, filtra os mutantes do mutmut pelas funções do diff.
+**Mutação diferencial**: um cache (`.bob/mutation-cache.json`, artefato do CI) guarda o hash do texto de cada função, a versão do mutmut e uma impressão da suíte. A impressão é o hash dos arquivos versionados ou não ignorados que a suíte lê além das funções (`tests/`, `test/`, `conftest*`, `test_*.py`, `*_test.py`, configuração do pytest, lockfiles e o `also_copy` do mutmut). Só remuta funções alteradas ou com sobreviventes. Uma versão nova do mutmut ou uma impressão nova da suíte torna os resultados de mutantes guardados inelegíveis para reuso. A corrida remuta as funções alteradas e as funções que ainda têm um sobrevivente sem waiver nesse arquivo. Resultados que estão só como `killed`, com waiver ou `no_coverage`, fora do diff, não são copiados adiante. Para TS usa o `--incremental` nativo do Stryker. Para Python, filtra os mutantes do mutmut pelas funções do diff. O mutmut roda em `<--out>/mutmut/`, com um link simbólico para cada entrada do topo do repo, menos `.git` e `mutants`. Quando o bob injeta a configuração do mutmut, o `setup.cfg` dessa pasta é um arquivo próprio. O `setup.cfg` e o `mutants/` do repo nunca são escritos, nem quando o processo morre no meio.
 
 **Skills**:
 - `bob-check`: quando rodar o check e como interpretar o JSON e iterar.
@@ -143,7 +143,7 @@ O JSON segue um schema versionado (`schema_version: 1`). Os títulos e os textos
 1. `pip install bob-quality` com versões fixadas mais `bob doctor` mostrando o status de cada ferramenta.
 2. Nos repos-fixture Py e TS, `bob check --base main` produz `report.md` e `report.json` válidos (schema v1) e o exit code correto em cada caso de falha.
 3. CRAP é calculado por função alterada, com limite 10 configurável, e o top 5 aparece no relatório.
-4. Clones novos geram ⚠️ e não falham. Uma violação de dependência gera ❌.
+4. Por padrão, clones novos geram ⚠️ e não falham. Com `duplication.new_clones: fail` ou `--dry-fail`, mais clones novos que `duplication.max_new_clones` geram ❌ e exit 1. Uma violação de dependência gera ❌.
 5. A mutação roda só no CI e só nas funções alteradas. Um sobrevivente sem waiver dá exit 3. Mutantes sem teste (`no_coverage`) aparecem como aviso (⚠️) e não mudam o exit code. Os waivers sem motivo são rejeitados.
 6. Um gate não executado aparece como ⏭️ com motivo, nunca como ✅.
 7. O hook local roda `crap,dry,deps` em menos de 60 s no repo-fixture.
@@ -166,8 +166,8 @@ O JSON segue um schema versionado (`schema_version: 1`). Os títulos e os textos
 1. **Linguagem da CLI**: núcleo e CLI em Python, distribuídos via pip (`bob-quality`). As ferramentas npm ficam fixadas num `package.json` do próprio plugin e são chamadas via `npx`.
 2. **Complexidade**: lizard para Python e TS, para contar o CC do mesmo jeito nas duas.
 3. **Escopo**: os gates bloqueiam só pelas funções alteradas no diff. A dívida antiga aparece apenas como informação.
-4. **Duplicação**: clones novos geram só aviso (⚠️) e nunca bloqueiam no MVP.
-5. **Waivers**: o agente cria o waiver com justificativa de uma linha e o humano aprova no review do PR. Os waivers aparecem no topo do relatório.
+4. **Duplicação** (Emerson, 12/10/2026). O padrão é aviso. `duplication.new_clones` é `warn` ou `fail`. Sem chave nova, um clone novo continua em aviso e o exit continua 0. `max_new_clones` padrão 0. No modo fail, um clone que passa em `min_similarity` e `min_lines` já falha, status `failed`, exit 1. Os dois filtros só escolhem quem entra na conta. Similaridade ausente conta como 100. No modo warn, nenhum limite numérico falha. O relatório cita `duplication.max_new_clones` e o inteiro no `reason`. `--dry-fail` e `--max-new-clones` existem em `bob dry` e `bob check`, vencem o arquivo nessa execução, e 0 é um teto de verdade. Não há flag para forçar warn. O hook não muda.
+5. **Waivers**: o agente cria o waiver com justificativa de uma linha e o humano aprova no review do PR. Os waivers aparecem no topo do relatório. A chave do waiver de mutação é a da [ADR 0006](adr/0006-chave-estavel-do-waiver.md), decidida pelo Emerson em 12/10/2026.
 6. **Dependências**: executa as regras que o repo já declara (`.importlinter` / `.dependency-cruiser`), mais uma regra padrão sempre ativa: proibido ciclo de dependência. Só bloqueia quando a origem, o destino, ou outro módulo do mesmo ciclo (componente fortemente conexo) foi alterado no diff. Ciclos e violações antigas aparecem no relatório como informação (`fora do diff; não bloqueia`) e não mudam o exit code.
 7. **Distribuição**: CLI `bob`, PyPI `bob-quality`, marketplaces `bob`. A publicação acontece só depois do MVP aprovado pelo Emerson, com o nome reconfirmado como livre na véspera.
 8. **Sequência**: tracer bullet primeiro (scaffold + CRAP + relatório + hook, em Python e depois TS). Depois vêm mutação, duplicação/dependências e empacotamento.

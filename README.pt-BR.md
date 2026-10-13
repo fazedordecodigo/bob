@@ -19,7 +19,7 @@ Licença: MIT.
 Estas partes funcionam na `main`:
 
 - CRAP em Python e TypeScript.
-- Duplicação com jscpd, só como aviso.
+- Duplicação com jscpd, aviso por padrão e falha acima de um teto no modo fail.
 - O gate de dependências, com a regra que proíbe ciclos.
 - Mutação diferencial em Python e mutação incremental com Stryker em TypeScript, e `bob waive`.
 - A GitHub Action que comenta o relatório no pull request.
@@ -120,7 +120,7 @@ bob crap --base main
 bob dry --base main
 bob deps --base main
 bob mutate --base main
-bob waive <mutant-id|function> --reason "texto de uma linha"
+bob waive <file::function|Target> --reason "texto de uma linha"
 bob doctor
 ```
 
@@ -128,12 +128,12 @@ Cada comando aceita estas flags:
 
 | Comando | Flags |
 |---|---|
-| `bob check` | `--base`, `--config`, `--out` (padrão `.bob/`), `--gates` (padrão `crap,dry,deps`), `--format` (`md`, `json` ou `both`, padrão `both`) |
+| `bob check` | `--base`, `--config`, `--out` (padrão `.bob/`), `--gates` (padrão `crap,dry,deps`), `--format` (`md`, `json` ou `both`, padrão `both`), `--dry-fail`, `--max-new-clones` |
 | `bob crap` | `--base`, `--config`, `--out`, `--threshold`, `--coverage-file` |
-| `bob dry` | `--base`, `--config`, `--out` |
+| `bob dry` | `--base`, `--config`, `--out`, `--dry-fail`, `--max-new-clones` |
 | `bob deps` | `--base`, `--config`, `--out` |
 | `bob mutate` | `--base`, `--config`, `--out`, `--max-workers`, `--since-last-run` (reusa o cache, que já é o padrão) |
-| `bob waive` | o id do mutante ou o nome da função, `--reason` |
+| `bob waive` | `arquivo::função` ou um Alvo do relatório de mutação, `--reason` |
 | `bob doctor` | `--install` |
 
 Todo comando aceita também `--lang en|pt-BR`, antes ou depois do nome do comando. Ver [Idioma da saída](#idioma-da-saída).
@@ -143,7 +143,7 @@ Os comandos gravam `.bob/report.md` e `.bob/report.json`. Os exit codes são:
 | Código | Significado |
 |---|---|
 | `0` | Todo gate que rodou passou. |
-| `1` | Um gate falhou. Uma função alterada tem CRAP no limite ou acima, ou o diff tem uma violação de dependência. |
+| `1` | Um gate falhou. Uma função alterada tem CRAP no limite ou acima, o diff tem uma violação de dependência, ou, no modo fail do DRY, os clones novos passam de `duplication.max_new_clones`. |
 | `2` | Os testes da baseline falharam antes de o bob medir. O gate `crap` também os roda no `bob check` padrão. |
 | `3` | Um mutante sobrevivente não tem waiver. |
 | `4` | Ferramenta ausente ou divergente, ou configuração inválida. A mensagem vai para o stderr em inglês, e a execução não grava nada. |
@@ -160,7 +160,7 @@ Quando mais de um gate falha, `bob check` sai com o código mais alto.
 
 ### Só o diff bloqueia
 
-O bob roda `git diff <base>...HEAD` e mapeia as linhas alteradas para funções. Uma função conta como alterada quando o diff toca uma das linhas dela. Só funções alteradas, e violações de dependência que tocam arquivos alterados, podem reprovar um gate. A dívida antiga vai para as seções informativas do relatório, marcada `fora do diff; não bloqueia`, e não muda o exit code. `--base` substitui a chave `base` do `bob.yaml`.
+O bob roda `git diff <base>...HEAD` e mapeia as linhas alteradas para funções. Uma função conta como alterada quando o diff toca uma das linhas dela. Só funções alteradas, violações de dependência que tocam arquivos alterados e, no modo fail do DRY, clones que tocam linhas alteradas podem reprovar um gate. A dívida antiga vai para as seções informativas do relatório, marcada `fora do diff; não bloqueia`, e não muda o exit code. `--base` substitui a chave `base` do `bob.yaml`.
 
 ### Ferramentas pinadas por linguagem
 
@@ -177,7 +177,7 @@ As ferramentas npm precisam do Node, e o jscpd precisa dele também num reposit�
 
 ### `bob.yaml`
 
-O bob lê estas chaves. Os valores abaixo são os padrões que valem quando o `bob.yaml` não existe:
+O bob lê estas chaves. Os valores abaixo valem quando a chave é omitida. `languages` é detectado na árvore quando o `bob.yaml` não existe ou a chave é omitida, e `[python]` fica só quando não há arquivo de fonte correspondente:
 
 ```yaml
 base: origin/main
@@ -191,16 +191,20 @@ crap:
   scope: changed
 duplication:
   min_tokens: 50
+  new_clones: warn
+  max_new_clones: 0
+  min_similarity: 0
+  min_lines: 0
 dependencies:
   python: .importlinter
   typescript: .dependency-cruiser.cjs
 ```
 
-Com `crap.scope: changed`, só funções alteradas bloqueiam. `all` faz toda função medida contar. O valor é `changed` ou `all`. `languages` omitido ou nulo vale `[python]`. Uma lista vazia sai com `4`. Não há autodetecção.
+Com `crap.scope: changed`, só funções alteradas bloqueiam. `all` faz toda função medida contar. O valor é `changed` ou `all`. `languages` omitido ou nulo é detectado pelos arquivos em `paths.include`, fora de `paths.exclude`. A varredura não segue symlink. `paths.exclude` casa por prefixo de caminho ou por componente, não por glob. `.py` escolhe `python`. `.ts`, `.tsx`, `.js`, `.jsx`, `.mjs` e `.cjs` escolhem `typescript`, nessa ordem. Sem nenhum desses arquivos, o resultado é `[python]`. A mesma detecção roda quando o `bob.yaml` não existe e `--config` não foi passado. Uma lista explícita permanece como foi escrita. Uma lista vazia sai com `4`.
 
 Se o YAML não é um mapeamento, se o YAML tem erro de sintaxe, se um mapeamento repete uma chave, ou se uma chave tem o tipo errado, a execução sai com `4`. A mensagem vai para o stderr em inglês e cita o arquivo. Um tipo errado também cita a chave, como em `bob.yaml: crap must be a mapping` ou `bob.yaml: crap.max_per_function must be a number`. Uma chave repetida cita a chave e a linha, como em `invalid YAML in bob.yaml: found duplicate key 'base' on line 2`. `check`, `doctor`, `waive` e os outros comandos fazem isso do mesmo jeito. Nenhum deles grava um arquivo.
 
-Se `--config` aponta para um arquivo que não existe, `check`, `crap`, `dry`, `deps` e `mutate` saem com `4`, gravam `.bob/report.md` e `.bob/report.json`, e deixam o stdout e o stderr vazios. Cada gate pedido fica não executado. O `reason` do JSON é `config file not found: <caminho>`, com o caminho que `load_config` recebeu. O Markdown segue o idioma da saída. `doctor` e `waive` não aceitam `--config`.
+Se `--config` aponta para um arquivo que não existe, `check`, `crap`, `dry`, `deps` e `mutate` saem com `4`. O stderr fica em inglês e cita o caminho que `load_config` recebeu (`config file not found: <caminho>`). Nada é gravado. `doctor` e `waive` não aceitam `--config`.
 
 ### Idioma da saída
 
@@ -213,7 +217,7 @@ O bob escreve o texto para humanos em inglês (`en`) ou em português do Brasil 
 
 A caixa importa (`pt-br` é inválido). Um `--lang` ou `BOB_LANG` vazio é inválido. A execução sai com `4`, imprime `invalid language: "" (use en or pt-BR)` no stderr e não grava nada. Uma chave `language` vazia no `bob.yaml` continua contando como ausente.
 
-Um `--lang` ou `BOB_LANG` inválido, um `bob.yaml` que não é um mapeamento, um YAML com erro de sintaxe, ou uma chave com o tipo errado, sai com `4`. A mensagem vai para o stderr em inglês, mesmo quando `--lang` ou `language` é `pt-BR`. A execução não grava relatório nem `waivers.yaml`. `check`, `doctor`, `waive` e os outros comandos fazem isso do mesmo jeito. Um `duplication` inválido, uma chave desconhecida, um `language` numérico, um `language` que não é `en` nem `pt-BR`, um `crap.scope` que não é `changed` nem `all`, um item de `languages` que não é `python` nem `typescript`, um `crap.max_per_function` que não é um número finito maior que 0 (um inteiro grande demais para virar float também não é finito), uma lista `languages` vazia, um item de `languages` repetido, um `duplication.min_tokens` igual a 0 ou negativo, um `waivers` igual a `0`, `false` ou `""`, e um `reason` vazio também saem com `4` em `check`, `doctor` e `waive`. O stderr em inglês cita o caminho e o campo, e a execução não grava nada.
+Um `--lang` ou `BOB_LANG` inválido, um `bob.yaml` que não é um mapeamento, um YAML com erro de sintaxe, ou uma chave com o tipo errado, sai com `4`. A mensagem vai para o stderr em inglês, mesmo quando `--lang` ou `language` é `pt-BR`. A execução não grava relatório nem `waivers.yaml`. `check`, `doctor`, `waive` e os outros comandos fazem isso do mesmo jeito. Um `duplication` inválido, uma chave desconhecida, um `language` numérico, um `language` que não é `en` nem `pt-BR`, um `crap.scope` que não é `changed` nem `all`, um item de `languages` que não é `python` nem `typescript`, um `crap.max_per_function` que não é um número finito maior que 0 (um inteiro grande demais para virar float também não é finito), uma lista `languages` vazia, um item de `languages` repetido, um `duplication.min_tokens` igual a 0 ou negativo, um `duplication.new_clones` que não é `warn` nem `fail`, um `duplication.max_new_clones` ou `duplication.min_lines` negativo, um `duplication.min_similarity` que não é um número finito de 0 a 100, um `waivers` igual a `0`, `false` ou `""`, e um `reason` vazio também saem com `4` em `check`, `doctor` e `waive`. O stderr em inglês cita o caminho e o campo, e a execução não grava nada.
 
 O `.bob/report.json` tem os mesmos bytes nos dois idiomas. Todo `reason` de gate, o nome da regra de ciclo e o `reproduce` ficam em inglês, então uma ferramenta pode casar esse texto sem saber o idioma da saída. O `reproduce` do JSON não leva `--lang`. Em inglês a regra de ciclo se chama `Forbidden dependency cycle`. Em `pt-BR` ela se chama `Proibido ciclo de dependência` no `report.md` e no comentário do pull request. Uma regra do dependency-cruiser sem nome é `dependency` no JSON e `dependência` no Markdown. A linha de reprodução do `report.md` inclui o `--lang` que produziu o relatório.
 
@@ -229,12 +233,12 @@ No CI, defina `language: pt-BR` no `bob.yaml`, ou `BOB_LANG: pt-BR` no `env` do 
 
 Os waivers ficam em `.bob/waivers.yaml`, versionado junto com o código. `bob waive` grava uma entrada com estes campos:
 
-- `id`, o id do mutante ou o nome da função.
+- `id`, `arquivo::função` para todo sobrevivente da função, ou `arquivo::função::<descrição>` para um sobrevivente.
 - `reason`, uma linha de texto.
 - `author`, de `git config user.name`, ou `$USER`.
 - `date`, a data em UTC.
 
-Um waiver sem motivo de uma linha é rejeitado com exit `4`. `bob waive` de um id que já aparece uma vez substitui essa linha e sai com 0. Um arquivo que já contém duas linhas com o mesmo id sai com 4 e os bytes permanecem. Um waiver casa com um mutante pelo id do mutante, pelo nome da função, por `file:function` ou por `file::function`. Um `waivers.yaml` que é YAML válido com formato errado sai com `4`. A mensagem fica em inglês no stderr e cita `.bob/waivers.yaml` e o campo, como em `.bob/waivers.yaml: waivers[0].reason must be a string`. Uma lista no topo, um `waivers` que não é lista, um item que não é mapeamento e um campo ausente fazem isso. A execução não grava `report.md` nem `report.json`, e o arquivo permanece como está. `check`, `doctor` e `waive` fazem isso do mesmo jeito, mesmo quando `--lang` é `pt-BR`. Um erro de sintaxe YAML também sai com `4`. Essa mensagem cita `.bob/waivers.yaml` e o erro do parser. O agente grava o waiver, e o humano o aprova no review do pull request. Todo waiver aparece no topo do relatório.
+Um waiver sem motivo de uma linha é rejeitado com exit `4`. `bob waive` de um id que já aparece uma vez substitui essa linha e sai com 0. Um arquivo que já contém duas linhas com o mesmo id sai com 4 e os bytes permanecem. A descrição é o operador do mutante, sem espaço nas pontas. No Python é o diff do `mutmut show`. No TypeScript é `{mutatorName}@{linha}:{coluna}-{linha}:{coluna}`, mais ` -> {replacement}` quando o Stryker traz o texto. A forma exata só existe quando nenhum outro sobrevivente da função tem a mesma descrição. A coluna Alvo da tabela de sobreviventes a mostra, ou mostra `—` quando ela não existe. `bob waive` só aceita o alvo de um sobrevivente da última mutação, lido de `.bob/mutation-cache.json` e `.bob/stryker-mutants.json`. Outro alvo, como o id do mutante ou o nome nu da função, sai com `4` e não grava nada. Um id editado à mão que não casa com nenhum sobrevivente deixa o sobrevivente sem waiver. No TypeScript, uma linha inserida acima do mutante muda a descrição, então o waiver antigo deixa de casar e o gate sai com `3`. Ver a [ADR 0006](docs/adr/0006-chave-estavel-do-waiver.md). Um `waivers.yaml` que é YAML válido com formato errado sai com `4`. A mensagem fica em inglês no stderr e cita `.bob/waivers.yaml` e o campo, como em `.bob/waivers.yaml: waivers[0].reason must be a string`. Uma lista no topo, um `waivers` que não é lista, um item que não é mapeamento e um campo ausente fazem isso. A execução não grava `report.md` nem `report.json`, e o arquivo permanece como está. `check`, `doctor` e `waive` fazem isso do mesmo jeito, mesmo quando `--lang` é `pt-BR`. Um erro de sintaxe YAML também sai com `4`. Essa mensagem cita `.bob/waivers.yaml` e o erro do parser. O agente grava o waiver, e o humano o aprova no review do pull request. Todo waiver aparece no topo do relatório.
 
 ### O relatório
 
@@ -278,9 +282,13 @@ O limite é CRAP < 10 por função alterada. Uma função com CRAP 10 ou mais re
 
 Um clone é um bloco de código que repete outro bloco. Clones novos mostram onde o agente copiou código em vez de reusar.
 
-O bob roda o jscpd e fica só com os clones em que pelo menos um dos lados toca uma linha alterada. Por exemplo, se o diff adiciona um bloco de pelo menos 50 tokens igual a um código que já existe, o relatório lista o par em `Clones novos` e o veredito mostra ⚠️. O exit code continua `0`.
+O bob roda o jscpd e fica só com os clones em que pelo menos um dos lados toca uma linha alterada. Depois, dois filtros escolhem quais clones novos entram na conta, nos dois modos. Um clone entra quando tem pelo menos `duplication.min_lines` linhas (padrão 0) e pelo menos `duplication.min_similarity` por cento de similaridade (padrão 0). Um clone sem percentual, como o exato, conta como 100. O jscpd já descarta clones com menos de 5 linhas, o padrão dele, então um `min_lines` abaixo de 5 não os traz de volta. Um clone fora da conta não aparece no relatório.
 
-O limite é `duplication.min_tokens` (padrão 50). Duplicação é só aviso e nunca muda o exit code. Sem Node, o gate aparece como ⏭️.
+`duplication.new_clones` escolhe o modo. No modo `warn`, o padrão, o exit code continua `0`. Por exemplo, se o diff adiciona um bloco de pelo menos 50 tokens igual a um código que já existe, o relatório lista o par em `Clones novos` e o veredito mostra ⚠️. No modo `fail`, o gate mostra ❌ e sai com `1` quando a conta passa de `duplication.max_new_clones` (padrão 0), então um clone na conta já falha. O motivo cita a chave e o teto, como em `1 new clone exceeds duplication.max_new_clones 0`. Quando a conta fica no teto ou abaixo, o modo fail mostra ⚠️.
+
+`bob dry` e `bob check` aceitam `--dry-fail`, que liga o modo fail nessa execução, e `--max-new-clones N`, que substitui o teto nessa execução. `0` é um teto de verdade. Nenhuma flag força o modo warn. Um `--max-new-clones` negativo sai com `4` antes de qualquer relatório. O hook pre-push não passa nenhuma das duas, então segue o `bob.yaml`.
+
+`duplication.min_tokens` (padrão 50) é o mínimo de tokens do jscpd. Sem Node, o gate aparece como ⏭️ e o exit code continua `0`, também no modo fail.
 
 ### Teste de mutação
 
@@ -292,7 +300,7 @@ A cobertura mostra que uma linha rodou. Ela não mostra que um teste confere o r
 
 Por exemplo, um mutante troca `if total > limit:` por `if total >= limit:`. Se nenhum teste usa `total == limit`, o mutante sobrevive. Escreva esse teste, ou rode `bob waive` com um motivo.
 
-O bob muta Python com o mutmut e TypeScript com o Stryker. Ele roda os testes da baseline primeiro e sai com `2` se eles falham. Ele muta as funções alteradas, mais as funções que ainda têm sobreviventes sem waiver. O cache `.bob/mutation-cache.json` guarda um hash do texto de cada função. O reuso também exige que a versão do mutmut e a impressão da suíte batam. Uma diferença ainda remuta um sobrevivente sem waiver fora do diff. A GitHub Action restaura e publica o cache como o artefato `bob-mutation-cache`. O TypeScript guarda o arquivo incremental do Stryker em `.bob/stryker-incremental.json`. Esse arquivo é local. A Action não o restaura.
+O bob muta Python com o mutmut e TypeScript com o Stryker. Ele roda os testes da baseline primeiro e sai com `2` se eles falham. Ele muta as funções alteradas, mais as funções que ainda têm sobreviventes sem waiver. O cache `.bob/mutation-cache.json` guarda um hash do texto de cada função. O reuso também exige que a versão do mutmut e a impressão da suíte batam. Uma diferença ainda remuta um sobrevivente sem waiver fora do diff. A GitHub Action restaura e publica o cache como o artefato `bob-mutation-cache`. O TypeScript guarda o arquivo incremental do Stryker em `.bob/stryker-incremental.json`. Esse arquivo é local. A Action não o restaura. O mutmut roda em `.bob/mutmut/` e nunca escreve o `setup.cfg` nem o `mutants/` do repositório.
 
 O limite é zero sobreviventes sem waiver numa linha alterada. Um desses reprova o gate com exit `3`. Sobrevivente sem waiver numa linha que o diff não mudou continua no relatório e não muda o exit. O relatório lista só os sobreviventes. Mutantes `killed`, `timeout` e `no_coverage` não bloqueiam. Um aviso para mutantes `no_coverage` está planejado ([#31](https://github.com/fazedordecodigo/bob/issues/31)).
 
