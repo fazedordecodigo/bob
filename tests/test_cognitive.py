@@ -579,7 +579,11 @@ def test_assemble_keeps_a_cloned_file_in_the_diff_and_the_mutation_summary() -> 
     report = _assemble(measured, "abc", "main", {"src/a.py": {1}}, 10.0, "bob check")
 
     assert report.schema_version == 1
+    assert report.commit == "abc"
+    assert report.base == "main"
     assert report.generated_at.endswith("+00:00")
+    assert report.reproduce == "bob check"
+    assert report.clones == [clone]
     assert report.focus == [{"file": "src/a.py", "risk": 20.0, "clone": True}]
     assert report.mutation == summary
     assert report.waivers == waivers
@@ -593,3 +597,20 @@ def test_assemble_keeps_a_cloned_file_in_the_diff_and_the_mutation_summary() -> 
     assert report.old_dependencies == [
         {"origin": "src.c", "destination": "src.d", "rule": "no-cycles"}
     ]
+
+    loaded = [{"id": "cognitive:src/b.py:legacy"}]
+    idle = _assemble(
+        _Measured(loaded_waivers=loaded),
+        "abc",
+        "main",
+        {},
+        10.0,
+        "bob check",
+    )
+    assert idle.commit == "abc"
+    assert idle.base == "main"
+    assert idle.reproduce == "bob check"
+    assert idle.clones == []
+    assert idle.survivors == []
+    assert idle.mutation is None
+    assert idle.waivers == loaded
