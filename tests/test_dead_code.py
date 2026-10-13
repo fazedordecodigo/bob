@@ -35,7 +35,7 @@ from bob_quality.dead_code import (
     vulture_command,
 )
 from bob_quality.tools import ToolError
-from bob_quality.diff import function_is_changed, line_is_changed
+from bob_quality.diff import as_diff_path, function_is_changed, line_is_changed
 from bob_quality.messages import msg, render
 from bob_quality.models import (
     Clone,
@@ -654,8 +654,46 @@ def test_a_parsed_vulture_report_keeps_the_installed_version(tmp_path: Path) -> 
     assert found.symbols[0].name == "orphan"
 
 
-def test_vulture_version_reads_the_pinned_distribution() -> None:
+def test_vulture_version_reads_the_pinned_distribution(monkeypatch: pytest.MonkeyPatch) -> None:
+    seen: list[str] = []
+
+    def version(name: str) -> str:
+        seen.append(name)
+        return "2.16"
+
+    monkeypatch.setattr("importlib.metadata.version", version)
     assert _vulture_version() == "2.16"
+    assert seen == ["vulture"]
+
+
+def test_vulture_half_keeps_the_parsed_version(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr("bob_quality.dead_code._vulture_version", lambda: "2.16")
+    source = tmp_path / "src" / "app"
+    source.mkdir(parents=True)
+    (source / "orphan.py").write_text("def orphan():\n    return 1\n")
+    line = f"{source / 'orphan.py'}:1: unused function 'orphan' (60% confidence)\n"
+
+    found = _vulture_half(_completed(3, line), tmp_path)
+
+    assert isinstance(found, MeasuredPython)
+    assert found.version == "2.16"
+
+
+def test_read_knip_names_knip_when_spawn_fails(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    def explode(*_args: object, **_kwargs: object) -> subprocess.CompletedProcess[str]:
+        raise OSError("boom")
+
+    monkeypatch.setattr("bob_quality.dead_code._knip_prefix", lambda: tmp_path)
+    monkeypatch.setattr("bob_quality.dead_code._spawn", explode)
+    found = read_knip(tmp_path, Config(languages=["typescript"]))
+
+    assert isinstance(found, Dark)
+    assert render(found.reason, "en") == "missing tool: knip"
+
+
+def test_as_diff_path_rejects_blank_and_parent_segments(tmp_path: Path) -> None:
+    assert as_diff_path(tmp_path, "") is None
+    assert as_diff_path(tmp_path, "src/../secret.py") is None
 
 
 def test_assemble_copies_each_measurement_into_the_report() -> None:
