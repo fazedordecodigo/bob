@@ -79,6 +79,10 @@ class _Node:
     null_is_default: bool = True
     mapping: bool = False
 
+    def __post_init__(self) -> None:
+        if self.mapping and (self.children or self.attr or self.checks):
+            raise ValueError(self.key)
+
 
 _SCHEMA = _Node(
     key="",
@@ -174,6 +178,7 @@ _SCHEMA = _Node(
             ),
         ),
         _Node("test_smells", "test_smells", (_Check("only_true"),)),
+        _Node("typing", "", (), mapping=True),
         _Node("secrets", "", (), mapping=True),
         _Node(
             "dead_code",

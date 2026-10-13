@@ -54,6 +54,7 @@ O `bob.yaml` deste repositório é mais curto: `base`, `languages: [python]`, `p
 | `dependencies.python` | string | `.importlinter` | Config do import-linter |
 | `dependencies.typescript` | string | `.dependency-cruiser.cjs` | Config do dependency-cruiser |
 | `test_smells` | `true` | `true` | Aceito pelo loader. O gate não lê o campo |
+| `typing` | mapeamento vazio | ausente | Aceito e ignorado. Não liga o gate de tipos |
 | `secrets` | mapeamento vazio | ausente | Não liga o gate e não tem filhos |
 | `dead_code.min_confidence` | inteiro de 0 a 100, ou ausente | ausente | Confiança mínima do vulture. Ausente ou nulo não passa `--min-confidence`. `0` passa a flag. O knip ignora a chave |
 
@@ -89,7 +90,7 @@ O gate DRY mapeia `typescript` para os formatos `typescript` e `javascript` do j
 
 ### Chaves que o loader recusa
 
-O `_SCHEMA` em `src/bob_quality/config.py` aceita `base`, `language`, `languages`, `paths.include`, `paths.exclude`, `crap.max_per_function`, `crap.scope`, `duplication.min_tokens`, `duplication.new_clones`, `duplication.max_new_clones`, `duplication.min_similarity`, `duplication.min_lines`, `dependencies.python`, `dependencies.typescript`, `test_smells`, `secrets` e `dead_code.min_confidence`. `_reject_unknown` recusa qualquer outra chave: exit `4`, mensagem em inglês no stderr, nenhum arquivo gravado.
+O `_SCHEMA` em `src/bob_quality/config.py` aceita `base`, `language`, `languages`, `paths.include`, `paths.exclude`, `crap.max_per_function`, `crap.scope`, `duplication.min_tokens`, `duplication.new_clones`, `duplication.max_new_clones`, `duplication.min_similarity`, `duplication.min_lines`, `dependencies.python`, `dependencies.typescript`, `test_smells`, `typing`, `secrets` e `dead_code.min_confidence`. `_reject_unknown` recusa qualquer outra chave: exit `4`, mensagem em inglês no stderr, nenhum arquivo gravado.
 
 `secrets` ausente, `secrets:`, `secrets: null` e `secrets: {}` são o mesmo mapeamento vazio. A chave não tem limiar nem filhos e não liga o gate. O gate só roda com `--gates secrets`. `secrets: true` e `secrets: {threshold: 1}` saem com `4`, em inglês no stderr, e nada é gravado.
 
@@ -102,6 +103,16 @@ Estas não entram no schema:
 - `dependencies.violation`. O erro é `bob.yaml: unknown key dependencies.violation`.
 
 O exemplo de `bob.yaml` na [SPEC](SPEC.md) e nos READMEs não as inclui. Sobrevivente sem waiver sai com `3`, a mutação reusa `.bob/mutation-cache.json` e violação no diff sai com `1`, sem chave para desligar isso. `tests/test_invalid_config.py` cobre a recusa.
+
+### typing
+
+`typing` é um mapeamento sem filhos. `typing: {}`, `typing:` e `typing: null` carregam e não gravam campo em `Config`. Type-coverage não é limiar. A chave não liga o gate. Quem liga é `bob check --gates typing`, e esse nome fica de fora do padrão, do hook e da Action. Ver [Tipos](gates.md#tipos).
+
+Uma chave dentro do mapeamento sai com `4` antes do relatório. `typing: {threshold: 1}` produz `bob.yaml: unknown key typing.threshold`. Um valor que não é mapeamento, como `typing: 1` ou `typing: []`, produz `bob.yaml: typing must be a mapping`. Nada é gravado em `.bob/`.
+
+mypy, pyright e tsc continuam sendo os executáveis do repositório. O bob não os pina.
+
+Um waiver de tipo fica no mesmo `.bob/waivers.yaml`. O `id` é `typing:<arquivo>:<linha>:<código>`. O texto `type: ignore` tem dois-pontos e espaço, então esse id vai entre aspas. O gate compara o id inteiro. Não parte no `:`.
 
 ## .bob/waivers.yaml
 

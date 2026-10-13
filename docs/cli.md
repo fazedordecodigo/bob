@@ -37,7 +37,7 @@ Roda os gates pedidos e grava `.bob/` (ou `--out`).
 
 Um `--config` que aponta para um arquivo inexistente sai com `4`. O stderr fica em inglês e cita o caminho, como em `config file not found: <caminho>`. Nada é gravado. O mesmo vale para `crap`, `dry`, `deps` e `mutate`. Detalhe em [Exit 4](exit-codes.md#exit-4).
 
-Um nome de gate que o código não trata vira status `not_run`, com o motivo `gate não implementado nesta fatia` em `pt-BR`, e esse gate contribui exit `0` (`check.py`, ramo final de `_absorb`). Os nomes implementados são `crap`, `dry`, `deps`, `mutate`, `test_smells`, `secrets` e `dead_code`. `test_smells`, `secrets` e `dead_code` entram só por `--gates` no `bob check`. Não há comando `bob test_smells`, `bob secrets` nem `bob dead_code`.
+Um nome de gate que o código não trata vira status `not_run`, com o motivo `gate não implementado nesta fatia` em `pt-BR`, e esse gate contribui exit `0` (`check.py`, ramo final de `_absorb`). Os nomes implementados são `crap`, `dry`, `deps`, `mutate`, `test_smells`, `typing`, `secrets` e `dead_code`. `test_smells`, `typing`, `secrets` e `dead_code` entram só por `--gates` no `bob check`. Não há comando `bob test_smells`, `bob typing`, `bob secrets` nem `bob dead_code`.
 
 `bob check` sem `mutate` na lista não roda mutação. `bob check --gates mutate` e `bob mutate` rodam.
 
