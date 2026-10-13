@@ -21,7 +21,7 @@ These parts work on `main`:
 - CRAP for Python and TypeScript.
 - Duplication with jscpd, as a warning only.
 - The dependency gate, with the rule that forbids cycles.
-- Differential mutation testing for Python, and `bob waive`.
+- Differential mutation testing for Python and incremental Stryker mutation for TypeScript, and `bob waive`.
 - The GitHub Action that comments the report on the pull request.
 - `bob doctor`, and the `bob-quality` package ready to distribute. Nothing has been sent to PyPI.
 - `bob report`, which renders a saved `report.json` to Markdown.
@@ -29,7 +29,6 @@ These parts work on `main`:
 
 These parts are planned:
 
-- Mutation testing for TypeScript with StrykerJS ([#8](https://github.com/fazedordecodigo/bob/issues/8)).
 - A warning for `no_coverage` mutants in the report ([#31](https://github.com/fazedordecodigo/bob/issues/31)).
 - Publication on PyPI and on the agent marketplaces.
 
@@ -169,7 +168,7 @@ bob wraps each tool in its own adapter and copies no code from them. The version
 |---|---|---|
 | CRAP | `lizard` 1.24.1 for complexity, `coverage` 7.16.2 running pytest | `lizard` 1.24.1 for complexity, `c8` 12.0.0 running `vitest` 5.0.3 |
 | Duplication | `jscpd` 5.4.1 | `jscpd` 5.4.1 |
-| Mutation | `mutmut` 3.8.0 | planned ([#8](https://github.com/fazedordecodigo/bob/issues/8)) |
+| Mutation | `mutmut` 3.8.0 | `@stryker-mutator/core` 10.0.0 and `@stryker-mutator/vitest-runner` 10.0.0 |
 | Dependencies | `import-linter` 2.15, `grimp` 3.17 | `dependency-cruiser` 18.5.0 |
 
 The npm tools need Node, and jscpd needs it in a Python-only repository too. In a repository with Python and TypeScript, a missing Node is not exit `4`. bob still measures Python and reports TypeScript as skipped, with a warning. Exit `4` stays when the missing tool blocks the requested measurement, as in a TypeScript-only repository without Node.
@@ -288,9 +287,9 @@ Coverage shows that a line ran. It does not show that a test checks the result. 
 
 For example, a mutant changes `if total > limit:` to `if total >= limit:`. If no test uses `total == limit`, the mutant survives. Write that test, or run `bob waive` with a reason.
 
-bob mutates Python with mutmut. It runs the baseline tests first and exits with `2` if they fail. It mutates the changed functions, plus the functions that still have survivors without a waiver. The cache `.bob/mutation-cache.json` stores a hash of each function's text. Reuse also requires the mutmut version and the suite fingerprint to match. A mismatch still remutates an unwaived survivor outside the diff. The GitHub Action restores and publishes the cache as the `bob-mutation-cache` artifact.
+bob mutates Python with mutmut and TypeScript with Stryker. It runs the baseline tests first and exits with `2` if they fail. It mutates the changed functions, plus the functions that still have survivors without a waiver. The cache `.bob/mutation-cache.json` stores a hash of each function's text. Reuse also requires the mutmut version and the suite fingerprint to match. A mismatch still remutates an unwaived survivor outside the diff. The GitHub Action restores and publishes the cache as the `bob-mutation-cache` artifact. TypeScript keeps Stryker's incremental file at `.bob/stryker-incremental.json`. That file is local. The Action does not restore it.
 
-The limit is zero survivors without a waiver. Any such survivor fails the gate with exit `3`. The report lists only survivors. Mutants with `killed`, `timeout`, and `no_coverage` do not block. A warning for `no_coverage` mutants is planned ([#31](https://github.com/fazedordecodigo/bob/issues/31)), and so is TypeScript mutation ([#8](https://github.com/fazedordecodigo/bob/issues/8)).
+The limit is zero survivors without a waiver. Any such survivor fails the gate with exit `3`. The report lists only survivors. Mutants with `killed`, `timeout`, and `no_coverage` do not block. A warning for `no_coverage` mutants is planned ([#31](https://github.com/fazedordecodigo/bob/issues/31)).
 
 ### Dependencies
 
