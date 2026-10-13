@@ -43,6 +43,7 @@ SURVIVOR = {
     "operator": "if n > 0: -> if n >= 0:",
     "status": "survived",
     "waiver": WAIVER["reason"],
+    "blocking": False,
     "target": "src/app/weak.py::classify::if n > 0: -> if n >= 0:",
 }
 

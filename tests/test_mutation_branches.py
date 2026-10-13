@@ -701,7 +701,7 @@ def test_from_report_records_the_mutants_for_bob_waive_and_shows_each_target(
     span = CyclomaticFunction("src/safe.ts", "add", 1, 4, 1)
     waived = Waiver("src/safe.ts::add::ArithmeticOperator@2:3-2:4", "porque", "ada", "2026-10-12")
 
-    outcome = _from_report(report, [span], _VERSIONS, [_WAIVER], [waived])
+    outcome = _from_report(report, [span], {}, _VERSIONS, [_WAIVER], [waived])
     recorded = json.loads((tmp_path / STRYKER_MUTANTS_NAME).read_text())
 
     assert recorded == {
@@ -728,7 +728,11 @@ def test_from_report_records_the_mutants_for_bob_waive_and_shows_each_target(
     }
     assert outcome.exit_code == 0
     assert outcome.survivors == [
-        {**recorded["mutants"][0], "target": "src/safe.ts::add::ArithmeticOperator@2:3-2:4"}
+        {
+            **recorded["mutants"][0],
+            "blocking": False,
+            "target": "src/safe.ts::add::ArithmeticOperator@2:3-2:4",
+        }
     ]
 
 
