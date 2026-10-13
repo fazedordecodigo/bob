@@ -11,9 +11,10 @@ from bob_quality.adapters.stryker import StrykerParseError
 from bob_quality.config import Config
 from bob_quality.messages import msg
 from bob_quality.models import Clone, CyclomaticFunction, DepViolation, FunctionMetric, GateResult
-from bob_quality.mutate import MutationOutcome
+from bob_quality.mutate import STRYKER_MUTANTS_NAME, MutationOutcome
+from bob_quality.stryker_gate import _from_report
 from bob_quality.tools import ToolError
-from bob_quality.waivers import WaiverError
+from bob_quality.waivers import Waiver, WaiverError
 from helpers import in_both
 
 _WAIVER = {
@@ -683,6 +684,64 @@ def test_from_report_keeps_versions_and_waiver_rows(tmp_path: Path) -> None:
     assert outcome.waivers == [_WAIVER]
     assert outcome.summary["remutated"] == ["src/safe.ts::add"]
     assert outcome.exit_code == 0
+
+
+def test_from_report_records_the_mutants_for_bob_waive_and_shows_each_target(
+    tmp_path: Path,
+) -> None:
+    def row(mutant_id: str, status: str, column: int) -> dict[str, object]:
+        return {
+            "id": mutant_id,
+            "mutatorName": "ArithmeticOperator",
+            "status": status,
+            "location": {
+                "start": {"line": 2, "column": column},
+                "end": {"line": 2, "column": column + 1},
+            },
+        }
+
+    report = tmp_path / "stryker-report.json"
+    report.write_text(
+        json.dumps(
+            {"files": {"src/safe.ts": {"mutants": [row("0", "Survived", 3), row("1", "Killed", 7)]}}}
+        )
+    )
+    span = CyclomaticFunction("src/safe.ts", "add", 1, 4, 1)
+    waived = Waiver("src/safe.ts::add::ArithmeticOperator@2:3-2:4", "porque", "ada", "2026-10-12")
+
+    outcome = _from_report(report, [span], {}, _VERSIONS, [_WAIVER], [waived])
+    recorded = json.loads((tmp_path / STRYKER_MUTANTS_NAME).read_text())
+
+    assert recorded == {
+        "mutants": [
+            {
+                "id": "src/safe.ts:0",
+                "function": "add",
+                "file": "src/safe.ts",
+                "line": 2,
+                "operator": "ArithmeticOperator@2:3-2:4",
+                "status": "survived",
+                "waiver": "porque",
+            },
+            {
+                "id": "src/safe.ts:1",
+                "function": "add",
+                "file": "src/safe.ts",
+                "line": 2,
+                "operator": "ArithmeticOperator@2:7-2:8",
+                "status": "killed",
+                "waiver": None,
+            },
+        ]
+    }
+    assert outcome.exit_code == 0
+    assert outcome.survivors == [
+        {
+            **recorded["mutants"][0],
+            "blocking": False,
+            "target": "src/safe.ts::add::ArithmeticOperator@2:3-2:4",
+        }
+    ]
 
 
 def test_tool_and_waiver_errors_exit_4_without_versions(

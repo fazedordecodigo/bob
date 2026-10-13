@@ -13,6 +13,7 @@ As ADRs desta pasta registram decisões que a spec ou um PR já tomou, e que a p
 - [0003](0003-exit-codes.md) fixa os cinco exit codes e as exceções já aprovadas.
 - [0004](0004-empacotamento-quatro-agentes.md) fixa os quatro agentes e a lista única de skills.
 - [0005](0005-modelo-de-gate-das-analises-novas.md) fixa o veredito, o waiver, a chave e o relatório das análises novas. Aceita em 12/10/2026, às 17h55 (São Paulo).
+- [0006](0006-chave-estavel-do-waiver.md) fixa a chave do waiver de mutação em arquivo, função e descrição. Decidida pelo Emerson em 12/10/2026, às 19h58 (São Paulo).
 
 ## Visão geral
 
@@ -62,7 +63,7 @@ flowchart TD
  write --> worse["o maior entre 0, 1, 2, 3 e 4"]
 ```
 
-`bob.yaml` é lido até três vezes no `check`. Idioma, preflight, `load_config`. Sem arquivo, vale o padrão. Base `origin/main`, linguagens `["python"]`, include `src`, CRAP 10, escopo `changed`, `min_tokens` 50. Não há autodetecção. Um `languages` omitido vira `["python"]`. Uma lista vazia sai com 4.
+`bob.yaml` é lido até três vezes no `check`. Idioma, preflight, `load_config`. Sem arquivo, vale o padrão, e a lista de linguagens é autodetectada. Base `origin/main`, include `src`, CRAP 10, escopo `changed`, `min_tokens` 50. Uma chave `languages` omitida ou nula varre `paths.include`, ignora `paths.exclude` por prefixo de caminho (não por glob) e não segue symlink. `.py` escolhe `python`. `.ts`, `.tsx`, `.js`, `.jsx`, `.mjs` e `.cjs` escolhem `typescript`, nessa ordem. Sem esses arquivos, fica `["python"]`. Uma lista explícita não é reescrita. Uma lista vazia sai com 4.
 
 `crap.scope` só filtra o veredito. A string exata `changed` olha funções tocadas. Qualquer outra string não vazia conta toda função medida.
 
@@ -70,7 +71,7 @@ Cada gate devolve um status e um inteiro. O status vai para o relatório. O inte
 
 O foco de um arquivo é o maior CRAP entre as funções alteradas dele. Clone marca `clone: true` e não soma número. Cada sobrevivente sem waiver soma 100.
 
-Waivers ficam em `.bob/waivers.yaml`. O casamento usa o id do mutante, o nome nu da função, `arquivo:função` e `arquivo::função`. O primeiro item da lista cujo id está nesse conjunto ganha. Nome nu casa em todo arquivo.
+Waivers ficam em `.bob/waivers.yaml`. O casamento usa `arquivo::função` e `arquivo::função::<descrição>`, como a [0006](0006-chave-estavel-do-waiver.md) fixa. O primeiro item da lista cujo id está nesse conjunto ganha. O id do mutante e o nome nu da função não casam mais.
 
 `--since-last-run` entra só na string de reprodução. Reusar o cache já é o padrão.
 
@@ -154,7 +155,7 @@ Estas issues continuam abertas.
 | #8 | Adaptador Stryker e mutação TypeScript incremental |
 | #21 | Baixar o CRAP de `cli.py` |
 | #24 | Mutar método de classe |
-| #25 | Waiver estável, alvo inexistente, limpeza de `mutants/` |
+| #25 | Waiver estável, alvo inexistente, limpeza de `mutants/`. A chave está na [0006](0006-chave-estavel-do-waiver.md) |
 | #29 | Top 5 e funções de mesmo nome. Ver a armadilha acima antes de implementar |
 | #34 | `bob doctor --install` num checkout editável cria `src/bob_quality/node_modules` |
 | #37 | Lista de divergências entre spec e código, inclusive `bob report` e autodetect |
