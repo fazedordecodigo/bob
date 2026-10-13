@@ -3,6 +3,7 @@
 import json
 import os
 import shutil
+import signal
 import subprocess
 import sys
 from pathlib import Path
@@ -234,6 +235,50 @@ def test_explicit_python_ignores_typescript_when_node_is_missing(tmp_path: Path)
     assert result.returncode == 0, result.stderr
     assert "TypeScript" not in (crap["reason"] or "")
     assert "Node missing" not in (crap["reason"] or "")
+
+
+def test_directory_symlink_does_not_select_typescript(tmp_path: Path) -> None:
+    outside = tmp_path / "outside"
+    _write(outside, "app.ts", _TS)
+    repo = tmp_path / "repo"
+    _write(repo, "src/app.py", _PY)
+    (repo / "src" / "vendor").symlink_to(outside, target_is_directory=True)
+
+    assert load_config(None, repo).languages == ("python",)
+
+
+def test_file_symlink_does_not_select_typescript(tmp_path: Path) -> None:
+    target = tmp_path / "app.ts"
+    target.write_text(_TS)
+    repo = tmp_path / "repo"
+    _write(repo, "src/app.py", _PY)
+    (repo / "src" / "app.ts").symlink_to(target)
+
+    assert load_config(None, repo).languages == ("python",)
+
+
+def test_symlink_cycle_stays_python(tmp_path: Path) -> None:
+    _write(tmp_path, "src/app.py", _PY)
+    (tmp_path / "src" / "loop").symlink_to(tmp_path / "src", target_is_directory=True)
+
+    def _expire(_signum: int, _frame: object) -> None:
+        raise AssertionError("symlink cycle did not finish")
+
+    previous = signal.signal(signal.SIGALRM, _expire)
+    signal.setitimer(signal.ITIMER_REAL, 2)
+    try:
+        assert load_config(None, tmp_path).languages == ("python",)
+    finally:
+        signal.setitimer(signal.ITIMER_REAL, 0)
+        signal.signal(signal.SIGALRM, previous)
+
+
+def test_exclude_glob_does_not_drop_python(tmp_path: Path) -> None:
+    _write(tmp_path, "src/app.py", _PY)
+    _write(tmp_path, "src/app.ts", _TS)
+    _yaml(tmp_path, 'paths:\n  exclude: ["*.py"]\n')
+
+    assert load_config(None, tmp_path).languages == ("python", "typescript")
 
 
 def test_missing_config_still_exits_4_when_the_tree_has_typescript(tmp_path: Path) -> None:

@@ -260,6 +260,8 @@ def _detected(config: Config, cwd: Path) -> Config:
 def _scan(
     base: Path, cwd: Path, exclude: tuple[str, ...], found: set[SourceLanguage]
 ) -> None:
+    if base.is_symlink():
+        return
     if _excluded(_inside(base, cwd), exclude):
         return
     if base.is_file():

@@ -56,9 +56,9 @@ Uma chave repetida no mesmo mapeamento sai com `4`. O stderr fica em inglês e c
 
 ### languages
 
-`languages` omitido ou nulo (`languages:` ou `languages: null`) é autodetectado. O mesmo vale quando o arquivo `bob.yaml` não existe e `--config` não foi passado. A varredura lê `paths.include` e ignora `paths.exclude`. `.py` escolhe `python`. `.ts`, `.tsx`, `.js`, `.jsx`, `.mjs` e `.cjs` escolhem `typescript`. O resultado sai nessa ordem. Sem nenhum desses arquivos, o resultado é `["python"]`. Uma lista explícita permanece como foi escrita.
+`languages` omitido ou nulo (`languages:` ou `languages: null`) é autodetectado. O mesmo vale quando o arquivo `bob.yaml` não existe e `--config` não foi passado. A varredura lê `paths.include` e ignora `paths.exclude`. Ela não segue symlink. Um link para arquivo ou diretório não escolhe linguagem, e um link que aponta de volta para um pai não entra em ciclo. `.py` escolhe `python`. `.ts`, `.tsx`, `.js`, `.jsx`, `.mjs` e `.cjs` escolhem `typescript`. O resultado sai nessa ordem. Sem nenhum desses arquivos, o resultado é `["python"]`. Uma lista explícita permanece como foi escrita.
 
-Um item de `paths.exclude` casa com o caminho inteiro, com o prefixo `item/`, ou com um componente do caminho. `tests` deixa de fora `tests/a.py` e `src/tests/a.py`. `node_modules` deixa de fora `src/node_modules`.
+`paths.exclude` casa por prefixo de caminho, não por glob. O item casa com o caminho inteiro, com o prefixo `item/`, ou com um componente do caminho. `*.py` não deixa `src/app.py` de fora. `tests` deixa de fora `tests/a.py` e `src/tests/a.py`. `node_modules` deixa de fora `src/node_modules`.
 
 Uma lista vazia ou um item repetido sai com 4.
 

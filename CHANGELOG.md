@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+Language detection does not follow symlinks. A symlink to a file or a directory does not select a language, and a symlink that points back at a parent does not loop. `paths.exclude` matches a path prefix or a path component. It is not a glob. An entry `*.py` does not exclude `src/app.py`.
+
+A detecção de linguagem não segue symlink. Um link para arquivo ou diretório não escolhe linguagem, e um link que aponta de volta para um pai não entra em ciclo. `paths.exclude` casa por prefixo de caminho ou por componente. Não é glob. A entrada `*.py` não deixa `src/app.py` de fora.
+
 Omitting `languages`, or setting it to null, detects the list from files under `paths.include` and outside `paths.exclude`. `.py` selects `python`. `.ts`, `.tsx`, `.js`, `.jsx`, `.mjs`, and `.cjs` select `typescript`, in that order. If none of those files exist, the result stays `[python]`. An explicit list is kept as written. A missing `bob.yaml`, with no `--config`, uses the same detection. A `--config` path that is not a file still exits `4` and writes nothing.
 
 `languages` omitido ou nulo é autodetectado pelos arquivos em `paths.include`, fora de `paths.exclude`. `.py` escolhe `python`. `.ts`, `.tsx`, `.js`, `.jsx`, `.mjs` e `.cjs` escolhem `typescript`, nessa ordem. Sem nenhum desses arquivos, o resultado continua `[python]`. Uma lista explícita permanece como foi escrita. Um `bob.yaml` ausente, sem `--config`, usa a mesma detecção. Um `--config` que não é arquivo continua saindo com `4` e não grava nada.

@@ -62,7 +62,7 @@ flowchart TD
  write --> worse["o maior entre 0, 1, 2, 3 e 4"]
 ```
 
-`bob.yaml` é lido até três vezes no `check`. Idioma, preflight, `load_config`. Sem arquivo, vale o padrão, e a lista de linguagens é autodetectada. Base `origin/main`, include `src`, CRAP 10, escopo `changed`, `min_tokens` 50. Uma chave `languages` omitida ou nula varre `paths.include` e ignora `paths.exclude`. `.py` escolhe `python`. `.ts`, `.tsx`, `.js`, `.jsx`, `.mjs` e `.cjs` escolhem `typescript`, nessa ordem. Sem esses arquivos, fica `["python"]`. Uma lista explícita não é reescrita. Uma lista vazia sai com 4.
+`bob.yaml` é lido até três vezes no `check`. Idioma, preflight, `load_config`. Sem arquivo, vale o padrão, e a lista de linguagens é autodetectada. Base `origin/main`, include `src`, CRAP 10, escopo `changed`, `min_tokens` 50. Uma chave `languages` omitida ou nula varre `paths.include`, ignora `paths.exclude` por prefixo de caminho (não por glob) e não segue symlink. `.py` escolhe `python`. `.ts`, `.tsx`, `.js`, `.jsx`, `.mjs` e `.cjs` escolhem `typescript`, nessa ordem. Sem esses arquivos, fica `["python"]`. Uma lista explícita não é reescrita. Uma lista vazia sai com 4.
 
 `crap.scope` só filtra o veredito. A string exata `changed` olha funções tocadas. Qualquer outra string não vazia conta toda função medida.
 
