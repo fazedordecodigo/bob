@@ -243,7 +243,9 @@ def parse_language(value: str) -> Language:
 
 def _config_from_file(config_path: Path, cwd: Path) -> Config:
     raw = _read_mapping(config_path, cwd)
-    values = _read_node(_SCHEMA, raw, _config_label(config_path, cwd), "")
+    label = _config_label(config_path, cwd)
+    values = _read_node(_SCHEMA, raw, label, "")
+    _reject_missing_include(values.get("include"), label, cwd)
     config = Config(**values)
     if "languages" in values:
         return config
@@ -296,6 +298,15 @@ def _excluded(relative: Path, exclude: tuple[str, ...]) -> bool:
         if pattern in relative.parts:
             return True
     return False
+
+
+def _reject_missing_include(include: object, label: str, cwd: Path) -> None:
+    if not _string_items(include):
+        return
+    missing = [item for item in include if not (cwd / item).exists()]
+    if not missing:
+        return
+    raise ConfigError(msg("config.include_missing", path=label, missing=", ".join(missing)))
 
 
 def _read_mapping(config_path: Path, cwd: Path) -> dict[str, Any]:

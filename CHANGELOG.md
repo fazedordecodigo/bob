@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+A `paths.include` entry that is not on disk exits `4`. English stderr names the config file and each missing entry, as in `bob.yaml: paths.include does not exist: missing-root`. Nothing is written. `check`, `crap`, `dry`, `deps`, `mutate`, `doctor`, and `waive` share that line, including when `--lang` is `pt-BR`. An omitted or empty `paths.include` still means `src` and is not checked.
+
+Uma entrada de `paths.include` que não está no disco sai com `4`. O stderr em inglês cita o arquivo de configuração e cada entrada ausente, como em `bob.yaml: paths.include does not exist: missing-root`. Nada é gravado. `check`, `crap`, `dry`, `deps`, `mutate`, `doctor` e `waive` usam a mesma linha, inclusive com `--lang pt-BR`. Um `paths.include` omitido ou vazio continua sendo `src` e não é verificado.
+
 Language detection does not follow symlinks. A symlink to a file or a directory does not select a language, and a symlink that points back at a parent does not loop. `paths.exclude` matches a path prefix or a path component. It is not a glob. An entry `*.py` does not exclude `src/app.py`.
 
 A detecção de linguagem não segue symlink. Um link para arquivo ou diretório não escolhe linguagem, e um link que aponta de volta para um pai não entra em ciclo. `paths.exclude` casa por prefixo de caminho ou por componente. Não é glob. A entrada `*.py` não deixa `src/app.py` de fora.
