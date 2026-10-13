@@ -294,28 +294,54 @@ def _fold(
     policy: FailSeverities,
     waivers: tuple[Waiver, ...],
 ) -> tuple[GateResult, int, dict[str, str], SecurityReport]:
-    measured = [item for item in scans if isinstance(item, Measured)]
-    missed = [item for item in scans if isinstance(item, Unmeasured)]
-    names = tuple(item.tool for item in missed)
+    measured, missed = _partition(scans)
     if not measured:
-        return (
-            GateResult("security", "not_run", _join([item.reason for item in missed])),
-            CONFIG_OR_TOOL,
-            {},
-            SecurityReport((), names),
-        )
-    judged = _ordered(
-        [
-            judge(finding, diff_lines, policy, waivers)
-            for item in measured
-            for finding in item.findings
-        ]
-    )
+        return _nothing_measured(missed)
+    judged = _ordered(_judge_all(measured, diff_lines, policy, waivers))
     result, code = security_verdict(judged)
     if missed:
         result, code = _note_dropped(result, code, [item.reason for item in missed])
-    versions = {item.tool: item.version for item in measured if item.version}
-    return result, code, versions, SecurityReport(judged, names)
+    return result, code, _versions(measured), SecurityReport(judged, _tool_names(missed))
+
+
+def _partition(
+    scans: tuple[Measured | Unmeasured, ...],
+) -> tuple[tuple[Measured, ...], tuple[Unmeasured, ...]]:
+    measured = tuple(item for item in scans if isinstance(item, Measured))
+    missed = tuple(item for item in scans if isinstance(item, Unmeasured))
+    return measured, missed
+
+
+def _nothing_measured(
+    missed: tuple[Unmeasured, ...],
+) -> tuple[GateResult, int, dict[str, str], SecurityReport]:
+    return (
+        GateResult("security", "not_run", _join([item.reason for item in missed])),
+        CONFIG_OR_TOOL,
+        {},
+        SecurityReport((), _tool_names(missed)),
+    )
+
+
+def _judge_all(
+    measured: tuple[Measured, ...],
+    diff_lines: dict[str, set[int]],
+    policy: FailSeverities,
+    waivers: tuple[Waiver, ...],
+) -> list[Judged]:
+    return [
+        judge(finding, diff_lines, policy, waivers)
+        for item in measured
+        for finding in item.findings
+    ]
+
+
+def _versions(measured: tuple[Measured, ...]) -> dict[str, str]:
+    return {item.tool: item.version for item in measured if item.version}
+
+
+def _tool_names(missed: tuple[Unmeasured, ...]) -> tuple[str, ...]:
+    return tuple(item.tool for item in missed)
 
 
 def _ordered(judged: list[Judged]) -> tuple[Judged, ...]:

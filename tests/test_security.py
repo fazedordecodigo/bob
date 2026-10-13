@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import shutil
 import subprocess
 import sys
 from collections.abc import Iterator
@@ -8,12 +9,13 @@ from contextlib import contextmanager
 from dataclasses import replace
 from pathlib import Path
 
-from helpers import run_bob
+from helpers import in_both, run_bob
 from jsonschema import Draft202012Validator
 
 from bob_quality.adapters.bandit import parse_bandit
+from bob_quality.config import load_config
 from bob_quality.models import Fail, OffDiff, Severity, Waived
-from bob_quality.security_gate import FailSeverities, judge
+from bob_quality.security_gate import FailSeverities, judge, run_security_gate
 from bob_quality.waivers import Waiver
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -588,6 +590,99 @@ def test_a_rule_id_with_a_colon_matches_by_equality() -> None:
     assert judge(finding, on_diff, policy, (split,)) == Fail(finding)
     assert judge(finding, off_diff, policy, (specific,)) == Waived(finding, "specific")
     assert judge(finding, off_diff, policy, (broad,)) == OffDiff(finding)
+
+
+def test_a_missing_include_root_measures_nothing(tmp_path: Path) -> None:
+    repo = _init(tmp_path, "python")
+    shutil.rmtree(repo / "src")
+
+    result = _check(repo)
+
+    assert result.returncode == 0
+    payload, _markdown = _report(repo)
+    assert _gate(payload)["status"] == "passed"
+    assert payload["security"] == {"findings": [], "unmeasured": []}
+
+
+def test_invalid_semgrep_rules_are_unmeasured(tmp_path: Path) -> None:
+    repo = _init(tmp_path, "typescript")
+    _commit(repo, ".semgrep/rules.yml", "rules:\n  - id: [broken\n", "rules")
+    _commit(repo, "src/app.ts", TS_CLEAN, "clean")
+
+    result = _check(repo)
+
+    assert result.returncode == 4
+    payload, _markdown = _report(repo)
+    assert _gate(payload)["status"] == "not_run"
+    assert _gate(payload)["reason"] == "semgrep: exit 7"
+    assert payload["security"] == {"findings": [], "unmeasured": ["semgrep"]}
+
+
+def test_bandit_stdout_outside_the_contract_is_unmeasured(
+    tmp_path: Path, monkeypatch
+) -> None:
+    repo = _ready_python(tmp_path)
+    _stub_bandit(monkeypatch, subprocess.CompletedProcess([], 0, stdout="{", stderr=""))
+
+    result, code, versions, report = run_security_gate(repo, load_config(None, repo), "main", {})
+
+    assert code == 4
+    assert versions == {}
+    assert result.status == "not_run"
+    assert in_both(result.reason) == ("bandit: invalid JSON", "bandit: JSON inválido")
+    assert report.unmeasured == ("bandit",)
+    assert report.findings == ()
+
+
+def test_bandit_exit_outside_measurement_is_unmeasured(tmp_path: Path, monkeypatch) -> None:
+    repo = _ready_python(tmp_path)
+    _stub_bandit(monkeypatch, subprocess.CompletedProcess([], 2, stdout="", stderr="usage"))
+
+    result, code, _versions, report = run_security_gate(
+        repo, load_config(None, repo), "main", {}
+    )
+
+    assert code == 4
+    assert result.status == "not_run"
+    assert in_both(result.reason) == ("bandit: exit 2", "bandit: exit 2")
+    assert report.unmeasured == ("bandit",)
+
+
+def test_a_bandit_timeout_is_unmeasured(tmp_path: Path, monkeypatch) -> None:
+    repo = _ready_python(tmp_path)
+
+    def explode(argv: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
+        raise subprocess.TimeoutExpired(argv, 1)
+
+    _stub_bandit(monkeypatch, explode)
+
+    result, code, _versions, report = run_security_gate(
+        repo, load_config(None, repo), "main", {}
+    )
+
+    assert code == 4
+    assert result.status == "not_run"
+    assert "timed out" in in_both(result.reason)[0]
+    assert report.unmeasured == ("bandit",)
+
+
+def _ready_python(tmp_path: Path) -> Path:
+    repo = _init(tmp_path, "python")
+    _commit(repo, "src/app.py", "def ready():\n    return 1\n", "ready")
+    return repo
+
+
+def _stub_bandit(monkeypatch, outcome: object) -> None:
+    real = subprocess.run
+
+    def fake(argv: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
+        if argv[1:3] == ["-m", "bandit"]:
+            if isinstance(outcome, subprocess.CompletedProcess):
+                return outcome
+            return outcome(argv, **kwargs)
+        return real(argv, **kwargs)
+
+    monkeypatch.setattr("bob_quality.security_gate.subprocess.run", fake)
 
 
 def test_gate_publications_stay_on_the_default_lists() -> None:

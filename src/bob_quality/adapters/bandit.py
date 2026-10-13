@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 from typing import Any
 
+from bob_quality.adapters.paths import repo_relative
 from bob_quality.messages import msg
 from bob_quality.models import Finding, Severity
 
@@ -47,7 +48,7 @@ def _finding(item: Any, root: Path) -> Finding | None:
         raise BanditParseError(msg("bandit.malformed"))
     if label not in LABELS:
         raise BanditParseError(msg("bandit.malformed"))
-    relative = _relative(filename, root)
+    relative = repo_relative(filename, root)
     if relative is None:
         return None
     line, end_line = _span(item)
@@ -77,20 +78,3 @@ def _span(item: dict[str, Any]) -> tuple[int, int]:
         return line, line
     raise BanditParseError(msg("bandit.malformed"))
 
-
-def _relative(filename: str, root: Path) -> str | None:
-    path = Path(filename)
-    if not path.is_absolute() and ".." not in path.parts:
-        text = path.as_posix().removeprefix("./")
-        return text or None
-    try:
-        if path.is_absolute():
-            relative = path.resolve().relative_to(root.resolve())
-        else:
-            relative = (root / path).resolve().relative_to(root.resolve())
-    except ValueError:
-        return None
-    text = relative.as_posix()
-    if text in {"", "."} or text.startswith("../"):
-        return None
-    return text
