@@ -5,6 +5,8 @@ from pathlib import Path
 
 import yaml
 
+from bob_quality.doctor import NODE, node_admits
+
 ROOT = Path(__file__).resolve().parents[1]
 CI = ROOT / ".github" / "workflows" / "ci.yml"
 BOB = ROOT / ".github" / "workflows" / "bob.yml"
@@ -187,3 +189,35 @@ def test_composite_action_comments_uploads_cache_and_keeps_bob_status() -> None:
     joined = ACTION.read_text(encoding="utf-8")
     assert "ghp_" not in joined
     assert "github_pat_" not in joined
+
+
+def _setup_node_versions(path: Path) -> list[str]:
+    found: list[str] = []
+    _collect_setup_node_versions(_load(path), found)
+    return found
+
+
+def _collect_setup_node_versions(node: object, found: list[str]) -> None:
+    if isinstance(node, dict):
+        uses = node.get("uses")
+        if isinstance(uses, str) and uses.split("@", 1)[0].endswith("setup-node"):
+            with_block = node.get("with")
+            assert isinstance(with_block, dict)
+            version = with_block["node-version"]
+            assert isinstance(version, str)
+            found.append(version)
+        for value in node.values():
+            _collect_setup_node_versions(value, found)
+    elif isinstance(node, list):
+        for item in node:
+            _collect_setup_node_versions(item, found)
+
+
+def test_workflows_install_a_node_the_doctor_accepts() -> None:
+    package = ROOT / ".github" / "workflows" / "package.yml"
+    counts = {ACTION: 1, CI: 1, BOB: 2, package: 1}
+    for path, count in counts.items():
+        versions = _setup_node_versions(path)
+        assert len(versions) == count, path
+        for version in versions:
+            assert node_admits(NODE, version) is True, (path, version)

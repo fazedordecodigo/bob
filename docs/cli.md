@@ -18,6 +18,8 @@ Todo comando aceita `--lang en|pt-BR` antes ou depois do nome. Ver [Idioma](#idi
 
 Um uso inválido da linha de comando sai com `4`. O stderr é o texto de uso do argparse, não menciona baseline, e nada é gravado em `.bob/`. A ajuda (`-h`, `--help`) sai com `0`. Isso não é o exit `2` da suíte. Um valor fora da regra de `--threshold` ou de `--max-workers` também é uso inválido. A última linha do stderr fica em inglês, mesmo com `--lang pt-BR`, como `bob crap: error: argument --threshold: invalid value: 'nan' (use a finite number greater than 0)`.
 
+`--config` antes do nome do comando também é uso inválido. Nada é gravado em `.bob/`. A última linha do stderr fica em inglês, mesmo com `--lang pt-BR`. Ela mostra o comando com a flag depois do nome, como `bob: error: --config goes after the command: bob check --config ci.yaml`. Um caminho com espaço sai entre aspas, como `bob crap --config 'my ci.yaml'`. `doctor` não aceita `--config`. A última linha é `bob: error: doctor does not accept --config`. `waive` também não aceita. A última linha é `bob: error: waive does not accept --config`. `bob --help` não lista `--config`.
+
 ## bob check
 
 Roda os gates pedidos e grava `.bob/` (ou `--out`).
@@ -56,9 +58,9 @@ Quando mais de um gate devolve código, fica o maior (`_worse` em `check.py`).
 
 ## bob doctor
 
-Lista cada pino de `src/bob_quality/doctor.py` com a versão esperada e a encontrada. Sai com `0` quando todas coincidem e com `4` quando alguma falta ou diverge, e imprime o comando de instalação. Não grava `.bob/report.md`.
+Lista cada pino de `src/bob_quality/doctor.py` com a versão esperada e a encontrada. Sai com `0` quando cada pino está satisfeito e com `4` quando algum falta ou fica fora do pino, e imprime o comando de instalação. Não grava `.bob/report.md`. Um sufixo `-rc` na versão encontrada fica de fora do pino e o doctor sai com `4`.
 
-Pinos, na ordem do código: lizard 1.24.1, coverage.py 7.16.2, node 22.14.0, c8 12.0.0, vitest 5.0.3, jscpd 5.4.1, mutmut 3.8.0, import-linter 2.15, grimp 3.17, dependency-cruiser 18.5.0. A versão esperada de uma ferramenta Python vem do Requires-Dist instalado do `bob-quality`.
+Pinos, na ordem do código: lizard 1.24.1, coverage.py 7.16.2, node `>=22.14.0 <23`, c8 12.0.0, vitest 5.0.3, jscpd 5.4.1, mutmut 3.8.0, import-linter 2.15, grimp 3.17, dependency-cruiser 18.5.0, stryker 10.0.0, stryker-vitest-runner 10.0.0. A versão esperada de uma ferramenta Python vem do Requires-Dist instalado do `bob-quality`.
 
 `bob doctor --install` roda `npm ci` no pacote instalado e depois imprime o mesmo relatório. Ver [Instalação](instalacao.md#pacote-pip-bob-quality).
 
