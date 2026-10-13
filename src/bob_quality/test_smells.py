@@ -435,7 +435,7 @@ def _by_location(smell: TestSmell) -> tuple[str, int, str]:
 
 def _read_source(path: Path) -> str | None:
     try:
-        return path.read_text(encoding="utf-8")
+        return path.read_bytes().decode()
     except (OSError, UnicodeError):
         return None
 

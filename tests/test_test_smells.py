@@ -168,6 +168,8 @@ def test_a_bad_waiver_file_is_not_a_smell_verdict(tmp_path: Path) -> None:
 
     assert code == 4
     assert payload["exit_code"] == 4
+    assert payload["base"] == "main"
+    assert payload["reproduce"] == "bob check"
     assert payload["gates"] == [
         {
             "name": "test_smells",
