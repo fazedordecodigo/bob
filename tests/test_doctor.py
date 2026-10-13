@@ -55,6 +55,8 @@ PINS = (
     ("grimp", "3.17", None, None),
     ("dependency-cruiser", "18.5.0", "dependency-cruiser", "18.5.0"),
     ("gitleaks", "8.30.1", "gitleaks", "8.30.1"),
+    ("vulture", "2.16", "vulture", "vulture 2.16"),
+    ("knip", "6.41.0", "knip", "knip 6.41.0"),
     ("stryker", "10.0.0", "stryker", "10.0.0"),
     ("stryker-vitest-runner", "10.0.0", "stryker-vitest-runner", "10.0.0"),
 )
@@ -383,6 +385,8 @@ def test_doctor_expected_versions_match_pip_and_npm_pins(tmp_path: Path) -> None
     assert npm["vitest"] == expected["vitest"]
     assert npm["jscpd"] == expected["jscpd"]
     assert npm["dependency-cruiser"] == expected["dependency-cruiser"]
+    assert npm["knip"] == expected["knip"]
+    assert requirements["vulture"] == expected["vulture"]
     assert npm["@stryker-mutator/core"] == expected["stryker"]
     assert npm["@stryker-mutator/vitest-runner"] == expected["stryker-vitest-runner"]
     assert set(npm) == {
@@ -391,6 +395,7 @@ def test_doctor_expected_versions_match_pip_and_npm_pins(tmp_path: Path) -> None
         "c8",
         "dependency-cruiser",
         "jscpd",
+        "knip",
         "vitest",
     }
 
