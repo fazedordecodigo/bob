@@ -56,6 +56,21 @@ def test_no_coverage_summary_groups_uncovered_mutants_by_listed_function() -> No
     assert no_coverage_summary(_MUTANTS, _LABELS) == _SUMMARY
 
 
+def test_no_coverage_summary_counts_a_typescript_id_by_file_and_function() -> None:
+    mutants = [
+        Mutant("src/safe.ts:2", "add", "src/safe.ts", 2, "BlockStatement", "no_coverage"),
+        Mutant("app.a.x_add__mutmut_1", "add", "", 0, "", "no_coverage"),
+    ]
+
+    assert no_coverage_summary(mutants, ["src/safe.ts::add", "src/app/a.py::add"]) == {
+        "total": 2,
+        "functions": [
+            {"file": "src/app/a.py", "function": "add", "count": 1},
+            {"file": "src/safe.ts", "function": "add", "count": 1},
+        ],
+    }
+
+
 def test_finish_warns_for_one_uncovered_mutant_and_passes_when_there_are_none() -> None:
     uncovered = Mutant("app.orphan.x_orphan__mutmut_1", "orphan", "", 0, "", "no_coverage")
     warned = _finish([uncovered], ["src/app/orphan.py::orphan"], [], {}, [])
