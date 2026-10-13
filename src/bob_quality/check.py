@@ -6,7 +6,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
 
-from bob_quality.churn import ChurnSection, ChurnUnavailable, measure_churn
+from bob_quality.churn import ChurnSection, measure_churn
 from bob_quality.config import Config, ConfigError, load_config
 from bob_quality.core import files_by_risk, informational_debt, top_changed_crap
 from bob_quality.crap_gate import run_crap_gate
@@ -290,5 +290,4 @@ def _fail_early(
         top_crap=[],
         reproduce=reproduce,
         exit_code=exit_code,
-        churn=ChurnUnavailable(),
     )

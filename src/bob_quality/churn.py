@@ -23,6 +23,7 @@ __all__ = (
 # amplie a listagem.
 _GIT = ("git", "--literal-pathspecs")
 _CI_LINE = re.compile(r"(\d{4}-\d{2}-\d{2}) (\d{2}:\d{2}:\d{2}) ([+-]\d{4})")
+_COMMIT_LINE = re.compile(r"[0-9a-f]{40}")
 
 
 class MetricView(Protocol):
@@ -139,8 +140,6 @@ def _date_argv(commit: str) -> tuple[str, ...]:
 
 def _file_log_argv(commit: str, since: str, until: str, path: str) -> tuple[str, ...]:
     return _GIT + (
-        "-c",
-        "log.showSignature=false",
         "log",
         "--no-notes",
         "--format=%H",
@@ -173,12 +172,14 @@ def _matches(path: str, roots: tuple[PurePosixPath, ...]) -> bool:
 
 
 def _commit_date(stdout: str) -> tuple[date, str] | None:
-    lines = stdout.splitlines()
-    if len(lines) != 1:
+    found = [
+        match
+        for line in stdout.splitlines()
+        if (match := _CI_LINE.fullmatch(line)) is not None
+    ]
+    if len(found) != 1:
         return None
-    match = _CI_LINE.fullmatch(lines[0])
-    if match is None:
-        return None
+    match = found[0]
     day, clock, offset = match.group(1), match.group(2), match.group(3)
     try:
         datetime.strptime(f"{day} {clock}", "%Y-%m-%d %H:%M:%S")
@@ -188,7 +189,7 @@ def _commit_date(stdout: str) -> tuple[date, str] | None:
 
 
 def _commit_count(stdout: str) -> int:
-    return sum(1 for line in stdout.splitlines() if line != "")
+    return sum(1 for line in stdout.splitlines() if _COMMIT_LINE.fullmatch(line))
 
 
 def _hotspots(
@@ -224,7 +225,6 @@ def _git_stdout(cwd: Path, argv: tuple[str, ...]) -> str | None:
             cwd=cwd,
             capture_output=True,
             text=True,
-            check=False,
         )
     except OSError:
         return None

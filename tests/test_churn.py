@@ -6,6 +6,7 @@ import subprocess
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 
+import pytest
 from jsonschema import Draft202012Validator
 
 from helpers import init_python_repo, run_bob
@@ -20,7 +21,7 @@ from bob_quality.churn import (
     measure_churn,
 )
 from bob_quality.models import FunctionMetric, Report
-from bob_quality.report import to_json, to_markdown
+from bob_quality.report import _churn_json, _churn_lines, to_json, to_markdown
 
 SCHEMA = json.loads(
     (Path(__file__).resolve().parents[1] / "src/bob_quality/schemas/report_v1.json").read_text()
@@ -209,6 +210,77 @@ def test_hotspots_sort_by_product_then_name(tmp_path: Path) -> None:
         ("src/a.py", "m", 9, 8),
         ("src/b.py", "m", 2, 8),
     ]
+
+
+def test_dot_include_counts_every_relative_file(tmp_path: Path) -> None:
+    repo, tip = _tree(tmp_path)
+
+    section = measure_churn(
+        repo, tip, 90, {"a.py": {1}, "src/a.py": {1}}, (".",), ()
+    )
+
+    assert section == ChurnMeasured(
+        ChurnWindow(90, date(2020, 1, 15)),
+        (FileChurn("a.py", 1), FileChurn("src/a.py", 1)),
+        (),
+    )
+
+
+def test_a_skipped_metric_keeps_the_later_hotspot(tmp_path: Path) -> None:
+    repo, tip = _tree(tmp_path)
+    metrics = (
+        _metric("nope.py", "skip", 1, 9, True),
+        _metric("src/a.py", "kept", 1, 3, True),
+    )
+
+    section = measure_churn(repo, tip, 90, {"src/a.py": {1}}, ("src",), metrics)
+
+    assert section.hotspots == (Hotspot("src/a.py", "kept", 1, 3, 1),)
+
+
+def test_signature_text_is_not_a_commit(tmp_path: Path) -> None:
+    repo, tip = _boundary(tmp_path)
+    _git(repo, "config", "log.showSignature", "true")
+    logged = _git(
+        repo,
+        "--literal-pathspecs",
+        "log",
+        "--no-notes",
+        "--format=%H",
+        tip,
+        "--",
+        "src/a.py",
+    )
+
+    assert "No signature" in logged
+    assert measure_churn(repo, tip, 90, {"src/a.py": {1}}, ("src",), ()) == ChurnMeasured(
+        ChurnWindow(90, date(2026, 10, 12)),
+        (FileChurn("src/a.py", 3),),
+        (),
+    )
+
+
+def test_two_modules_render_with_a_blank_line_before_the_heading() -> None:
+    section = ChurnMeasured(
+        ChurnWindow(90, date(2020, 1, 15)),
+        (FileChurn("lib/a.py", 1), FileChurn("src/b.py", 2)),
+        (),
+    )
+
+    markdown = to_markdown(_report(section), "en")
+
+    assert "\n\n## Churn\n" in markdown
+    assert "Modules: `lib`, `src`." in markdown
+
+
+def test_an_unknown_churn_section_reports_its_type() -> None:
+    with pytest.raises(AssertionError) as json_error:
+        _churn_json(object())
+    with pytest.raises(AssertionError) as markdown_error:
+        _churn_lines(object())
+
+    assert json_error.value.args == (object,)
+    assert markdown_error.value.args == (object,)
 
 
 def test_a_missing_commit_date_is_unavailable(tmp_path: Path) -> None:
