@@ -11,7 +11,7 @@ from dataclasses import dataclass
 from typing import Union
 
 from bob_quality.adapters.manifests import AddedPackage, pep503
-from bob_quality.models import Severity, UndecidedCause
+from bob_quality.models import AdvisoryGap, Severity, UndecidedCause
 
 _OSV = "https://api.osv.dev/v1/querybatch"
 _VULN = "https://api.osv.dev/v1/vulns/"
@@ -70,7 +70,7 @@ class DecidedAdvisory:
 
 @dataclass(frozen=True)
 class UndecidedRecord:
-    cause: UndecidedCause
+    cause: AdvisoryGap
     advisory_id: str
 
 
@@ -274,7 +274,7 @@ def _record(vuln: dict[str, object]) -> DecidedAdvisory | UndecidedRecord | None
         return None
     severity = _severity(vuln)
     if severity is None:
-        return UndecidedRecord("undecided", advisory_id)
+        return UndecidedRecord("no_severity", advisory_id)
     return DecidedAdvisory(advisory_id, severity)
 
 

@@ -620,6 +620,8 @@ def _advisory_what(finding: Advisory, row: SupplyRow) -> Text:
 def _unverified_advisory_what(finding: UnverifiedAdvisory) -> Text:
     if finding.advisory_id is None:
         return msg(_EXISTENCE_WHAT[finding.cause])
+    if finding.cause == "no_severity":
+        return msg("report.supply_no_severity", advisory=finding.advisory_id)
     return msg(
         "report.supply_unverified_advisory",
         advisory=finding.advisory_id,

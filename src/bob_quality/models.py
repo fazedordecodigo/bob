@@ -213,6 +213,7 @@ SupplyIndex = Literal["pypi", "npm"]
 FailSeverity = Literal["HIGH", "CRITICAL"]
 Severity = Literal["CRITICAL", "HIGH", "MODERATE", "LOW"]
 UndecidedCause = Literal["timeout", "dns", "undecided"]
+AdvisoryGap = Literal["timeout", "dns", "undecided", "no_severity"]
 
 
 @dataclass(frozen=True)
@@ -260,7 +261,7 @@ class UnverifiedAdvisory:
     name: str
     file: str
     line: int
-    cause: UndecidedCause
+    cause: AdvisoryGap
     advisory_id: str | None = None
     kind: Literal["unverified"] = "unverified"
     question: Literal["advisory"] = "advisory"
