@@ -238,21 +238,28 @@ def test_a_skipped_metric_keeps_the_later_hotspot(tmp_path: Path) -> None:
     assert section.hotspots == (Hotspot("src/a.py", "kept", 1, 3, 1),)
 
 
-def test_signature_text_is_not_a_commit(tmp_path: Path) -> None:
+def test_signature_text_is_not_a_commit(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     repo, tip = _boundary(tmp_path)
-    _git(repo, "config", "log.showSignature", "true")
-    logged = _git(
-        repo,
-        "--literal-pathspecs",
-        "log",
-        "--no-notes",
-        "--format=%H",
-        tip,
-        "--",
-        "src/a.py",
+    bindir = tmp_path / "bin"
+    bindir.mkdir()
+    wrapper = bindir / "git"
+    wrapper.write_text(
+        "#!/bin/sh\n"
+        "PATH=${PATH#*:}\n"
+        'out=$(git "$@")\n'
+        "code=$?\n"
+        'if [ "$2" = log ]; then\n'
+        "  printf 'No signature\\n%s' \"$out\"\n"
+        "else\n"
+        "  printf '%s' \"$out\"\n"
+        "fi\n"
+        'exit "$code"\n'
     )
+    wrapper.chmod(0o755)
+    monkeypatch.setenv("PATH", f"{bindir}{os.pathsep}{os.environ['PATH']}")
 
-    assert "No signature" in logged
     assert measure_churn(repo, tip, 90, {"src/a.py": {1}}, ("src",), ()) == ChurnMeasured(
         ChurnWindow(90, date(2026, 10, 12)),
         (FileChurn("src/a.py", 3),),
