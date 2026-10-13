@@ -12,7 +12,7 @@ A #91 (N9) instala Node e jscpd na Action do gate DRY que já existe. Fica fora 
 
 ## Decisão
 
-Um aviso contribui 0. O status do gate fica `warn`. Um achado que bloqueia, restrito ao diff, sai com 1 (`GATE_FAILED`), o mesmo inteiro do CRAP e das dependências. O 2 deste modelo é `BASELINE_BROKEN`, a suíte que quebra antes da medição. O 2 do `ArgumentParser`, quando falta subcomando ou a flag é ilegal, continua o da [0003](0003-exit-codes.md) e não é baseline. O 3 continua só no sobrevivente sem waiver. O 4 continua em configuração inválida e em ferramenta ausente que impede a medição pedida. `check.py` fica com o maior código.
+Um aviso contribui 0. O status do gate fica `warn`. Um achado que bloqueia, restrito ao diff, sai com 1 (`GATE_FAILED`), o mesmo inteiro do CRAP e das dependências. O 2 deste modelo é `BASELINE_BROKEN`, a suíte que quebra antes da medição. O 4 do `ArgumentParser`, quando falta subcomando ou a flag é ilegal, continua o da [0003](0003-exit-codes.md) e não é baseline. O Emerson deu o OK em 13/10/2026, às 15:05. O 3 continua só no sobrevivente sem waiver. O 4 continua em configuração inválida e em ferramenta ausente que impede a medição pedida. `check.py` fica com o maior código.
 
 As ferramentas medem a árvore de `paths.include`. Só entra no veredito o achado cuja linha cai no lado novo do diff. O resto pode aparecer no relatório e não muda o exit.
 

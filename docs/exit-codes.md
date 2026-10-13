@@ -18,7 +18,7 @@ Todos os gates pedidos que de fato rodaram passaram. Aviso também termina em `0
 
 Um nome de gate desconhecido é `not_run` e contribui `0`.
 
-`bob waive` com motivo válido sai com `0` e só escreve `.bob/waivers.yaml`.
+`bob waive` com motivo válido e alvo de um sobrevivente do último relatório de mutação sai com `0` e só escreve `.bob/waivers.yaml`.
 
 `bob doctor` sai com `0` quando cada pino coincide com a versão encontrada.
 
@@ -44,7 +44,7 @@ O [AGENTS.md](../AGENTS.md) registra que o exit `2` também sai do `bob check` p
 
 Só o gate `mutate`. Em `_finish`, a lista que bloqueia são os mutantes com status `survived`, waiver vazio e linha no lado novo do diff. Sem arquivo, ou com linha menor ou igual a zero, esse sobrevivente também bloqueia. Um ou mais: exit `3` e status `failed`. O motivo lista só esses, no formato `função@arquivo:linha`. Sobrevivente sem waiver fora do diff fica na tabela e não muda o exit.
 
-Waiver casado por id, nome, `arquivo:função` ou `arquivo::função` tira o mutante dessa lista. `killed`, `timeout` e `no_coverage` não entram nela. `no_coverage` pode deixar o gate em `warn` com exit `0` ou, se já existe sobrevivente que bloqueia, o exit continua `3` e o aviso de contagem vai no relatório.
+Waiver casado por `arquivo::função` ou `arquivo::função::<descrição>` tira o mutante dessa lista. O id do mutante e o nome nu da função não casam. Um id que não casa com nada deixa o sobrevivente na lista. No TypeScript, uma linha inserida acima do mutante muda a descrição, e o waiver antigo deixa de casar. Ver a [ADR 0006](adr/0006-chave-estavel-do-waiver.md). `killed`, `timeout` e `no_coverage` não entram nela. `no_coverage` pode deixar o gate em `warn` com exit `0` ou, se já existe sobrevivente sem waiver, o exit continua `3` e o aviso de contagem vai no relatório.
 
 A fase 2 da decisão 11 da spec ( `no_coverage` no diff falhando com `3`) não é o comportamento de `_finish`.
 
@@ -68,13 +68,13 @@ A configuração inválida imprime inglês no stderr quando:
 - uma chave lida por `_parsed` tem o tipo errado (`base`, `languages`, `paths`, `include`, `exclude`, `crap`, `max_per_function`, `scope`, `dependencies`, `python`, `typescript`);
 - `.bob/waivers.yaml` existe e o YAML é inválido, repete uma chave, ou o formato não é o da [Configuração](configuracao.md#arquivo-inválido). A mensagem cita o caminho e o campo. A chave repetida cita a chave e a linha, como `invalid YAML in .bob/waivers.yaml: found duplicate key 'id' on line 3`;
 
-`--config` apontando para um arquivo que não existe não entra nessa barreira. `reject_config_types` volta sem erro se o arquivo não existe. `load_config` levanta `ConfigError`, e `run_check` grava um relatório de falha precoce (`_fail_early`) com exit `4`. O stdout e o stderr ficam vazios. Cada gate pedido fica `not_run`. O `reason` do `report.json` é `config file not found: <caminho>` (inglês). O `report.md` traduz o motivo. O teste `test_check_exits_4_when_config_is_missing` em `tests/test_cli.py` espera os dois arquivos. A flag existe em `check`, `crap`, `dry`, `deps` e `mutate`. `doctor` e `waive` não a aceitam. A decisão 12 da [SPEC](SPEC.md) não cobre esse caso.
+`--config` apontando para um arquivo que não existe entra nessa barreira. `reject_config_types` chama `load_config`. O arquivo ausente levanta `ConfigError`, e `_blocked_config` imprime inglês no stderr (`config file not found: <caminho>`) e devolve `4` sem gravar relatório. A flag existe em `check`, `crap`, `dry`, `deps` e `mutate`. `doctor` e `waive` não a aceitam. Um `bob.yaml` ausente, sem `--config`, continua nos padrões.
 
 Erro de sintaxe, chave repetida, tipo errado e waiver inválido são barrados em `_language` ou `_blocked_config`, que imprimem no stderr e retornam `4` sem chamar `write_report`.
 
 `duplication` inválida entra na mesma barreira que as outras chaves: `reject_config_types` chama `_config_from_file`, o stderr fica em inglês e nenhum relatório é gravado. A recusa cobre um valor que não é mapeamento e um `min_tokens` que não é um inteiro maior que 0. Uma chave desconhecida, inclusive `mutation`, `duplication.tool`, `duplication.new_clones` e `dependencies.violation`, sai do mesmo jeito. O [CHANGELOG.md](../CHANGELOG.md) descreve esses casos.
 
-Um `--reason` ausente no `bob waive` também é `4`, e essa frase segue o idioma da CLI, porque acontece dentro de `_waive_command` depois da barreira do arquivo.
+Um `--reason` ausente no `bob waive` também é `4`, e essa frase segue o idioma da CLI, porque acontece dentro de `_waive_command` depois da barreira do arquivo. Um alvo que nenhum sobrevivente de `.bob/mutation-cache.json` ou `.bob/stryker-mutants.json` tem também sai com `4`, no idioma da CLI, e `waivers.yaml` não muda.
 
 ### Durante a medição, com relatório
 
