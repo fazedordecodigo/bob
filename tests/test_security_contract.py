@@ -504,6 +504,7 @@ def test_measure_forwards_security_and_assemble_publishes_it(tmp_path: Path, mon
     assert report.reproduce == "bob check"
     assert report.exit_code == PASSED
     assert report.security is security
+    assert report.secrets is None
     assert report.dead_code is None
     assert report.waivers == state.mutation.waivers
     assert report.survivors == [{"file": "src/survivor.py", "blocking": True}]
