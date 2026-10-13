@@ -458,6 +458,7 @@ def test_relative_is_changed_lines_over_file_size(tmp_path: Path) -> None:
         _stamp("2020-01-15", "11:00:00"),
     )
     _commit(repo, "src/empty.py", "", "empty", _stamp("2020-01-15", "12:00:00"))
+    _commit(repo, "src/accent.py", "café\nline\n", "accent", _stamp("2020-01-15", "12:30:00"))
     binary = repo / "src/binary.bin"
     binary.write_bytes(b"\xff\xfe")
     _git(repo, "add", "src/binary.bin")
@@ -470,6 +471,7 @@ def test_relative_is_changed_lines_over_file_size(tmp_path: Path) -> None:
         tip,
         90,
         {
+            "src/accent.py": {1},
             "src/quarter.py": {1, 3},
             "src/third.py": {2},
             "src/empty.py": {1},
@@ -483,6 +485,7 @@ def test_relative_is_changed_lines_over_file_size(tmp_path: Path) -> None:
     assert section == ChurnMeasured(
         ChurnWindow(90, date(2020, 1, 15)),
         (
+            FileChurn("src/accent.py", 1, 0.5),
             FileChurn("src/binary.bin", 1, None),
             FileChurn("src/empty.py", 1, None),
             FileChurn("src/gone.py", 0, None),
@@ -494,6 +497,7 @@ def test_relative_is_changed_lines_over_file_size(tmp_path: Path) -> None:
     assert section.hotspots[0].hotspot == 5
     payload = to_json(_report(section))
     assert payload["churn"]["files"] == [
+        {"path": "src/accent.py", "commits": 1, "relative": 0.5},
         {"path": "src/binary.bin", "commits": 1, "relative": None},
         {"path": "src/empty.py", "commits": 1, "relative": None},
         {"path": "src/gone.py", "commits": 0, "relative": None},
@@ -502,6 +506,7 @@ def test_relative_is_changed_lines_over_file_size(tmp_path: Path) -> None:
     ]
     Draft202012Validator(SCHEMA).validate(payload)
     english = to_markdown(_report(section), "en")
+    assert "| `src/accent.py` | 1 | 0.5000 |" in english
     assert "| `src/quarter.py` | 1 | 0.5000 |" in english
     assert "| `src/third.py` | 1 | 0.3333 |" in english
     assert "| `src/empty.py` | 1 | n/a |" in english

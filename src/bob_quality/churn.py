@@ -199,7 +199,7 @@ def _commit_count(stdout: str) -> int:
 
 def _relative(cwd: Path, path: str, changed: set[int]) -> float | None:
     try:
-        text = (cwd / path).read_text(encoding="utf-8")
+        text = (cwd / path).read_bytes().decode()
     except (OSError, UnicodeError):
         return None
     size = len(text.splitlines())
