@@ -60,18 +60,20 @@ Há dois jeitos de chegar no `4`.
 
 Um uso inválido da linha de comando (comando ausente, comando desconhecido, flag ilegal, valor fora das escolhas, valor fora da regra de `--threshold` ou de `--max-workers`) imprime o texto de uso do argparse no stderr. Esse texto não menciona baseline. A ajuda (`-h`, `--help`) sai com `0`. Isso não é o exit `2`. A regra de `--threshold` e de `--max-workers` está em [Outros comandos de medição](cli.md#outros-comandos-de-medição).
 
+`--config` antes do comando é uso inválido. A última linha do stderr fica em inglês, mesmo com `--lang pt-BR`, como `bob: error: --config goes after the command: bob check --config ci.yaml`. `doctor` não aceita a flag. A última linha é `bob: error: doctor does not accept --config`. `waive` também não aceita. A última linha é `bob: error: waive does not accept --config`.
+
 A configuração inválida imprime inglês no stderr quando:
 
 - `--lang` ou `BOB_LANG` é vazio ou não é `en` nem `pt-BR`;
 - `language` no YAML não é string ou não é um desses dois valores;
-- o YAML do `bob.yaml` tem erro de sintaxe ou não é um mapeamento;
+- o YAML do `bob.yaml` tem erro de sintaxe, repete uma chave no mesmo mapeamento, ou não é um mapeamento. A chave repetida cita a chave e a linha, como `invalid YAML in bob.yaml: found duplicate key 'base' on line 2`;
 - uma chave lida por `_parsed` tem o tipo errado (`base`, `languages`, `paths`, `include`, `exclude`, `crap`, `max_per_function`, `scope`, `dependencies`, `python`, `typescript`, `security`, `fail_severities`);
 - `security.fail_severities` tem palavra fora do vocabulário, item repetido ou lista vazia;
-- `.bob/waivers.yaml` existe e o YAML é inválido ou o formato não é o da [Configuração](configuracao.md#arquivo-inválido). A mensagem cita o caminho e o campo.
+- `.bob/waivers.yaml` existe e o YAML é inválido, repete uma chave, ou o formato não é o da [Configuração](configuracao.md#arquivo-inválido). A mensagem cita o caminho e o campo. A chave repetida cita a chave e a linha, como `invalid YAML in .bob/waivers.yaml: found duplicate key 'id' on line 3`;
 
 `--config` apontando para um arquivo que não existe não entra nessa barreira. `reject_config_types` volta sem erro se o arquivo não existe. `load_config` levanta `ConfigError`, e `run_check` grava um relatório de falha precoce (`_fail_early`) com exit `4`. O stdout e o stderr ficam vazios. Cada gate pedido fica `not_run`. O `reason` do `report.json` é `config file not found: <caminho>` (inglês). O `report.md` traduz o motivo. O teste `test_check_exits_4_when_config_is_missing` em `tests/test_cli.py` espera os dois arquivos. A flag existe em `check`, `crap`, `dry`, `deps` e `mutate`. `doctor` e `waive` não a aceitam. A decisão 12 da [SPEC](SPEC.md) não cobre esse caso.
 
-Erro de sintaxe, tipo errado e waiver inválido são barrados em `_language` ou `_blocked_config`, que imprimem no stderr e retornam `4` sem chamar `write_report`.
+Erro de sintaxe, chave repetida, tipo errado e waiver inválido são barrados em `_language` ou `_blocked_config`, que imprimem no stderr e retornam `4` sem chamar `write_report`.
 
 `duplication` inválida entra na mesma barreira que as outras chaves: `reject_config_types` chama `_config_from_file`, o stderr fica em inglês e nenhum relatório é gravado. A recusa cobre um valor que não é mapeamento e um `min_tokens` que não é um inteiro maior que 0. Uma chave desconhecida, inclusive `mutation`, `duplication.tool`, `duplication.new_clones` e `dependencies.violation`, sai do mesmo jeito. O [CHANGELOG.md](../CHANGELOG.md) descreve esses casos.
 

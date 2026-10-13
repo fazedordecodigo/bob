@@ -361,6 +361,42 @@ def test_load_config_rejects_invalid_yaml(tmp_path: Path) -> None:
     )
 
 
+def test_load_config_rejects_a_duplicate_key(tmp_path: Path) -> None:
+    (tmp_path / "bob.yaml").write_text("base: main\nbase: trunk\n")
+
+    assert _config_error(tmp_path) == (
+        "invalid YAML in bob.yaml: found duplicate key 'base' on line 2",
+        "YAML inválido em bob.yaml: found duplicate key 'base' on line 2",
+    )
+
+    (tmp_path / "bob.yaml").write_text("crap:\n  scope: all\n  scope: changed\n")
+
+    assert _config_error(tmp_path) == (
+        "invalid YAML in bob.yaml: found duplicate key 'scope' on line 3",
+        "YAML inválido em bob.yaml: found duplicate key 'scope' on line 3",
+    )
+
+
+def test_load_config_lets_an_explicit_key_override_a_merged_one(tmp_path: Path) -> None:
+    (tmp_path / "bob.yaml").write_text(
+        "crap:\n  <<: {max_per_function: 12, scope: all}\n  max_per_function: 15\n"
+    )
+
+    loaded = load_config(None, tmp_path)
+
+    assert loaded.max_crap == 15.0
+    assert loaded.crap_scope == "all"
+
+
+def test_load_config_rejects_an_unhashable_key_with_exit_4_text(tmp_path: Path) -> None:
+    (tmp_path / "bob.yaml").write_text("? [a]\n: 1\n")
+
+    assert _config_error(tmp_path) == (
+        "invalid YAML in bob.yaml: while constructing a mapping",
+        "YAML inválido em bob.yaml: while constructing a mapping",
+    )
+
+
 def test_load_config_rejects_a_numeric_language(tmp_path: Path) -> None:
     (tmp_path / "bob.yaml").write_text("language: 5\n")
 
@@ -435,6 +471,17 @@ def test_configured_language_rejects_invalid_yaml(tmp_path: Path) -> None:
 
     assert render(reason(caught.value), "en") == (
         "invalid YAML in bob.yaml: while parsing a block mapping"
+    )
+
+
+def test_configured_language_rejects_a_duplicate_key(tmp_path: Path) -> None:
+    (tmp_path / "bob.yaml").write_text("language: en\nlanguage: pt-BR\n")
+
+    with pytest.raises(ConfigError) as caught:
+        configured_language(None, tmp_path)
+
+    assert render(reason(caught.value), "en") == (
+        "invalid YAML in bob.yaml: found duplicate key 'language' on line 2"
     )
 
 
