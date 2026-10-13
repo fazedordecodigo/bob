@@ -18,6 +18,8 @@ Todo comando aceita `--lang en|pt-BR` antes ou depois do nome. Ver [Idioma](#idi
 
 Um uso inválido da linha de comando sai com `4`. O stderr é o texto de uso do argparse, não menciona baseline, e nada é gravado em `.bob/`. A ajuda (`-h`, `--help`) sai com `0`. Isso não é o exit `2` da suíte. Um valor fora da regra de `--threshold` ou de `--max-workers` também é uso inválido. A última linha do stderr fica em inglês, mesmo com `--lang pt-BR`, como `bob crap: error: argument --threshold: invalid value: 'nan' (use a finite number greater than 0)`.
 
+`--config` antes do nome do comando também é uso inválido. Nada é gravado em `.bob/`. A última linha do stderr fica em inglês, mesmo com `--lang pt-BR`. Ela mostra o comando com a flag depois do nome, como `bob: error: --config goes after the command: bob check --config ci.yaml`. Um caminho com espaço sai entre aspas, como `bob crap --config 'my ci.yaml'`. `doctor` não aceita `--config`. A última linha é `bob: error: doctor does not accept --config`. `waive` também não aceita. A última linha é `bob: error: waive does not accept --config`. `bob --help` não lista `--config`.
+
 ## bob check
 
 Roda os gates pedidos e grava `.bob/` (ou `--out`).

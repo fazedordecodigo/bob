@@ -150,6 +150,8 @@ The commands write `.bob/report.md` and `.bob/report.json`. The exit codes are:
 
 Invalid command-line usage exits `4`, writes no report, and the stderr does not mention baseline. Help (`-h`, `--help`) stays `0`.
 
+`--config` before the command exits `4` and writes no report. The last stderr line stays English even with `--lang pt-BR`. It names the command with the flag after the name, as in `bob: error: --config goes after the command: bob check --config ci.yaml`. A path with a space is quoted, as in `bob crap --config 'my ci.yaml'`. `doctor` does not accept `--config`. Its last line is `bob: error: doctor does not accept --config`. `waive` does not accept it either. Its last line is `bob: error: waive does not accept --config`. `bob --help` does not list `--config`.
+
 When more than one gate fails, `bob check` exits with the highest code.
 
 A local `bob check` does not run mutation. `bob check --gates mutate` and `bob mutate` run it, only on the changed functions and on the functions that still have survivors.
@@ -196,7 +198,7 @@ dependencies:
 
 With `crap.scope: changed`, only changed functions block. `all` counts every measured function. The value is `changed` or `all`. Omitting `languages` or setting it to null selects `[python]`. An empty list exits with `4`. There is no autodetection.
 
-If the YAML is not a mapping, the YAML has a syntax error, or a key has the wrong type, the run exits with `4`. The message goes to stderr in English and names the file. A wrong type also names the key, as in `bob.yaml: crap must be a mapping` or `bob.yaml: crap.max_per_function must be a number`. `check`, `doctor`, `waive`, and the other commands do this the same way. None of them writes a file.
+If the YAML is not a mapping, the YAML has a syntax error, a mapping repeats a key, or a key has the wrong type, the run exits with `4`. The message goes to stderr in English and names the file. A wrong type also names the key, as in `bob.yaml: crap must be a mapping` or `bob.yaml: crap.max_per_function must be a number`. A repeated key names the key and the line, as in `invalid YAML in bob.yaml: found duplicate key 'base' on line 2`. `check`, `doctor`, `waive`, and the other commands do this the same way. None of them writes a file.
 
 If `--config` points to a file that does not exist, `check`, `crap`, `dry`, `deps`, and `mutate` exit with `4`, write `.bob/report.md` and `.bob/report.json`, and leave stdout and stderr empty. Each requested gate is not run. The JSON reason is `config file not found: <path>`, using the path `load_config` received. The Markdown follows the output language. `doctor` and `waive` do not accept `--config`.
 
