@@ -1,5 +1,3 @@
-"""Gate de tipos: checkers do repositório e escapes no diff."""
-
 from __future__ import annotations
 
 import configparser
@@ -17,7 +15,6 @@ from types import ModuleType
 from typing import ClassVar, Literal, NewType, TypedDict
 
 def _unreachable(value: object) -> None:
-    # O 3.10 não tem typing.assert_never. A mensagem é a do 3.11.
     text = repr(value)
     raise AssertionError(f"Expected code to be unreachable, but got: {text}")
 
@@ -32,7 +29,6 @@ from bob_quality.messages import Message, msg
 from bob_quality.models import GateResult
 from bob_quality.waivers import load_waivers
 
-# No 3.10 o tomli vem com o pytest. Sem os dois parsers, um heading [tool.*] ainda conta.
 _toml: ModuleType | None
 if sys.version_info >= (3, 11):
     import tomllib
@@ -608,7 +604,6 @@ def _invoke(
     cwd: Path, executable: str, spec: _CheckerSpec, include: tuple[str, ...]
 ) -> subprocess.CompletedProcess[str]:
     if spec.uses_cache:
-        # O cache fica fora do repositório e some quando o processo volta.
         with tempfile.TemporaryDirectory(prefix="bob-mypy-") as cache:
             return _run(cwd, spec.argv(executable, include, cache))
     return _run(cwd, spec.argv(executable, include, None))
@@ -798,37 +793,33 @@ def _python_file(cwd: Path, file: str, lines: set[int]) -> tuple[Escape, ...]:
     text = _read_source(cwd, file)
     if text is None:
         return ()
-    try:
-        return _python_tokens(text, file, lines)
-    except tokenize.TokenError:
-        # O tokenize para no meio do arquivo. As linhas do diff ainda estão no texto.
-        return _python_line_fallback(text, file, lines)
+    return _python_tokens(text, file, lines)
 
 
 def _python_tokens(text: str, file: str, lines: set[int]) -> tuple[Escape, ...]:
     found: list[Escape] = []
-    for token in tokenize.generate_tokens(io.StringIO(text).readline):
-        line = token.start[0]
-        if line not in lines:
-            continue
-        if token.type == tokenize.NAME and token.string == "Any":
-            found.append(Escape(file, line, "Any"))
-        elif token.type == tokenize.COMMENT and _TYPE_IGNORE.search(token.string):
-            found.append(Escape(file, line, "type: ignore"))
+    try:
+        for token in tokenize.generate_tokens(io.StringIO(text).readline):
+            _record_python_token(token, file, lines, found)
+    except tokenize.TokenError:
+        return tuple(found)
     return tuple(found)
 
 
-def _python_line_fallback(text: str, file: str, lines: set[int]) -> tuple[Escape, ...]:
-    found: list[Escape] = []
-    name = re.compile(r"(?<![A-Za-z0-9_])Any(?![A-Za-z0-9_])")
-    for number, line in enumerate(text.splitlines(), start=1):
-        if number not in lines:
-            continue
-        if name.search(line):
-            found.append(Escape(file, number, "Any"))
-        if _TYPE_IGNORE.search(line):
-            found.append(Escape(file, number, "type: ignore"))
-    return tuple(found)
+def _record_python_token(
+    token: tokenize.TokenInfo,
+    file: str,
+    lines: set[int],
+    found: list[Escape],
+) -> None:
+    line = token.start[0]
+    if line not in lines:
+        return
+    if token.type == tokenize.NAME and token.string == "Any":
+        found.append(Escape(file, line, "Any"))
+        return
+    if token.type == tokenize.COMMENT and _TYPE_IGNORE.search(token.string):
+        found.append(Escape(file, line, "type: ignore"))
 
 
 def _typescript_file(cwd: Path, file: str, lines: set[int]) -> tuple[Escape, ...]:

@@ -1,5 +1,3 @@
-"""Gate typing: veredito puro e `bob check --gates typing`."""
-
 from __future__ import annotations
 
 import json
@@ -1140,7 +1138,7 @@ def test_a_token_error_still_blocks_an_escape_on_the_diff_line(tmp_path: Path) -
         repo,
         "escape",
         "src/app/broken.py",
-        "old: Any = 1\nvalue = 1\nfresh: Any = 2  # type: ignore[code]\n(\n",
+        "old: Any = 1\nvalue = 1\nlabel = \"Any\"\nfresh: Any = 2  # type: ignore[code]\n(\n",
         "leave the tokenizer short",
     )
     _checker_output(repo, "mypy", "", 0)
@@ -1153,8 +1151,8 @@ def test_a_token_error_still_blocks_an_escape_on_the_diff_line(tmp_path: Path) -
         "absent": [],
         "checkers": [{"language": "python", "tool": "mypy", "outcome": "measured"}],
         "findings": [
-            _escape("src/app/broken.py", 3, "Any"),
-            _escape("src/app/broken.py", 3, "type: ignore"),
+            _escape("src/app/broken.py", 4, "Any"),
+            _escape("src/app/broken.py", 4, "type: ignore"),
         ],
     }
 

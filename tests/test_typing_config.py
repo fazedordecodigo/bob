@@ -1,5 +1,3 @@
-"""A chave `typing` no bob.yaml não liga o gate e não guarda estado."""
-
 from __future__ import annotations
 
 import json
