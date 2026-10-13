@@ -15,6 +15,7 @@ from bob_quality.models import (
     LedgerRow,
     PythonDead,
     Report,
+    SecretRow,
     TestSmell,
     TypeScriptDead,
 )
@@ -65,11 +66,13 @@ def to_json(report: Report) -> dict[str, object]:
         "waivers": report.waivers,
         "survivors": report.survivors,
         "mutation": report.mutation,
-        "reproduce": report.reproduce,
-        "exit_code": report.exit_code,
     }
     if report.test_smells is not None:
         payload["test_smells"] = [smell_row(smell) for smell in report.test_smells]
+    if report.secrets is not None:
+        payload["secrets"] = [secret_row(row) for row in report.secrets.blocking]
+    payload["reproduce"] = report.reproduce
+    payload["exit_code"] = report.exit_code
     if report.dead_code is not None:
         payload["dead_code"] = {"symbols": [dead_row(row) for row in report.dead_code.rows]}
     return payload
@@ -108,6 +111,7 @@ def to_markdown(report: Report, lang: Language) -> str:
     lines.extend(_survivor_lines(report))
     lines.extend(_no_coverage_lines(report))
     lines.extend(_test_smell_lines(report))
+    lines.extend(_secrets_lines(report))
     lines.extend(_dead_lines(report))
     lines.extend(_footer(report, lang))
     return "\n".join(render(line, lang) for line in lines)
@@ -265,6 +269,36 @@ def _test_smell_lines(report: Report) -> list[Text]:
 def _test_smell_row(smell: TestSmell) -> str:
     reason = (smell.waiver or "—").replace("|", "\\|")
     return f"| `{waiver_id(smell)}` | {reason} |"
+
+
+def _secrets_lines(report: Report) -> list[Text]:
+    ledger = report.secrets
+    if ledger is None:
+        return []
+    lines: list[Text] = ["", msg("report.secrets"), ""]
+    if ledger.blocking:
+        lines.extend(_secret_table(ledger.blocking))
+    else:
+        lines.append(msg("report.no_secrets"))
+    if not ledger.outside_diff:
+        return lines
+    lines.extend(["", msg("report.secrets_outside"), ""])
+    lines.extend(_secret_table(ledger.outside_diff))
+    return lines
+
+
+def _secret_table(rows: tuple[SecretRow, ...]) -> list[Text]:
+    lines: list[Text] = [msg("report.secrets_header"), "|---|---|---:|---|"]
+    lines.extend(_secret_table_row(row) for row in rows)
+    return lines
+
+
+def _secret_table_row(row: SecretRow) -> str:
+    return f"| `{row.waiver_id()}` | {row.file} | {row.line} | {row.rule_id} |"
+
+
+def secret_row(row: SecretRow) -> dict[str, object]:
+    return {"file": row.file, "line": row.line, "rule_id": row.rule_id}
 
 
 def _dead_lines(report: Report) -> list[Text]:

@@ -22,8 +22,9 @@ O schema está em `src/bob_quality/schemas/report_v1.json`. `schema_version` é 
 10. `## Mutantes sobreviventes`, só se a mutação rodou. Colunas: id, função, local, operador, waiver. Sobrevivente sem waiver que não bloqueia leva, no local, `fora do diff; não bloqueia`. O JSON guarda `blocking` em cada linha. O cache de mutação não guarda esse campo.
 11. `## Mutantes sem teste`, só se o resumo de mutação traz `no_coverage`. Total, e tabela por função e arquivo. A linha do total diz que não bloqueia.
 12. `## Testes do diff` em `pt-BR`, `## Diff tests` em `en`, só quando o gate `test_smells` rodou. Sem linhas e com status `passed`, o texto é `Nenhum cheiro nos testes alterados.` Com linhas, a tabela traz o id `tests:<arquivo>:<linha>:<regra>` e o motivo do waiver. Motivo vazio vira `—`.
-13. `## Código morto` em `pt-BR`, `## Dead code` em `en`, só quando o gate `dead_code` rodou. Sem símbolos, o texto é `Nenhum símbolo morto no diff.` Com símbolos, cada linha traz arquivo, linha, espécie, nome, confiança do vulture e o waiver, quando há.
-14. `## Como reproduzir`: o comando, dentro de uma cerca, com `--lang` do idioma que gerou o arquivo.
+13. `## Segredos`, só quando o gate de segredos mediu. A tabela traz o alvo `secret:<regra>:<arquivo>:<linha>`, o arquivo, a linha e a regra. Sem segredo novo, o texto é `Nenhum segredo novo no diff.` A linha `Fora do diff; não bloqueia.` introduz os achados que não mudam o exit. Sem medição, a seção não aparece.
+14. `## Código morto` em `pt-BR`, `## Dead code` em `en`, só quando o gate `dead_code` rodou. Sem símbolos, o texto é `Nenhum símbolo morto no diff.` Com símbolos, cada linha traz arquivo, linha, espécie, nome, confiança do vulture e o waiver, quando há. Sem medição, a seção não aparece.
+15. `## Como reproduzir`: o comando, dentro de uma cerca, com `--lang` do idioma que gerou o arquivo.
 
 Seções vazias de dívida e de mutação somem. Foco, top 5, clones e veredito aparecem mesmo vazios, com a frase de “nenhum”.
 
@@ -31,7 +32,7 @@ A [SPEC](SPEC.md) descreve a ordem começando pelo cabeçalho e pelo veredito, e
 
 ## report.json
 
-Campos obrigatórios no schema: `schema_version`, `commit`, `base`, `generated_at`, `tool_versions`, `gates`, `focus`, `top_crap`, `reproduce`, `exit_code`. O render também escreve `old_debt`, `dependencies`, `old_dependencies`, `clones`, `waivers`, `survivors` e `mutation` quando `to_json` os inclui. `test_smells` e `dead_code` ficam fora de `required`. `test_smells` aparece quando o gate rodou, como lista de objetos com `file`, `line`, `rule` e `waiver`. `dead_code` aparece quando o gate rodou, com `symbols`. Cada símbolo traz `file`, `line`, `name`, `kind`, `language`, `confidence` e `waiver`. `schema_version` continua `1`.
+Campos obrigatórios no schema: `schema_version`, `commit`, `base`, `generated_at`, `tool_versions`, `gates`, `focus`, `top_crap`, `reproduce`, `exit_code`. O render também escreve `old_debt`, `dependencies`, `old_dependencies`, `clones`, `waivers`, `survivors` e `mutation` quando `to_json` os inclui. `test_smells`, `secrets` e `dead_code` ficam fora de `required`. `test_smells` aparece quando o gate rodou, como lista de objetos com `file`, `line`, `rule` e `waiver`. `secrets` entra só quando o gate mediu. O array traz os achados que bloqueiam. Cada objeto tem `file`, `line` e `rule_id`. `dead_code` aparece quando o gate rodou, com `symbols`. Cada símbolo traz `file`, `line`, `name`, `kind`, `language`, `confidence` e `waiver`. Sem medição, a chave não vai no JSON. `schema_version` continua `1`.
 
 `gates[].status` é `passed`, `warn`, `failed` ou `not_run`. O `reason` no JSON é renderizado em inglês (`JSON_LANGUAGE`).
 
