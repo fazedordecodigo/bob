@@ -238,6 +238,27 @@ def test_markdown_supply_section_follows_mutants_and_translates() -> None:
     assert "## Dependências novas" not in to_markdown(_bare(), "pt-BR")
 
 
+def test_markdown_stringifies_a_type_cell_and_escapes_a_pipe() -> None:
+    report = _bare(
+        gates=[GateResult("typing", "failed", None)],
+        typing={
+            "findings": [
+                {
+                    "file": None,
+                    "line": 1,
+                    "code": "a|b",
+                    "disposition": "in_diff",
+                    "waiver_id": None,
+                }
+            ]
+        },
+    )
+
+    english = to_markdown(report, "en")
+
+    assert "| `None` | 1 | `a\\|b` | in_diff | `None` |" in english
+
+
 def test_markdown_escapes_a_pipe_in_a_supply_cell() -> None:
     finding = MissingPackage("pypi", "left|pad", "src/a|b.py", 2)
     report = _bare(supply=SupplyReport(("python",), (), (RowBlock(finding),)))

@@ -600,10 +600,6 @@ def _supply_row(row: SupplyRow) -> Message:
     )
 
 
-def _cell(value: str) -> str:
-    return value.replace("|", "\\|")
-
-
 def _row_name(row: SupplyRow) -> str:
     finding = row.finding
     if isinstance(finding, UndeclaredImport):
