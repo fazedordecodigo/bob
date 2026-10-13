@@ -17,8 +17,8 @@ from bob_quality.messages import DEFAULT_LANGUAGE, Language, Text, msg, reason, 
 from bob_quality.npm_tools import install_npm_dependencies, npm_prefix, npm_setup_hint
 from bob_quality.tools import ToolError
 
-# Keep the whole prerelease token so node_admits and the exact pins reject on that token.
-_VERSION = re.compile(r"\d+\.\d+(?:\.\d+)?(?:-[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?")
+_PRERELEASE = r"[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*"
+_VERSION = re.compile(rf"\d+\.\d+(?:\.\d+)?(?:-{_PRERELEASE})?")
 _NODE_RELEASE = re.compile(r"(\d+)\.(\d+)\.(\d+)")
 _SELF = "bob-quality"
 
