@@ -50,7 +50,16 @@ PINS: tuple[Pin, ...] = (
     ToolPin("c8", "12.0.0", "c8", "npm install c8@12.0.0", npm_package="c8"),
     ToolPin("vitest", "5.0.3", "vitest", "npm install vitest@5.0.3", npm_package="vitest"),
     ToolPin("jscpd", "5.4.1", "jscpd", "npm install jscpd@5.4.1", npm_package="jscpd"),
+    ToolPin("eslint", "9.39.5", "eslint", "npm install eslint@9.39.5", npm_package="eslint"),
+    ToolPin(
+        "eslint-plugin-sonarjs",
+        "2.0.4",
+        "eslint-plugin-sonarjs",
+        "npm install eslint-plugin-sonarjs@2.0.4",
+        npm_package="eslint-plugin-sonarjs",
+    ),
     RequiresDist("mutmut", "mutmut"),
+    RequiresDist("complexipy", "complexipy"),
     RequiresDist("import-linter", "import-linter"),
     RequiresDist("grimp", "grimp"),
     ToolPin(

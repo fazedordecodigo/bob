@@ -1,10 +1,18 @@
 """report.md em cada idioma e report.json sempre igual, montados direto do `Report`."""
 
+import json
 from dataclasses import replace
+from pathlib import Path
+
+from jsonschema import Draft202012Validator
 
 from bob_quality.messages import msg
-from bob_quality.models import Clone, GateResult, Report
+from bob_quality.models import Clone, CognitiveFunction, GateResult, Report
 from bob_quality.report import to_json, to_markdown
+
+SCHEMA = json.loads(
+    (Path(__file__).resolve().parents[1] / "src/bob_quality/schemas/report_v1.json").read_text()
+)
 
 WAIVER = {"id": "m.x__mutmut_1", "reason": "equivalent", "author": "E", "date": "2026-10-11"}
 SURVIVOR = {
@@ -390,3 +398,108 @@ def test_waiver_rows_escape_pipes_and_leave_missing_fields_blank() -> None:
         "| `m.x__mutmut_2` | a \\| b | E | 2026-10-11 |\n"
         "| `` |  |  |  |\n"
     ) in to_markdown(report, "en")
+
+
+def _save() -> CognitiveFunction:
+    return CognitiveFunction(
+        file="src/foo.ts",
+        name="Foo::save",
+        start_line=2,
+        end_line=19,
+        score=15,
+        language="typescript",
+    )
+
+
+def _cognitive(status: str, reason: object, functions: list[CognitiveFunction]) -> Report:
+    return Report(
+        schema_version=1,
+        commit="abc",
+        base="main",
+        generated_at="2026-10-11T00:00:00+00:00",
+        tool_versions={"eslint": "9.39.5"},
+        gates=[GateResult("cognitive", status, reason)],
+        focus=[],
+        top_crap=[],
+        reproduce="bob check --gates cognitive",
+        cognitive=functions,
+    )
+
+
+def test_cognitive_section_lists_the_warning_in_both_languages() -> None:
+    report = _cognitive("warn", msg("cognitive.over", count=1), [_save()])
+    row = (
+        "| `Foo::save` | `src/foo.ts:2-19` | 15 | typescript | "
+        "`cognitive:src/foo.ts:Foo::save` |"
+    )
+
+    assert (
+        "## New clones\n\n"
+        "Not run.\n\n"
+        "## Cognitive complexity\n\n"
+        "| Function | File | Score | Language | Waiver |\n"
+        "|---|---|---:|---|---|\n"
+        f"{row}\n\n"
+        "## How to reproduce\n"
+    ) in to_markdown(report, "en")
+    assert (
+        "## Clones novos\n\n"
+        "Não executado.\n\n"
+        "## Complexidade cognitiva\n\n"
+        "| Função | Arquivo | Score | Idioma | Waiver |\n"
+        "|---|---|---:|---|---|\n"
+        f"{row}\n\n"
+        "## Como reproduzir\n"
+    ) in to_markdown(report, "pt-BR")
+    assert to_json(report)["cognitive"] == [
+        {
+            "file": "src/foo.ts",
+            "name": "Foo::save",
+            "start_line": 2,
+            "end_line": 19,
+            "score": 15,
+            "language": "typescript",
+            "waiver_id": "cognitive:src/foo.ts:Foo::save",
+        }
+    ]
+    Draft202012Validator(SCHEMA).validate(to_json(report))
+
+
+def test_cognitive_section_says_when_nothing_is_over_the_limit() -> None:
+    report = _cognitive("passed", None, [])
+
+    assert (
+        "## Cognitive complexity\n\n"
+        "No changed function at or above the cognitive limit.\n\n"
+        "## How to reproduce\n"
+    ) in to_markdown(report, "en")
+    assert (
+        "## Complexidade cognitiva\n\n"
+        "Nenhuma função alterada no limite de complexidade cognitiva ou acima.\n\n"
+        "## Como reproduzir\n"
+    ) in to_markdown(report, "pt-BR")
+    assert to_json(report)["cognitive"] == []
+
+
+def test_cognitive_section_explains_a_skip_and_stays_out_of_other_runs() -> None:
+    skipped = _cognitive("not_run", msg("cognitive.tool_missing", tool="complexipy"), [])
+
+    assert (
+        "## Cognitive complexity\n\n"
+        "Not run (complexipy is not installed).\n\n"
+        "## How to reproduce\n"
+    ) in to_markdown(skipped, "en")
+    assert (
+        "## Complexidade cognitiva\n\n"
+        "Não executado (complexipy não está instalado).\n\n"
+        "## Como reproduzir\n"
+    ) in to_markdown(skipped, "pt-BR")
+    assert to_json(skipped)["gates"][0]["reason"] == "complexipy is not installed"
+    assert to_json(skipped)["cognitive"] == []
+    assert "cognitive" not in to_json(_rich())
+    assert "## Cognitive complexity" not in to_markdown(_rich(), "en")
+    assert "## Complexidade cognitiva" not in to_markdown(_rich(), "pt-BR")
+    assert "cognitive" in SCHEMA["properties"]
+    assert "cognitive" not in SCHEMA["required"]
+    assert SCHEMA["properties"]["schema_version"]["const"] == 1
+    Draft202012Validator(SCHEMA).validate(to_json(_rich()))

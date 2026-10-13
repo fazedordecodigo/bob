@@ -101,6 +101,7 @@ def to_markdown(report: Report, lang: Language) -> str:
     lines.extend(_clone_lines(report))
     lines.extend(_survivor_lines(report))
     lines.extend(_no_coverage_lines(report))
+    lines.extend(_cognitive_lines(report))
     lines.extend(_footer(report, lang))
     return "\n".join(render(line, lang) for line in lines)
 
@@ -223,6 +224,36 @@ def _waiver_section(waivers: list[dict[str, object]]) -> list[Text]:
         )
     lines.append("")
     return lines
+
+
+def _cognitive_lines(report: Report) -> list[Text]:
+    if not _cognitive_requested(report):
+        return []
+    lines: list[Text] = ["", msg("report.cognitive"), ""]
+    lines.extend(_cognitive_body(report))
+    return lines
+
+
+def _cognitive_body(report: Report) -> list[Text]:
+    gate = _gate_named(report, "cognitive")
+    if gate is not None and gate.status == "not_run":
+        return [msg("report.cognitive_not_run", reason=gate.reason or "")]
+    if not report.cognitive:
+        return [msg("report.cognitive_none")]
+    lines: list[Text] = [msg("report.cognitive_header"), "|---|---|---:|---|---|"]
+    lines.extend(_cognitive_row(item) for item in report.cognitive)
+    return lines
+
+
+def _cognitive_row(item: CognitiveFunction) -> Message:
+    return msg(
+        "report.cognitive_row",
+        name=item.name,
+        loc=f"{item.file}:{item.start_line}-{item.end_line}",
+        score=item.score,
+        language=item.language,
+        waiver=item.waiver_id(),
+    )
 
 
 def _footer(report: Report, lang: Language) -> list[Text]:

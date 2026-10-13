@@ -2,7 +2,7 @@
 
 [Índice](README.md) · [Visão geral](visao-geral.md) · [CLI](cli.md) · [Configuração](configuracao.md) · [Exit codes](exit-codes.md) · [Relatórios](relatorios.md) · [SPEC](SPEC.md)
 
-Quatro gates. Cada um devolve um status `passed`, `warn`, `failed` ou `not_run`. O Markdown traduz para passou, aviso, falhou e não executado, com ✅ ⚠️ ❌ ⏭️ (`GATE_MARK` em `src/bob_quality/report.py`). Um gate que não rodou fica ⏭️ com motivo. Ele não aparece como ✅.
+Cinco gates. Cada um devolve um status `passed`, `warn`, `failed` ou `not_run`. O Markdown traduz para passou, aviso, falhou e não executado, com ✅ ⚠️ ❌ ⏭️ (`GATE_MARK` em `src/bob_quality/report.py`). Um gate que não rodou fica ⏭️ com motivo. Ele não aparece como ✅.
 
 O exit code do `bob check` é o maior entre os gates que rodaram. Aviso não aumenta o código. Ver [Exit codes](exit-codes.md).
 
@@ -10,10 +10,11 @@ O exit code do `bob check` é o maior entre os gates que rodaram. Aviso não aum
 |---|---|---|---|
 | [CRAP](#crap) | lizard + coverage.py ou c8/vitest | função no escopo com CRAP ≥ limite | `1` |
 | [DRY](#dry) | jscpd | nada; clone novo é aviso | `0` |
+| [Complexidade cognitiva](#complexidade-cognitiva) | complexipy ou eslint com eslint-plugin-sonarjs | nada; função alterada no limite é aviso | `0` |
 | [Mutação](#mutação) | mutmut (Python) | sobrevivente sem waiver | `3` |
 | [Dependências](#dependências) | import-linter, dependency-cruiser, mais a regra de ciclo | violação cuja origem, destino ou outro módulo do ciclo está no diff | `1` |
 
-Versões pinadas: lizard 1.24.1, coverage 7.16.2, c8 12.0.0, vitest 5.0.3, jscpd 5.4.1, mutmut 3.8.0, import-linter 2.15, grimp 3.17, dependency-cruiser 18.5.0. Node 22.14.0. Fonte: `pyproject.toml` e `package.json`. O doctor lê os pinos pip do Requires-Dist instalado.
+Versões pinadas: lizard 1.24.1, coverage 7.16.2, c8 12.0.0, vitest 5.0.3, jscpd 5.4.1, mutmut 3.8.0, complexipy 8.0.1, import-linter 2.15, grimp 3.17, dependency-cruiser 18.5.0, eslint 9.39.5, eslint-plugin-sonarjs 2.0.4. Node 22.14.0. Fonte: `pyproject.toml` e `package.json`. O doctor lê os pinos pip do Requires-Dist instalado.
 
 ## CRAP
 
@@ -48,6 +49,16 @@ Um ou mais clones novos deixam o gate em `warn` e o exit em `0`. A linha do rela
 Sem Node, ou sem o jscpd instalado, o status é `not_run` e o exit continua `0` (o retorno de `_skipped` é `PASSED`). O jscpd precisa de Node também num repositório só Python, se `dry` estiver na lista.
 
 A spec marca clones novos como aviso no MVP. O código faz isso no gate. `duplication.new_clones` não está no schema: sai com `4`. Ver [Configuração](configuracao.md#chaves-que-o-loader-recusa).
+
+## Complexidade cognitiva
+
+O gate avisa quando uma função alterada tem complexidade cognitiva maior ou igual a `cognitive.max_per_function`. O padrão é 15. A comparação é `score >= limit` em `cognitive_verdict`. O exit fica `0` no aviso, no passe e quando a ferramenta falta.
+
+Entra no veredito a função cujo intervalo inclusivo toca o diff (`function_is_changed`). O id do waiver é `cognitive:<arquivo>:<nome>`, montado só por `waiver_id()`. `complexipy` nomeia um método `Classe::metodo`. TypeScript usa o mesmo `::` (`Foo::save`, `outer::inner`). Uma função sem nome fica `anonymous@<linha>`. O waiver `save` não cobre `Foo::save`.
+
+Python mede com `complexipy` 8.0.1. A chamada é `file_complexity(path, check_script=False, no_ignore=True)`, importada dentro do medidor. Sem o pacote, esse idioma não entra no veredito. TypeScript mede com ESLint 9.39.5 e `eslint-plugin-sonarjs` 2.0.4, regra `sonarjs/cognitive-complexity`. O número passado à regra é `limit - 1`, porque a regra só reporta acima do limiar. O bob guarda a função se o score lido ainda é `>= limit`. Um arquivo que o ESLint não analisa é pulado. Se todos os arquivos falham, o idioma não entra. Se todo idioma configurado falha, o status é `not_run` e o exit é `0`.
+
+O gate não entra em `DEFAULT_GATES`, no hook `pre-push` nem na Action. Quem pede `bob check --gates cognitive` é que o roda.
 
 ## Mutação
 

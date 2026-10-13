@@ -21,6 +21,8 @@ def test_npm_tools_are_pinned_in_package_json_and_lock() -> None:
     pins = {
         "c8": "12.0.0",
         "dependency-cruiser": "18.5.0",
+        "eslint": "9.39.5",
+        "eslint-plugin-sonarjs": "2.0.4",
         "jscpd": "5.4.1",
         "vitest": "5.0.3",
     }

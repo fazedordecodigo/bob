@@ -63,6 +63,30 @@
         }
       }
     },
+    "cognitive": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "file",
+          "name",
+          "start_line",
+          "end_line",
+          "score",
+          "language",
+          "waiver_id"
+        ],
+        "properties": {
+          "file": { "type": "string" },
+          "name": { "type": "string" },
+          "start_line": { "type": "integer" },
+          "end_line": { "type": "integer" },
+          "score": { "type": "integer" },
+          "language": { "enum": ["python", "typescript"] },
+          "waiver_id": { "type": "string" }
+        }
+      }
+    },
     "clones": {
       "type": "array",
       "items": {

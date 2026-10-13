@@ -22,6 +22,8 @@ crap:
   scope: changed
 duplication:
   min_tokens: 50
+cognitive:
+  max_per_function: 15
 dependencies:
   python: .importlinter
   typescript: .dependency-cruiser.cjs
@@ -43,12 +45,15 @@ O `bob.yaml` deste repositório é mais curto: `base`, `languages: [python]`, `p
 | `crap.max_per_function` | número (bool não vale) | `10` | Limite. CRAP maior ou igual reprova |
 | `crap.scope` | string | `changed` | Só `changed` ou `all`. Outro texto sai com `4` |
 | `duplication.min_tokens` | inteiro maior que 0 | `50` | Mínimo de tokens do jscpd |
+| `cognitive.max_per_function` | inteiro maior que 0 | `15` | Aviso quando a função alterada chega nesse valor. O exit continua `0` |
 | `dependencies.python` | string | `.importlinter` | Config do import-linter |
 | `dependencies.typescript` | string | `.dependency-cruiser.cjs` | Config do dependency-cruiser |
 
 Um tipo errado sai com `4`. A mensagem em inglês no stderr cita o arquivo e a chave, por exemplo `bob.yaml: crap must be a mapping` ou `bob.yaml: crap.max_per_function must be a number`. Isso vale para `check`, `doctor`, `waive` e os outros comandos, e nenhum deles grava arquivo nesse caso. Ver [Exit 4](exit-codes.md#exit-4).
 
 `duplication` que não é mapeamento, ou `min_tokens` que não é um inteiro maior que 0, sai com `4`. A mensagem em inglês no stderr cita o arquivo e a chave, e nada é gravado. O [CHANGELOG](../CHANGELOG.md) descreve esse caso.
+
+`cognitive` que não é mapeamento, ou `max_per_function` que não é um inteiro maior que 0, sai com `4`. A mensagem em inglês no stderr cita o arquivo e a chave, e nada é gravado.
 
 ### languages
 
@@ -60,7 +65,7 @@ O gate DRY mapeia `typescript` para os formatos `typescript` e `javascript` do j
 
 ### Chaves que o loader recusa
 
-O `_SCHEMA` em `src/bob_quality/config.py` aceita `base`, `language`, `languages`, `paths.include`, `paths.exclude`, `crap.max_per_function`, `crap.scope`, `duplication.min_tokens`, `dependencies.python` e `dependencies.typescript`. `_reject_unknown` recusa qualquer outra chave: exit `4`, mensagem em inglês no stderr, nenhum arquivo gravado.
+O `_SCHEMA` em `src/bob_quality/config.py` aceita `base`, `language`, `languages`, `paths.include`, `paths.exclude`, `crap.max_per_function`, `crap.scope`, `duplication.min_tokens`, `cognitive.max_per_function`, `dependencies.python` e `dependencies.typescript`. `_reject_unknown` recusa qualquer outra chave: exit `4`, mensagem em inglês no stderr, nenhum arquivo gravado.
 
 Estas não entram no schema:
 
