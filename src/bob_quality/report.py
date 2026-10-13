@@ -27,6 +27,7 @@ from bob_quality.models import (
     LedgerRow,
     PythonDead,
     Report,
+    SecretLedger,
     SecretRow,
     TypeScriptDead,
     VultureKind,
@@ -567,6 +568,25 @@ def _saved_report(payload: dict[str, object], path: Path) -> Report:
         survivors=_survivor_rows(payload.get("survivors", []), path),
         mutation=_optional_mutation(payload, path),
         dead_code=_dead_section(payload, path),
+        secrets=_secrets(payload, path),
+    )
+
+
+def _secrets(payload: dict[str, object], path: Path) -> SecretLedger | None:
+    if "secrets" not in payload:
+        return None
+    try:
+        rows = tuple(_secret_row(row, path) for row in _dicts(payload["secrets"], path))
+        return SecretLedger(rows)
+    except ValueError:
+        raise _invalid_saved(path) from None
+
+
+def _secret_row(row: dict[str, object], path: Path) -> SecretRow:
+    return SecretRow(
+        _text(row.get("file"), path),
+        _integer(row.get("line"), path),
+        _text(row.get("rule_id"), path),
     )
 
 

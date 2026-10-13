@@ -302,7 +302,14 @@ def test_report_renders_an_exact_clone_and_old_debt(tmp_path: Path) -> None:
         "no_coverage": {"total": 1, "functions": [{"file": "app.py", "function": "add", "count": 1}]}
     }
     payload["survivors"] = [
-        {"id": "app.add__mutmut_1", "function": "add", "file": "app.py", "line": 4}
+        {
+            "id": "app.add__mutmut_1",
+            "function": "add",
+            "file": "app.py",
+            "line": 4,
+            "operator": "ROR",
+            "target": "app.py::add::ROR",
+        }
     ]
     payload["waivers"] = [
         {"id": "fn", "reason": "because", "author": "ada", "date": "2026-10-11"}
@@ -317,7 +324,7 @@ def test_report_renders_an_exact_clone_and_old_debt(tmp_path: Path) -> None:
     assert "old.py:9" in markdown
     assert "similarity exact" in markdown
     assert "similarity —" in markdown
-    assert "`app.add__mutmut_1`" in markdown
+    assert "`app.py::add::ROR`" in markdown
     assert "| `fn` | because | ada | 2026-10-11 |" in markdown
     assert "| add | app.py | 1 |" in markdown
 
@@ -367,6 +374,16 @@ def _metric(**overrides: object) -> dict[str, object]:
         "coverage": 0.5,
         "cc": 2,
         "crap": 2.25,
+    }
+    row.update(overrides)
+    return row
+
+
+def _secret(**overrides: object) -> dict[str, object]:
+    row: dict[str, object] = {
+        "file": "src/app.py",
+        "line": 12,
+        "rule_id": "aws-access-token",
     }
     row.update(overrides)
     return row
@@ -494,6 +511,35 @@ def test_report_renders_a_dead_symbol_without_a_waiver_key(tmp_path: Path) -> No
     assert "waiver" not in markdown
 
 
+def test_report_renders_saved_secrets(tmp_path: Path) -> None:
+    payload = dict(_MINIMAL)
+    payload["secrets"] = [
+        _secret(),
+        _secret(file="src/old.py", line=2, rule_id="generic-api-key"),
+    ]
+    _save(tmp_path, payload)
+
+    result = _invoke(tmp_path, "report")
+    markdown = (tmp_path / ".bob" / "report.md").read_text()
+
+    assert result.returncode == 0
+    assert "\n\n## Secrets\n\n| Target | File | Line | Rule |\n|---|---|---:|---|\n" in markdown
+    assert "| `secret:aws-access-token:src/app.py:12` | src/app.py | 12 | aws-access-token |" in markdown
+    assert "| `secret:generic-api-key:src/old.py:2` | src/old.py | 2 | generic-api-key |" in markdown
+
+
+def test_report_renders_an_empty_secrets_list(tmp_path: Path) -> None:
+    payload = dict(_MINIMAL)
+    payload["secrets"] = []
+    _save(tmp_path, payload)
+
+    result = _invoke(tmp_path, "report")
+    markdown = (tmp_path / ".bob" / "report.md").read_text()
+
+    assert result.returncode == 0
+    assert "\n\n## Secrets\n\nNo new secret in the diff.\n" in markdown
+
+
 @pytest.mark.parametrize(
     "payload",
     [
@@ -535,6 +581,20 @@ def test_report_renders_a_dead_symbol_without_a_waiver_key(tmp_path: Path) -> No
         {**_MINIMAL, "survivors": [{"id": "x", "function": "add", "file": "app.py"}]},
         {**_MINIMAL, "tool_versions": []},
         {**_MINIMAL, "dead_code": "nope"},
+        {**_MINIMAL, "secrets": "nope"},
+        {**_MINIMAL, "secrets": [1]},
+        {**_MINIMAL, "secrets": [_secret(line=0)]},
+        {**_MINIMAL, "secrets": [_secret(line="12")]},
+        {**_MINIMAL, "secrets": [_secret(file=1)]},
+        {**_MINIMAL, "secrets": [_secret(rule_id=1)]},
+        {
+            **_MINIMAL,
+            "secrets": [
+                _secret(file="src/old.py", line=2, rule_id="generic-api-key"),
+                _secret(),
+            ],
+        },
+        {**_MINIMAL, "secrets": [_secret(), _secret()]},
         {**_MINIMAL, "dead_code": {}},
         {**_MINIMAL, "dead_code": {"symbols": "nope"}},
         {**_MINIMAL, "dead_code": {"symbols": [1]}},
