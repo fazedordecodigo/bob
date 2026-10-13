@@ -95,6 +95,52 @@ def test_judge_secrets_drops_only_a_whole_secret_waiver_id() -> None:
     assert sast.ledger.blocking == (row,)
 
 
+def test_judge_secrets_keeps_a_later_row_when_the_first_is_waived() -> None:
+    waived = SecretRow("src/app.py", 1, "aws-access-token")
+    later = SecretRow("src/app.py", 2, "aws-access-token")
+
+    judgment = judge_secrets(
+        (waived, later),
+        {"src/app.py": {1, 2}},
+        frozenset({waived.waiver_id()}),
+    )
+
+    assert judgment.exit_code == 1
+    assert judgment.ledger.blocking == (later,)
+    assert judgment.ledger.outside_diff == ()
+
+
+def test_judge_secrets_counts_every_new_and_outside_row() -> None:
+    blocking = (
+        SecretRow("src/a.py", 1, "aws-access-token"),
+        SecretRow("src/a.py", 2, "aws-access-token"),
+    )
+    outside = (
+        SecretRow("src/b.py", 1, "generic-api-key"),
+        SecretRow("src/b.py", 2, "generic-api-key"),
+    )
+
+    judgment = judge_secrets((*blocking, *outside), {"src/a.py": {1, 2}}, frozenset())
+
+    assert judgment.exit_code == 1
+    assert judgment.ledger.blocking == blocking
+    assert judgment.ledger.outside_diff == outside
+    assert in_both(judgment.result.reason) == (
+        "2 new secrets in the diff; 2 secrets outside the diff",
+        "2 segredos novos no diff; 2 segredos fora do diff",
+    )
+
+
+def test_secret_ledger_rejects_unsorted_rows() -> None:
+    with pytest.raises(ValueError, match="^secret rows are unsorted$"):
+        SecretLedger(
+            blocking=(
+                SecretRow("src/b.py", 1, "aws-access-token"),
+                SecretRow("src/a.py", 1, "aws-access-token"),
+            )
+        )
+
+
 def test_load_config_accepts_an_empty_secrets_mapping(tmp_path: Path) -> None:
     assert load_config(None, tmp_path) == Config()
     for text in ("secrets: {}\n", "secrets:\n", "secrets: null\n"):
@@ -206,8 +252,14 @@ def test_markdown_puts_segredos_between_uncovered_mutants_and_reproduce() -> Non
     reproduce = markdown.index("## Como reproduzir")
 
     assert uncovered < secrets < outside < old < reproduce
+    assert "\n\n## Segredos\n\n| Alvo | Arquivo | Linha | Regra |\n|---|---|---:|---|\n" in markdown
+    assert "\n\nFora do diff; não bloqueia.\n\n| Alvo | Arquivo | Linha | Regra |\n|---|---|---:|---|\n" in markdown
     assert "| `secret:aws-access-token:src/app.py:12` | src/app.py | 12 | aws-access-token |" in markdown
     assert "| `secret:generic-api-key:src/old.py:2` | src/old.py | 2 | generic-api-key |" in markdown
+
+    empty = to_markdown(_outside_only_report(), "en")
+    assert "\n\n## Secrets\n\nNo new secret in the diff.\n" in empty
+    assert "\n\nOutside the diff; does not block.\n\n| Target | File | Line | Rule |\n|---|---|---:|---|\n" in empty
 
 
 def test_empty_gitleaks_array_is_a_pass(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -334,6 +386,24 @@ def test_real_gitleaks_fails_a_new_synthetic_key_and_hides_it(tmp_path: Path) ->
     ]
     assert payload["gates"][0]["name"] == "secrets"
     assert payload["gates"][0]["status"] == "failed"
+
+
+def _outside_only_report() -> Report:
+    report = _secrets_report()
+    return Report(
+        schema_version=report.schema_version,
+        commit=report.commit,
+        base=report.base,
+        generated_at=report.generated_at,
+        tool_versions=report.tool_versions,
+        gates=[GateResult("secrets", "passed", msg("secrets.outside_one"))],
+        focus=report.focus,
+        top_crap=report.top_crap,
+        reproduce=report.reproduce,
+        exit_code=0,
+        mutation=report.mutation,
+        secrets=SecretLedger(outside_diff=(SecretRow("src/old.py", 2, "generic-api-key"),)),
+    )
 
 
 def _secrets_report() -> Report:
