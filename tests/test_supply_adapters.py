@@ -1,8 +1,14 @@
 """Adaptadores do gate supply. O transporte e o processo são injetados."""
 
+import io
 import json
+import socket
 import subprocess
+import urllib.error
+import urllib.request
 from pathlib import Path
+
+import pytest
 
 from bob_quality.adapters.deptry import (
     DeptryViolation,
@@ -152,6 +158,53 @@ def test_probe_existence_reads_404_200_and_an_undecided_status() -> None:
     assert other == PackageUndecided("undecided")
 
 
+def test_default_transport_maps_http_timeout_and_dns(monkeypatch: pytest.MonkeyPatch) -> None:
+    seen: list[urllib.request.Request] = []
+
+    def urlopen(request: urllib.request.Request, timeout: int) -> object:
+        seen.append(request)
+        assert timeout == 9
+        if request.full_url.endswith("/left-pad"):
+            return _Body(200, b'{"name":"left-pad"}')
+        if request.full_url.endswith("/missing/json"):
+            raise urllib.error.HTTPError(request.full_url, 404, "missing", {}, io.BytesIO(b"no"))
+        if request.full_url.endswith("/slow"):
+            raise TimeoutError("timed out")
+        if request.full_url.endswith("/ghost"):
+            raise urllib.error.URLError(socket.gaierror(8, "dns"))
+        if request.data is not None:
+            assert request.get_header("Content-type") == "application/json"
+            return _Body(200, b'{"results":[{"vulns":[]}]}')
+        raise urllib.error.URLError(OSError("reset"))
+
+    monkeypatch.setattr("bob_quality.adapters.registries.urllib.request.urlopen", urlopen)
+
+    assert probe_existence(AddedPackage("npm", "left-pad", None, "package.json", 1), 9) == PackageExists()
+    assert probe_existence(AddedPackage("pypi", "missing", None, "pyproject.toml", 2), 9) == PackageMissing()
+    assert probe_existence(AddedPackage("npm", "slow", None, "package.json", 3), 9) == PackageUndecided("timeout")
+    assert probe_existence(AddedPackage("npm", "ghost", None, "package.json", 4), 9) == PackageUndecided("dns")
+    assert probe_existence(AddedPackage("npm", "reset", None, "package.json", 5), 9) == PackageUndecided("undecided")
+    assert probe_advisories((AddedPackage("npm", "left-pad", "1.2.3", "package.json", 1),), 9) == (
+        AdvisoriesFound(()),
+    )
+    assert seen[-1].data is not None
+
+
+class _Body:
+    def __init__(self, status: int, body: bytes) -> None:
+        self.status = status
+        self._body = body
+
+    def read(self) -> bytes:
+        return self._body
+
+    def __enter__(self) -> "_Body":
+        return self
+
+    def __exit__(self, *_args: object) -> bool:
+        return False
+
+
 def test_probe_existence_keeps_timeout_and_dns_as_undecided() -> None:
     def transport(method: str, url: str, body: bytes | None, timeout: int) -> HttpFault:
         if "slow" in url:
@@ -254,6 +307,8 @@ def test_added_packages_keeps_a_new_root_pin_and_ignores_a_version_bump(tmp_path
     assert found == (
         AddedPackage("pypi", "requests", "2.32.3", "pyproject.toml", 4),
         AddedPackage("pypi", "cool-pkg", None, "pyproject.toml", 6),
+        AddedPackage("pypi", "pinned", "1.2.3", "pyproject.toml", 19),
+        AddedPackage("pypi", "bare", None, "pyproject.toml", 20),
         AddedPackage("pypi", "flask", "3.0.1", "requirements.txt", 2),
     )
 
@@ -332,6 +387,8 @@ dev = [
 python = "^3.10"
 rich = "13.0.0"
 skipped = { path = "../skipped" }
+pinned = { version = "1.2.3" }
+bare = { extras = ["docs"] }
 """
 
 _PACKAGE_HEAD = """\

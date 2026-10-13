@@ -2,13 +2,13 @@
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal
 
-from bob_quality.adapters.deptry import DeptryRun, run_deptry
-from bob_quality.adapters.knip import KnipDocument, KnipHit, run_knip
+from bob_quality.adapters.deptry import DeptryCapture, DeptryRun, run_deptry
+from bob_quality.adapters.knip import KnipCapture, KnipDocument, KnipHit, run_knip
 from bob_quality.adapters.manifests import AddedPackage, added_packages
 from bob_quality.adapters.registries import (
     AdvisoriesFound,
@@ -268,53 +268,36 @@ def _measure_language(
     versions: dict[str, str],
 ) -> bool:
     if language == "python":
-        return _python(cwd, config, diff_lines, base, runner, transport, findings, versions)
+        capture = run_deptry(cwd, config.include, config.supply_timeout_seconds, runner)
+        return _accept(
+            capture, "deptry", "pypi", _deptry_findings, cwd, config, diff_lines, base, transport, findings, versions
+        )
     if language == "typescript":
-        return _typescript(cwd, config, diff_lines, base, runner, transport, findings, versions)
+        capture = run_knip(cwd, config.supply_timeout_seconds, runner)
+        return _accept(
+            capture, "knip", "npm", _knip_findings, cwd, config, diff_lines, base, transport, findings, versions
+        )
     return False
 
 
-def _python(
+def _accept(
+    capture: DeptryCapture | KnipCapture,
+    tool: str,
+    index: Literal["pypi", "npm"],
+    collect: Callable[[Path, DeptryRun | KnipDocument], tuple[UndeclaredImport, ...]],
     cwd: Path,
     config: Config,
     diff_lines: Mapping[str, set[int]],
     base: str,
-    runner: Runner,
     transport: Transport | None,
     findings: list[SupplyFinding],
     versions: dict[str, str],
 ) -> bool:
-    capture = run_deptry(cwd, config.include, config.supply_timeout_seconds, runner)
-    if not _captured(capture.exit_code, capture.parsed):
+    if not _captured(capture.exit_code, capture.parsed) or capture.document is None:
         return False
-    document = capture.document
-    if document is None:
-        return False
-    versions["deptry"] = document.version
-    findings.extend(_deptry_findings(cwd, document))
-    findings.extend(_registry_findings(cwd, config, diff_lines, base, "pypi", transport))
-    return True
-
-
-def _typescript(
-    cwd: Path,
-    config: Config,
-    diff_lines: Mapping[str, set[int]],
-    base: str,
-    runner: Runner,
-    transport: Transport | None,
-    findings: list[SupplyFinding],
-    versions: dict[str, str],
-) -> bool:
-    capture = run_knip(cwd, config.supply_timeout_seconds, runner)
-    if not _captured(capture.exit_code, capture.parsed):
-        return False
-    document = capture.document
-    if document is None:
-        return False
-    versions["knip"] = document.version
-    findings.extend(_knip_findings(cwd, document))
-    findings.extend(_registry_findings(cwd, config, diff_lines, base, "npm", transport))
+    versions[tool] = capture.document.version
+    findings.extend(collect(cwd, capture.document))
+    findings.extend(_registry_findings(cwd, config, diff_lines, base, index, transport))
     return True
 
 
