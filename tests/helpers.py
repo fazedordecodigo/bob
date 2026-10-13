@@ -2,12 +2,14 @@
 
 from __future__ import annotations
 
+import io
 import os
 import shutil
 import subprocess
-import sys
+from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
 
+from bob_quality.cli import main
 from bob_quality.messages import Text, reason, render
 
 FIXTURE_PYTHON = Path(__file__).parent / "fixtures" / "python_app"
@@ -28,17 +30,34 @@ def in_both(text: Text | BaseException) -> tuple[str, str]:
 
 
 def run_bob(
-    repo: Path, *args: str, bob_lang: str | None = None
+    repo: Path,
+    *args: str,
+    bob_lang: str | None = None,
+    env: dict[str, str] | None = None,
 ) -> subprocess.CompletedProcess[str]:
-    env = {key: value for key, value in os.environ.items() if key != "BOB_LANG"}
-    if bob_lang is not None:
-        env["BOB_LANG"] = bob_lang
-    return subprocess.run(
-        [sys.executable, "-m", "bob_quality", *args],
-        cwd=repo,
-        capture_output=True,
-        text=True,
-        env=env,
+    """Roda a CLI no processo do teste, para o mutmut enxergar a função.
+
+    `MUTANT_UNDER_TEST` fica como o mutmut deixou. Apagá-lo solta o trampolim.
+    """
+    previous_cwd = Path.cwd()
+    previous_env = os.environ.copy()
+    stdout = io.StringIO()
+    stderr = io.StringIO()
+    try:
+        os.environ.clear()
+        os.environ.update(previous_env if env is None else env)
+        os.environ.pop("BOB_LANG", None)
+        if bob_lang is not None:
+            os.environ["BOB_LANG"] = bob_lang
+        os.chdir(repo)
+        with redirect_stdout(stdout), redirect_stderr(stderr):
+            code = main(list(args))
+    finally:
+        os.chdir(previous_cwd)
+        os.environ.clear()
+        os.environ.update(previous_env)
+    return subprocess.CompletedProcess(
+        ["bob", *args], code, stdout.getvalue(), stderr.getvalue()
     )
 
 

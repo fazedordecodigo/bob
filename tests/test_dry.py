@@ -7,8 +7,6 @@ fora do diff e mantém o exit code. Não inspeciona o parser do jscpd.
 import json
 import os
 import shutil
-import subprocess
-import sys
 from pathlib import Path
 
 from helpers import (
@@ -197,13 +195,7 @@ def test_dry_is_not_run_when_node_is_missing(tmp_path: Path) -> None:
     os.symlink(shutil.which("git"), bindir / "git")
     env = {**os.environ, "PATH": str(bindir)}
 
-    result = subprocess.run(
-        [sys.executable, "-m", "bob_quality", "dry", "--base", "main"],
-        cwd=repo,
-        capture_output=True,
-        text=True,
-        env=env,
-    )
+    result = run_bob(repo, "dry", "--base", "main", env=env)
     payload = json.loads((repo / ".bob" / "report.json").read_text())
     markdown = (repo / ".bob" / "report.md").read_text()
     dry = next(gate for gate in payload["gates"] if gate["name"] == "dry")

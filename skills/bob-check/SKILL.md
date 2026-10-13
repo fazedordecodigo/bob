@@ -40,14 +40,14 @@ Por padrão, o hook local roda `bob check --gates crap,dry,deps`. O CI roda `bob
 - `0` passou
 - `1` algum gate falhou (limite violado)
 - `2` baseline quebrado (testes falham antes de medir)
-- `3` mutante sobrevivente sem waiver
+- `3` mutante sobrevivente sem waiver, ou `no_coverage` nas funções do diff. Um waiver não cobre `no_coverage`.
 - `4` erro de configuração ou ferramenta ausente
 
 ## Ler o JSON
 
 `.bob/report.json` (`schema_version: 1`) espelha `.bob/report.md`.
 
-Veredito por gate: ✅ passou / ⚠️ aviso / ❌ falhou / ⏭️ não executado (com motivo). Exit `0` é o passe do check. ⚠️ (clones novos e mutantes sem teste) não falha. ⏭️ fica ⏭️ com motivo. Violação de dependência é ❌.
+Veredito por gate: ✅ passou / ⚠️ aviso / ❌ falhou / ⏭️ não executado (com motivo). Exit `0` é o passe do check. ⚠️ (clone novo) não falha. `no_coverage` nas funções do diff é ❌ e sai `3`. ⏭️ fica ⏭️ com motivo. Violação de dependência é ❌.
 
 Cada linha acionável traz função, arquivo:linha, métrica e limite.
 
@@ -58,5 +58,5 @@ Conclusão da skill: `bob check` sai com `0`.
 1. Rodar `bob check --format both` com o `--base` do PR. Feito quando o processo devolve um exit code e `.bob/report.json` existe.
 2. Exit `1`: ajustar a função ou arquivo:linha até a métrica caber no limite. Feito quando o check é reexecutado.
 3. Exit `2`: fazer os testes passarem (baseline). A medição começa depois disso. Feito quando o check é reexecutado.
-4. Exit `3`: matar o mutante com teste mais forte, ou `bob waive <mutant-id|function> --reason "texto de uma linha"`. Waiver vale só com motivo de uma linha. Feito quando o check é reexecutado.
+4. Exit `3`: sobrevivente sem waiver se mata com teste mais forte, ou com `bob waive <mutant-id|function> --reason "texto de uma linha"`. `no_coverage` se mata com um teste que executa o mutante. `bob waive` recusa esse alvo. Feito quando o check é reexecutado.
 5. Exit `4`: `bob doctor` e corrigir ferramenta ou config. Feito quando o check é reexecutado.

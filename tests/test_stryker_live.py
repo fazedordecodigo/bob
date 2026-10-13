@@ -85,7 +85,7 @@ def test_nested_describe_kills_add_and_an_unwaived_survivor_exits_3(tmp_path: Pa
     assert not any(item["function"] == "add" for item in payload["survivors"])
 
 
-def test_an_uncovered_changed_function_exits_0_and_warns(tmp_path: Path) -> None:
+def test_an_uncovered_changed_function_exits_3(tmp_path: Path) -> None:
     repo = init_ts_repo(tmp_path / "repo")
     commit_on_branch(repo, "orphan", "src/safe.ts", _ORPHAN_FILE, "add orphan")
 
@@ -93,10 +93,10 @@ def test_an_uncovered_changed_function_exits_0_and_warns(tmp_path: Path) -> None
     payload = json.loads((repo / ".bob" / "report.json").read_text())
     mutate = next(gate for gate in payload["gates"] if gate["name"] == "mutate")
 
-    assert result.returncode == 0, result.stdout + result.stderr + (repo / ".bob" / "report.md").read_text()
+    assert result.returncode == 3, result.stdout + result.stderr + (repo / ".bob" / "report.md").read_text()
     assert mutate == {
         "name": "mutate",
-        "status": "warn",
+        "status": "failed",
         "reason": "2 mutants without a test",
     }
     assert payload["mutation"]["no_coverage"] == {

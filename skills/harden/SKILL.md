@@ -11,6 +11,7 @@ Matar o mutante com um teste mais forte, ou registrar um waiver de uma linha. A 
 
 - `bob mutate` ou `bob check --gates mutate` sai com 3
 - `.bob/report.md` lista um mutante sobrevivente sem waiver
+- O mesmo exit lista `no_coverage` nas funções do diff. Um waiver não cobre esse status. O teste tem de executar o mutante.
 
 ## Passos
 

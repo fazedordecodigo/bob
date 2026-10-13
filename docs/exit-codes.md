@@ -14,7 +14,7 @@ Os códigos estão em `src/bob_quality/exit_codes.py`. A [SPEC](SPEC.md) os insp
 
 ## Exit 0
 
-Todos os gates pedidos que de fato rodaram passaram. Aviso também termina em `0`: clone novo, mutante `no_coverage` sem sobrevivente sem waiver, e TypeScript pulado num monorepo quando o que foi medido cabe no limite. O veredito do gate fica ⚠️. O exit continua `0`.
+Todos os gates pedidos que de fato rodaram passaram. Aviso também termina em `0`: clone novo e TypeScript pulado num monorepo quando o que foi medido cabe no limite. O veredito do gate fica ⚠️. O exit continua `0`. `no_coverage` nas funções do diff não é aviso: sai `3`.
 
 Um nome de gate desconhecido é `not_run` e contribui `0`.
 
@@ -44,9 +44,7 @@ O [AGENTS.md](../AGENTS.md) registra que o exit `2` também sai do `bob check` p
 
 Só o gate `mutate`. Em `_finish`, a lista que bloqueia são os mutantes com status `survived` e waiver vazio. Um ou mais: exit `3` e status `failed`. O motivo lista `função@arquivo:linha`.
 
-Waiver casado por id, nome, `arquivo:função` ou `arquivo::função` tira o mutante dessa lista. `killed`, `timeout` e `no_coverage` não entram nela. `no_coverage` pode deixar o gate em `warn` com exit `0` ou, se já existe sobrevivente sem waiver, o exit continua `3` e o aviso de contagem vai no relatório.
-
-A fase 2 da decisão 11 da spec ( `no_coverage` no diff falhando com `3`) não é o comportamento de `_finish`.
+Waiver casado por id, nome, `arquivo:função` ou `arquivo::função` tira o sobrevivente dessa lista. `killed` e `timeout` não entram nela. `no_coverage` nas funções do diff também sai `3`, e o waiver não o tira. Se já existe sobrevivente sem waiver, o motivo do exit continua o do sobrevivente, e a contagem de `no_coverage` vai no relatório.
 
 ## Exit 4
 

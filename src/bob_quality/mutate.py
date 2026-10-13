@@ -13,9 +13,9 @@ from pathlib import Path
 from bob_quality.adapters.lizard import LizardParseError, parse_lizard_csv
 from bob_quality.adapters.mutmut import (
     MutmutParseError,
+    id_matches_function,
     ids_for_show,
     mutants_from_raw,
-    mutmut_id_prefix,
     mutmut_run_patterns,
 )
 from bob_quality.config import Config
@@ -302,7 +302,7 @@ def _with_file_lines(mutants: list[Mutant], functions: list[CyclomaticFunction])
 
 def _start_line(mutant: Mutant, functions: list[CyclomaticFunction]) -> int | None:
     for item in functions:
-        if mutant.id.startswith(mutmut_id_prefix(item.file, item.name)):
+        if id_matches_function(mutant.id, item.file, item.name):
             return item.start_line
     return None
 
@@ -509,9 +509,11 @@ def _finish(
     uncovered = no_coverage_summary(mutants, [*remutated, *reused])
     summary = {"remutated": remutated, "reused": reused, "no_coverage": uncovered}
     if not unwaived:
+        result = _passing_result(int(uncovered["total"]))
+        code = UNWAIVED_SURVIVOR if result.status == "failed" else PASSED
         return _outcome(
-            _passing_result(int(uncovered["total"])),
-            PASSED,
+            result,
+            code,
             versions,
             waivers=waiver_rows,
             survivors=rows,
@@ -542,20 +544,19 @@ def no_coverage_summary(mutants: list[Mutant], labels: list[str]) -> dict[str, o
 
 
 def _label_count(mutants: list[Mutant], label: str) -> tuple[int, str, str] | None:
-    file, function = label.split("::")
-    prefix = mutmut_id_prefix(file, function)
-    count = sum(1 for item in mutants if _uncovered(item, file, function, prefix))
+    file, function = label.split("::", 1)
+    count = sum(1 for item in mutants if _uncovered(item, file, function))
     if not count:
         return None
     return count, file, function
 
 
-def _uncovered(item: Mutant, file: str, function: str, prefix: str) -> bool:
+def _uncovered(item: Mutant, file: str, function: str) -> bool:
     if item.status != "no_coverage":
         return False
     if item.file == file and item.function == function:
         return True
-    return item.id.startswith(prefix)
+    return id_matches_function(item.id, file, function)
 
 
 def _count_order(row: tuple[int, str, str]) -> tuple[int, str, str]:
@@ -572,7 +573,7 @@ def _passing_result(uncovered: int) -> GateResult:
     if not uncovered:
         return GateResult("mutate", "passed")
     key = "mutate.uncovered_one" if uncovered == 1 else "mutate.uncovered_many"
-    return GateResult("mutate", "warn", msg(key, count=uncovered))
+    return GateResult("mutate", "failed", msg(key, count=uncovered))
 
 
 def focus_with_survivors(
@@ -615,7 +616,7 @@ def _measured_functions(cwd: Path, config: Config) -> list[CyclomaticFunction]:
 
 
 def _belongs(mutant: Mutant, functions: list[CyclomaticFunction]) -> bool:
-    return any(mutant.id.startswith(mutmut_id_prefix(item.file, item.name)) for item in functions)
+    return any(id_matches_function(mutant.id, item.file, item.name) for item in functions)
 
 
 def _cache_body(
@@ -623,8 +624,11 @@ def _cache_body(
 ) -> dict[str, object]:
     body: dict[str, object] = {}
     for item in functions:
-        prefix = mutmut_id_prefix(item.file, item.name)
-        own = [mutant for mutant in mutants if mutant.id.startswith(prefix)]
+        own = [
+            mutant
+            for mutant in mutants
+            if id_matches_function(mutant.id, item.file, item.name)
+        ]
         key = f"{item.file}::{item.name}"
         body[key] = {
             "hash": _function_hash(cwd, item.file, item.start_line, item.end_line),

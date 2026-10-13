@@ -31,7 +31,7 @@ bob doctor  # verifica ferramentas e versões instaladas
 - `0` passou
 - `1` algum gate falhou (limite violado)
 - `2` baseline quebrado (testes falham antes de medir)
-- `3` mutante sobrevivente sem waiver
+- `3` mutante sobrevivente sem waiver, ou `no_coverage` nas funções do diff
 - `4` erro de configuração ou ferramenta ausente
 
 ## Passos
@@ -51,7 +51,7 @@ Lista de `docs/SPEC.md` (fonte):
 2. Veredito por gate: ✅ passou / ⚠️ aviso / ❌ falhou / ⏭️ não executado (com motivo).
 3. **Onde focar o review**: arquivos alterados ordenados por risco (maior CRAP + sobreviventes + clones).
 4. Top 5 funções de maior CRAP no diff (função, arquivo:linha, CC, cobertura, CRAP, delta).
-5. Mutantes sobreviventes (sem waiver = falha), mutantes sem teste (`no_coverage`) como ⚠️ agrupados por função e arquivo, e tabela de waivers com justificativa.
+5. Mutantes sobreviventes (sem waiver = falha) e mutantes sem teste (`no_coverage`) nas funções do diff, os dois com exit 3, agrupados por função e arquivo, e tabela de waivers com justificativa. Um waiver não cobre `no_coverage`.
 6. Clones novos (pares, similaridade, linhas).
 7. Violações e ciclos de dependência.
 8. Rodapé: como reproduzir localmente (comando exato).

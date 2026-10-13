@@ -52,7 +52,7 @@ def test_mutate_exits_3_when_changed_function_has_unwaived_survivor(tmp_path: Pa
     assert "src/app/weak.py" in markdown
 
 
-def test_uncovered_mutants_warn_without_changing_the_exit_code(tmp_path: Path) -> None:
+def test_uncovered_mutants_in_the_diff_fail_with_exit_3(tmp_path: Path) -> None:
     repo = init_python_repo(tmp_path / "repo")
     commit_on_branch(repo, "orphan", "src/app/orphan.py", ORPHAN, "add orphan")
 
@@ -61,10 +61,10 @@ def test_uncovered_mutants_warn_without_changing_the_exit_code(tmp_path: Path) -
     markdown = (repo / ".bob" / "report.md").read_text()
     mutate = next(gate for gate in payload["gates"] if gate["name"] == "mutate")
 
-    assert result.returncode == 0
+    assert result.returncode == 3
     assert mutate == {
         "name": "mutate",
-        "status": "warn",
+        "status": "failed",
         "reason": "2 mutants without a test",
     }
     assert payload["mutation"]["no_coverage"] == {
@@ -72,7 +72,7 @@ def test_uncovered_mutants_warn_without_changing_the_exit_code(tmp_path: Path) -
         "functions": [{"file": "src/app/orphan.py", "function": "orphan", "count": 2}],
     }
     assert "## Mutants without tests" in markdown
-    assert "⚠️ Total: 2. Does not block." in markdown
+    assert "❌ Total: 2. Blocks." in markdown
     assert "| orphan | src/app/orphan.py | 2 |" in markdown
     Draft202012Validator(SCHEMA).validate(payload)
 
@@ -272,6 +272,102 @@ def test_removed_waiver_fails_the_survivor_again(tmp_path: Path) -> None:
 
     assert result.returncode == 3
     assert reason not in markdown.split("## Verdict")[0]
+
+
+def test_waive_rejects_an_id_that_is_not_a_survivor(tmp_path: Path) -> None:
+    bob = tmp_path / ".bob"
+    bob.mkdir()
+    (bob / "mutation-cache.json").write_text(
+        json.dumps(
+            {
+                "functions": {
+                    "src/app/a.py::add": {
+                        "mutants": [
+                            {
+                                "id": "app.a.x_add__mutmut_1",
+                                "function": "add",
+                                "file": "src/app/a.py",
+                                "status": "killed",
+                            },
+                            {
+                                "id": "app.a.x_orphan__mutmut_1",
+                                "function": "orphan",
+                                "file": "src/app/a.py",
+                                "status": "no_coverage",
+                            },
+                            {
+                                "id": "app.a.x_wait__mutmut_1",
+                                "function": "wait",
+                                "file": "src/app/a.py",
+                                "status": "timeout",
+                            },
+                            {
+                                "id": "app.a.x_keep__mutmut_1",
+                                "function": "keep",
+                                "file": "src/app/a.py",
+                                "status": "survived",
+                            },
+                        ]
+                    }
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    missing = run_bob(tmp_path, "waive", "missing", "--reason", "because")
+    uncovered = run_bob(tmp_path, "waive", "orphan", "--reason", "because", bob_lang="pt-BR")
+    killed = run_bob(tmp_path, "waive", "add", "--reason", "because")
+    timed = run_bob(tmp_path, "waive", "wait", "--reason", "because")
+
+    assert missing.returncode == 4
+    assert missing.stderr == "waiver does not match a survivor: missing\n"
+    assert uncovered.returncode == 4
+    assert uncovered.stderr == "waiver não cobre mutante sem teste: orphan\n"
+    assert killed.returncode == 4
+    assert killed.stderr == "waiver does not match a survivor: add\n"
+    assert timed.returncode == 4
+    assert timed.stderr == "waiver does not match a survivor: wait\n"
+    assert not (bob / "waivers.yaml").exists()
+
+    saved = run_bob(tmp_path, "waive", "keep", "--reason", "because")
+    assert saved.returncode == 0
+    assert "keep" in (bob / "waivers.yaml").read_text(encoding="utf-8")
+
+
+def test_waive_rejects_a_cache_without_a_survivor_list(tmp_path: Path) -> None:
+    bob = tmp_path / ".bob"
+    bob.mkdir()
+    cache = bob / "mutation-cache.json"
+    cache.write_text("[]\n", encoding="utf-8")
+    mapping = run_bob(tmp_path, "waive", "add", "--reason", "because")
+    cache.write_text('{"functions": []}\n', encoding="utf-8")
+    empty = run_bob(tmp_path, "waive", "add", "--reason", "because")
+    cache.write_text(
+        '{"functions": {"src/app/a.py::add": {"mutants": [null, {"status": "survived"}]}}}\n',
+        encoding="utf-8",
+    )
+    junk = run_bob(tmp_path, "waive", "add", "--reason", "because")
+
+    assert mapping.returncode == 4
+    assert mapping.stderr == "invalid mutation cache: not a mapping\n"
+    assert empty.returncode == 4
+    assert empty.stderr == "waiver does not match a survivor: add\n"
+    assert junk.returncode == 4
+    assert junk.stderr == "waiver does not match a survivor: add\n"
+    assert not (bob / "waivers.yaml").exists()
+
+
+def test_waive_rejects_a_cache_that_is_not_json(tmp_path: Path) -> None:
+    bob = tmp_path / ".bob"
+    bob.mkdir()
+    (bob / "mutation-cache.json").write_text("{", encoding="utf-8")
+
+    result = run_bob(tmp_path, "waive", "add", "--reason", "because")
+
+    assert result.returncode == 4
+    assert result.stderr.startswith("invalid mutation cache: ")
+    assert not (bob / "waivers.yaml").exists()
 
 
 def test_harden_skill_kills_mutants_without_weakening_production_code() -> None:

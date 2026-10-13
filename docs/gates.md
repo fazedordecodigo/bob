@@ -65,9 +65,9 @@ Se a versão do mutmut ou a impressão da suíte diferir da chave do arquivo, `_
 
 A Action restaura e publica o artefato `bob-mutation-cache` com esse JSON (`.github/actions/bob/action.yml`) e o guarda por 7 dias (`retention-days: 7`). Falha ao restaurar não interrompe o check (`restore_cache.py || echo ...` no workflow da action). A action também instala o Node `22.14.0` e o jscpd `5.4.1` antes do check, senão o dry fica `not_run`.
 
-O limite efetivo é zero sobreviventes sem waiver. Qualquer um deixa o gate `failed` e o exit `3`. `killed`, `timeout` e `no_coverage` não entram nessa lista. Sobrevivente com waiver continua na tabela de sobreviventes, com a justificativa, e não conta para o `3`.
+O limite efetivo é zero sobreviventes sem waiver e zero `no_coverage` nas funções do diff. Qualquer um deixa o gate `failed` e o exit `3`. `killed` e `timeout` não entram nessa lista. Sobrevivente com waiver continua na tabela de sobreviventes, com a justificativa, e não conta para o `3`. Um waiver não cobre `no_coverage`.
 
-`no_coverage` muda o status do gate para `warn` quando não há sobrevivente sem waiver, e o relatório ganha a seção “Mutantes sem teste”, com total e contagem por função e arquivo (`no_coverage_summary`, `_no_coverage_lines`). O exit code não muda. `tests/test_mutate.py` cobre “warn without changing the exit code”. O [README.pt-BR.md](../README.pt-BR.md), na seção Status, ainda chama esse aviso de planejado. A decisão 11 da [SPEC](SPEC.md) separa o aviso (já no código) da fase 2, em que `no_coverage` nas funções do diff falharia com exit `3`. Essa fase 2 não está em `_finish`.
+`no_coverage` nas funções medidas muda o status do gate para `failed` quando não há sobrevivente sem waiver, e o relatório ganha a seção “Mutantes sem teste”, com total e contagem por função e arquivo (`no_coverage_summary`, `_no_coverage_lines`). A linha do total diz que bloqueia. O exit é `3`. `tests/test_mutate.py` cobre essa falha. A decisão 11 da [SPEC](SPEC.md) é essa regra.
 
 ## Dependências
 

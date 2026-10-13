@@ -135,7 +135,7 @@ RICH_EN = """# bob report
 
 ## Mutants without tests
 
-⚠️ Total: 2. Does not block.
+❌ Total: 2. Blocks.
 
 | Function | File | Mutants |
 |---|---|---:|
@@ -206,7 +206,7 @@ RICH_PT_BR = """# Relatório bob
 
 ## Mutantes sem teste
 
-⚠️ Total: 2. Não bloqueia.
+❌ Total: 2. Bloqueia.
 
 | Função | Arquivo | Mutantes |
 |---|---|---:|

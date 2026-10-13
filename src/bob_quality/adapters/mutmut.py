@@ -83,6 +83,15 @@ def mutmut_id_prefix(file: str, name: str) -> str:
     return f"{module}.x_{name}__mutmut"
 
 
+def id_matches_function(mutant_id: str, file: str, name: str) -> bool:
+    """O id casa a função, e para no limite do nome.
+
+    `foo` não inclui `foo_bar`: o próximo caractere tem de ser o fim ou `_`.
+    """
+    prefix = mutmut_id_prefix(file, name)
+    return mutant_id == prefix or mutant_id.startswith(f"{prefix}_")
+
+
 def mutmut_stats_key(file: str, name: str) -> str:
     """Chave da função em `tests_by_mangled_function_name` do mutmut 3.8."""
     return mutmut_id_prefix(file, name).removesuffix("__mutmut")

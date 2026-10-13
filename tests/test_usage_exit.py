@@ -1,10 +1,7 @@
 from __future__ import annotations
 
-import io
-import os
 import re
 import subprocess
-from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
 
 import pytest
@@ -26,24 +23,7 @@ def _usage_4(result: subprocess.CompletedProcess[str], repo: Path) -> None:
 def _invoke(
     repo: Path, *args: str, bob_lang: str | None = None
 ) -> subprocess.CompletedProcess[str]:
-    previous_cwd = Path.cwd()
-    previous_env = os.environ.copy()
-    stdout = io.StringIO()
-    stderr = io.StringIO()
-    try:
-        os.environ.pop("BOB_LANG", None)
-        if bob_lang is not None:
-            os.environ["BOB_LANG"] = bob_lang
-        os.chdir(repo)
-        with redirect_stdout(stdout), redirect_stderr(stderr):
-            code = main(list(args))
-    finally:
-        os.chdir(previous_cwd)
-        os.environ.clear()
-        os.environ.update(previous_env)
-    return subprocess.CompletedProcess(
-        ["bob", *args], code, stdout.getvalue(), stderr.getvalue()
-    )
+    return run_bob(repo, *args, bob_lang=bob_lang)
 
 
 def _flat(text: str) -> str:

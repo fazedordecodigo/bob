@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import os
 import subprocess
 from dataclasses import dataclass, fields
@@ -11,7 +12,7 @@ from pathlib import Path
 import yaml
 
 from bob_quality.messages import msg
-from bob_quality.models import Mutant
+from bob_quality.models import Mutant, MutantStatus
 
 
 class WaiverError(Exception):
@@ -151,10 +152,12 @@ def _item_field(index: int, key: str | None = None) -> str:
 
 def add_waiver(cwd: Path, target: str, reason: str | None) -> Waiver:
     text = normalize_reason(reason)
-    if not target.strip():
+    target_id = target.strip()
+    if not target_id:
         raise WaiverError(msg("waiver.no_target"))
+    _reject_orphan(cwd, target_id)
     waiver = Waiver(
-        id=target.strip(),
+        id=target_id,
         reason=text,
         author=_author(cwd),
         date=datetime.now(timezone.utc).date().isoformat(),
@@ -191,16 +194,101 @@ def apply_waivers(mutants: list[Mutant], waivers: list[Waiver]) -> list[Mutant]:
 
 
 def _matching_reason(mutant: Mutant, waivers: list[Waiver]) -> str | None:
-    keys = {
+    keys = _match_keys(mutant)
+    for waiver in waivers:
+        if waiver.id in keys:
+            return waiver.reason
+    return None
+
+
+def _match_keys(mutant: Mutant) -> set[str]:
+    return {
         mutant.id,
         mutant.function,
         f"{mutant.file}:{mutant.function}",
         f"{mutant.file}::{mutant.function}",
     }
-    for waiver in waivers:
-        if waiver.id in keys:
-            return waiver.reason
-    return None
+
+
+_CACHE_NAME = ".bob/mutation-cache.json"
+_STATUSES: frozenset[str] = frozenset({"killed", "survived", "timeout", "no_coverage"})
+
+
+def _reject_orphan(cwd: Path, target: str) -> None:
+    """Sem cache, o waive segue. Com cache, só um sobrevivente casa.
+
+    `no_coverage` não é sobrevivente. Um waiver não o cobre.
+    """
+    mutants = _cache_mutants(cwd)
+    if mutants is None:
+        return
+    if any(item.status == "survived" and target in _match_keys(item) for item in mutants):
+        return
+    if any(item.status == "no_coverage" and target in _match_keys(item) for item in mutants):
+        raise WaiverError(msg("waiver.not_a_test", target=target))
+    raise WaiverError(msg("waiver.not_survivor", target=target))
+
+
+def _cache_mutants(cwd: Path) -> list[Mutant] | None:
+    path = cwd / _CACHE_NAME
+    if not path.is_file():
+        return None
+    try:
+        raw = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, json.JSONDecodeError) as exc:
+        raise WaiverError(msg("mutate.cache_invalid", detail=str(exc))) from None
+    if not isinstance(raw, dict):
+        raise WaiverError(msg("mutate.cache_invalid", detail="not a mapping"))
+    functions = raw.get("functions")
+    if not isinstance(functions, dict):
+        return []
+    found: list[Mutant] = []
+    for entry in functions.values():
+        found.extend(_entry_mutants(entry))
+    return found
+
+
+def _entry_mutants(entry: object) -> list[Mutant]:
+    if not isinstance(entry, dict):
+        return []
+    rows = entry.get("mutants")
+    if not isinstance(rows, list):
+        return []
+    found: list[Mutant] = []
+    for row in rows:
+        mutant = _row_mutant(row)
+        if mutant is not None:
+            found.append(mutant)
+    return found
+
+
+def _row_mutant(row: object) -> Mutant | None:
+    if not isinstance(row, dict):
+        return None
+    mutant_id = row.get("id")
+    status = row.get("status")
+    if not isinstance(mutant_id, str) or not isinstance(status, str) or status not in _STATUSES:
+        return None
+    function = row.get("function")
+    file = row.get("file")
+    return Mutant(
+        id=mutant_id,
+        function=function if isinstance(function, str) else "",
+        file=file if isinstance(file, str) else "",
+        line=0,
+        operator="",
+        status=_status(status),
+    )
+
+
+def _status(value: str) -> MutantStatus:
+    if value == "killed":
+        return "killed"
+    if value == "timeout":
+        return "timeout"
+    if value == "no_coverage":
+        return "no_coverage"
+    return "survived"
 
 
 def _author(cwd: Path) -> str:

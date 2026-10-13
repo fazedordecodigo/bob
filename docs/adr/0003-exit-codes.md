@@ -24,7 +24,7 @@ O uso que a spec e os PRs fecharam é este.
 
 - 1 sai de `crap_verdict` ou de `deps_verdict`. CRAP igual ao limite falha. Uma violação de dependência no diff falha. Duplicação nunca contribui 1. O PR #26 corrigiu o jscpd. Falta de Node ou falha da ferramenta vira gate `not_run` e exit 0, porque a decisão 4 diz que o gate não muda o exit.
 - 2 sai quando a suíte que mede cobertura falha, ou quando a mutação reusa essa falha. Pytest 0 e 5 contam como suíte boa. Vitest só aceita 0.
-- 3 sai só de `mutate._finish`, quando o status é `survived` e não há waiver. `suspicious` e `segfault` do mutmut entram nesse status. `timeout` não. `no_coverage` é aviso e não muda o exit. Isso é a decisão do Emerson em 11/10/2026, entregue no PR #36. A fase em que `no_coverage` no diff passa a falhar está na issue #41.
+- 3 sai de `mutate._finish`, quando o status é `survived` e não há waiver, e quando há `no_coverage` nas funções do diff. `suspicious` e `segfault` do mutmut entram no status `survived`. `timeout` não. Um waiver não cobre `no_coverage`. O aviso sem mudar o exit foi a decisão do Emerson em 11/10/2026, entregue no PR #36. A fase 2, em que `no_coverage` no diff falha, é a issue #41.
 - 4 sai do preflight, em inglês no stderr, sem gravar relatório, para YAML inválido e para waiver ilegível. O PR #51 fechou o caminho que dava traceback e exit 1. 4 também sai quando a ferramenta ausente impede a medição pedida. Num repositório com Python e TypeScript, Node ausente não é 4. O Python segue. O TypeScript aparece pulado. A decisão 10, datada de 11/10/2026, aprova o que o PR #27 já fazia.
 
 Um nome de gate desconhecido grava `not_run` e contribui 0. O processo pode sair 0.

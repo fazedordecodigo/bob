@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from bob_quality.adapters.mutmut import id_matches_function
 from bob_quality.messages import Language, render
 from bob_quality.models import GateResult, Mutant, Report
 from bob_quality.mutate import _finish, no_coverage_summary
@@ -71,9 +72,37 @@ def test_no_coverage_summary_counts_a_typescript_id_by_file_and_function() -> No
     }
 
 
-def test_finish_warns_for_one_uncovered_mutant_and_passes_when_there_are_none() -> None:
+def test_id_matches_function_stops_after_the_function_name() -> None:
+    assert id_matches_function("app.a.x_foo__mutmut_1", "src/app/a.py", "foo") is True
+    assert id_matches_function("app.a.x_foo__mutmut", "src/app/a.py", "foo") is True
+    assert id_matches_function("app.a.x_foo_bar__mutmut_1", "src/app/a.py", "foo") is False
+    assert id_matches_function("app.a.x_foo__mutmut_1", "src/app/a.py", "foo_bar") is False
+
+
+def test_summary_does_not_count_foo_bar_as_foo() -> None:
+    mutants = [
+        Mutant("app.a.x_foo__mutmut_1", "foo", "", 0, "", "no_coverage"),
+        Mutant("app.a.x_foo_bar__mutmut_1", "foo_bar", "", 0, "", "no_coverage"),
+    ]
+
+    assert no_coverage_summary(mutants, ["src/app/a.py::foo"]) == {
+        "total": 1,
+        "functions": [{"file": "src/app/a.py", "function": "foo", "count": 1}],
+    }
+
+
+def test_summary_keeps_a_function_name_after_the_first_separator() -> None:
+    mutant = Mutant("app.a.x_add::more__mutmut_1", "add::more", "", 0, "", "no_coverage")
+
+    assert no_coverage_summary([mutant], ["src/app/a.py::add::more"]) == {
+        "total": 1,
+        "functions": [{"file": "src/app/a.py", "function": "add::more", "count": 1}],
+    }
+
+
+def test_finish_fails_for_one_uncovered_mutant_and_passes_when_there_are_none() -> None:
     uncovered = Mutant("app.orphan.x_orphan__mutmut_1", "orphan", "", 0, "", "no_coverage")
-    warned = _finish([uncovered], ["src/app/orphan.py::orphan"], [], {}, [])
+    blocked = _finish([uncovered], ["src/app/orphan.py::orphan"], [], {}, [])
     passed = _finish(
         [Mutant("app.a.x_add__mutmut_1", "add", "src/app/a.py", 1, "AOR", "killed")],
         ["src/app/a.py::add"],
@@ -82,10 +111,10 @@ def test_finish_warns_for_one_uncovered_mutant_and_passes_when_there_are_none() 
         [],
     )
 
-    assert warned.exit_code == 0
-    assert _verdict(warned.result, "pt-BR") == ("mutate", "warn", "1 mutante sem teste")
-    assert _verdict(warned.result, "en") == ("mutate", "warn", "1 mutant without a test")
-    assert warned.summary["no_coverage"] == {
+    assert blocked.exit_code == 3
+    assert _verdict(blocked.result, "pt-BR") == ("mutate", "failed", "1 mutante sem teste")
+    assert _verdict(blocked.result, "en") == ("mutate", "failed", "1 mutant without a test")
+    assert blocked.summary["no_coverage"] == {
         "total": 1,
         "functions": [{"file": "src/app/orphan.py", "function": "orphan", "count": 1}],
     }
@@ -168,8 +197,9 @@ def test_finish_keeps_a_waived_survivor_while_warning_about_uncovered_mutants() 
         waivers,
     )
 
-    assert outcome.exit_code == 0
-    assert _verdict(outcome.result, "pt-BR") == ("mutate", "warn", "1 mutante sem teste")
+    assert outcome.exit_code == 3
+    assert _verdict(outcome.result, "pt-BR") == ("mutate", "failed", "1 mutante sem teste")
+    assert _verdict(outcome.result, "en") == ("mutate", "failed", "1 mutant without a test")
     assert outcome.versions == {"mutmut": "3.8.0"}
     assert outcome.waivers == waivers
     assert outcome.survivors == [
@@ -185,21 +215,43 @@ def test_finish_keeps_a_waived_survivor_while_warning_about_uncovered_mutants() 
     ]
 
 
-def test_finish_warns_with_the_uncovered_total() -> None:
+def test_a_waiver_does_not_excuse_a_mutant_without_a_test() -> None:
+    uncovered = Mutant(
+        "app.orphan.x_orphan__mutmut_1",
+        "orphan",
+        "src/app/orphan.py",
+        1,
+        "AOR",
+        "no_coverage",
+        "because",
+    )
+    waivers = [{"id": "orphan", "reason": "because", "author": "ada", "date": "2026-10-11"}]
+
+    outcome = _finish([uncovered], ["src/app/orphan.py::orphan"], [], {}, waivers)
+
+    assert outcome.exit_code == 3
+    assert _verdict(outcome.result, "en") == ("mutate", "failed", "1 mutant without a test")
+    assert outcome.summary["no_coverage"] == {
+        "total": 1,
+        "functions": [{"file": "src/app/orphan.py", "function": "orphan", "count": 1}],
+    }
+
+
+def test_finish_fails_with_the_uncovered_total() -> None:
     mutants = [
         Mutant("app.orphan.x_orphan__mutmut_1", "orphan", "", 0, "", "no_coverage"),
         Mutant("app.orphan.x_orphan__mutmut_2", "orphan", "", 0, "", "no_coverage"),
     ]
     outcome = _finish(mutants, ["src/app/orphan.py::orphan"], [], {}, [])
 
-    assert outcome.exit_code == 0
-    assert _verdict(outcome.result, "pt-BR") == ("mutate", "warn", "2 mutantes sem teste")
-    assert _verdict(outcome.result, "en") == ("mutate", "warn", "2 mutants without a test")
+    assert outcome.exit_code == 3
+    assert _verdict(outcome.result, "pt-BR") == ("mutate", "failed", "2 mutantes sem teste")
+    assert _verdict(outcome.result, "en") == ("mutate", "failed", "2 mutants without a test")
 
 
 def test_markdown_lists_uncovered_mutants_after_the_survivors() -> None:
     report = _report(
-        gates=[GateResult("mutate", "warn", "3 mutantes sem teste")],
+        gates=[GateResult("mutate", "failed", "3 mutantes sem teste")],
         mutation={
             "remutated": ["src/app/b.py::z"],
             "reused": ["src/app/a.py::add"],
@@ -257,10 +309,10 @@ _BODY = (
 
 _MARKDOWN_WITH_ROWS = (
     _HEAD
-    + "- ⚠️ `mutate`: aviso (3 mutantes sem teste)\n"
+    + "- ❌ `mutate`: falhou (3 mutantes sem teste)\n"
     + _BODY
     + "## Mutantes sem teste\n\n"
-    + "⚠️ Total: 3. Não bloqueia.\n\n"
+    + "❌ Total: 3. Bloqueia.\n\n"
     + "| Função | Arquivo | Mutantes |\n"
     + "|---|---|---:|\n"
     + "| z | src/app/b.py | 2 |\n"

@@ -255,7 +255,7 @@ def test_merge_joins_both_hard_failures_and_warns_for_uncovered_mutants() -> Non
             "functions": [{"file": "a.py", "function": "add", "count": 1}],
         },
     }
-    warned = _merge(
+    blocked = _merge(
         _outcome(0, status="passed", summary=quiet),
         _outcome(
             0,
@@ -272,14 +272,14 @@ def test_merge_joins_both_hard_failures_and_warns_for_uncovered_mutants() -> Non
         None,
     )
 
-    assert warned.exit_code == 0
-    assert warned.result.name == "mutate"
-    assert warned.result.status == "warn"
-    assert in_both(warned.result.reason) == (
+    assert blocked.exit_code == 3
+    assert blocked.result.name == "mutate"
+    assert blocked.result.status == "failed"
+    assert in_both(blocked.result.reason) == (
         "3 mutants without a test",
         "3 mutantes sem teste",
     )
-    assert warned.summary["no_coverage"] == {
+    assert blocked.summary["no_coverage"] == {
         "total": 3,
         "functions": [{"file": "a.py", "function": "add", "count": 3}],
     }
