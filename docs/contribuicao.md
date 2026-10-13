@@ -11,11 +11,11 @@ A spec diz que merge e publicação em marketplace dependem da aprovação do Em
 Os passos do [AGENTS.md](../AGENTS.md), alinhados a `.github/workflows/ci.yml` e `.github/workflows/bob.yml`:
 
 1. Python 3.10 ou superior. O CI roda 3.10 e 3.12. A imagem precisa de `python3-venv`.
-2. Node 22.14.0, a versão exata que `bob doctor` exige.
+2. Node `>=22.14.0 <23`, a faixa que o `bob doctor` aceita. Node 20, Node 24 e um sufixo `-rc` saem com `4`.
 3. `python3 -m venv .venv && . .venv/bin/activate`.
 4. `python -m pip install -e '.[dev]'`.
 5. `npm ci` na raiz.
-6. `bob doctor`. Sai com `0` só quando cada ferramenta coincide com o pino. `bob doctor --install` num checkout editável cria `src/bob_quality/node_modules` e o teste `tests/test_mutmut_dogfood.py` falha ([#34](https://github.com/fazedordecodigo/bob/issues/34)). Apague essa pasta antes do pytest.
+6. `bob doctor`. Sai com `0` só quando cada ferramenta coincide com o pino. Num checkout editável, `bob doctor --install` instala na raiz, no mesmo lugar que `npm ci`. Apague `src/bob_quality/node_modules` se um `--install` antigo a tiver criado. Essa pasta quebra `tests/test_mutmut_dogfood.py`.
 7. `python -m pytest`. A suíte leva vários minutos: o dogfood do mutmut gera `mutants/`.
 8. `bob check --base origin/main --gates crap,dry,deps,mutate`, como o CI. Sem `--gates`, o padrão é `crap,dry,deps`. O relatório fica em `.bob/report.md` e `.bob/report.json`.
 
@@ -29,7 +29,7 @@ A spec pede teste pelo comportamento externo. A suíte está em `tests/`.
 - `tests/fixtures/python_app`, `ts_app` e `mixed_app`: repositórios mínimos. `tests/fixtures/raw` guarda saída das ferramentas pinadas.
 - `tests/test_crap.py` e o núcleo: fórmula, limiar, delta.
 - `tests/test_adapters.py` e os testes de deps: adaptadores contra fixture gravada.
-- `tests/test_mutate.py`, `test_no_coverage.py`, `test_mutmut_dogfood.py`: mutação, aviso de `no_coverage` e o próprio pacote sob mutmut.
+- `tests/test_mutate.py`, `test_no_coverage.py`, `test_mutmut_dogfood.py`: mutação, falha de `no_coverage` e o próprio pacote sob mutmut.
 - `tests/test_skills_contract.py`: as skills listadas nos dois manifestos.
 - `tests/test_hook.py`: o pre-push termina em menos de 60 s no fixture.
 
