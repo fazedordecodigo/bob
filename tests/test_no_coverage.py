@@ -266,15 +266,26 @@ def test_finish_never_blocks_a_timeout_or_an_uncovered_mutant() -> None:
     assert outcome.survivors == []
 
 
+def test_finish_does_not_block_line_1_outside_the_diff() -> None:
+    edge = Mutant("app.a.x_a__mutmut_1", "a", "src/app/a.py", 1, "AOR", "survived")
+
+    outcome = _finish([edge], {"src/app/a.py": {2}}, ["src/app/a.py::a"], [], {}, [])
+
+    assert outcome.exit_code == 0
+    assert outcome.survivors[0]["blocking"] is False
+
+
 def test_focus_counts_only_blocking_survivors() -> None:
     survivors = [
+        {"file": "src/app/b.py", "waiver": None, "blocking": False},
+        {"file": "src/app/c.py", "waiver": None, "blocking": True},
         {"file": "src/app/a.py", "waiver": None, "blocking": True},
         {"file": "src/app/a.py", "waiver": "w1", "blocking": False},
-        {"file": "src/app/b.py", "waiver": None, "blocking": False},
     ]
 
     assert focus_with_survivors([{"file": "src/app/a.py", "risk": 12.0}], survivors) == [
-        {"file": "src/app/a.py", "risk": 112.0}
+        {"file": "src/app/a.py", "risk": 112.0},
+        {"file": "src/app/c.py", "risk": 100.0},
     ]
 
 

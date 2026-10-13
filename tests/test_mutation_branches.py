@@ -794,3 +794,225 @@ def test_unchanged_function_does_not_hide_the_next_changed_one(
     )
 
     assert [(item.name, item.cc) for item in spans] == [("add", 2)]
+
+
+def _passed() -> MutationOutcome:
+    return _outcome(0, status="passed", versions=dict(_VERSIONS), waivers=[_WAIVER])
+
+
+def test_both_mutation_returns_hand_the_diff_to_finish(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    from bob_quality import mutate
+    from bob_quality.models import Mutant
+
+    diff = {"src/app/a.py": {2}}
+    versions = {"mutmut": "3.8.0"}
+    rows = [{"id": "w"}]
+    reused = Mutant("id", "a", "src/app/a.py", 2, "AOR", "survived")
+    fresh = Mutant("id2", "a", "src/app/a.py", 3, "AOR", "killed")
+    fresh_labels = ["src/app/a.py::a"]
+    reused_labels = ["src/app/a.py::old"]
+    seen: list[tuple[object, ...]] = []
+
+    def finish(*args: object) -> MutationOutcome:
+        seen.append(args)
+        return _outcome(0, status="passed", versions=versions, waivers=rows)
+
+    cache = mutate._Cache(tmp_path / "cache.json", {})
+    monkeypatch.setattr(mutate, "_finish", finish)
+    monkeypatch.setattr(mutate, "_write_cache", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(mutate, "_cache_body", lambda *_args, **_kwargs: {})
+    monkeypatch.setattr(mutate, "_baseline_outcome", lambda *_args, **_kwargs: None)
+    idle = mutate._Plan([], [], [reused], [], reused_labels, {})
+    monkeypatch.setattr(
+        mutate, "_prepare_mutation", lambda *_args, **_kwargs: (versions, [], rows, cache, idle)
+    )
+
+    mutate.run_mutation_gate(tmp_path, Config(), diff, tmp_path)
+
+    assert seen[-1] == ([reused], diff, [], reused_labels, versions, rows)
+
+    busy = mutate._Plan(
+        [CyclomaticFunction("src/app/a.py", "a", 1, 3, 1)],
+        [],
+        [reused],
+        fresh_labels,
+        reused_labels,
+        {},
+    )
+    monkeypatch.setattr(
+        mutate, "_prepare_mutation", lambda *_args, **_kwargs: (versions, [], rows, cache, busy)
+    )
+    monkeypatch.setattr(mutate, "_collect_fresh", lambda *_args, **_kwargs: [fresh])
+
+    mutate.run_mutation_gate(tmp_path, Config(), diff, tmp_path)
+
+    assert seen[-1] == ([fresh, reused], diff, fresh_labels, reused_labels, versions, rows)
+
+
+def test_an_empty_typescript_diff_still_receives_the_line_map(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    from bob_quality import stryker_gate
+
+    diff = {"src/safe.ts": {2}}
+    seen: list[tuple[object, ...]] = []
+
+    def finish(*args: object) -> MutationOutcome:
+        seen.append(args)
+        return _passed()
+
+    monkeypatch.setattr(stryker_gate, "_finish", finish)
+    monkeypatch.setattr(stryker_gate, "_changed_spans", lambda *_args, **_kwargs: [])
+
+    stryker_gate._with_spans(
+        tmp_path, Config(languages=("typescript",)), diff, tmp_path, _VERSIONS, [], [_WAIVER]
+    )
+
+    assert seen[-1][1] is diff
+    assert seen[-1][5] is not None and seen[-1][5] == [_WAIVER]
+
+
+def test_changed_typescript_spans_keep_the_diff(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    from bob_quality import stryker_gate
+
+    diff = {"src/safe.ts": {2}}
+    span = CyclomaticFunction("src/safe.ts", "add", 1, 4, 1)
+    seen: list[tuple[object, ...]] = []
+
+    def with_stryker(*args: object) -> tuple[MutationOutcome, None]:
+        seen.append(args)
+        return _passed(), None
+
+    monkeypatch.setattr(stryker_gate, "_changed_spans", lambda *_args, **_kwargs: [span])
+    monkeypatch.setattr(stryker_gate, "_with_stryker", with_stryker)
+
+    stryker_gate._with_spans(
+        tmp_path, Config(languages=("typescript",)), diff, tmp_path, _VERSIONS, [], [_WAIVER]
+    )
+
+    assert seen[-1][3] is diff
+
+
+def test_with_stryker_passes_the_diff_into_run(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    from bob_quality import stryker_gate
+
+    diff = {"src/safe.ts": {2}}
+    span = CyclomaticFunction("src/safe.ts", "add", 1, 4, 1)
+    seen: list[tuple[object, ...]] = []
+
+    def run(*args: object) -> MutationOutcome:
+        seen.append(args)
+        return _passed()
+
+    monkeypatch.setattr(stryker_gate, "_run", run)
+
+    stryker_gate._with_stryker(tmp_path, tmp_path, [span], diff, _VERSIONS, [], [_WAIVER])
+
+    assert seen[-1][3] is diff
+
+
+def test_run_passes_the_diff_into_the_report_retry(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    from bob_quality import stryker_gate
+
+    diff = {"src/safe.ts": {2}}
+    span = CyclomaticFunction("src/safe.ts", "add", 1, 4, 1)
+    seen: list[tuple[object, ...]] = []
+
+    def retry(*args: object) -> MutationOutcome:
+        seen.append(args)
+        return _passed()
+
+    monkeypatch.setattr(stryker_gate, "npm_prefix", lambda: tmp_path)
+    monkeypatch.setattr(stryker_gate, "_write_config", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(stryker_gate, "_argv", lambda *_args, **_kwargs: ["npx"])
+    monkeypatch.setattr(stryker_gate, "_report_or_retry", retry)
+
+    stryker_gate._run(tmp_path, tmp_path, [span], diff, _VERSIONS, [_WAIVER], [])
+
+    assert seen[-1][5] is diff
+
+
+def test_report_retry_passes_the_diff_on_both_reads(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    from bob_quality import stryker_gate
+
+    diff = {"src/safe.ts": {2}}
+    span = CyclomaticFunction("src/safe.ts", "add", 1, 4, 1)
+    report = tmp_path / "stryker-report.json"
+    incremental = tmp_path / "stryker-incremental.json"
+    incremental.write_text("{}\n")
+    seen: list[tuple[object, ...]] = []
+
+    def read(*args: object) -> MutationOutcome | None:
+        seen.append(args)
+        if len(seen) == 1:
+            return None
+        return _passed()
+
+    monkeypatch.setattr(stryker_gate, "_read_report", read)
+
+    stryker_gate._report_or_retry(
+        tmp_path, report, incremental, ["npx"], [span], diff, _VERSIONS, [_WAIVER], []
+    )
+
+    assert seen[0][4] is diff
+    assert seen[1][4] is diff
+
+
+def test_read_report_passes_the_diff_into_from_report(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    from bob_quality import stryker_gate
+
+    diff = {"src/safe.ts": {2}}
+    span = CyclomaticFunction("src/safe.ts", "add", 1, 4, 1)
+    report = tmp_path / "stryker-report.json"
+    seen: list[tuple[object, ...]] = []
+
+    def invoke(_cwd: Path, report_path: Path, argv: list[str]) -> subprocess.CompletedProcess[str]:
+        report_path.write_text('{"files": {}}\n')
+        return subprocess.CompletedProcess(argv, 0, "", "")
+
+    def from_report(*args: object) -> MutationOutcome:
+        seen.append(args)
+        return _passed()
+
+    monkeypatch.setattr(stryker_gate, "_invoke", invoke)
+    monkeypatch.setattr(stryker_gate, "_from_report", from_report)
+
+    stryker_gate._read_report(tmp_path, report, ["npx"], [span], diff, _VERSIONS, [_WAIVER], [])
+
+    assert seen[-1][2] is diff
+
+
+def test_from_report_passes_the_diff_into_finish(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    from bob_quality import stryker_gate
+
+    diff = {"src/safe.ts": {2}}
+    span = CyclomaticFunction("src/safe.ts", "add", 1, 4, 1)
+    report = tmp_path / "stryker-report.json"
+    report.write_text('{"files": {}}\n')
+    seen: list[tuple[object, ...]] = []
+
+    def finish(*args: object) -> MutationOutcome:
+        seen.append(args)
+        return _passed()
+
+    monkeypatch.setattr(stryker_gate, "_finish", finish)
+
+    stryker_gate._from_report(report, [span], diff, _VERSIONS, [_WAIVER], [])
+
+    assert seen[-1][1] is diff
+    assert seen[-1][2] == ["src/safe.ts::add"]
+    assert seen[-1][5] == [_WAIVER]
