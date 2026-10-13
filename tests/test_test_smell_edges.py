@@ -118,6 +118,10 @@ def test_two_skip_calls_and_two_sleeps_all_count() -> None:
     )
 
 
+def test_the_bare_assert_name_counts() -> None:
+    assert smells._is_assertion_name("assert") is True
+
+
 def test_assertion_name_shapes() -> None:
     underscore = "def test_one():\n    self.assert_equal(1, 1)\n"
     bare = "def test_one():\n    self.assert()\n"
@@ -233,7 +237,7 @@ def test_json_and_markdown_name_the_smell_and_escape_a_pipe() -> None:
     ]
     assert "## Diff tests" in markdown
     assert "XXXX" not in markdown
-    assert "|---|---|" in markdown
+    assert "\n|---|---|\n" in markdown
     assert "| `tests:tests/test_gap.py:1:missing-assert` | a\\|b |" in markdown
 
 
@@ -407,6 +411,83 @@ def test_outcomes_measure_python_then_skip_typescript(tmp_path: Path) -> None:
     found = smells._outcomes(_Order(), tmp_path, {"test_gap.py": {1, 2}})  # type: ignore[arg-type]
 
     assert found == (measured, smells.LanguageSkipped("typescript"), measured)
+
+
+def test_measure_typescript_uses_changed_paths_and_skips_an_empty_diff(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    (tmp_path / "eslint.config.js").write_text("eslint-plugin-jest\n", encoding="utf-8")
+    seen: dict[str, object] = {}
+
+    def fake(
+        cwd: Path,
+        diff_lines: dict[str, set[int]],
+        paths: tuple[str, ...],
+    ) -> smells.LanguageMeasured:
+        seen["args"] = (cwd, diff_lines, paths)
+        return smells.LanguageMeasured("typescript", (), "9.14.0")
+
+    monkeypatch.setattr(smells, "_measure_eslint", fake)
+    empty = {"src/app.py": {1}}
+    filled = {"src/a.test.ts": {1}}
+
+    assert smells.measure_typescript(tmp_path, empty) == smells.LanguageMeasured("typescript", ())
+    assert seen == {}
+    assert smells.measure_typescript(tmp_path, filled) == smells.LanguageMeasured(
+        "typescript", (), "9.14.0"
+    )
+    assert seen["args"] == (tmp_path, filled, ("src/a.test.ts",))
+
+
+def test_a_hidden_package_marker_still_configures_eslint(tmp_path: Path) -> None:
+    raw = '{"eslintConfig":{"plugins":["eslint-plugin-\\u006aest"]}}\n'
+    (tmp_path / "package.json").write_text(raw, encoding="utf-8")
+
+    assert "eslint-plugin-jest" not in raw
+    assert smells.eslint_configured(tmp_path) is True
+
+
+def test_config_files_skip_vendor_dirs(tmp_path: Path) -> None:
+    pkg = tmp_path / "pkg"
+    pkg.mkdir()
+    (pkg / "eslint.config.js").write_text("x", encoding="utf-8")
+    (pkg / "package.json").write_text("{}\n", encoding="utf-8")
+    (pkg / "readme.txt").write_text("x", encoding="utf-8")
+    vendor = tmp_path / "node_modules"
+    vendor.mkdir()
+    (vendor / "eslint.config.js").write_text("x", encoding="utf-8")
+
+    found = {path.relative_to(tmp_path).as_posix() for path in smells._config_files(tmp_path)}
+
+    assert found == {"pkg/eslint.config.js", "pkg/package.json"}
+
+
+def test_outcomes_pass_the_diff_into_typescript(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    class _Only:
+        languages = ("typescript",)
+
+    (tmp_path / "eslint.config.js").write_text("eslint-plugin-jest\n", encoding="utf-8")
+    seen: dict[str, object] = {}
+
+    def fake(
+        cwd: Path,
+        diff_lines: dict[str, set[int]],
+        paths: tuple[str, ...],
+    ) -> smells.LanguageMeasured:
+        seen["diff"] = diff_lines
+        seen["paths"] = paths
+        return smells.LanguageMeasured("typescript", (), "9.14.0")
+
+    monkeypatch.setattr(smells, "_measure_eslint", fake)
+    diff = {"src/a.test.ts": {4}}
+
+    found = smells._outcomes(_Only(), tmp_path, diff)  # type: ignore[arg-type]
+
+    assert seen["diff"] is diff
+    assert seen["paths"] == ("src/a.test.ts",)
+    assert found == (smells.LanguageMeasured("typescript", (), "9.14.0"),)
 
 
 def test_outcomes_reject_an_unknown_language(tmp_path: Path) -> None:
