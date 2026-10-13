@@ -4,7 +4,6 @@ import json
 import os
 import subprocess
 import sys
-import time
 from pathlib import Path
 
 from helpers import (
@@ -182,18 +181,26 @@ def test_check_does_not_reenter_parent_pytest_via_addopts(tmp_path: Path) -> Non
         SAFE_CHANGE,
         "touch tested add",
     )
-    env = {**os.environ, "PYTEST_ADDOPTS": str(Path(__file__).resolve().parent / "test_hook.py")}
-    started = time.monotonic()
+    foreign = tmp_path / "parent" / "test_foreign_reentry.py"
+    foreign.parent.mkdir()
+    foreign.write_text(
+        "from pathlib import Path\n"
+        "Path(__file__).with_name('collected').write_text('')\n"
+        "def test_foreign():\n"
+        "    assert False\n"
+    )
+    env = {**os.environ, "PYTEST_ADDOPTS": str(foreign)}
     result = subprocess.run(
         [sys.executable, "-m", "bob_quality", "check", "--base", "main", "--gates", "crap"],
         cwd=repo,
         capture_output=True,
         text=True,
         env=env,
-        timeout=8,
     )
-    elapsed = time.monotonic() - started
-    assert result.returncode == 0
-    assert elapsed < 8
+    payload = json.loads((repo / ".bob" / "report.json").read_text())
+
+    assert not (foreign.parent / "collected").exists()
+    assert result.returncode == 0, result.stderr
+    assert [item["coverage"] for item in payload["top_crap"] if item["name"] == "add"] == [1.0]
 
 

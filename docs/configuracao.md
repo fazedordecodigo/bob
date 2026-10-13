@@ -89,7 +89,7 @@ Formato que `load_waivers` aceita:
 
 ```yaml
 waivers:
-  - id: app.billing.x_charge__mutmut_2
+  - id: 'src/app/billing.py::charge::if total > limit: -> if total >= limit:'
     reason: equivalente; o limite inclusivo não muda o contrato.
     author: Ada
     date: '2026-10-11'
@@ -97,14 +97,14 @@ waivers:
 
 | Campo | Origem em `bob waive` | Regra |
 |---|---|---|
-| `id` | o argumento (id do mutante ou nome da função), com `strip` | string não vazia |
+| `id` | o argumento (`arquivo::função` ou o Alvo do relatório), com `strip` | string não vazia |
 | `reason` | `--reason`, uma linha, com `strip` | string; vazio ou com `\n` / `\r` é rejeitado |
 | `author` | `git config user.name`; se falhar ou vier vazio, `$USER`; senão `unknown` | string não vazia no arquivo |
 | `date` | data UTC de hoje, `YYYY-MM-DD` | string não vazia |
 
-`bob waive` de um id que já existe uma vez substitui essa linha e sai com 0 quando o resto do arquivo é válido. Um arquivo que já contém duas entradas com o mesmo id sai com 4, em inglês no stderr, e não é reescrito.
+`bob waive` só grava um alvo de um sobrevivente do último relatório de mutação: `.bob/mutation-cache.json` no Python e `.bob/stryker-mutants.json` no TypeScript. Outro alvo, como o id do mutante ou o nome nu da função, sai com 4 e nada é gravado. `bob waive` de um id que já existe uma vez substitui essa linha e sai com 0 quando o resto do arquivo é válido. Um arquivo que já contém duas entradas com o mesmo id sai com 4, em inglês no stderr, e não é reescrito.
 
-Na hora de aplicar, um waiver casa com um mutante se o `id` é igual ao id do mutante, ao nome da função, a `arquivo:função` ou a `arquivo::função` (`_matching_reason`).
+Na hora de aplicar, um waiver casa com um sobrevivente em duas formas (`_matching_reason`). `arquivo::função` casa com todo sobrevivente da função. `arquivo::função::<descrição>` casa com um sobrevivente. A descrição é o operador do mutante, sem espaço nas pontas: o diff do `mutmut show` no Python, e `{mutatorName}@{linha}:{coluna}-{linha}:{coluna}`, mais ` -> {replacement}` quando houver, no TypeScript. Essa forma só existe quando nenhum outro sobrevivente da função tem a mesma descrição. A coluna Alvo do relatório mostra a forma exata de cada sobrevivente, ou `—` quando ela não existe. Um id que não casa com nenhum sobrevivente, escrito à mão, deixa o sobrevivente sem waiver. Ver a [ADR 0006](adr/0006-chave-estavel-do-waiver.md).
 
 ### Arquivo inválido
 
