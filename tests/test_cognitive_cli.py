@@ -6,7 +6,13 @@ import subprocess
 import sys
 from pathlib import Path
 
-from helpers import commit_on_branch, commit_on_main, init_python_repo, run_bob
+from helpers import (
+    commit_on_branch,
+    commit_on_main,
+    init_python_repo,
+    init_ts_repo,
+    run_bob,
+)
 
 
 def _fifteen(name: str) -> str:
@@ -65,3 +71,51 @@ def test_missing_complexipy_is_not_run(tmp_path: Path) -> None:
     assert payload["cognitive"] == []
     assert "complexipy" not in payload["tool_versions"]
     assert "complexipy não está instalado" in markdown
+
+
+def _method(first: str) -> str:
+    lines = ["export class Foo {", "  save(n: number): number {"]
+    for number in range(1, 16):
+        if number == 1:
+            lines.append(f"    if (n === 1) {first}")
+        else:
+            lines.append(f"    if (n === {number}) return {number};")
+    lines.extend(["    return 0;", "  }", "}", ""])
+    return "\n".join(lines)
+
+
+def test_body_edit_warns_when_a_second_file_does_not_parse(tmp_path: Path) -> None:
+    original = _method("return 1;")
+    edited = _method("return 1 + 0;")
+    changed = [
+        number
+        for number, (left, right) in enumerate(zip(original.splitlines(), edited.splitlines()), start=1)
+        if left != right
+    ]
+    repo = init_ts_repo(tmp_path / "repo")
+    commit_on_main(repo, "src/foo.ts", original, "add save")
+    commit_on_branch(repo, "edit", "src/foo.ts", edited, "edit the body")
+    commit_on_branch(repo, "edit", "src/broken.ts", "export const broken = (\n", "add a syntax error")
+
+    result = run_bob(repo, "check", "--base", "main", "--gates", "cognitive")
+    payload = json.loads((repo / ".bob" / "report.json").read_text())
+    gate = next(item for item in payload["gates"] if item["name"] == "cognitive")
+
+    assert changed == [3]
+    assert result.returncode == 0, result.stderr
+    assert payload["exit_code"] == 0
+    assert gate["status"] == "warn"
+    assert gate["reason"] == "1 function at or above the cognitive limit"
+    assert payload["cognitive"] == [
+        {
+            "file": "src/foo.ts",
+            "name": "Foo::save",
+            "start_line": 2,
+            "end_line": 19,
+            "score": 15,
+            "language": "typescript",
+            "waiver_id": "cognitive:src/foo.ts:Foo::save",
+        }
+    ]
+    assert payload["tool_versions"]["eslint"] == "9.39.5"
+    assert payload["tool_versions"]["eslint-plugin-sonarjs"] == "2.0.4"

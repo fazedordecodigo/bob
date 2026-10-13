@@ -1,9 +1,12 @@
 """Veredito de complexidade cognitiva no núcleo."""
 
+import json
+from pathlib import Path
 from typing import get_args
 
 import pytest
 
+from bob_quality.cognitive_gate import _parse_payload
 from bob_quality.config import SOURCE_LANGUAGES
 from bob_quality.core import cognitive_verdict
 from bob_quality.messages import render
@@ -124,6 +127,31 @@ def test_warnings_sort_by_file_then_line_then_name() -> None:
         ("src/a.py", 3, "z"),
         ("src/b.py", 1, "b"),
     ]
+
+
+def test_domain_payload_keeps_a_method_and_rejects_eslint_results(tmp_path: Path) -> None:
+    raw = json.dumps(
+        [
+            {
+                "file": str(tmp_path / "src" / "foo.ts"),
+                "name": "Foo::save",
+                "start_line": 2,
+                "end_line": 19,
+                "score": 15,
+            }
+        ]
+    )
+
+    found = _parse_payload(raw, tmp_path)
+
+    assert [
+        (item.file, item.name, item.start_line, item.end_line, item.score, item.language)
+        for item in found
+    ] == [("src/foo.ts", "Foo::save", 2, 19, 15, "typescript")]
+    assert found[0].waiver_id() == "cognitive:src/foo.ts:Foo::save"
+    with pytest.raises(ValueError) as caught:
+        _parse_payload('[{"filePath": "src/foo.ts", "messages": []}]', tmp_path)
+    assert str(caught.value) == "eslint payload is not domain json"
 
 
 @pytest.mark.parametrize(
