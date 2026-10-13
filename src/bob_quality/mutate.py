@@ -514,6 +514,10 @@ def _blocks(mutant: Mutant, diff_lines: dict[str, set[int]]) -> bool:
     return mutant.line in diff_lines.get(mutant.file, ())
 
 
+def _blocking_mutants(judged: list[tuple[Mutant, bool]]) -> list[Mutant]:
+    return [item for item, blocking in judged if blocking]
+
+
 def _finish(
     mutants: list[Mutant],
     diff_lines: dict[str, set[int]],
@@ -525,7 +529,7 @@ def _finish(
     visible = [item for item in mutants if item.status == "survived"]
     judged = [(item, _blocks(item, diff_lines)) for item in visible]
     rows = [_reported_survivor(item, blocking) for item, blocking in judged]
-    blockers = [item for item, blocking in judged if blocking]
+    blockers = _blocking_mutants(judged)
     uncovered = no_coverage_summary(mutants, [*remutated, *reused])
     summary = {"remutated": remutated, "reused": reused, "no_coverage": uncovered}
     if not blockers:
