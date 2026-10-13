@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+`bob --config ci.yaml check` exits `4` and writes no report. The last stderr line is `bob: error: --config goes after the command: bob check --config ci.yaml`. A path with a space is quoted, as in `bob crap --config 'my ci.yaml'`. `doctor` and `waive` do not accept `--config`. `bob --help` does not list `--config`.
+
+`bob --config ci.yaml check` sai com `4` e não grava relatório. A última linha do stderr é `bob: error: --config goes after the command: bob check --config ci.yaml`. Um caminho com espaço sai entre aspas, como em `bob crap --config 'my ci.yaml'`. `doctor` e `waive` não aceitam `--config`. O `bob --help` não lista `--config`.
+
+A repeated key in one YAML mapping exits `4` and writes no report. The English stderr names the key and the line, as in `invalid YAML in bob.yaml: found duplicate key 'base' on line 2`. A repeated key in `.bob/waivers.yaml` names the key and the line the same way. A key written in the mapping can still override a value merged with `<<`.
+
+Uma chave repetida num mapeamento YAML sai com `4` e não grava relatório. O stderr em inglês cita a chave e a linha, como em `invalid YAML in bob.yaml: found duplicate key 'base' on line 2`. Uma chave repetida no `.bob/waivers.yaml` cita a chave e a linha do mesmo jeito. Uma chave escrita no mapeamento ainda pode substituir um valor mesclado com `<<`.
+
 The pull request comment resolves language with `resolve_language`, the same function the CLI calls. The order is the Action `language` input or `--lang`, then `BOB_LANG`, then `language` in `bob.yaml`, then `en`. The truncation note and the comment errors follow that language. The errors are a missing repo, pr, or token, a missing report, and an invalid comment list. The report body stays the bytes of `.bob/report.md`. A bad `language` value, a `bob.yaml` that is not a mapping, or a YAML syntax error exits 4 with the existing English stderr and posts no comment, even when `--lang` is valid. An empty `BOB_LANG` is invalid and exits 4. An empty Action `language` input is skipped.
 
 O comentário do PR resolve o idioma com `resolve_language`, a mesma função que a CLI chama. A ordem é o input `language` da Action ou `--lang`, depois `BOB_LANG`, depois `language` no `bob.yaml`, depois `en`. A nota de truncamento e os erros do comentário seguem esse idioma. Os erros são repo, pr ou token ausente, relatório ausente e lista de comentários inválida. O corpo do relatório continua os bytes de `.bob/report.md`. Um `language` inválido, um `bob.yaml` que não é mapeamento ou um YAML com erro de sintaxe sai com 4, com o stderr em inglês que já existia, e não posta comentário, mesmo com `--lang` válido. Um `BOB_LANG` vazio é inválido e sai com 4. Um input `language` vazio fica de fora.
