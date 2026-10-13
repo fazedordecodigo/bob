@@ -417,6 +417,7 @@ def test_absorb_records_every_gate_argument_and_result(
         ["crap", "dry", "deps", "mutate", "nope"],
         out,
         4,
+        "origin/main",
     )
 
     assert seen["crap"] == {
