@@ -489,7 +489,7 @@ def test_measure_forwards_security_and_assemble_publishes_it(tmp_path: Path, mon
         PASSED,
         {"mutmut": "3.8.0"},
         [{"id": "m", "reason": "because", "author": "ada", "date": "2026-10-12"}],
-        [{"file": "src/survivor.py"}],
+        [{"file": "src/survivor.py", "blocking": True}],
         {"remutated": ["src/app.py::add"], "reused": []},
     )
     report = check_mod._assemble(state, "abc123", "main", diff, 10.0, "bob check")
@@ -504,8 +504,9 @@ def test_measure_forwards_security_and_assemble_publishes_it(tmp_path: Path, mon
     assert report.reproduce == "bob check"
     assert report.exit_code == PASSED
     assert report.security is security
+    assert report.dead_code is None
     assert report.waivers == state.mutation.waivers
-    assert report.survivors == [{"file": "src/survivor.py"}]
+    assert report.survivors == [{"file": "src/survivor.py", "blocking": True}]
     assert report.mutation == {"remutated": ["src/app.py::add"], "reused": []}
     assert report.top_crap[0]["name"] == "add"
     assert report.old_debt[0]["file"] == "src/old.py"

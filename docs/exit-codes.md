@@ -9,12 +9,12 @@ Os códigos estão em `src/bob_quality/exit_codes.py`. A [SPEC](SPEC.md) os insp
 | `0` | `PASSED` | Todo gate que rodou passou, ou só avisou |
 | `1` | `GATE_FAILED` | CRAP de uma função no escopo ≥ limite, ou violação de dependência no diff |
 | `2` | `BASELINE_BROKEN` | A suíte quebra antes da medição |
-| `3` | `UNWAIVED_SURVIVOR` | Mutante `survived` sem waiver |
+| `3` | `UNWAIVED_SURVIVOR` | Mutante `survived` sem waiver numa linha do diff |
 | `4` | `CONFIG_OR_TOOL` | Configuração inválida ou ferramenta que impede a medição |
 
 ## Exit 0
 
-Todos os gates pedidos que de fato rodaram passaram. Aviso também termina em `0`: clone novo, mutante `no_coverage` sem sobrevivente sem waiver, TypeScript pulado num monorepo quando o que foi medido cabe no limite, e achado de segurança no diff fora de `security.fail_severities`. O mesmo `0` vale quando o gate `security` mediu uma linguagem e a outra ficou de fora: o passe vira `warn`. O veredito do gate fica ⚠️. O exit continua `0`.
+Todos os gates pedidos que de fato rodaram passaram. Aviso também termina em `0`: clone novo, mutante `no_coverage` sem sobrevivente sem waiver, TypeScript pulado num monorepo quando o que foi medido cabe no limite, achado de segurança no diff fora de `security.fail_severities`, e símbolo morto no diff. O mesmo `0` vale quando o gate `security` mediu uma linguagem e a outra ficou de fora: o passe vira `warn`. O veredito do gate fica ⚠️. O exit continua `0`.
 
 Um nome de gate desconhecido é `not_run` e contribui `0`.
 
@@ -44,9 +44,9 @@ O [AGENTS.md](../AGENTS.md) registra que o exit `2` também sai do `bob check` p
 
 ## Exit 3
 
-Só o gate `mutate`. Em `_finish`, a lista que bloqueia são os mutantes com status `survived` e waiver vazio. Um ou mais: exit `3` e status `failed`. O motivo lista `função@arquivo:linha`.
+Só o gate `mutate`. Em `_finish`, a lista que bloqueia são os mutantes com status `survived`, waiver vazio e linha no lado novo do diff. Sem arquivo, ou com linha menor ou igual a zero, esse sobrevivente também bloqueia. Um ou mais: exit `3` e status `failed`. O motivo lista só esses, no formato `função@arquivo:linha`. Sobrevivente sem waiver fora do diff fica na tabela e não muda o exit.
 
-Waiver casado por id, nome, `arquivo:função` ou `arquivo::função` tira o mutante dessa lista. `killed`, `timeout` e `no_coverage` não entram nela. `no_coverage` pode deixar o gate em `warn` com exit `0` ou, se já existe sobrevivente sem waiver, o exit continua `3` e o aviso de contagem vai no relatório.
+Waiver casado por id, nome, `arquivo:função` ou `arquivo::função` tira o mutante dessa lista. `killed`, `timeout` e `no_coverage` não entram nela. `no_coverage` pode deixar o gate em `warn` com exit `0` ou, se já existe sobrevivente que bloqueia, o exit continua `3` e o aviso de contagem vai no relatório.
 
 A fase 2 da decisão 11 da spec ( `no_coverage` no diff falhando com `3`) não é o comportamento de `_finish`.
 

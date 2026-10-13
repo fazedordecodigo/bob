@@ -14,15 +14,16 @@ O schema está em `src/bob_quality/schemas/report_v1.json`. `schema_version` é 
 2. `## Waivers`, só quando já há waivers ou a mutação rodou. Sem entradas, o texto é `Nenhum waiver.` A tabela tem alvo, motivo, autor e data. O título `## Waivers` é fixo nos dois idiomas (string literal em `_waiver_section`).
 3. Cabeçalho: commit, base, data e versões das ferramentas. As linhas `Commit:` e `Base:` ficam em inglês no código (`_header`).
 4. `## Veredito`: uma linha por gate, ✅ passou, ⚠️ aviso, ❌ falhou ou ⏭️ não executado. Com motivo, ele vai entre parênteses.
-5. `## Onde focar o review`: arquivos alterados ordenados pelo maior CRAP, com clones e, se a mutação rodou, um acréscimo de risco para sobrevivente sem waiver (`focus_with_survivors` soma 100). Arquivo com clone ganha o sufixo `, clone`.
+5. `## Onde focar o review`: arquivos alterados ordenados pelo maior CRAP, com clones e, se a mutação rodou, um acréscimo de risco para cada sobrevivente que bloqueia (`focus_with_survivors` soma 100 quando `blocking` é verdadeiro). Sobrevivente com waiver, ou fora do diff, não soma e não coloca arquivo novo no foco. Arquivo com clone ganha o sufixo `, clone`.
 6. `## Top 5 funções por CRAP (diff)`: função, arquivo:linha, CC, cobertura em percentual inteiro, CRAP e delta. Delta ausente vira `—`.
 7. `## Informação (dívida antiga)`, só se existir função fora do diff no limite ou acima. O item termina com `fora do diff; não bloqueia`.
 8. `## Violações e ciclos de dependência`, e em seguida `## Informação (dependências fora do diff)` quando há violações fora do diff.
 9. `## Clones novos`. Cada par traz arquivos, linhas, tokens e similaridade.
-10. `## Mutantes sobreviventes`, só se a mutação rodou. Colunas: id, função, local, operador, waiver.
+10. `## Mutantes sobreviventes`, só se a mutação rodou. Colunas: id, função, local, operador, waiver. Sobrevivente sem waiver que não bloqueia leva, no local, `fora do diff; não bloqueia`. O JSON guarda `blocking` em cada linha. O cache de mutação não guarda esse campo.
 11. `## Mutantes sem teste`, só se o resumo de mutação traz `no_coverage`. Total, e tabela por função e arquivo. A linha do total diz que não bloqueia.
-12. `## Segurança` em `pt-BR`, `## Security` em `en`, só quando o gate `security` rodou, inclusive `not_run`. Sem achados e sem linguagem de fora, o texto é `Nenhum achado.` / `No findings.` Linguagem sem medição e tabela vazia mostra o motivo do gate, sem essa frase. A tabela tem ferramenta, regra, local (`arquivo:linha` ou `arquivo:linha-fim`), severidade, disposição e waiver. A disposição no Markdown traduz (`falha`, `aviso`, `dispensado`, `fora do diff`). O JSON guarda `fail`, `warn`, `waived` e `off_diff`.
-13. `## Como reproduzir`: o comando, dentro de uma cerca, com `--lang` do idioma que gerou o arquivo.
+12. `## Código morto` em `pt-BR`, `## Dead code` em `en`, só quando o gate `dead_code` rodou, inclusive `not_run`. Sem símbolo no diff, o texto é `Nenhum símbolo morto no diff.` / `No unused symbol in the diff.` O tipo no Markdown traduz. O JSON guarda `kind` em inglês.
+13. `## Segurança` em `pt-BR`, `## Security` em `en`, só quando o gate `security` rodou, inclusive `not_run`. Sem achados e sem linguagem de fora, o texto é `Nenhum achado.` / `No findings.` Linguagem sem medição e tabela vazia mostra o motivo do gate, sem essa frase. A tabela tem ferramenta, regra, local (`arquivo:linha` ou `arquivo:linha-fim`), severidade, disposição e waiver. A disposição no Markdown traduz (`falha`, `aviso`, `dispensado`, `fora do diff`). O JSON guarda `fail`, `warn`, `waived` e `off_diff`.
+14. `## Como reproduzir`: o comando, dentro de uma cerca, com `--lang` do idioma que gerou o arquivo.
 
 Seções vazias de dívida e de mutação somem. Foco, top 5, clones e veredito aparecem mesmo vazios, com a frase de “nenhum”.
 
@@ -30,7 +31,7 @@ A [SPEC](SPEC.md) descreve a ordem começando pelo cabeçalho e pelo veredito, e
 
 ## report.json
 
-Campos obrigatórios no schema: `schema_version`, `commit`, `base`, `generated_at`, `tool_versions`, `gates`, `focus`, `top_crap`, `reproduce`, `exit_code`. `schema_version` continua `1`. O render também escreve `old_debt`, `dependencies`, `old_dependencies`, `clones`, `waivers`, `survivors` e `mutation`. `security` entra só quando o gate foi pedido, depois de `mutation` e antes de `reproduce`. Sem o gate, a chave não existe. O objeto tem `findings` e `unmeasured`. `findings` traz `tool`, `rule`, `file`, `line`, `end_line`, `severity`, `disposition` e `waiver` (`null` quando não há). `unmeasured` lista o nome da ferramenta que não mediu.
+Campos obrigatórios no schema: `schema_version`, `commit`, `base`, `generated_at`, `tool_versions`, `gates`, `focus`, `top_crap`, `reproduce`, `exit_code`. `schema_version` continua `1`. O render também escreve `old_debt`, `dependencies`, `old_dependencies`, `clones`, `waivers`, `survivors` e `mutation`. `security` entra só quando esse gate foi pedido, depois de `mutation`. Sem ele, a chave não existe. O objeto tem `findings` e `unmeasured`. `findings` traz `tool`, `rule`, `file`, `line`, `end_line`, `severity`, `disposition` e `waiver` (`null` quando não há). `unmeasured` lista o nome da ferramenta que não mediu. `dead_code` entra só quando esse gate foi pedido, depois de `security` quando os dois existem, e antes de `reproduce`. Sem ele, a chave não existe. `dead_code.symbols` traz `file`, `line`, `name`, `kind`, `language`, `confidence` e `waiver`.
 
 `gates[].status` é `passed`, `warn`, `failed` ou `not_run`. O `reason` no JSON é renderizado em inglês (`JSON_LANGUAGE`).
 
