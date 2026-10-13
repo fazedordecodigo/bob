@@ -21,7 +21,7 @@ Num Ubuntu atual o Python do sistema recusa `pip install` pela PEP 668. Use um v
 bob = "bob_quality.cli:main"
 ```
 
-As dependências Python pinadas no pacote são `lizard==1.24.1`, `coverage==7.16.2`, `PyYAML==6.0.3`, `import-linter==2.15`, `grimp==3.17` e `mutmut==3.8.0`. O extra `dev` traz `pytest`, `jsonschema`, `build` e `twine`.
+As dependências Python pinadas no pacote são `lizard==1.24.1`, `coverage==7.16.2`, `diff-cover==10.6.0`, `PyYAML==6.0.3`, `import-linter==2.15`, `grimp==3.17` e `mutmut==3.8.0`. O extra `dev` traz `pytest`, `jsonschema`, `build` e `twine`.
 
 Num checkout, para desenvolver:
 

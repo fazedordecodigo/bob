@@ -8,15 +8,17 @@ from pathlib import Path
 
 from bob_quality.config import Config, ConfigError, load_config
 from bob_quality.core import files_by_risk, informational_debt, top_changed_crap
+from bob_quality.coverage_gate import run_coverage_gate
 from bob_quality.crap_gate import run_crap_gate
 from bob_quality.deps_gate import run_deps_gate
 from bob_quality.diff import GitError, changed_lines, current_commit
 from bob_quality.dry_gate import run_dry_gate
 from bob_quality.exit_codes import CONFIG_OR_TOOL, PASSED
 from bob_quality.messages import DEFAULT_LANGUAGE, Language, Text, msg, reason
-from bob_quality.models import Clone, DepViolation, FunctionMetric, GateResult, Report
+from bob_quality.models import Clone, DepViolation, DiffCoverage, FunctionMetric, GateResult, Report
 from bob_quality.mutate import MutationOutcome, focus_with_survivors, run_mutation_gate
 from bob_quality.report import metric_row, violation_rows, write_report
+from bob_quality.suite_memo import SuiteMemo
 from bob_quality.waivers import WaiverError, load_waivers
 
 DEFAULT_GATES = ("crap", "dry", "deps")
@@ -51,6 +53,7 @@ def run_check(
         chosen_gates,
         chosen_out,
         max_workers,
+        chosen_base,
     )
     if measured.mutation is None:
         loaded = _load_idle_waivers(cwd, chosen_base, command, chosen_gates)
@@ -103,6 +106,7 @@ class _Measured:
     mutation: MutationOutcome | None = None
     loaded_waivers: list[dict[str, object]] = field(default_factory=list)
     baseline: int | None = None
+    diff_coverage: DiffCoverage | None = None
 
 
 def _measure(
@@ -114,20 +118,27 @@ def _measure(
     gates: list[str],
     out_dir: Path,
     max_workers: int | None,
+    base: str,
 ) -> _Measured:
     state = _Measured()
-    for gate in gates:
-        _absorb(
-            state,
-            gate,
-            cwd,
-            config,
-            diff_lines,
-            max_crap,
-            coverage_file,
-            out_dir,
-            max_workers,
-        )
+    memo = SuiteMemo(want_lcov="coverage" in gates, want_json="crap" in gates)
+    try:
+        for gate in gates:
+            _absorb(
+                state,
+                gate,
+                cwd,
+                config,
+                diff_lines,
+                max_crap,
+                coverage_file,
+                out_dir,
+                max_workers,
+                base,
+                memo,
+            )
+    finally:
+        memo.close()
     return state
 
 
@@ -141,6 +152,8 @@ def _absorb(
     coverage_file: Path | None,
     out_dir: Path,
     max_workers: int | None,
+    base: str,
+    memo: SuiteMemo,
 ) -> None:
     if gate == "crap":
         result, metrics, code, versions, baseline = run_crap_gate(
@@ -149,6 +162,7 @@ def _absorb(
             diff_lines=diff_lines,
             max_crap=max_crap,
             coverage_file=coverage_file,
+            memo=memo,
         )
         state.metrics = metrics
         state.baseline = baseline
@@ -175,6 +189,11 @@ def _absorb(
         )
         state.mutation = mutation
         _record(state, mutation.result, mutation.exit_code, mutation.versions)
+        return
+    if gate == "coverage":
+        outcome = run_coverage_gate(cwd, config, base, coverage_file, memo)
+        state.diff_coverage = outcome.diff_coverage
+        _record(state, outcome.result, outcome.exit_code, outcome.versions)
         return
     _record(
         state,
@@ -241,6 +260,7 @@ def _assemble(
         waivers=waivers,
         survivors=survivors,
         mutation=summary,
+        diff_coverage=measured.diff_coverage,
     )
 
 

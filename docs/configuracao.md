@@ -22,6 +22,8 @@ crap:
   scope: changed
 duplication:
   min_tokens: 50
+coverage:
+  min_percent: 80
 dependencies:
   python: .importlinter
   typescript: .dependency-cruiser.cjs
@@ -43,6 +45,7 @@ O `bob.yaml` deste repositório é mais curto: `base`, `languages: [python]`, `p
 | `crap.max_per_function` | número (bool não vale) | `10` | Limite. CRAP maior ou igual reprova |
 | `crap.scope` | string | `changed` | Só `changed` ou `all`. Outro texto sai com `4` |
 | `duplication.min_tokens` | inteiro maior que 0 | `50` | Mínimo de tokens do jscpd |
+| `coverage.min_percent` | número finito de 0 a 100 | `80` | Piso da cobertura do diff. Igual ao piso passa |
 | `dependencies.python` | string | `.importlinter` | Config do import-linter |
 | `dependencies.typescript` | string | `.dependency-cruiser.cjs` | Config do dependency-cruiser |
 
@@ -60,7 +63,9 @@ O gate DRY mapeia `typescript` para os formatos `typescript` e `javascript` do j
 
 ### Chaves que o loader recusa
 
-O `_SCHEMA` em `src/bob_quality/config.py` aceita `base`, `language`, `languages`, `paths.include`, `paths.exclude`, `crap.max_per_function`, `crap.scope`, `duplication.min_tokens`, `dependencies.python` e `dependencies.typescript`. `_reject_unknown` recusa qualquer outra chave: exit `4`, mensagem em inglês no stderr, nenhum arquivo gravado.
+O `_SCHEMA` em `src/bob_quality/config.py` aceita `base`, `language`, `languages`, `paths.include`, `paths.exclude`, `crap.max_per_function`, `crap.scope`, `duplication.min_tokens`, `coverage.min_percent`, `dependencies.python` e `dependencies.typescript`. `_reject_unknown` recusa qualquer outra chave: exit `4`, mensagem em inglês no stderr, nenhum arquivo gravado.
+
+`coverage.min_percent` abaixo de 0, acima de 100, não finito ou booleano sai com `4`. A mensagem em inglês no stderr cita o arquivo e a chave, e nada é gravado. O gate que lê essa chave não entra na lista padrão do `bob check`.
 
 Estas não entram no schema:
 
@@ -95,6 +100,8 @@ waivers:
 `bob waive` de um id que já existe uma vez substitui essa linha e sai com 0 quando o resto do arquivo é válido. Um arquivo que já contém duas entradas com o mesmo id sai com 4, em inglês no stderr, e não é reescrito.
 
 Na hora de aplicar, um waiver casa com um mutante se o `id` é igual ao id do mutante, ao nome da função, a `arquivo:função` ou a `arquivo::função` (`_matching_reason`).
+
+O gate `coverage` lê só ids com o prefixo `coverage:`. `coverage:<arquivo>` tira o arquivo inteiro. `coverage:<arquivo>:<linha>` tira essa linha do numerador e do denominador. O trecho depois do último `:` é linha só quando é feito de dígitos. `_matching_reason` não usa o prefixo: um id de cobertura só casa com um mutante quando o id inteiro já é uma das chaves do mutante.
 
 ### Arquivo inválido
 

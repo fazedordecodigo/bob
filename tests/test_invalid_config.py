@@ -285,6 +285,19 @@ _SEMANTIC_YAML = (
     ("duplication: false\n", "bob.yaml: duplication must be a mapping\n"),
     ('duplication: ""\n', "bob.yaml: duplication must be a mapping\n"),
     ("duplication: [1]\n", "bob.yaml: duplication must be a mapping\n"),
+    (
+        "coverage:\n  min_percent: true\n",
+        "bob.yaml: coverage.min_percent must be a number\n",
+    ),
+    (
+        "coverage:\n  min_percent: 101\n",
+        "bob.yaml: coverage.min_percent must be at most 100\n",
+    ),
+    (
+        "coverage:\n  min_percent: -1\n",
+        "bob.yaml: coverage.min_percent must be at least 0\n",
+    ),
+    ("coverage: 0\n", "bob.yaml: coverage must be a mapping\n"),
     ("0\n", "bob.yaml must be a mapping\n"),
     ("false\n", "bob.yaml must be a mapping\n"),
     ('""\n', "bob.yaml must be a mapping\n"),

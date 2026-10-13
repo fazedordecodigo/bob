@@ -81,6 +81,10 @@ def crap_verdict(
     )
 
 
+def below_floor(percent: float, floor: float) -> bool:
+    return percent < floor
+
+
 def informational_debt(
     metrics: list[FunctionMetric], max_crap: float
 ) -> list[FunctionMetric]:

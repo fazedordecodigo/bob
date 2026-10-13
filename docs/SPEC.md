@@ -83,10 +83,11 @@ languages: [python, typescript]
 paths: { include: [src], exclude: [tests, node_modules, dist] }
 crap: { max_per_function: 10, scope: changed }
 duplication: { min_tokens: 50 }
+coverage: { min_percent: 80 }
 dependencies: { python: .importlinter, typescript: .dependency-cruiser.cjs }
 ```
 
-`crap.scope` é `changed` ou `all`. Cada item de `languages` é `python` ou `typescript`. Uma lista `languages` presente não é vazia e não repete item. A chave `languages` omitida continua `python`. `crap.max_per_function` é um número finito maior que 0. Um inteiro que não cabe em float também não é finito. `duplication.min_tokens` é um inteiro maior que 0. Uma chave desconhecida sai com 4.
+`crap.scope` é `changed` ou `all`. Cada item de `languages` é `python` ou `typescript`. Uma lista `languages` presente não é vazia e não repete item. A chave `languages` omitida continua `python`. `crap.max_per_function` é um número finito maior que 0. Um inteiro que não cabe em float também não é finito. `duplication.min_tokens` é um inteiro maior que 0. `coverage.min_percent` é um número finito de 0 a 100, e o padrão é 80. Igual ao piso passa. O gate `coverage` não entra no `bob check` sem `--gates`. Uma chave desconhecida sai com 4.
 
 **Formato do relatório (`.bob/report.md`, espelhado em `report.json`)**
 1. Cabeçalho: commit, base, data, versões das ferramentas.
@@ -96,7 +97,8 @@ dependencies: { python: .importlinter, typescript: .dependency-cruiser.cjs }
 5. Mutantes sobreviventes (sem waiver = falha), mutantes sem teste (`no_coverage`) como ⚠️ agrupados por função e arquivo, e tabela de waivers com justificativa.
 6. Clones novos (pares, similaridade, linhas).
 7. Violações e ciclos de dependência.
-8. Rodapé: como reproduzir localmente (comando exato).
+8. Cobertura do diff, só quando o gate `coverage` rodou: percentual de cada linguagem medida e linhas descobertas. No JSON o campo é `diff_coverage`, omitido quando nenhuma linguagem mediu. `schema_version` continua 1.
+9. Rodapé: como reproduzir localmente (comando exato).
 
 O JSON segue um schema versionado (`schema_version: 1`). Os títulos e os textos do `report.md` seguem o idioma da saída. O `report.json` não muda com o idioma (decisão 12).
 

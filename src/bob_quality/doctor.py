@@ -53,6 +53,7 @@ PINS: tuple[Pin, ...] = (
     RequiresDist("mutmut", "mutmut"),
     RequiresDist("import-linter", "import-linter"),
     RequiresDist("grimp", "grimp"),
+    RequiresDist("diff-cover", "diff-cover"),
     ToolPin(
         "dependency-cruiser",
         "18.5.0",

@@ -13,6 +13,7 @@ authors = [{ name = "Emerson Delatorre" }]
 dependencies = [
     "lizard==1.24.1",
     "coverage==7.16.2",
+    "diff-cover==10.6.0",
     "PyYAML==6.0.3",
     "import-linter==2.15",
     "grimp==3.17",

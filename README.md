@@ -69,7 +69,7 @@ python -m pip install -e ".[dev]"
 npm ci
 ```
 
-These commands install the `bob` command, the Python tools pinned in `pyproject.toml` (`lizard`, `coverage`, `mutmut`, `import-linter`, `grimp`), and the npm tools pinned in `package.json` (`c8`, `vitest`, `jscpd`, `dependency-cruiser`). `bob doctor` shows the expected and the found version of each tool.
+These commands install the `bob` command, the Python tools pinned in `pyproject.toml` (`lizard`, `coverage`, `diff-cover`, `mutmut`, `import-linter`, `grimp`), and the npm tools pinned in `package.json` (`c8`, `vitest`, `jscpd`, `dependency-cruiser`). `bob doctor` shows the expected and the found version of each tool.
 
 ## Installing in the agents
 
@@ -171,6 +171,7 @@ bob wraps each tool in its own adapter and copies no code from them. The version
 | Duplication | `jscpd` 5.4.1 | `jscpd` 5.4.1 |
 | Mutation | `mutmut` 3.8.0 | planned ([#8](https://github.com/fazedordecodigo/bob/issues/8)) |
 | Dependencies | `import-linter` 2.15, `grimp` 3.17 | `dependency-cruiser` 18.5.0 |
+| Diff coverage | `diff-cover` 10.6.0 on `coverage.xml` | `diff-cover` 10.6.0 on c8 lcov |
 
 The npm tools need Node, and jscpd needs it in a Python-only repository too. In a repository with Python and TypeScript, a missing Node is not exit `4`. bob still measures Python and reports TypeScript as skipped, with a warning. Exit `4` stays when the missing tool blocks the requested measurement, as in a TypeScript-only repository without Node.
 
@@ -190,6 +191,8 @@ crap:
   scope: changed
 duplication:
   min_tokens: 50
+coverage:
+  min_percent: 80
 dependencies:
   python: .importlinter
   typescript: .dependency-cruiser.cjs
@@ -337,7 +340,7 @@ The action accepts the inputs `base`, `gates`, `pip-spec`, and `token`. This rep
 
 The gates follow Uncle Bob's workflow. The READMEs and the output of his tools [crapper](https://github.com/unclebob/crapper) and [mutator](https://github.com/unclebob/mutator) (0BSD) are the behavior reference, and bob reuses none of their code. The exit codes take after mutator. The duplication gate uses jscpd. A structural dryer of bob's own, in the line of his [dryer](https://github.com/unclebob/dryer) (0BSD), is out of scope for the MVP. The limits come from his recent posts, CRAP < 10 for agents ([post on X](https://x.com/unclebobmartin/status/2108946115169030596)) and kill mutants within reason ([Aviator podcast](https://www.aviator.co/podcast/uncle-bob-martin-ai-clean-code)).
 
-The market tools (lizard, coverage.py, c8, vitest, mutmut, jscpd, import-linter, grimp, dependency-cruiser) are pinned dependencies, and bob copies no code from them. grimp has no adapter.
+The market tools (lizard, coverage.py, diff-cover, c8, vitest, mutmut, jscpd, import-linter, grimp, dependency-cruiser) are pinned dependencies, and bob copies no code from them. grimp has no adapter.
 
 ## License
 

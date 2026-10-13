@@ -87,6 +87,31 @@ class DepViolation:
 
 
 @dataclass(frozen=True)
+class DiffLine:
+    file: str
+    line: int
+
+
+@dataclass(frozen=True)
+class LanguageDiff:
+    language: str
+    percent: float
+    uncovered: tuple[DiffLine, ...]
+
+
+@dataclass(frozen=True)
+class DiffCoverage:
+    languages: tuple[LanguageDiff, ...]
+
+
+def flatten_uncovered(coverage: DiffCoverage) -> tuple[DiffLine, ...]:
+    rows: list[DiffLine] = []
+    for item in coverage.languages:
+        rows.extend(item.uncovered)
+    return tuple(sorted(rows, key=lambda row: (row.file, row.line)))
+
+
+@dataclass(frozen=True)
 class GateResult:
     name: str
     status: GateStatus
@@ -112,3 +137,4 @@ class Report:
     waivers: list[dict[str, object]] = field(default_factory=list)
     survivors: list[dict[str, object]] = field(default_factory=list)
     mutation: dict[str, object] | None = None
+    diff_coverage: DiffCoverage | None = None

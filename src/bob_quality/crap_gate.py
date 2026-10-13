@@ -12,6 +12,7 @@ from bob_quality.models import FunctionMetric, GateResult
 from bob_quality.npm_tools import NODE_MISSING
 from bob_quality.probe import ProbeResult
 from bob_quality.python_probe import measure_python
+from bob_quality.suite_memo import SuiteMemo
 from bob_quality.typescript_probe import measure_typescript
 
 
@@ -21,6 +22,7 @@ def run_crap_gate(
     diff_lines: dict[str, set[int]],
     max_crap: float,
     coverage_file: Path | None,
+    memo: SuiteMemo,
 ) -> tuple[GateResult, list[FunctionMetric], int, dict[str, str], int | None]:
     """O último item é o exit do pytest da medição Python, ou None sem pytest."""
     metrics: list[FunctionMetric] = []
@@ -28,13 +30,13 @@ def run_crap_gate(
     typescript_skip: Text | None = None
     baseline: int | None = None
     if "python" in config.languages:
-        python = measure_python(cwd, config, diff_lines, coverage_file)
+        python = measure_python(cwd, config, diff_lines, coverage_file, memo)
         baseline = python.baseline
         failure = _absorb(python, metrics, versions)
         if failure is not None:
             return (*failure, baseline)
     if "typescript" in config.languages:
-        probed = measure_typescript(cwd, config, diff_lines)
+        probed = measure_typescript(cwd, config, diff_lines, memo)
         if "python" in config.languages and _node_is_missing(probed):
             versions.update(probed.versions)
             typescript_skip = probed.gate.reason if probed.gate is not None else None

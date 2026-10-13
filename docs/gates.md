@@ -2,7 +2,9 @@
 
 [Índice](README.md) · [Visão geral](visao-geral.md) · [CLI](cli.md) · [Configuração](configuracao.md) · [Exit codes](exit-codes.md) · [Relatórios](relatorios.md) · [SPEC](SPEC.md)
 
-Quatro gates. Cada um devolve um status `passed`, `warn`, `failed` ou `not_run`. O Markdown traduz para passou, aviso, falhou e não executado, com ✅ ⚠️ ❌ ⏭️ (`GATE_MARK` em `src/bob_quality/report.py`). Um gate que não rodou fica ⏭️ com motivo. Ele não aparece como ✅.
+Cada gate devolve um status `passed`, `warn`, `failed` ou `not_run`. O Markdown traduz para passou, aviso, falhou e não executado, com ✅ ⚠️ ❌ ⏭️ (`GATE_MARK` em `src/bob_quality/report.py`). Um gate que não rodou fica ⏭️ com motivo. Ele não aparece como ✅.
+
+`coverage` é opt-in. O `bob check` sem `--gates` continua `crap,dry,deps`. O hook `pre-push` e a Action também não incluem esse gate.
 
 O exit code do `bob check` é o maior entre os gates que rodaram. Aviso não aumenta o código. Ver [Exit codes](exit-codes.md).
 
@@ -12,8 +14,9 @@ O exit code do `bob check` é o maior entre os gates que rodaram. Aviso não aum
 | [DRY](#dry) | jscpd | nada; clone novo é aviso | `0` |
 | [Mutação](#mutação) | mutmut (Python) | sobrevivente sem waiver | `3` |
 | [Dependências](#dependências) | import-linter, dependency-cruiser, mais a regra de ciclo | violação cuja origem, destino ou outro módulo do ciclo está no diff | `1` |
+| [Cobertura do diff](#cobertura-do-diff) | diff-cover 10.6.0 sobre `coverage.xml` ou lcov do c8 | percentual de uma linguagem abaixo do piso | `1` |
 
-Versões pinadas: lizard 1.24.1, coverage 7.16.2, c8 12.0.0, vitest 5.0.3, jscpd 5.4.1, mutmut 3.8.0, import-linter 2.15, grimp 3.17, dependency-cruiser 18.5.0. Node 22.14.0. Fonte: `pyproject.toml` e `package.json`. O doctor lê os pinos pip do Requires-Dist instalado.
+Versões pinadas: lizard 1.24.1, coverage 7.16.2, diff-cover 10.6.0, c8 12.0.0, vitest 5.0.3, jscpd 5.4.1, mutmut 3.8.0, import-linter 2.15, grimp 3.17, dependency-cruiser 18.5.0. Node 22.14.0. Fonte: `pyproject.toml` e `package.json`. O doctor lê os pinos pip do Requires-Dist instalado.
 
 ## CRAP
 
@@ -81,6 +84,24 @@ O nome da regra de ciclo no JSON (sempre inglês) é `Forbidden dependency cycle
 Uma violação bloqueia quando a origem, o destino, ou outro módulo do mesmo componente fortemente conexo, está no diff (`_edge_in_diff`). As outras aparecem em “Informação (dependências fora do diff)” e não mudam o exit code. Zero violações no diff: `passed` e exit `0`. Uma no diff: `failed` e exit `1`.
 
 Ferramenta ausente que impede a medição pedida deixa o gate `not_run` e o exit `4` (`ToolError` em `run_deps_gate`). O mesmo exit `4` vale para um JSON do dependency-cruiser que não é objeto ou não traz a lista `violations`, e para o import-linter com exit 0 cuja última linha `Contracts:` não é `N kept, 0 broken.`
+
+## Cobertura do diff
+
+O nome em `--gates` é `coverage`. Sem ele, o check não mede cobertura do diff.
+
+O piso é `coverage.min_percent`, padrão 80. Percentual abaixo do piso falha. Percentual igual ao piso passa. Esse corte é o inverso do CRAP, que falha quando o número é igual ao limite. A comparação mora em `below_floor`, ao lado de `crap_verdict` em `core.py`.
+
+Cada linguagem de `languages` tem o próprio percentual. Uma abaixo do piso falha o gate. Linguagem sem linha nova cobrível fica em 100 e passa.
+
+Python lê o XML do Cobertura. O `coverage xml` grava esse XML a partir do mesmo arquivo de dados do `coverage json`. TypeScript lê o lcov do c8, gravado na mesma execução do vitest. Cada linguagem chama o diff-cover 10.6.0 num processo separado. XML e lcov não entram no mesmo processo.
+
+O gate grava o próprio `git diff --unified=0 <base>...HEAD` e passa esse arquivo ao diff-cover. Esse comando não altera o diff que o CRAP já usa.
+
+O waiver de linha é `coverage:<arquivo>:<linha>`. Ele tira a linha do numerador e do denominador. O waiver de arquivo é `coverage:<arquivo>` e tira o arquivo inteiro. O gate só lê ids com o prefixo `coverage:`. O trecho depois do último `:` é uma linha quando contém só dígitos. Qualquer outro texto depois do prefixo é um arquivo. O casamento dos mutantes continua exato e ignora esse prefixo.
+
+Suíte que quebra antes de existir artefato sai com `2`. O JSON não traz `diff_coverage`. Suíte boa com artefato ausente, e nenhuma outra linguagem medida, sai com `4`. diff-cover ausente sai com `4` antes de o gate de cobertura pedir a suíte. Um `crap` na mesma lista ainda mede.
+
+Se uma linguagem mede e a outra não tem a ferramenta, o veredito é o percentual medido. O exit segue esse percentual. O motivo cita a linguagem que ficou de fora. O status continua `passed` ou `failed`.
 
 ## Monorepo e Node ausente
 

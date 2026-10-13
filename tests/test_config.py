@@ -30,6 +30,8 @@ dependencies:
   typescript: deps.cjs
 duplication:
   min_tokens: 80
+coverage:
+  min_percent: 90
 """
 
 
@@ -56,6 +58,7 @@ def test_load_config_reads_every_key(tmp_path: Path) -> None:
         python_deps_config="deps.ini",
         typescript_deps_config="deps.cjs",
         min_tokens=80,
+        coverage_min_percent=90.0,
         language="pt-BR",
     )
 
@@ -140,6 +143,26 @@ def test_load_config_stores_one_min_token(tmp_path: Path) -> None:
     (tmp_path / "bob.yaml").write_text("duplication:\n  min_tokens: 1\n")
 
     assert load_config(None, tmp_path).min_tokens == 1
+
+
+@pytest.mark.parametrize(
+    "text",
+    ["", "coverage:\n", "coverage: {}\n", "coverage: null\n"],
+)
+def test_load_config_defaults_the_coverage_floor(tmp_path: Path, text: str) -> None:
+    (tmp_path / "bob.yaml").write_text(text)
+
+    assert load_config(None, tmp_path).coverage_min_percent == 80.0
+
+
+@pytest.mark.parametrize(("text", "floor"), [("0", 0.0), ("100", 100.0), ("80.5", 80.5)])
+def test_load_config_stores_a_coverage_floor(tmp_path: Path, text: str, floor: float) -> None:
+    (tmp_path / "bob.yaml").write_text(f"coverage:\n  min_percent: {text}\n")
+
+    loaded = load_config(None, tmp_path).coverage_min_percent
+
+    assert type(loaded) is float
+    assert loaded == floor
 
 
 def test_load_config_stores_all_as_the_crap_scope(tmp_path: Path) -> None:
@@ -578,6 +601,26 @@ def test_resolve_language_rejects_an_empty_string(flag: str | None, env: str | N
             "bob.yaml: duplication.min_tokens must be greater than 0",
             "bob.yaml: duplication.min_tokens deve ser maior que 0",
         ),
+        (
+            "coverage:\n  min_percent: true\n",
+            "bob.yaml: coverage.min_percent must be a number",
+            "bob.yaml: coverage.min_percent deve ser um número",
+        ),
+        (
+            "coverage:\n  min_percent: 101\n",
+            "bob.yaml: coverage.min_percent must be at most 100",
+            "bob.yaml: coverage.min_percent deve ser no máximo 100",
+        ),
+        (
+            "coverage:\n  min_percent: -1\n",
+            "bob.yaml: coverage.min_percent must be at least 0",
+            "bob.yaml: coverage.min_percent deve ser no mínimo 0",
+        ),
+        (
+            "coverage: 0\n",
+            "bob.yaml: coverage must be a mapping",
+            "bob.yaml: coverage deve ser um mapeamento",
+        ),
     ],
 )
 def test_load_config_rejects_an_illegal_semantic_value(
@@ -599,6 +642,10 @@ def test_load_config_rejects_an_illegal_semantic_value(
         ({"min_tokens": -1}, "min_tokens"),
         ({"min_tokens": 0}, "min_tokens"),
         ({"min_tokens": True}, "min_tokens"),
+        ({"coverage_min_percent": 101}, "coverage_min_percent"),
+        ({"coverage_min_percent": -1}, "coverage_min_percent"),
+        ({"coverage_min_percent": True}, "coverage_min_percent"),
+        ({"coverage_min_percent": float("nan")}, "coverage_min_percent"),
         ({"languages": ("python", "ruby")}, "languages"),
         ({"languages": ()}, "languages"),
         ({"languages": ("python", "python")}, "languages"),
