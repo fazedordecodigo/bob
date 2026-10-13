@@ -641,7 +641,13 @@ def test_run_check_pins_arguments_and_the_waiver_report(
                 max_workers,
             )
         )
-        return check_mod._Measured()
+        state = check_mod._Measured()
+        state.metrics = [
+            FunctionMetric(
+                "python", "old", "legacy", "src/old.py", 1, 20, 12, 0.0, 20.0, False
+            )
+        ]
+        return state
 
     def fake_load(
         cwd: Path, base: str, command: str, gates: list[str]
@@ -694,6 +700,8 @@ def test_run_check_pins_arguments_and_the_waiver_report(
     assert report.mutation is None
     assert report.security is None
     assert report.exit_code == PASSED
+    assert report.old_debt[0]["name"] == "legacy"
+    assert report.old_debt[0]["crap"] == 20.0
     assert got_out == out_dir
     assert fmt == "json"
     assert lang == "pt-BR"
