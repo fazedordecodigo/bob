@@ -67,6 +67,18 @@ PINS: tuple[Pin, ...] = (
         "dependency-cruiser",
         npm_package="dependency-cruiser",
     ),
+    NpmPin(
+        "stryker",
+        "10.0.0",
+        "stryker",
+        npm_package="@stryker-mutator/core",
+    ),
+    NpmPin(
+        "stryker-vitest-runner",
+        "10.0.0",
+        "stryker-vitest-runner",
+        npm_package="@stryker-mutator/vitest-runner",
+    ),
 )
 
 
