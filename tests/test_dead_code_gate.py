@@ -1,5 +1,3 @@
-"""O gate dead_code no check: vulture, knip, e o exit que não muda."""
-
 from __future__ import annotations
 
 import importlib.metadata

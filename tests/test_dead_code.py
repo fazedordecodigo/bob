@@ -1,5 +1,3 @@
-"""Ledger do código morto: a linha da definição, o aviso, e o exit que não muda."""
-
 from __future__ import annotations
 
 import json

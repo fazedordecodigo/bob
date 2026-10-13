@@ -1,5 +1,3 @@
-"""Parser do relatório do vulture 2.16."""
-
 from __future__ import annotations
 
 from pathlib import Path

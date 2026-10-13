@@ -1,5 +1,3 @@
-"""Parser do JSON do knip 6.41.0."""
-
 from __future__ import annotations
 
 from pathlib import Path

@@ -1,5 +1,3 @@
-"""Gate de código morto: o veredito é o ledger das definições no diff."""
-
 from __future__ import annotations
 
 import importlib.metadata

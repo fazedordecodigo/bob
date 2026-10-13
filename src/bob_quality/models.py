@@ -109,8 +109,6 @@ KnipKind = Literal[
 
 @dataclass(frozen=True)
 class PythonDead:
-    """Símbolo do vulture. `confidence` é o número que a ferramenta imprimiu."""
-
     file: str
     line: int
     name: str
@@ -120,8 +118,6 @@ class PythonDead:
 
 @dataclass(frozen=True)
 class TypeScriptDead:
-    """Símbolo do knip. Não tem confiança."""
-
     file: str
     line: int
     name: str

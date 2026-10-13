@@ -1,5 +1,3 @@
-"""Adaptador knip: JSON do reporter 6.41.0 → símbolos do núcleo."""
-
 from __future__ import annotations
 
 import json
@@ -21,8 +19,6 @@ _KNIP_KINDS: dict[str, KnipKind] = {
 
 
 class KnipParseError(Exception):
-    """Documento fora do JSON do knip 6.41.0."""
-
     def __init__(self) -> None:
         super().__init__(msg("dead.unreadable", tool="knip"))
 

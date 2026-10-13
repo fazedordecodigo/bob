@@ -1,5 +1,3 @@
-"""Adaptador vulture: linhas do relatório 2.16 → símbolos do núcleo."""
-
 from __future__ import annotations
 
 import re
@@ -41,8 +39,6 @@ _REDUNDANT_RE = re.compile(
 
 
 class VultureParseError(Exception):
-    """Linha fora da gramática do vulture 2.16."""
-
     def __init__(self) -> None:
         super().__init__(msg("dead.unreadable", tool="vulture"))
 

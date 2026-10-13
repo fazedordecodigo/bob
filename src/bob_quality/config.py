@@ -370,7 +370,6 @@ def _integer(check: _Check, value: object) -> _Failure | None:
 
 
 def _confidence(check: _Check, value: object) -> _Failure | None:
-    # None is an absent key. Reusing integer rejects it, and Config() fails _guard.
     if value is None:
         return None
     if isinstance(value, bool) or not isinstance(value, int):
