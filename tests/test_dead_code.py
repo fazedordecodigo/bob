@@ -630,11 +630,10 @@ def test_in_measurement_rejects_an_absolute_path_and_a_parent_segment() -> None:
 
 
 def test_spawn_copies_path_and_passes_devnull(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    captured: dict[str, object] = {}
+    calls: list[dict[str, object]] = []
 
     def fake_run(args: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
-        captured["env"] = kwargs["env"]
-        captured["stdin"] = kwargs["stdin"]
+        calls.append({"args": list(args), "kwargs": kwargs})
         return subprocess.CompletedProcess(args, 0, "", "")
 
     monkeypatch.setattr("bob_quality.tools.subprocess.run", fake_run)
@@ -642,25 +641,49 @@ def test_spawn_copies_path_and_passes_devnull(tmp_path: Path, monkeypatch: pytes
     monkeypatch.setenv("KEEP_ME", "1")
     spawn_clean(tmp_path, ["knip"], tmp_path)
 
-    env = captured["env"]
-    assert isinstance(env, dict)
     bindir = str(tmp_path / "node_modules" / ".bin")
-    assert env["PATH"] == bindir + os.pathsep + os.environ["PATH"]
-    assert captured["stdin"] is subprocess.DEVNULL
-    assert "PYTEST_CURRENT_TEST" not in env
-    assert env["KEEP_ME"] == "1"
+    _assert_spawn_call(
+        calls[0],
+        ["knip"],
+        tmp_path,
+        _filtered_env(PATH=bindir + os.pathsep + os.environ["PATH"]),
+    )
 
     spawn_clean(tmp_path, ["vulture"])
-    plain = captured["env"]
-    assert isinstance(plain, dict)
-    assert plain["PATH"] == os.environ["PATH"]
-    assert "PYTEST_CURRENT_TEST" not in plain
+    _assert_spawn_call(calls[1], ["vulture"], tmp_path, _filtered_env())
 
     monkeypatch.delenv("PATH")
     spawn_clean(tmp_path, ["knip"], tmp_path)
-    env_without = captured["env"]
-    assert isinstance(env_without, dict)
-    assert env_without["PATH"] == bindir + os.pathsep
+    _assert_spawn_call(
+        calls[2],
+        ["knip"],
+        tmp_path,
+        _filtered_env(PATH=bindir + os.pathsep),
+    )
+
+
+def _filtered_env(**overrides: str) -> dict[str, str]:
+    env = {key: value for key, value in os.environ.items() if not key.startswith("PYTEST_")}
+    env.update(overrides)
+    return env
+
+
+def _assert_spawn_call(
+    call: dict[str, object],
+    args: list[str],
+    cwd: Path,
+    env: dict[str, str],
+) -> None:
+    kwargs = call["kwargs"]
+    assert isinstance(kwargs, dict)
+    assert call["args"] == args
+    assert kwargs == {
+        "cwd": cwd,
+        "capture_output": True,
+        "text": True,
+        "stdin": subprocess.DEVNULL,
+        "env": env,
+    }
 
 
 def test_read_vulture_names_vulture_when_spawn_fails(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:

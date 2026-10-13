@@ -11,6 +11,9 @@ import subprocess
 import sys
 from pathlib import Path
 
+from bob_quality.config import Config
+from bob_quality.dry_gate import _run_jscpd
+
 from helpers import (
     RISKY_SOURCE,
     SAFE_CHANGE,
@@ -35,6 +38,42 @@ def format_receipt(name, street, city, amount, tax, note):
     line_footer = "thanks"
     return line_name + line_street + line_city + line_amount + line_tax + line_note + line_total + line_paid + line_footer
 """
+
+
+def test_jscpd_spawns_inside_a_bob_temp_dir(tmp_path: Path, monkeypatch) -> None:
+    repo = tmp_path / "repo"
+    (repo / "src").mkdir(parents=True)
+    prefix = tmp_path / "tools"
+    seen: dict[str, object] = {}
+
+    def fake_spawn(cwd: Path, args: list[str], prefix: Path | None = None) -> subprocess.CompletedProcess[str]:
+        out = Path(args[args.index("--output") + 1])
+        assert len(out.name) == len("bob-jscpd-") + 8
+        assert out.name.startswith("bob-jscpd-")
+        (out / "jscpd-report.json").write_text('{"duplicates":[]}')
+        seen["cwd"] = cwd
+        seen["args"] = args
+        seen["prefix"] = prefix
+        return subprocess.CompletedProcess(args, 0, "", "")
+
+    monkeypatch.setattr("bob_quality.dry_gate.spawn_clean", fake_spawn)
+    found = _run_jscpd(repo, Config(), prefix)
+
+    assert found == '{"duplicates":[]}'
+    assert seen["cwd"] == repo
+    assert seen["prefix"] == prefix
+    args = seen["args"]
+    assert isinstance(args, list)
+    assert args[:8] == [
+        "npx",
+        "--no-install",
+        "--prefix",
+        str(prefix),
+        "jscpd",
+        "--min-tokens",
+        "50",
+        "--reporters",
+    ]
 
 
 def test_new_python_clones_in_the_diff_warn_without_failing(tmp_path: Path) -> None:
