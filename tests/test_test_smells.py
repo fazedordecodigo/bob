@@ -301,7 +301,7 @@ def test_a_tests_waiver_does_not_waive_a_mutant_with_another_id() -> None:
     ]
 
 
-def test_a_tests_waiver_waives_a_mutant_only_when_the_id_is_that_string() -> None:
+def test_a_tests_waiver_does_not_waive_a_mutant_even_when_the_ids_match() -> None:
     mutant = models.Mutant(
         id="tests:tests/test_gap.py:1:missing-assert",
         function="fn",
@@ -310,16 +310,24 @@ def test_a_tests_waiver_waives_a_mutant_only_when_the_id_is_that_string() -> Non
         operator="==",
         status="survived",
     )
-    waiver = Waiver(
+    smell = Waiver(
         id="tests:tests/test_gap.py:1:missing-assert",
         reason="the sandbox clock is real",
         author="ada",
         date="2026-10-12",
     )
+    matched = Waiver(
+        id="src/app/mod.py::fn::==",
+        reason="equivalent",
+        author="ada",
+        date="2026-10-12",
+    )
 
-    applied = apply_waivers([mutant], [waiver])
+    ignored = apply_waivers([mutant], [smell])
+    applied = apply_waivers([mutant], [matched])
 
-    assert applied[0].waiver == "the sandbox clock is real"
+    assert ignored[0].waiver is None
+    assert applied[0].waiver == "equivalent"
 
 
 def test_a_python_test_without_an_assert_warns_and_exits_0(tmp_path: Path) -> None:
