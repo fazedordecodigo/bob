@@ -212,6 +212,35 @@ def test_hotspots_sort_by_product_then_name(tmp_path: Path) -> None:
     ]
 
 
+def test_measured_churn_rejects_an_illegal_shape() -> None:
+    window = ChurnWindow(90, date(2020, 1, 1))
+    ordered = (FileChurn("src/a.py", 2, None),)
+
+    with pytest.raises(ValueError) as unsorted:
+        ChurnMeasured(
+            window, (FileChurn("src/b.py", 1, None), FileChurn("src/a.py", 1, None)), ()
+        )
+    assert unsorted.value.args == ("files",)
+
+    with pytest.raises(ValueError) as repeated:
+        ChurnMeasured(
+            window, (FileChurn("src/a.py", 1, None), FileChurn("src/a.py", 2, None)), ()
+        )
+    assert repeated.value.args == ("files",)
+
+    with pytest.raises(ValueError) as disordered:
+        ChurnMeasured(
+            window,
+            ordered,
+            (Hotspot("src/a.py", "z", 1, 1, 2), Hotspot("src/a.py", "a", 1, 2, 2)),
+        )
+    assert disordered.value.args == ("hotspots",)
+
+    with pytest.raises(ValueError) as mismatched:
+        ChurnMeasured(window, ordered, (Hotspot("src/a.py", "a", 1, 1, 1),))
+    assert mismatched.value.args == ("hotspots",)
+
+
 def test_dot_include_counts_every_relative_file(tmp_path: Path) -> None:
     repo, tip = _tree(tmp_path)
 
