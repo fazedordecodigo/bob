@@ -9,12 +9,20 @@ from pathlib import Path
 from bob_quality.config import Config, ConfigError, load_config
 from bob_quality.core import files_by_risk, informational_debt, top_changed_crap
 from bob_quality.crap_gate import run_crap_gate
+from bob_quality.dead_code import WarningOnly, run_dead_code_gate
 from bob_quality.deps_gate import run_deps_gate
 from bob_quality.diff import GitError, changed_lines, current_commit
 from bob_quality.dry_gate import run_dry_gate
 from bob_quality.exit_codes import CONFIG_OR_TOOL, PASSED
 from bob_quality.messages import DEFAULT_LANGUAGE, Language, Text, msg, reason
-from bob_quality.models import Clone, DepViolation, FunctionMetric, GateResult, Report
+from bob_quality.models import (
+    Clone,
+    DeadSection,
+    DepViolation,
+    FunctionMetric,
+    GateResult,
+    Report,
+)
 from bob_quality.mutate import MutationOutcome, focus_with_survivors
 from bob_quality.mutate_gate import run_mutate_gate
 from bob_quality.report import metric_row, violation_rows, write_report
@@ -108,6 +116,7 @@ class _Measured:
     mutation: MutationOutcome | None = None
     loaded_waivers: list[dict[str, object]] = field(default_factory=list)
     baseline: int | None = None
+    dead_code: DeadSection | None = None
 
 
 def _measure(
@@ -191,6 +200,9 @@ def _absorb(
         state.mutation = mutation
         _record(state, mutation.result, mutation.exit_code, mutation.versions)
         return
+    if gate == "dead_code":
+        _record_dead(state, run_dead_code_gate(cwd, config, diff_lines))
+        return
     _record(
         state,
         GateResult(gate, "not_run", msg("check.gate_not_implemented")),
@@ -208,6 +220,12 @@ def _absorb_deps(
     result, code, versions, found = run_deps_gate(cwd, config, set(diff_lines))
     state.violations = found
     _record(state, result, code, versions)
+
+
+def _record_dead(state: _Measured, advisory: WarningOnly) -> None:
+    state.gates.append(advisory.as_gate())
+    state.versions.update(dict(advisory.versions))
+    state.dead_code = advisory.section
 
 
 def _record(
@@ -256,6 +274,7 @@ def _assemble(
         waivers=waivers,
         survivors=survivors,
         mutation=summary,
+        dead_code=measured.dead_code,
     )
 
 

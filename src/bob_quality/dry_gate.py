@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import os
 import subprocess
 import tempfile
 from dataclasses import dataclass
@@ -15,7 +14,7 @@ from bob_quality.exit_codes import GATE_FAILED, PASSED
 from bob_quality.messages import Text, msg, reason
 from bob_quality.models import Clone, GateResult
 from bob_quality.npm_tools import installed_npm_version, node_missing_message, npm_prefix
-from bob_quality.tools import ToolError
+from bob_quality.tools import ToolError, spawn_clean
 
 _FORMATS = {
     "python": ("python",),
@@ -130,7 +129,7 @@ def _run_jscpd(cwd: Path, config: Config, prefix: Path) -> str:
     roots = _roots(cwd, config)
     with tempfile.TemporaryDirectory(prefix="bob-jscpd-") as tmp:
         out = Path(tmp)
-        completed = _spawn(cwd, prefix, _args(config, prefix, roots, out))
+        completed = spawn_clean(cwd, _args(config, prefix, roots, out), prefix)
         return _read_report(out, completed)
 
 
@@ -165,20 +164,6 @@ def _args(config: Config, prefix: Path, roots: list[Path], out: Path) -> list[st
         args.extend(["--format", ",".join(formats)])
     args.extend(str(path) for path in roots)
     return args
-
-
-def _spawn(cwd: Path, prefix: Path, args: list[str]) -> subprocess.CompletedProcess[str]:
-    env = {key: value for key, value in os.environ.items() if not key.startswith("PYTEST_")}
-    bindir = prefix / "node_modules" / ".bin"
-    env["PATH"] = str(bindir) + os.pathsep + env.get("PATH", "")
-    return subprocess.run(
-        args,
-        cwd=cwd,
-        capture_output=True,
-        text=True,
-        stdin=subprocess.DEVNULL,
-        env=env,
-    )
 
 
 def _read_report(out: Path, completed: subprocess.CompletedProcess[str]) -> str:
