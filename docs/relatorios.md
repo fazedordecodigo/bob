@@ -22,9 +22,10 @@ O schema está em `src/bob_quality/schemas/report_v1.json`. `schema_version` é 
 10. `## Mutantes sobreviventes`, só se a mutação rodou. Colunas: alvo, função, local, operador, waiver. O alvo é `arquivo::função::<descrição>`, o valor que `bob waive` aceita para dispensar esse sobrevivente. Ele vira `—` quando outro sobrevivente da mesma função tem a mesma descrição. Nesse caso só `arquivo::função` dispensa. O `report.json` traz o mesmo valor em `survivors[].target`, ou `null`.
 11. `## Mutantes sem teste`, só se o resumo de mutação traz `no_coverage`. Total, e tabela por função e arquivo. A linha do total diz que não bloqueia.
 12. `## Dependências novas`, só quando o gate supply mediu. A tabela traz nome, lugar, o que aconteceu e o efeito. Sem medição, a seção não aparece.
-13. `## Segredos`, só quando o gate de segredos mediu. A tabela traz o alvo `secret:<regra>:<arquivo>:<linha>`, o arquivo, a linha e a regra. Sem segredo novo, o texto é `Nenhum segredo novo no diff.` A linha `Fora do diff; não bloqueia.` introduz os achados que não mudam o exit. Sem medição, a seção não aparece.
-14. `## Código morto`, só quando o gate foi pedido. Um símbolo por linha. Sem símbolo no diff, o texto é `Nenhum símbolo morto no diff.` Sem medição, a seção não aparece.
-15. `## Como reproduzir`: o comando, dentro de uma cerca, com `--lang` do idioma que gerou o arquivo.
+13. `## Tipos`, só quando o gate de tipos mediu. A tabela traz arquivo, linha, código, disposição e waiver. Sem medição, a seção não aparece.
+14. `## Segredos`, só quando o gate de segredos mediu. A tabela traz o alvo `secret:<regra>:<arquivo>:<linha>`, o arquivo, a linha e a regra. Sem segredo novo, o texto é `Nenhum segredo novo no diff.` A linha `Fora do diff; não bloqueia.` introduz os achados que não mudam o exit. Sem medição, a seção não aparece.
+15. `## Código morto`, só quando o gate foi pedido. Um símbolo por linha. Sem símbolo no diff, o texto é `Nenhum símbolo morto no diff.` Sem medição, a seção não aparece.
+16. `## Como reproduzir`: o comando, dentro de uma cerca, com `--lang` do idioma que gerou o arquivo.
 
 Seções vazias de dívida e de mutação somem. Foco, top 5, clones e veredito aparecem mesmo vazios, com a frase de “nenhum”.
 
@@ -32,7 +33,7 @@ A [SPEC](SPEC.md) descreve a ordem começando pelo cabeçalho e pelo veredito, e
 
 ## report.json
 
-Campos obrigatórios no schema: `schema_version`, `commit`, `base`, `generated_at`, `tool_versions`, `gates`, `focus`, `top_crap`, `reproduce`, `exit_code`. O render também escreve `old_debt`, `dependencies`, `old_dependencies`, `clones`, `waivers`, `survivors` e `mutation` quando `to_json` os inclui. `supply` entra só quando o gate mediu, depois de `mutation` e antes de `reproduce`. O objeto traz `measured`, `skipped` e `findings`. `secrets` entra só quando o gate mediu, depois de `supply` quando os dois existem e depois de `mutation` quando `supply` falta, e antes de `reproduce`. O array traz os achados que bloqueiam. Cada objeto tem `file`, `line` e `rule_id`. `dead_code` entra só quando o gate foi pedido, depois de `exit_code`. O objeto tem `symbols`. Sem medição, a chave não vai no JSON. `schema_version` continua `1`.
+Campos obrigatórios no schema: `schema_version`, `commit`, `base`, `generated_at`, `tool_versions`, `gates`, `focus`, `top_crap`, `reproduce`, `exit_code`. O render também escreve `old_debt`, `dependencies`, `old_dependencies`, `clones`, `waivers`, `survivors` e `mutation` quando `to_json` os inclui. `supply` entra só quando o gate mediu, depois de `mutation` e antes de `reproduce`. O objeto traz `measured`, `skipped` e `findings`. `secrets` entra só quando o gate mediu, depois de `supply` quando os dois existem e depois de `mutation` quando `supply` falta, e antes de `reproduce`. O array traz os achados que bloqueiam. Cada objeto tem `file`, `line` e `rule_id`. `typing` entra só quando o gate mediu, depois de `secrets` quando esse existe e antes de `reproduce`. `dead_code` entra só quando o gate foi pedido, depois de `exit_code`. O objeto tem `symbols`. Sem medição, a chave não vai no JSON. `schema_version` continua `1`.
 
 `gates[].status` é `passed`, `warn`, `failed` ou `not_run`. O `reason` no JSON é renderizado em inglês (`JSON_LANGUAGE`).
 
