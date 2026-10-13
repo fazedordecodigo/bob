@@ -275,6 +275,45 @@ def test_write_waivers_keeps_a_long_id_on_one_line(tmp_path: Path) -> None:
     assert load_waivers(tmp_path) == [waiver]
 
 
+def test_write_waivers_creates_a_missing_ancestor(tmp_path: Path) -> None:
+    repo = tmp_path / "missing" / "repo"
+    waiver = _waiver("src/app/m.py::f")
+
+    write_waivers(repo, [waiver])
+
+    assert load_waivers(repo) == [waiver]
+
+
+def test_write_waivers_keeps_unicode_and_the_dataclass_field_order(tmp_path: Path) -> None:
+    write_waivers(tmp_path, [_waiver("src/app/m.py::f", "não")])
+
+    text = waivers_path(tmp_path).read_text()
+    assert "não" in text
+    assert "\\x" not in text
+    assert "\\u" not in text
+    keys = [line.split(":", 1)[0].strip("- ").strip() for line in text.splitlines() if ":" in line]
+    assert keys == ["waivers", "id", "reason", "author", "date"]
+
+
+def test_add_waiver_records_the_utc_date_when_the_local_date_differs(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    repo = _git_repo(tmp_path / "repo")
+
+    class Clock:
+        @staticmethod
+        def now(tz: object = None) -> datetime:
+            if tz is timezone.utc:
+                return datetime(2026, 1, 2, 0, 30, tzinfo=timezone.utc)
+            return datetime(2026, 1, 1, 21, 30)
+
+    monkeypatch.setattr("bob_quality.waivers.datetime", Clock)
+
+    saved = add_waiver(repo, "src/app/m.py::f", "porque", frozenset({"src/app/m.py::f"}))
+
+    assert saved.date == "2026-01-02"
+
+
 def _cache(out: Path, functions: object, **key: object) -> None:
     out.mkdir(exist_ok=True)
     (out / CACHE_NAME).write_text(json.dumps({**key, "functions": functions}))

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 import os
 import subprocess
 from collections import Counter
@@ -172,14 +173,23 @@ def add_waiver(cwd: Path, target: str, reason: str | None, known: frozenset[str]
     return waiver
 
 
+class _WaiverDumper(yaml.SafeDumper):
+    """A ordem dos campos é a do dataclass. O dump padrão do PyYAML ordenaria as chaves."""
+
+
+def _represent_ordered_dict(dumper: yaml.SafeDumper, data: dict[str, object]) -> yaml.Node:
+    return dumper.represent_mapping("tag:yaml.org,2002:map", data.items())
+
+
+_WaiverDumper.add_representer(dict, _represent_ordered_dict)
+
+
 def write_waivers(cwd: Path, waivers: list[Waiver]) -> None:
     """O único escritor do `.bob/waivers.yaml`. A largura infinita deixa um id longo numa linha."""
     path = waivers_path(cwd)
     path.parent.mkdir(parents=True, exist_ok=True)
     payload = {"waivers": [item.as_dict() for item in waivers]}
-    path.write_text(
-        yaml.safe_dump(payload, allow_unicode=True, sort_keys=False, width=float("inf"))
-    )
+    path.write_text(yaml.dump(payload, Dumper=_WaiverDumper, allow_unicode=True, width=math.inf))
 
 
 class SurvivorTargets(NamedTuple):
