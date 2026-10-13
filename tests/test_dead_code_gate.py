@@ -276,7 +276,7 @@ def test_vulture_exit_zero_with_stdout_is_not_a_measurement(
         assert "--min-confidence" not in args
         return subprocess.CompletedProcess(args, 0, stdout="noise\n", stderr="")
 
-    monkeypatch.setattr("bob_quality.dead_code.subprocess.run", fake_run)
+    monkeypatch.setattr("bob_quality.tools.subprocess.run", fake_run)
     code = run_check(repo, gates=["dead_code"], base="main")
     payload = _payload(repo)
 
@@ -310,7 +310,7 @@ def test_vulture_exit_3_with_a_parsed_line_does_not_become_bob_exit(
             stderr="",
         )
 
-    monkeypatch.setattr("bob_quality.dead_code.subprocess.run", fake_run)
+    monkeypatch.setattr("bob_quality.tools.subprocess.run", fake_run)
     code = run_check(repo, gates=["dead_code"], base="main")
     payload = _payload(repo)
 
@@ -350,7 +350,7 @@ def test_knip_exit_1_with_json_is_a_measurement(
         ]
         return subprocess.CompletedProcess(args, 1, stdout=raw, stderr="")
 
-    monkeypatch.setattr("bob_quality.dead_code.subprocess.run", fake_run)
+    monkeypatch.setattr("bob_quality.tools.subprocess.run", fake_run)
     code = run_check(repo, gates=["dead_code"], base="main")
     payload = _payload(repo)
 
@@ -390,7 +390,7 @@ def test_knip_exit_2_with_json_is_not_a_measurement(
             args, 2, stdout='{"issues":[]}\n', stderr="config"
         )
 
-    monkeypatch.setattr("bob_quality.dead_code.subprocess.run", fake_run)
+    monkeypatch.setattr("bob_quality.tools.subprocess.run", fake_run)
     code = run_check(repo, gates=["dead_code"], base="main")
     payload = _payload(repo)
 

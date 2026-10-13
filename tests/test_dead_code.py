@@ -22,7 +22,6 @@ from bob_quality.dead_code import (
     _language,
     _parsed_knip,
     _parsed_vulture,
-    _spawn,
     _vulture_blocked,
     _vulture_half,
     _vulture_version,
@@ -34,7 +33,7 @@ from bob_quality.dead_code import (
     settle,
     vulture_command,
 )
-from bob_quality.tools import ToolError
+from bob_quality.tools import ToolError, spawn_clean
 from bob_quality.diff import as_diff_path, function_is_changed, line_is_changed
 from bob_quality.messages import msg, render
 from bob_quality.models import (
@@ -579,10 +578,10 @@ def test_spawn_copies_path_and_passes_devnull(tmp_path: Path, monkeypatch: pytes
         captured["stdin"] = kwargs["stdin"]
         return subprocess.CompletedProcess(args, 0, "", "")
 
-    monkeypatch.setattr("bob_quality.dead_code.subprocess.run", fake_run)
+    monkeypatch.setattr("bob_quality.tools.subprocess.run", fake_run)
     monkeypatch.setenv("PYTEST_CURRENT_TEST", "dead")
     monkeypatch.setenv("KEEP_ME", "1")
-    _spawn(tmp_path, ["knip"], tmp_path)
+    spawn_clean(tmp_path, ["knip"], tmp_path)
 
     env = captured["env"]
     assert isinstance(env, dict)
@@ -592,8 +591,14 @@ def test_spawn_copies_path_and_passes_devnull(tmp_path: Path, monkeypatch: pytes
     assert "PYTEST_CURRENT_TEST" not in env
     assert env["KEEP_ME"] == "1"
 
+    spawn_clean(tmp_path, ["vulture"])
+    plain = captured["env"]
+    assert isinstance(plain, dict)
+    assert plain["PATH"] == os.environ["PATH"]
+    assert "PYTEST_CURRENT_TEST" not in plain
+
     monkeypatch.delenv("PATH")
-    _spawn(tmp_path, ["knip"], tmp_path)
+    spawn_clean(tmp_path, ["knip"], tmp_path)
     env_without = captured["env"]
     assert isinstance(env_without, dict)
     assert env_without["PATH"] == bindir + os.pathsep
@@ -603,7 +608,7 @@ def test_read_vulture_names_vulture_when_spawn_fails(tmp_path: Path, monkeypatch
     def explode(*_args: object, **_kwargs: object) -> subprocess.CompletedProcess[str]:
         raise OSError("boom")
 
-    monkeypatch.setattr("bob_quality.dead_code._spawn", explode)
+    monkeypatch.setattr("bob_quality.dead_code.spawn_clean", explode)
     (tmp_path / "src").mkdir()
     found = read_vulture(tmp_path, Config())
 
@@ -623,7 +628,7 @@ def test_read_knip_spawns_inside_the_repo_with_the_prefix(
         return _completed(0, '{"issues":[]}')
 
     monkeypatch.setattr("bob_quality.dead_code._knip_prefix", lambda: prefix)
-    monkeypatch.setattr("bob_quality.dead_code._spawn", fake_spawn)
+    monkeypatch.setattr("bob_quality.dead_code.spawn_clean", fake_spawn)
     monkeypatch.setattr(
         "bob_quality.dead_code._knip_half",
         lambda *_args: MeasuredTypeScript((), "6.41.0"),
@@ -684,7 +689,7 @@ def test_read_knip_names_knip_when_spawn_fails(tmp_path: Path, monkeypatch: pyte
         raise OSError("boom")
 
     monkeypatch.setattr("bob_quality.dead_code._knip_prefix", lambda: tmp_path)
-    monkeypatch.setattr("bob_quality.dead_code._spawn", explode)
+    monkeypatch.setattr("bob_quality.dead_code.spawn_clean", explode)
     found = read_knip(tmp_path, Config(languages=["typescript"]))
 
     assert isinstance(found, Dark)

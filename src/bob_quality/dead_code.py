@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import importlib.metadata
-import os
 import subprocess
 import sys
 from collections.abc import Mapping, Sequence, Set
@@ -23,7 +22,7 @@ from bob_quality.models import (
     TypeScriptDead,
 )
 from bob_quality.npm_tools import installed_npm_version, node_missing_message, npm_prefix
-from bob_quality.tools import ToolError
+from bob_quality.tools import ToolError, spawn_clean
 from bob_quality.waivers import Waiver, load_waivers
 
 DeadStatus = Literal["passed", "warn", "not_run"]
@@ -148,7 +147,7 @@ def read_vulture(cwd: Path, config: Config) -> MeasuredPython | Dark | Quiet:
     if blocked is not None:
         return blocked
     try:
-        completed = _spawn(cwd, vulture_command(config, config.include))
+        completed = spawn_clean(cwd, vulture_command(config, config.include))
     except OSError:
         return Dark(msg("tool.missing", tool="vulture"))
     return _vulture_half(completed, cwd)
@@ -161,7 +160,7 @@ def read_knip(cwd: Path, config: Config) -> MeasuredTypeScript | Dark | Quiet:
     if isinstance(prefix, Dark):
         return prefix
     try:
-        completed = _spawn(cwd, knip_command(prefix), prefix)
+        completed = spawn_clean(cwd, knip_command(prefix), prefix)
     except OSError:
         return Dark(msg("tool.missing", tool="knip"))
     return _knip_half(completed, cwd, prefix)
@@ -236,23 +235,6 @@ def _vulture_version() -> str | None:
         return importlib.metadata.version("vulture")
     except importlib.metadata.PackageNotFoundError:
         return None
-
-
-def _spawn(
-    cwd: Path, args: Sequence[str], prefix: Path | None = None
-) -> subprocess.CompletedProcess[str]:
-    env = {key: value for key, value in os.environ.items() if not key.startswith("PYTEST_")}
-    if prefix is not None:
-        bindir = prefix / "node_modules" / ".bin"
-        env["PATH"] = str(bindir) + os.pathsep + env.get("PATH", "")
-    return subprocess.run(
-        args,
-        cwd=cwd,
-        capture_output=True,
-        text=True,
-        stdin=subprocess.DEVNULL,
-        env=env,
-    )
 
 
 def _any_measured(
