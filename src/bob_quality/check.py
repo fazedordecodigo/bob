@@ -14,6 +14,7 @@ from bob_quality.dead_code import WarningOnly, run_dead_code_gate
 from bob_quality.deps_gate import run_deps_gate
 from bob_quality.diff import GitError, changed_lines, current_commit
 from bob_quality.dry_gate import run_dry_gate
+from bob_quality.typing_gate import run_typing_gate
 from bob_quality.exit_codes import CONFIG_OR_TOOL, PASSED
 from bob_quality.messages import DEFAULT_LANGUAGE, Language, Text, msg, reason
 from bob_quality.models import (
@@ -124,6 +125,7 @@ class _Measured:
     loaded_waivers: list[dict[str, object]] = field(default_factory=list)
     baseline: int | None = None
     diff_coverage: DiffCoverage | None = None
+    typing: dict[str, object] | None = None
     dead_code: DeadSection | None = None
 
 
@@ -223,6 +225,11 @@ def _absorb(
         state.diff_coverage = outcome.diff_coverage
         _record(state, outcome.result, outcome.exit_code, outcome.versions)
         return
+    if gate == "typing":
+        result, code, versions, found = run_typing_gate(cwd, config, diff_lines)
+        state.typing = found
+        _record(state, result, code, versions)
+        return
     if gate == "secrets":
         outcome = run_secrets_gate(cwd=cwd, config=config, diff_lines=diff_lines)
         state.secrets = outcome.ledger
@@ -303,6 +310,7 @@ def _assemble(
         survivors=survivors,
         mutation=summary,
         diff_coverage=measured.diff_coverage,
+        typing=measured.typing,
         secrets=measured.secrets,
         dead_code=measured.dead_code,
     )

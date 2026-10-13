@@ -4,7 +4,7 @@
 
 Cada gate devolve um status `passed`, `warn`, `failed` ou `not_run`. O Markdown traduz para passou, aviso, falhou e não executado, com ✅ ⚠️ ❌ ⏭️ (`GATE_MARK` em `src/bob_quality/report.py`). Um gate que não rodou fica ⏭️ com motivo. Ele não aparece como ✅.
 
-`coverage`, `dead_code` e `secrets` são opt-in. O `bob check` sem `--gates` continua `crap,dry,deps`. O hook `pre-push` e a Action também não incluem esses gates.
+`coverage`, `typing`, `dead_code` e `secrets` são opt-in. O `bob check` sem `--gates` continua `crap,dry,deps`. O hook `pre-push` e a Action também não incluem esses gates.
 
 O exit code do `bob check` é o maior entre os gates que rodaram. Aviso não aumenta o código. Ver [Exit codes](exit-codes.md).
 
@@ -15,10 +15,11 @@ O exit code do `bob check` é o maior entre os gates que rodaram. Aviso não aum
 | [Mutação](#mutação) | mutmut (Python), StrykerJS (TypeScript) | sobrevivente sem waiver | `3` |
 | [Dependências](#dependências) | import-linter, dependency-cruiser, mais a regra de ciclo | violação cuja origem, destino ou outro módulo do ciclo está no diff | `1` |
 | [Cobertura do diff](#cobertura-do-diff) | diff-cover 10.6.0 sobre `coverage.xml` ou lcov do c8 | percentual de uma linguagem abaixo do piso | `1` |
+| [Tipos](#tipos) | mypy, pyright ou tsc do próprio repositório | diagnóstico ou escape numa linha nova do diff, sem waiver | `1` |
 | [Segredos](#segredos) | gitleaks | segredo novo no diff | `1` |
 | [Código morto](#código-morto) | vulture e knip | nada; símbolo morto cuja definição está no diff é aviso | `0` |
 
-Versões pinadas: lizard 1.24.1, coverage 7.16.2, diff-cover 10.6.0, c8 12.0.0, vitest 5.0.3, jscpd 5.4.1, mutmut 3.8.0, `@stryker-mutator/core` 10.0.0, `@stryker-mutator/vitest-runner` 10.0.0, import-linter 2.15, grimp 3.17, dependency-cruiser 18.5.0, gitleaks 8.30.1, vulture 2.16, knip 6.41.0. Node `>=22.14.0 <23`. Fonte: `pyproject.toml`, `package.json` e `doctor.py`. O doctor lê os pinos pip do Requires-Dist instalado.
+Versões pinadas: lizard 1.24.1, coverage 7.16.2, diff-cover 10.6.0, c8 12.0.0, vitest 5.0.3, jscpd 5.4.1, mutmut 3.8.0, `@stryker-mutator/core` 10.0.0, `@stryker-mutator/vitest-runner` 10.0.0, import-linter 2.15, grimp 3.17, dependency-cruiser 18.5.0, gitleaks 8.30.1, vulture 2.16, knip 6.41.0. Node `>=22.14.0 <23`. Fonte: `pyproject.toml`, `package.json` e `doctor.py`. O doctor lê os pinos pip do Requires-Dist instalado. mypy, pyright e tsc ficam de fora dessa lista. O gate de tipos usa o executável que o `PATH` do repositório resolver, e o doctor não confere a versão.
 
 ## CRAP
 
@@ -109,6 +110,31 @@ Suíte que quebra antes de existir artefato sai com `2`. O JSON não traz `diff_
 
 Se uma linguagem mede e a outra não tem a ferramenta, o veredito é o percentual medido. O exit segue esse percentual. O motivo cita a linguagem que ficou de fora. O status continua `passed` ou `failed`.
 
+## Tipos
+
+O gate roda com `bob check --gates typing`. O `bob check` sem `--gates` continua `crap,dry,deps` (`DEFAULT_GATES`). O hook `src/bob_quality/hooks/pre-push` passa esses três. A Action `.github/actions/bob/action.yml`, sem inputs, continua `crap,dry,deps,mutate`. Nenhum dos três inclui `typing`.
+
+mypy, pyright e tsc são os executáveis do repositório. O bob não os pina, não os instala e não os chama com `python -m` nem com `npx`. A primeira linha não vazia de `--version` vai para `tool_versions`. Se o processo não chegou a subir, a chave desse checker não entra.
+
+Não há limiar de type-coverage. A chave `typing` no `bob.yaml` não tem filhos. `typing: {}` é aceito e não liga o gate. Quem liga é `--gates typing`. Ver [Configuração](configuracao.md#typing).
+
+Bloqueia, com status `failed` e exit `1`, um diagnóstico do checker ou um escape que esteja numa linha nova do diff e não tenha waiver. O id é `typing:<arquivo>:<linha>:<código>`, comparado pelo texto inteiro. O motivo do gate, quando falha, é o primeiro id. O relatório lista o resto. Um achado fora do diff entra na tabela com disposição `off_diff` e não muda o exit.
+
+Os escapes são `Any` e `type: ignore` em `.py` e `.pyi`, e `as any`, `@ts-ignore` e `@ts-expect-error` em `.ts` e `.tsx`. Não entra `.js`. O código gravado de um ignore do Python é sempre `type: ignore`, inclusive em `# type: ignore[arg-type]` e `# type:ignore`. `@ts-ignore` dentro de uma string não conta. O escape só é lido em arquivo do diff, dentro de `paths.include`, e só se a linguagem tiver config de checker.
+
+A linguagem vem de `languages`. Sem config de checker, ela fica `not_run`, contribui `0`, e o motivo do gate é `no checker config`.
+
+- mypy roda quando existe `mypy.ini`, `.mypy.ini`, a seção `[mypy]` no `setup.cfg`, ou `[tool.mypy]` no `pyproject.toml`.
+- pyright roda quando existe `pyrightconfig.json` ou `[tool.pyright]`.
+- Se os dois existem, os dois rodam.
+- tsc roda quando o `tsconfig.json` da raiz é um arquivo. Um `tsconfig` aninhado não conta. Sem o arquivo da raiz, TypeScript fica `not_run` e contribui `0`.
+
+Config presente e executável ausente deixa esse checker sem medição (`missing_executable`). Exit `4` só quando o gate foi pedido e nenhum checker mediu. Se um mediu e o outro não, o exit é o da medição, e o motivo de um passe continua vazio.
+
+Contam como medição os exits `0` e `1` do mypy, `0` e `1` do pyright, e `0`, `1` e `2` do tsc. O `2` do mypy, os exits `2`, `3` e `4` do pyright, e os exits `3` e `4` do tsc ficam `exit_outside_measurement`. Exit `0` com uma linha de erro, ou um exit de erro sem linha de diagnóstico, fica `unparseable_output`. Uma linha do tsc sem arquivo é ignorada. Os diagnósticos que têm arquivo permanecem. Stdout e stderr entram os dois na leitura.
+
+O `report.md` ganha `## Types` ou `## Tipos` depois dos mutantes sem teste e antes de como reproduzir, também quando a lista de achados está vazia. O `report.json` ganha o objeto `typing`. `schema_version` continua `1`, e `typing` não é obrigatório no schema.
+
 ## Segredos
 
 Este gate não entra na lista padrão do `bob check`. O comando é `bob check --gates secrets`. Ele roda `gitleaks detect --no-git` com o gitleaks 8.30.1 nas raízes de `paths.include`.
@@ -121,7 +147,7 @@ A chave `secrets` no `bob.yaml` fica vazia. Ausente, `secrets:`, `secrets: null`
 
 O JSON inclui `secrets` só quando o gate mediu. O array traz os achados que bloqueiam. Cada objeto tem `file`, `line` e `rule_id`. Sem medição, a chave não aparece.
 
-A seção `## Segredos` fica depois de `## Mutantes sem teste` e antes de `## Código morto`, quando esse gate rodou, e antes de `## Como reproduzir`. Sem medição, a seção não aparece. A saída bruta do gitleaks fica fora de `.bob/`.
+A seção `## Segredos` fica depois de `## Mutantes sem teste` e de `## Tipos`, quando essa seção existe, e antes de `## Código morto`, quando esse gate rodou, e antes de `## Como reproduzir`. Sem medição, a seção não aparece. A saída bruta do gitleaks fica fora de `.bob/`.
 
 Um arquivo `.gitleaksignore` numa raiz de include deixa o gate `not_run` e o exit `4`, antes de chamar o binário. As entradas vão para `.bob/waivers.yaml`.
 
@@ -143,7 +169,7 @@ Exit 0 ou 1 do knip com JSON válido é medição, inclusive quando o knip sai 1
 
 Se uma linguagem mediu e a outra não, o status segue o ledger medido. Ledger limpo é `passed`. Símbolo no diff sem waiver é `warn`. O motivo da linguagem que faltou continua na linha do gate. Isso não força `warn` e não usa exit `4`. Sem nenhuma medição, o status é `not_run` e o exit continua `0`. O relatório é gravado nos dois casos.
 
-A seção `## Código morto` sai só quando o gate foi pedido, depois de `## Segredos` quando essa seção existe, e antes de `## Como reproduzir`. O JSON traz `dead_code` depois de `exit_code` nesse caso e omite a chave quando o gate não rodou. `schema_version` continua 1. O `reason` do JSON fica em inglês.
+A seção `## Código morto` sai só quando o gate foi pedido, depois de `## Tipos` e de `## Segredos` quando essas seções existem, e antes de `## Como reproduzir`. O JSON traz `dead_code` depois de `exit_code` nesse caso e omite a chave quando o gate não rodou. `schema_version` continua 1. O `reason` do JSON fica em inglês.
 
 ## Monorepo e Node ausente
 
