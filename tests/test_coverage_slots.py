@@ -407,7 +407,11 @@ def test_judge_with_no_measurement_names_every_miss() -> None:
     assert outcome.exit_code == CONFIG_OR_TOOL
     assert outcome.versions == {}
     assert outcome.diff_coverage is None
+    assert outcome.result.name == "coverage"
+    assert outcome.result.status == "not_run"
     assert in_both(outcome.result.reason) == _MISSING_DIFF_COVER
+    assert joined.result.name == "coverage"
+    assert joined.result.status == "not_run"
     assert joined.exit_code == CONFIG_OR_TOOL
     assert joined.versions == {}
     assert in_both(joined.result.reason) == (
