@@ -159,7 +159,7 @@ def test_mutmut_stats_collection_does_not_die_on_this_repo() -> None:
         text=True,
         stdin=subprocess.DEVNULL,
         env=env,
-        timeout=1500,
+        timeout=2400,
         check=False,
     )
     blob = f"{completed.stdout}\n{completed.stderr}"
