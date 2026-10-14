@@ -63,7 +63,7 @@ A cobertura mostra que a linha rodou. A mutação altera o código e roda a suí
 
 Não há status separado para mutante equivalente. A skill `harden` manda registrar um waiver. O waiver é `arquivo::função`, para todo sobrevivente da função, ou o Alvo da tabela de sobreviventes, `arquivo::função::<descrição>`, para um só. A descrição é o operador do mutante. `bob waive` recusa com exit `4` um alvo que nenhum sobrevivente do último relatório tem. Ver a [ADR 0006](adr/0006-chave-estavel-do-waiver.md).
 
-O bob muta Python com mutmut e TypeScript com Stryker. O mutmut roda em `<--out>/mutmut/`, uma pasta de links simbólicos para o topo do repo, e nunca escreve o `setup.cfg` nem o `mutants/` do repo. O arquivo incremental do Stryker fica em `.bob/stryker-incremental.json` (ou `<--out>/stryker-incremental.json`). Ele não entra em `.bob/mutation-cache.json`. Os mutantes do último relatório do Stryker ficam em `<--out>/stryker-mutants.json`, para `bob waive`. A Action restaura só o cache do mutmut.
+O bob muta Python com mutmut e TypeScript com Stryker. O mutmut roda em `<--out>/mutmut/`, uma pasta de links simbólicos para o topo do repo, e nunca escreve o `setup.cfg` nem o `mutants/` do repo. O arquivo incremental do Stryker fica em `.bob/stryker-incremental.json` (ou `<--out>/stryker-incremental.json`). Ele não entra em `.bob/mutation-cache.json`. Os mutantes do último relatório do Stryker ficam em `<--out>/stryker-mutants.json`, para `bob waive`. A Action restaura e publica os dois arquivos no artefato `bob-mutation-cache`.
 
 Antes de mutar, a baseline roda. Se o `crap` já mediu o pytest na mesma execução, esse código é reusado. Baseline quebrada: o gate fica `not_run` e o exit é `2`.
 
@@ -71,7 +71,7 @@ Entram na mutação as funções alteradas no diff e as funções do cache que a
 
 Se a versão do mutmut ou a impressão da suíte diferir da chave do arquivo, `_read_cache` devolve vazio e o cache inteiro deixa de ser reusado. Função com hash diferente, ou com sobrevivente ainda sem waiver, é mutada de novo. `--since-last-run` não liga nem desliga isso; o cache já é o caminho padrão.
 
-A Action restaura e publica o artefato `bob-mutation-cache` com esse JSON (`.github/actions/bob/action.yml`) e o guarda por 7 dias (`retention-days: 7`). Falha ao restaurar não interrompe o check (`restore_cache.py || echo ...` no workflow da action). A action também instala o Node `22.14.0` e o jscpd `5.4.1` antes do check, senão o dry fica `not_run`.
+A Action restaura e publica o artefato `bob-mutation-cache` com esse JSON e com `.bob/stryker-incremental.json` (`.github/actions/bob/action.yml`) e o guarda por 7 dias (`retention-days: 7`). Falha ao restaurar não interrompe o check (`restore_cache.py || echo ...` no workflow da action). A action também instala o Node `22.14.0` e o jscpd `5.4.1` antes do check, senão o dry fica `not_run`.
 
 O limite efetivo é zero sobreviventes sem waiver numa linha do lado novo do diff (`git diff --unified=0`, âncora de hunk vazio incluída). Um desses deixa o gate `failed` e o exit `3`. Sobrevivente sem waiver fora dessas linhas continua na tabela, com a nota `fora do diff; não bloqueia`, e não muda o exit. Sem arquivo, ou com linha menor ou igual a zero, o sobrevivente sem waiver ainda bloqueia. `killed`, `timeout` e `no_coverage` não entram nessa lista. Sobrevivente com waiver continua na tabela de sobreviventes, com a justificativa, e não conta para o `3`. A seleção do que mutar continua por função (`_candidate_keys`).
 

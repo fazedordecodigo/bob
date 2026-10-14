@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+A Stryker report that is not UTF-8 exits `4` with the mutate gate `not_run`, and the run writes the report instead of a traceback. The `bob-mutation-cache` artifact uploads and restores `.bob/stryker-incremental.json` next to `.bob/mutation-cache.json`.
+
+Um relatório do Stryker que não é UTF-8 sai com `4`, com o gate mutate em `not_run`, e a execução grava o relatório em vez de um traceback. O artefato `bob-mutation-cache` sobe e restaura `.bob/stryker-incremental.json` junto de `.bob/mutation-cache.json`.
+
+`extract_cache` prints `restored mutmut`, `restored incremental`, or `restored both` after it writes those files from the `bob-mutation-cache` zip. It prints nothing when the zip has neither file.
+
+O `extract_cache` imprime `restored mutmut`, `restored incremental` ou `restored both` depois de gravar esses arquivos do zip `bob-mutation-cache`. Não imprime nada quando o zip não traz nenhum dos dois.
+
 The DRY gate can fail. `duplication.new_clones` is `warn`, the default, or `fail`. Without the new keys, a new clone stays a warning and the exit stays `0`. In fail mode, the gate fails with exit `1` when the new clones that pass `duplication.min_similarity` and `duplication.min_lines` exceed `duplication.max_new_clones` (default `0`). The reason names the key and the ceiling, as in `1 new clone exceeds duplication.max_new_clones 0`. The two filters apply in warn mode too, and a clone they drop stays out of the report. `bob dry` and `bob check` accept `--dry-fail` and `--max-new-clones N`, which override the file for that run. A negative `--max-new-clones`, or an invalid value in the new keys, exits `4` and writes no report. The pre-push hook is unchanged.
 
 O gate DRY pode falhar. `duplication.new_clones` é `warn`, o padrão, ou `fail`. Sem as chaves novas, um clone novo continua em aviso e o exit continua `0`. No modo fail, o gate falha com exit `1` quando os clones novos que passam em `duplication.min_similarity` e `duplication.min_lines` passam de `duplication.max_new_clones` (padrão `0`). O motivo cita a chave e o teto, como em `1 new clone exceeds duplication.max_new_clones 0`. Os dois filtros valem também no modo warn, e um clone que eles descartam fica fora do relatório. `bob dry` e `bob check` aceitam `--dry-fail` e `--max-new-clones N`, que vencem o arquivo nessa execução. Um `--max-new-clones` negativo, ou um valor inválido nas chaves novas, sai com `4` e não grava relatório. O hook pre-push não muda.

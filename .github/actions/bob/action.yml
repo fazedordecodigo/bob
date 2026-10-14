@@ -81,7 +81,9 @@ runs:
       if: always()
       with:
         name: bob-mutation-cache
-        path: .bob/mutation-cache.json
+        path: |
+          .bob/mutation-cache.json
+          .bob/stryker-incremental.json
         if-no-files-found: ignore
         include-hidden-files: true
         retention-days: 7
