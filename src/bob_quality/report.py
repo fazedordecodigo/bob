@@ -796,15 +796,31 @@ def _saved_supply_row(row: dict[str, object], path: Path) -> SupplyRow:
     effect = row.get("effect")
     waiver = row.get("waiver")
     if effect == "waived":
-        if not isinstance(waiver, str) or waiver == "" or not _can_waive(finding):
-            raise _invalid_saved(path)
-        return RowWaived(finding, waiver)
+        return _waived_supply(finding, waiver, path)
+    return _open_supply(finding, effect, waiver, path)
+
+
+def _waived_supply(finding: SupplyFinding, waiver: object, path: Path) -> RowWaived:
+    if not isinstance(waiver, str) or waiver == "" or not _can_waive(finding):
+        raise _invalid_saved(path)
+    return RowWaived(finding, waiver)
+
+
+def _open_supply(finding: SupplyFinding, effect: object, waiver: object, path: Path) -> SupplyRow:
     if waiver is not None or effect not in {"block", "warn"}:
         raise _invalid_saved(path)
     if effect == "block":
-        if not _can_waive(finding):
-            raise _invalid_saved(path)
-        return RowBlock(finding)
+        return _blocked_supply(finding, path)
+    return _warned_supply(finding, path)
+
+
+def _blocked_supply(finding: SupplyFinding, path: Path) -> RowBlock:
+    if not _can_waive(finding):
+        raise _invalid_saved(path)
+    return RowBlock(finding)
+
+
+def _warned_supply(finding: SupplyFinding, path: Path) -> RowWarn:
     if not _can_warn(finding):
         raise _invalid_saved(path)
     return RowWarn(finding)
