@@ -21,7 +21,7 @@ Num Ubuntu atual o Python do sistema recusa `pip install` pela PEP 668. Use um v
 bob = "bob_quality.cli:main"
 ```
 
-As dependências Python pinadas no pacote são `lizard==1.24.1`, `coverage==7.16.2`, `PyYAML==6.0.3`, `import-linter==2.15`, `grimp==3.17`, `mutmut==3.8.0`, `bandit==1.9.4` e `semgrep==1.180.0`. O extra `dev` traz `pytest`, `jsonschema==4.25.1`, `build` e `twine`. No Python anterior ao 3.11 o extra também pina `tomli==2.4.1`.
+As dependências Python pinadas no pacote são `lizard==1.24.1`, `coverage==7.16.2`, `PyYAML==6.0.3`, `import-linter==2.15`, `grimp==3.17`, `mutmut==3.8.0`, `bandit==1.9.4` e `vulture==2.16`. O extra `dev` traz `pytest`, `jsonschema==4.26.0`, `build` e `twine`. No Python anterior ao 3.11 o extra também pina `tomli==2.5.0`. O Semgrep 1.180.0 não é dependência. O gate de security chama `uvx --from semgrep==1.180.0`.
 
 Num checkout, para desenvolver:
 
