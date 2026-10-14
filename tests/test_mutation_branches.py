@@ -412,6 +412,7 @@ def test_absorb_records_every_gate_argument_and_result(
     state = check_mod._measure(
         tmp_path,
         config,
+        "main",
         diff,
         10.0,
         coverage,

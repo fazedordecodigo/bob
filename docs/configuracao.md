@@ -29,6 +29,8 @@ duplication:
 dependencies:
   python: .importlinter
   typescript: .dependency-cruiser.cjs
+security:
+  fail_severities: [HIGH, CRITICAL, ERROR]
 ```
 
 `language: en` no bloco acima é o resultado da resolução, não uma chave que o arquivo vazio precise ter. Sem chave, `resolve_language` devolve `en`.
@@ -53,6 +55,7 @@ O `bob.yaml` deste repositório é mais curto: `base`, `languages: [python]`, `p
 | `duplication.min_lines` | inteiro ≥ 0 (bool não vale) | `0` | Linhas mínimas para o clone entrar na conta |
 | `dependencies.python` | string | `.importlinter` | Config do import-linter |
 | `dependencies.typescript` | string | `.dependency-cruiser.cjs` | Config do dependency-cruiser |
+| `security.fail_severities` | lista de strings | `[HIGH, CRITICAL, ERROR]` | Severidades que falham o gate `security` |
 | `typing` | mapeamento vazio | ausente | Aceito e ignorado. Não liga o gate de tipos |
 | `secrets` | mapeamento vazio | ausente | Não liga o gate e não tem filhos |
 | `dead_code.min_confidence` | inteiro de 0 a 100, ou ausente | ausente | Confiança mínima do vulture. Ausente ou nulo não passa `--min-confidence`. `0` passa a flag. O knip ignora a chave |
@@ -85,9 +88,17 @@ Uma lista vazia ou um item repetido sai com 4.
 
 O gate DRY mapeia `typescript` para os formatos `typescript` e `javascript` do jscpd (`dry_gate.py`).
 
+### security.fail_severities
+
+A lista diz quais severidades do Bandit e do Semgrep falham o gate. O padrão é `HIGH`, `CRITICAL` e `ERROR`. Ausente ou nula, a lista continua essa. `[]` não volta ao padrão.
+
+Cada item tem de estar no vocabulário que as linhas de scanner emitem: `CRITICAL`, `ERROR`, `HIGH`, `INFO`, `LOW`, `MEDIUM`, `UNDEFINED`, `WARNING`. Palavra fora dessa lista, item repetido, lista vazia ou valor que não é lista de strings sai com `4`. O stderr fica em inglês, cita o arquivo e a chave, e nada é gravado. `ERROR` não é apelido de `HIGH`. Uma lista que tira `ERROR` deixa um achado `ERROR` em aviso.
+
+O `_SCHEMA` aceita `security.fail_severities` e recusa outra chave dentro de `security`.
+
 ### Chaves que o loader recusa
 
-O `_SCHEMA` em `src/bob_quality/config.py` aceita `base`, `language`, `languages`, `paths.include`, `paths.exclude`, `crap.max_per_function`, `crap.scope`, `duplication.min_tokens`, `duplication.new_clones`, `duplication.max_new_clones`, `duplication.min_similarity`, `duplication.min_lines`, `dependencies.python`, `dependencies.typescript`, `typing`, `secrets` e `dead_code.min_confidence`. `_reject_unknown` recusa qualquer outra chave: exit `4`, mensagem em inglês no stderr, nenhum arquivo gravado.
+O `_SCHEMA` em `src/bob_quality/config.py` aceita `base`, `language`, `languages`, `paths.include`, `paths.exclude`, `crap.max_per_function`, `crap.scope`, `duplication.min_tokens`, `duplication.new_clones`, `duplication.max_new_clones`, `duplication.min_similarity`, `duplication.min_lines`, `dependencies.python`, `dependencies.typescript`, `security.fail_severities`, `typing`, `secrets` e `dead_code.min_confidence`. `_reject_unknown` recusa qualquer outra chave: exit `4`, mensagem em inglês no stderr, nenhum arquivo gravado.
 
 `secrets` ausente, `secrets:`, `secrets: null` e `secrets: {}` são o mesmo mapeamento vazio. A chave não tem limiar nem filhos e não liga o gate. O gate só roda com `--gates secrets`. `secrets: true` e `secrets: {threshold: 1}` saem com `4`, em inglês no stderr, e nada é gravado.
 
