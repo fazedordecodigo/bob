@@ -1,0 +1,38 @@
+[
+    {
+        "error": {
+            "code": "DEP001",
+            "message": "missing"
+        },
+        "module": "requests",
+        "location": {
+            "file": "src/app.py",
+            "line": 3,
+            "column": 8
+        }
+    },
+    {
+        "error": {
+            "code": "DEP003",
+            "message": "transitive"
+        },
+        "module": "pkg_resources",
+        "location": {
+            "file": "src/app.py",
+            "line": null,
+            "column": null
+        }
+    },
+    {
+        "error": {
+            "code": "DEP002",
+            "message": "unused"
+        },
+        "module": "unused",
+        "location": {
+            "file": "pyproject.toml",
+            "line": 10,
+            "column": 1
+        }
+    }
+]
