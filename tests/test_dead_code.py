@@ -12,6 +12,7 @@ import pytest
 from jsonschema import Draft202012Validator
 
 from bob_quality.check import _Measured, _assemble, _record_dead
+from bob_quality.churn import ChurnUnavailable
 from bob_quality.config import Config
 from bob_quality.dead_code import (
     Dark,
@@ -362,6 +363,8 @@ def test_the_dead_section_sits_between_untested_mutants_and_reproduce() -> None:
         "- `src/app/orphan.py:3` function `orphan` 60% "
         "waiver `dead:src/app/orphan.py:3:orphan`\n"
         "- `src/app/orphan.ts:3` export `orphan`\n\n"
+        "## Churn\n\n"
+        "Churn counts are unavailable. The exit code is unchanged.\n\n"
         "## How to reproduce"
     )
     assert block in english
@@ -372,9 +375,13 @@ def test_the_dead_section_sits_between_untested_mutants_and_reproduce() -> None:
         "- `src/app/orphan.py:3` função `orphan` 60% "
         "waiver `dead:src/app/orphan.py:3:orphan`\n"
         "- `src/app/orphan.ts:3` exportação `orphan`\n\n"
+        "## Rotatividade\n\n"
+        "Contagens de rotatividade indisponíveis. O código de saída não muda.\n\n"
         "## Como reproduzir"
     ) in portuguese
     payload = to_json(report)
+    keys = list(payload)
+    assert keys[keys.index("dead_code") + 1] == "churn"
     Draft202012Validator(SCHEMA).validate(payload)
     assert payload["exit_code"] == 0
     assert payload["gates"] == [
@@ -810,7 +817,15 @@ def test_assemble_copies_each_measurement_into_the_report() -> None:
         dead_code=section,
     )
 
-    report = _assemble(measured, "abc123", "origin/main", {"src/app.py": {1}}, 10.0, "bob check")
+    report = _assemble(
+        measured,
+        "abc123",
+        "origin/main",
+        {"src/app.py": {1}},
+        10.0,
+        "bob check",
+        ChurnUnavailable(),
+    )
 
     assert report.schema_version == 1
     assert report.commit == "abc123"
@@ -835,7 +850,9 @@ def test_assemble_copies_each_measurement_into_the_report() -> None:
 def test_assemble_without_mutation_keeps_the_loaded_waivers() -> None:
     measured = _Measured(loaded_waivers=[{"id": "idle"}], exit_code=0)
 
-    report = _assemble(measured, "abc123", "origin/main", {}, 10.0, "bob check")
+    report = _assemble(
+        measured, "abc123", "origin/main", {}, 10.0, "bob check", ChurnUnavailable()
+    )
 
     assert report.waivers == [{"id": "idle"}]
     assert report.survivors == []

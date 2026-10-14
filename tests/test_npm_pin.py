@@ -23,6 +23,8 @@ def test_npm_tools_are_pinned_in_package_json_and_lock() -> None:
         "@stryker-mutator/vitest-runner": "10.0.0",
         "c8": "12.0.0",
         "dependency-cruiser": "18.5.0",
+        "eslint": "9.39.5",
+        "eslint-plugin-sonarjs": "2.0.4",
         "jscpd": "5.4.1",
         "knip": "6.41.0",
         "vitest": "5.0.3",

@@ -3,11 +3,14 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from pathlib import PurePosixPath
 from typing import Literal, NewType
 
+from bob_quality.churn import ChurnSection, ChurnUnavailable
 from bob_quality.messages import Text
 
 GateStatus = Literal["passed", "warn", "failed", "not_run"]
+CognitiveLanguage = Literal["python", "typescript"]
 
 SECRET_PREFIX = "secret:"
 
@@ -211,6 +214,57 @@ class DeadSection:
 
 
 @dataclass(frozen=True)
+class CognitiveFunction:
+    """Função medida.
+
+    O arquivo é posix relativo ao repositório. start_line e end_line são
+    inclusivos e cobrem a função inteira. O id de waiver é
+    cognitive:<arquivo>:<nome>.
+    """
+
+    file: str
+    name: str
+    start_line: int
+    end_line: int
+    score: int
+    language: CognitiveLanguage
+
+    def __post_init__(self) -> None:
+        _reject_cognitive_file(self.file)
+        _reject_cognitive_name(self.name)
+        _reject_cognitive_span(self.start_line, self.end_line, self.score)
+
+    def waiver_id(self) -> str:
+        return f"cognitive:{self.file}:{self.name}"
+
+
+def _reject_cognitive_file(file: str) -> None:
+    path = PurePosixPath(file)
+    if path.is_absolute():
+        raise ValueError("file must be repo-relative")
+    if ".." in path.parts:
+        raise ValueError("file must not contain ..")
+    if file.startswith("./"):
+        raise ValueError("file must not start with ./")
+
+
+def _reject_cognitive_name(name: str) -> None:
+    if name == "":
+        raise ValueError("name must not be empty")
+    if "\n" in name or "\r" in name:
+        raise ValueError("name must not contain a newline")
+
+
+def _reject_cognitive_span(start_line: int, end_line: int, score: int) -> None:
+    if start_line < 1:
+        raise ValueError("start_line must be positive")
+    if end_line < start_line:
+        raise ValueError("end_line must not precede start_line")
+    if score < 0:
+        raise ValueError("score must not be negative")
+
+
+@dataclass(frozen=True)
 class GateResult:
     name: str
     status: GateStatus
@@ -236,6 +290,8 @@ class Report:
     waivers: list[dict[str, object]] = field(default_factory=list)
     survivors: list[dict[str, object]] = field(default_factory=list)
     mutation: dict[str, object] | None = None
+    cognitive: list[CognitiveFunction] = field(default_factory=list)
+    churn: ChurnSection = field(default_factory=ChurnUnavailable)
     supply: SupplyReport | None = None
     security: SecurityReport | None = None
     typing: dict[str, object] | None = None

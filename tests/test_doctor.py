@@ -51,7 +51,10 @@ PINS = (
     ("c8", "12.0.0", "c8", "12.0.0"),
     ("vitest", "5.0.3", "vitest", "5.0.3"),
     ("jscpd", "5.4.1", "jscpd", "jscpd 5.4.1"),
+    ("eslint", "9.39.5", "eslint", "v9.39.5"),
+    ("eslint-plugin-sonarjs", "2.0.4", None, None),
     ("mutmut", "3.8.0", "mutmut", "mutmut, version 3.8.0"),
+    ("complexipy", "8.0.1", None, None),
     ("import-linter", "2.15", "lint-imports", "2.15"),
     ("grimp", "3.17", None, None),
     ("bandit", "1.9.4", None, None),
@@ -70,9 +73,12 @@ INSTALL = {
     "c8": "npm install c8@12.0.0",
     "vitest": "npm install vitest@5.0.3",
     "jscpd": "npm install jscpd@5.4.1",
+    "eslint": "npm install eslint@9.39.5",
+    "eslint-plugin-sonarjs": "npm install eslint-plugin-sonarjs@2.0.4",
     "mutmut": "pip install 'mutmut==3.8.0'",
     "import-linter": "pip install 'import-linter==2.15'",
     "grimp": "pip install 'grimp==3.17'",
+    "complexipy": "pip install 'complexipy==8.0.1'",
     "bandit": "pip install 'bandit==1.9.4'",
     "dependency-cruiser": "npm install dependency-cruiser@18.5.0",
     "knip": "npm install knip@6.41.0",
@@ -381,6 +387,7 @@ def test_doctor_expected_versions_match_pip_and_npm_pins(tmp_path: Path) -> None
     assert requirements["mutmut"] == expected["mutmut"]
     assert requirements["import-linter"] == expected["import-linter"]
     assert requirements["grimp"] == expected["grimp"]
+    assert requirements["complexipy"] == expected["complexipy"]
     assert requirements["bandit"] == expected["bandit"]
     assert "semgrep" not in requirements
     assert "semgrep" not in expected
@@ -392,6 +399,8 @@ def test_doctor_expected_versions_match_pip_and_npm_pins(tmp_path: Path) -> None
     assert npm["vitest"] == expected["vitest"]
     assert npm["jscpd"] == expected["jscpd"]
     assert npm["dependency-cruiser"] == expected["dependency-cruiser"]
+    assert npm["eslint"] == expected["eslint"]
+    assert npm["eslint-plugin-sonarjs"] == expected["eslint-plugin-sonarjs"]
     assert npm["knip"] == expected["knip"]
     assert requirements["vulture"] == expected["vulture"]
     assert npm["@stryker-mutator/core"] == expected["stryker"]
@@ -401,6 +410,8 @@ def test_doctor_expected_versions_match_pip_and_npm_pins(tmp_path: Path) -> None
         "@stryker-mutator/vitest-runner",
         "c8",
         "dependency-cruiser",
+        "eslint",
+        "eslint-plugin-sonarjs",
         "jscpd",
         "knip",
         "vitest",

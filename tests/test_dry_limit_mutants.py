@@ -9,6 +9,7 @@ from pathlib import Path
 
 import pytest
 
+from bob_quality.churn import ChurnUnavailable
 from bob_quality.check import (
     DEFAULT_GATES,
     _Measured,
@@ -241,7 +242,14 @@ def test_run_check_threads_the_defaults_and_the_overrides(
     assert defaults["measure"][10] is None
     assert defaults["waivers"] == (tmp_path, "trunk", "bob check", list(DEFAULT_GATES))
     assert defaults["state"].loaded_waivers == [{"id": "w"}]
-    assert defaults["assemble"][1:] == ("abc", "trunk", {"a.py": {1}}, 8.0, "bob check")
+    assert defaults["assemble"][1:] == (
+        "abc",
+        "trunk",
+        {"a.py": {1}},
+        8.0,
+        "bob check",
+        ChurnUnavailable(),
+    )
     assert defaults["written"][0] is defaults["report"]
     assert defaults["written"][1:] == (out, "json", "pt-BR")
 

@@ -6,6 +6,8 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
 
+from bob_quality.churn import ChurnSection, measure_churn
+from bob_quality.cognitive_gate import run_cognitive_gate
 from bob_quality.config import Config, ConfigError, load_config
 from bob_quality.core import files_by_risk, informational_debt, top_changed_crap
 from bob_quality.crap_gate import run_crap_gate
@@ -18,6 +20,7 @@ from bob_quality.exit_codes import CONFIG_OR_TOOL, PASSED
 from bob_quality.messages import DEFAULT_LANGUAGE, Language, Text, msg, reason
 from bob_quality.models import (
     Clone,
+    CognitiveFunction,
     DeadSection,
     DepViolation,
     FunctionMetric,
@@ -78,8 +81,16 @@ def run_check(
         if isinstance(loaded, Report):
             return _written(loaded, chosen_out, fmt, lang)
         measured.loaded_waivers = loaded
+    section = measure_churn(
+        cwd,
+        commit,
+        config.window_days,
+        diff_lines,
+        config.include,
+        measured.metrics,
+    )
     return _written(
-        _assemble(measured, commit, chosen_base, diff_lines, max_crap, command),
+        _assemble(measured, commit, chosen_base, diff_lines, max_crap, command, section),
         chosen_out,
         fmt,
         lang,
@@ -125,6 +136,7 @@ class _Measured:
     secrets: SecretLedger | None = None
     loaded_waivers: list[dict[str, object]] = field(default_factory=list)
     baseline: int | None = None
+    cognitive: list[CognitiveFunction] = field(default_factory=list)
     supply: SupplyReport | None = None
     security: SecurityReport | None = None
     typing: dict[str, object] | None = None
@@ -226,6 +238,11 @@ def _absorb_rest(
     base: str,
     diff_lines: dict[str, set[int]],
 ) -> None:
+    if gate == "cognitive":
+        result, found, code, versions = run_cognitive_gate(cwd, config, diff_lines)
+        state.cognitive = found
+        _record(state, result, code, versions)
+        return
     if gate == "supply":
         result, code, versions, supply = run_supply_gate(cwd, config, diff_lines, base)
         state.supply = supply
@@ -292,6 +309,7 @@ def _assemble(
     diff_lines: dict[str, set[int]],
     max_crap: float,
     command: str,
+    churn: ChurnSection,
 ) -> Report:
     focus = files_by_risk(measured.metrics, measured.clones, set(diff_lines))
     survivors: list[dict[str, object]] = []
@@ -320,6 +338,8 @@ def _assemble(
         waivers=waivers,
         survivors=survivors,
         mutation=summary,
+        cognitive=measured.cognitive,
+        churn=churn,
         supply=measured.supply,
         security=measured.security,
         typing=measured.typing,

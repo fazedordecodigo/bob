@@ -1,10 +1,18 @@
 """report.md em cada idioma e report.json sempre igual, montados direto do `Report`."""
 
+import json
 from dataclasses import replace
+from pathlib import Path
+
+from jsonschema import Draft202012Validator
 
 from bob_quality.messages import msg
-from bob_quality.models import Clone, GateResult, Report
+from bob_quality.models import Clone, CognitiveFunction, GateResult, Report
 from bob_quality.report import to_json, to_markdown
+
+SCHEMA = json.loads(
+    (Path(__file__).resolve().parents[1] / "src/bob_quality/schemas/report_v1.json").read_text()
+)
 
 WAIVER = {"id": "m.x__mutmut_1", "reason": "equivalent", "author": "E", "date": "2026-10-11"}
 SURVIVOR = {
@@ -142,6 +150,10 @@ RICH_EN = """# bob report
 |---|---|---:|
 | orphan | src/app/orphan.py | 2 |
 
+## Churn
+
+Churn counts are unavailable. The exit code is unchanged.
+
 ## How to reproduce
 
 ```
@@ -213,6 +225,10 @@ RICH_PT_BR = """# Relatório bob
 |---|---|---:|
 | orphan | src/app/orphan.py | 2 |
 
+## Rotatividade
+
+Contagens de rotatividade indisponíveis. O código de saída não muda.
+
 ## Como reproduzir
 
 ```
@@ -259,6 +275,10 @@ No surviving mutants.
 ## Mutants without tests
 
 No mutants without tests.
+
+## Churn
+
+Churn counts are unavailable. The exit code is unchanged.
 
 ## How to reproduce
 
@@ -348,10 +368,18 @@ def test_json_is_the_schema_with_english_reasons_whatever_the_markdown_language(
             "reused": [],
             "no_coverage": {"total": 2, "functions": [ORPHAN]},
         },
+        "typing": found,
+        "churn": {"kind": "unavailable"},
         "reproduce": "bob check --base main",
         "exit_code": 3,
-        "typing": found,
     }
+    keys = list(to_json(report))
+    assert keys[keys.index("mutation") + 1 :] == [
+        "typing",
+        "churn",
+        "reproduce",
+        "exit_code",
+    ]
 
 
 def test_an_empty_reproduce_command_stays_blank_in_markdown() -> None:
@@ -414,6 +442,130 @@ def test_survivor_rows_escape_pipes_in_the_target_and_dash_a_missing_one() -> No
         " | a or b -> a \\| b | — |\n"
         "| — | classify | :0 | — | — |\n"
     ) in to_markdown(report, "en")
+
+
+def _save() -> CognitiveFunction:
+    return CognitiveFunction(
+        file="src/foo.ts",
+        name="Foo::save",
+        start_line=2,
+        end_line=19,
+        score=15,
+        language="typescript",
+    )
+
+
+def _cognitive(status: str, reason: object, functions: list[CognitiveFunction]) -> Report:
+    return Report(
+        schema_version=1,
+        commit="abc",
+        base="main",
+        generated_at="2026-10-11T00:00:00+00:00",
+        tool_versions={"eslint": "9.39.5"},
+        gates=[GateResult("cognitive", status, reason)],
+        focus=[],
+        top_crap=[],
+        reproduce="bob check --gates cognitive",
+        cognitive=functions,
+    )
+
+
+def test_cognitive_section_lists_the_warning_in_both_languages() -> None:
+    report = _cognitive("warn", msg("cognitive.over", count=1), [_save()])
+    row = (
+        "| `Foo::save` | `src/foo.ts:2-19` | 15 | typescript | "
+        "`cognitive:src/foo.ts:Foo::save` |"
+    )
+
+    assert (
+        "## New clones\n\n"
+        "Not run.\n\n"
+        "## Cognitive complexity\n\n"
+        "| Function | File | Score | Language | Waiver |\n"
+        "|---|---|---:|---|---|\n"
+        f"{row}\n\n"
+        "## Churn\n\n"
+        "Churn counts are unavailable. The exit code is unchanged.\n\n"
+        "## How to reproduce\n"
+    ) in to_markdown(report, "en")
+    assert (
+        "## Clones novos\n\n"
+        "Não executado.\n\n"
+        "## Complexidade cognitiva\n\n"
+        "| Função | Arquivo | Score | Idioma | Waiver |\n"
+        "|---|---|---:|---|---|\n"
+        f"{row}\n\n"
+        "## Rotatividade\n\n"
+        "Contagens de rotatividade indisponíveis. O código de saída não muda.\n\n"
+        "## Como reproduzir\n"
+    ) in to_markdown(report, "pt-BR")
+    assert to_json(report)["cognitive"] == [
+        {
+            "file": "src/foo.ts",
+            "name": "Foo::save",
+            "start_line": 2,
+            "end_line": 19,
+            "score": 15,
+            "language": "typescript",
+            "waiver_id": "cognitive:src/foo.ts:Foo::save",
+        }
+    ]
+    Draft202012Validator(SCHEMA).validate(to_json(report))
+
+
+def test_cognitive_section_says_when_nothing_is_over_the_limit() -> None:
+    report = _cognitive("passed", None, [])
+
+    assert (
+        "## Cognitive complexity\n\n"
+        "No changed function at or above the cognitive limit.\n\n"
+        "## Churn\n\n"
+        "Churn counts are unavailable. The exit code is unchanged.\n\n"
+        "## How to reproduce\n"
+    ) in to_markdown(report, "en")
+    assert (
+        "## Complexidade cognitiva\n\n"
+        "Nenhuma função alterada no limite de complexidade cognitiva ou acima.\n\n"
+        "## Rotatividade\n\n"
+        "Contagens de rotatividade indisponíveis. O código de saída não muda.\n\n"
+        "## Como reproduzir\n"
+    ) in to_markdown(report, "pt-BR")
+    assert to_json(report)["cognitive"] == []
+
+
+def test_cognitive_section_explains_a_skip_and_stays_out_of_other_runs() -> None:
+    skipped = _cognitive("not_run", msg("cognitive.tool_missing", tool="complexipy"), [])
+
+    assert (
+        "## Cognitive complexity\n\n"
+        "Not run (complexipy is not installed).\n\n"
+        "## Churn\n\n"
+        "Churn counts are unavailable. The exit code is unchanged.\n\n"
+        "## How to reproduce\n"
+    ) in to_markdown(skipped, "en")
+    assert (
+        "## Complexidade cognitiva\n\n"
+        "Não executado (complexipy não está instalado).\n\n"
+        "## Rotatividade\n\n"
+        "Contagens de rotatividade indisponíveis. O código de saída não muda.\n\n"
+        "## Como reproduzir\n"
+    ) in to_markdown(skipped, "pt-BR")
+    assert to_json(skipped)["gates"][0]["reason"] == "complexipy is not installed"
+    assert to_json(skipped)["cognitive"] == []
+    assert "cognitive" not in to_json(_rich())
+    assert "## Cognitive complexity" not in to_markdown(_rich(), "en")
+    assert "## Complexidade cognitiva" not in to_markdown(_rich(), "pt-BR")
+    assert "cognitive" in SCHEMA["properties"]
+    assert "cognitive" not in SCHEMA["required"]
+    assert SCHEMA["properties"]["schema_version"]["const"] == 1
+    Draft202012Validator(SCHEMA).validate(to_json(_rich()))
+
+
+def test_cognitive_skip_without_a_reason_stays_empty() -> None:
+    skipped = _cognitive("not_run", None, [])
+
+    assert "Not run ()." in to_markdown(skipped, "en")
+    assert "Não executado ()." in to_markdown(skipped, "pt-BR")
 
 
 def test_markdown_marks_an_unwaived_survivor_outside_the_diff() -> None:

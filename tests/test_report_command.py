@@ -9,6 +9,7 @@ from pathlib import Path
 
 import pytest
 
+from bob_quality.churn import ChurnUnavailable
 from bob_quality.cli import main
 from bob_quality.report import load_saved_report
 
@@ -32,6 +33,29 @@ def _invoke(repo: Path, *args: str) -> subprocess.CompletedProcess[str]:
     )
 
 
+_COGNITIVE = {
+    "file": "src/app.py",
+    "name": "add",
+    "start_line": 2,
+    "end_line": 9,
+    "score": 16,
+    "language": "python",
+}
+_CHURN_FILE = {"path": "src/app.py", "commits": 3, "relative": 0.5}
+_HOTSPOT = {
+    "file": "src/app.py",
+    "function": "add",
+    "start_line": 4,
+    "cc": 2,
+    "commits": 3,
+}
+_MEASURED_CHURN = {
+    "kind": "measured",
+    "window_days": 14,
+    "ends_on": "2026-10-14",
+    "files": [_CHURN_FILE],
+    "hotspots": [_HOTSPOT],
+}
 _MINIMAL = {
     "schema_version": 1,
     "commit": "abc",
@@ -72,6 +96,10 @@ No changed function measured.
 
 Not run.
 
+## Churn
+
+Churn counts are unavailable. The exit code is unchanged.
+
 ## How to reproduce
 
 ```
@@ -106,6 +134,10 @@ Nenhuma função alterada medida.
 
 Não executado.
 
+## Rotatividade
+
+Contagens de rotatividade indisponíveis. O código de saída não muda.
+
 ## Como reproduzir
 
 ```
@@ -132,7 +164,10 @@ def test_report_renders_the_saved_json_and_keeps_the_exit_code(tmp_path: Path) -
     assert result.stderr == ""
     assert result.stdout == ""
     assert (tmp_path / ".bob" / "report.md").read_text() == _EN
-    assert load_saved_report(tmp_path / ".bob").schema_version == 1
+    loaded = load_saved_report(tmp_path / ".bob")
+    assert loaded.schema_version == 1
+    assert loaded.cognitive == []
+    assert loaded.churn == ChurnUnavailable()
     assert saved.read_bytes() == before
     assert not (tmp_path / ".bob" / "report.md.tmp").exists()
 
@@ -831,6 +866,99 @@ def test_report_renders_an_unmeasured_supply_section(tmp_path: Path) -> None:
     assert "\n\n## New dependencies\n\nno configured language produced a measurement\n" in markdown
 
 
+def test_report_renders_saved_churn(tmp_path: Path) -> None:
+    payload = dict(_MINIMAL)
+    payload["churn"] = {
+        "kind": "measured",
+        "window_days": 14,
+        "ends_on": "2026-10-14",
+        "files": [
+            {"path": "src/app.py", "commits": 3, "relative": 0.5},
+            {"path": "src/lib.py", "commits": 1},
+            {"path": "src/z.py", "commits": 1, "relative": None},
+        ],
+        "hotspots": [
+            {
+                "file": "src/app.py",
+                "function": "add",
+                "start_line": 4,
+                "cc": 2,
+                "commits": 3,
+            }
+        ],
+    }
+    _save(tmp_path, payload)
+
+    result = _invoke(tmp_path, "report")
+    markdown = (tmp_path / ".bob" / "report.md").read_text()
+    loaded = load_saved_report(tmp_path / ".bob")
+
+    assert result.returncode == 0
+    assert (
+        "## Churn\n"
+        "\n"
+        "Window: 14 days ending 2026-10-14.\n"
+        "Diffusion: 3 files, 1 modules.\n"
+        "Modules: `src`.\n"
+        "\n"
+        "| File | Commits | Relative |\n"
+        "|---|---:|---:|\n"
+        "| `src/app.py` | 3 | 0.5000 |\n"
+        "| `src/lib.py` | 1 | n/a |\n"
+        "| `src/z.py` | 1 | n/a |\n"
+        "\n"
+        "| Function | File | CC | Commits | Hotspot |\n"
+        "|---|---|---:|---:|---:|\n"
+        "| `add` | `src/app.py:4` | 2 | 3 | 6 |\n"
+    ) in markdown
+    assert [item.relative for item in loaded.churn.files] == [0.5, None, None]
+
+
+def test_report_renders_saved_cognitive(tmp_path: Path) -> None:
+    payload = dict(_MINIMAL)
+    payload["gates"] = [
+        {"name": "crap", "status": "passed", "reason": None},
+        {"name": "cognitive", "status": "failed", "reason": None},
+    ]
+    payload["cognitive"] = [
+        {
+            "file": "src/app.py",
+            "name": "add",
+            "start_line": 2,
+            "end_line": 9,
+            "score": 16,
+            "language": "python",
+            "waiver_id": "cognitive:src/app.py:add",
+        }
+    ]
+    _save(tmp_path, payload)
+
+    result = _invoke(tmp_path, "report")
+    markdown = (tmp_path / ".bob" / "report.md").read_text()
+    loaded = load_saved_report(tmp_path / ".bob")
+
+    assert result.returncode == 0
+    assert (
+        "| `add` | `src/app.py:2-9` | 16 | python | `cognitive:src/app.py:add` |"
+        in markdown
+    )
+    assert loaded.cognitive[0].language == "python"
+    assert loaded.cognitive[0].score == 16
+
+
+def test_report_renders_unavailable_churn(tmp_path: Path) -> None:
+    payload = dict(_MINIMAL)
+    payload["churn"] = {"kind": "unavailable"}
+    _save(tmp_path, payload)
+
+    result = _invoke(tmp_path, "report")
+
+    assert result.returncode == 0
+    assert "Churn counts are unavailable. The exit code is unchanged." in (
+        tmp_path / ".bob" / "report.md"
+    ).read_text()
+
+
 def test_report_renders_an_empty_secrets_list(tmp_path: Path) -> None:
     payload = dict(_MINIMAL)
     payload["secrets"] = []
@@ -1025,6 +1153,103 @@ def test_report_renders_an_empty_secrets_list(tmp_path: Path) -> None:
                     "total": 1,
                     "functions": [{"file": "a.py", "function": "add", "count": "1"}],
                 }
+            },
+        },
+        {**_MINIMAL, "cognitive": "nope"},
+        {**_MINIMAL, "cognitive": [1]},
+        {**_MINIMAL, "cognitive": [{**_COGNITIVE, "file": 1}]},
+        {**_MINIMAL, "cognitive": [{**_COGNITIVE, "name": 1}]},
+        {**_MINIMAL, "cognitive": [{**_COGNITIVE, "start_line": "2"}]},
+        {**_MINIMAL, "cognitive": [{**_COGNITIVE, "end_line": "9"}]},
+        {**_MINIMAL, "cognitive": [{**_COGNITIVE, "score": "16"}]},
+        {**_MINIMAL, "cognitive": [{**_COGNITIVE, "language": 1}]},
+        {**_MINIMAL, "cognitive": [{**_COGNITIVE, "language": "ruby"}]},
+        {**_MINIMAL, "cognitive": [{**_COGNITIVE, "file": "../app.py"}]},
+        {**_MINIMAL, "cognitive": [{**_COGNITIVE, "name": ""}]},
+        {**_MINIMAL, "cognitive": [{**_COGNITIVE, "start_line": 0}]},
+        {**_MINIMAL, "cognitive": [{**_COGNITIVE, "end_line": 1}]},
+        {**_MINIMAL, "cognitive": [{**_COGNITIVE, "score": -1}]},
+        {**_MINIMAL, "churn": []},
+        {**_MINIMAL, "churn": {}},
+        {**_MINIMAL, "churn": {"kind": "nope"}},
+        {**_MINIMAL, "churn": {**_MEASURED_CHURN, "window_days": "14"}},
+        {**_MINIMAL, "churn": {**_MEASURED_CHURN, "ends_on": 1}},
+        {**_MINIMAL, "churn": {**_MEASURED_CHURN, "ends_on": "nope"}},
+        {**_MINIMAL, "churn": {**_MEASURED_CHURN, "files": "nope"}},
+        {**_MINIMAL, "churn": {**_MEASURED_CHURN, "files": [1]}},
+        {
+            **_MINIMAL,
+            "churn": {
+                **_MEASURED_CHURN,
+                "files": [{**_CHURN_FILE, "path": 1}],
+            },
+        },
+        {
+            **_MINIMAL,
+            "churn": {
+                **_MEASURED_CHURN,
+                "files": [{**_CHURN_FILE, "commits": "3"}],
+            },
+        },
+        {
+            **_MINIMAL,
+            "churn": {
+                **_MEASURED_CHURN,
+                "files": [{**_CHURN_FILE, "relative": "high"}],
+            },
+        },
+        {**_MINIMAL, "churn": {**_MEASURED_CHURN, "hotspots": "nope"}},
+        {
+            **_MINIMAL,
+            "churn": {
+                **_MEASURED_CHURN,
+                "hotspots": [{**_HOTSPOT, "file": 1}],
+            },
+        },
+        {
+            **_MINIMAL,
+            "churn": {
+                **_MEASURED_CHURN,
+                "hotspots": [{**_HOTSPOT, "function": 1}],
+            },
+        },
+        {
+            **_MINIMAL,
+            "churn": {
+                **_MEASURED_CHURN,
+                "hotspots": [{**_HOTSPOT, "start_line": "4"}],
+            },
+        },
+        {
+            **_MINIMAL,
+            "churn": {
+                **_MEASURED_CHURN,
+                "hotspots": [{**_HOTSPOT, "cc": "2"}],
+            },
+        },
+        {
+            **_MINIMAL,
+            "churn": {
+                **_MEASURED_CHURN,
+                "hotspots": [{**_HOTSPOT, "commits": "3"}],
+            },
+        },
+        {
+            **_MINIMAL,
+            "churn": {
+                **_MEASURED_CHURN,
+                "files": [
+                    {"path": "src/b.py", "commits": 1, "relative": 0.5},
+                    {"path": "src/a.py", "commits": 1, "relative": 0.5},
+                ],
+                "hotspots": [],
+            },
+        },
+        {
+            **_MINIMAL,
+            "churn": {
+                **_MEASURED_CHURN,
+                "hotspots": [{**_HOTSPOT, "commits": 9}],
             },
         },
     ],
