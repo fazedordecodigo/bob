@@ -125,6 +125,41 @@
         }
       }
     },
+    "supply": {
+      "type": "object",
+      "required": ["measured", "skipped", "findings"],
+      "properties": {
+        "measured": {
+          "type": "array",
+          "items": { "enum": ["python", "typescript"] }
+        },
+        "skipped": {
+          "type": "array",
+          "items": { "enum": ["python", "typescript"] }
+        },
+        "findings": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["kind", "effect", "waiver"],
+            "properties": {
+              "kind": { "enum": ["missing", "undeclared", "advisory", "unverified"] },
+              "effect": { "enum": ["block", "warn", "waived"] },
+              "question": { "enum": ["existence", "advisory"] },
+              "index": { "enum": ["pypi", "npm"] },
+              "name": { "type": "string" },
+              "file": { "type": "string" },
+              "line": { "type": "integer" },
+              "module": { "type": "string" },
+              "advisory": { "type": ["string", "null"] },
+              "severity": { "enum": ["CRITICAL", "HIGH", "MODERATE", "LOW"] },
+              "cause": { "enum": ["timeout", "dns", "undecided", "no_severity"] },
+              "waiver": { "type": ["string", "null"] }
+            }
+          }
+        }
+      }
+    },
     "typing": {
       "type": "object",
       "additionalProperties": false,

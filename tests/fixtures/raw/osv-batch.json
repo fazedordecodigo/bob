@@ -1,0 +1,13 @@
+{
+  "results": [
+    {
+      "vulns": [
+        {"id": "CVE-2024-0001", "modified": "2024-01-01T00:00:00Z"},
+        {"id": "GHSA-aaaa-bbbb-cccc", "modified": "2024-01-02T00:00:00Z"},
+        {"id": "PYSEC-1", "modified": "2024-01-03T00:00:00Z"},
+        {"id": "GHSA-0000-0000-0000", "modified": "2024-01-04T00:00:00Z"}
+      ]
+    },
+    {"vulns": []}
+  ]
+}

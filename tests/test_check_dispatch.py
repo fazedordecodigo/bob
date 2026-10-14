@@ -21,6 +21,7 @@ from bob_quality.models import (
     GateResult,
     SecretLedger,
     SecretRow,
+    SupplyReport,
 )
 from bob_quality.mutate import MutationOutcome
 from bob_quality.secrets_gate import SecretsRun
@@ -368,11 +369,18 @@ def test_absorb_records_each_gate_from_the_arguments_it_received(monkeypatch) ->
             {"gitleaks": "8.30.1"},
         )
 
+    supply_report = SupplyReport(("python",), (), ())
+
+    def supply(*args: object) -> tuple[GateResult, int, dict[str, str], SupplyReport]:
+        seen["supply"] = args
+        return GateResult("supply", "failed"), 1, {"deptry": "0.25.1"}, supply_report
+
     monkeypatch.setattr(check, "run_crap_gate", crap)
     monkeypatch.setattr(check, "run_dry_gate", dry)
     monkeypatch.setattr(check, "run_deps_gate", deps)
     monkeypatch.setattr(check, "run_mutate_gate", mutate)
     monkeypatch.setattr(check, "run_secrets_gate", secrets)
+    monkeypatch.setattr(check, "run_supply_gate", supply)
 
     state = _Measured()
     _absorb(state, "crap", cwd, config, "main", diff, 10.0, coverage, out, 2, True, 0)
@@ -426,7 +434,21 @@ def test_absorb_records_each_gate_from_the_arguments_it_received(monkeypatch) ->
     assert state.versions["gitleaks"] == "8.30.1"
     assert [gate.name for gate in state.gates] == ["crap", "dry", "deps", "mutate", "secrets"]
     assert state.gates[-1].status == "failed"
-    assert set(seen) == {"crap", "dry", "deps", "mutate", "secrets"}
+
+    _absorb(state, "supply", cwd, config, "origin/main", diff, 10.0, coverage, out, 2, True, 0)
+    assert seen["supply"] == (cwd, config, diff, "origin/main")
+    assert state.supply == supply_report
+    assert state.versions["deptry"] == "0.25.1"
+    assert [gate.name for gate in state.gates] == [
+        "crap",
+        "dry",
+        "deps",
+        "mutate",
+        "secrets",
+        "supply",
+    ]
+    assert state.gates[-1].status == "failed"
+    assert set(seen) == {"crap", "dry", "deps", "mutate", "secrets", "supply"}
 
 
 def test_absorb_unknown_gate_stays_not_run_and_exit_0() -> None:
