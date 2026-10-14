@@ -11,6 +11,7 @@ from bob_quality.adapters.stryker import StrykerParseError
 from bob_quality.check import DEFAULT_GATES, _Measured, _assemble, run_check
 from bob_quality.config import Config
 from bob_quality.coverage_gate import CoverageOutcome
+from bob_quality.exit_codes import PASSED, UNWAIVED_SURVIVOR
 from bob_quality.messages import msg
 from bob_quality.models import (
     Clone,
@@ -24,6 +25,7 @@ from bob_quality.models import (
     Report,
 )
 from bob_quality.mutate import STRYKER_MUTANTS_NAME, MutationOutcome
+from bob_quality.mutate_gate import _coverage_exit, _has_unwaived
 from bob_quality.stryker_gate import _from_report
 from bob_quality.tools import ToolError
 from bob_quality.waivers import Waiver, WaiverError
@@ -268,7 +270,7 @@ def test_merge_joins_both_hard_failures_and_warns_for_uncovered_mutants() -> Non
             "functions": [{"file": "a.py", "function": "add", "count": 1}],
         },
     }
-    warned = _merge(
+    blocked = _merge(
         _outcome(0, status="passed", summary=quiet),
         _outcome(
             0,
@@ -285,14 +287,14 @@ def test_merge_joins_both_hard_failures_and_warns_for_uncovered_mutants() -> Non
         None,
     )
 
-    assert warned.exit_code == 0
-    assert warned.result.name == "mutate"
-    assert warned.result.status == "warn"
-    assert in_both(warned.result.reason) == (
+    assert blocked.exit_code == 3
+    assert blocked.result.name == "mutate"
+    assert blocked.result.status == "failed"
+    assert in_both(blocked.result.reason) == (
         "3 mutants without a test",
         "3 mutantes sem teste",
     )
-    assert warned.summary["no_coverage"] == {
+    assert blocked.summary["no_coverage"] == {
         "total": 3,
         "functions": [{"file": "a.py", "function": "add", "count": 3}],
     }
@@ -1260,6 +1262,23 @@ def test_unchanged_function_does_not_hide_the_next_changed_one(
     )
 
     assert [(item.name, item.cc) for item in spans] == [("add", 2)]
+
+
+def test_coverage_exit_fails_only_when_the_count_is_a_positive_int() -> None:
+    summary = {"no_coverage": {"total": 0}}
+
+    assert _coverage_exit(PASSED, summary) == PASSED
+    assert _coverage_exit(PASSED, {"no_coverage": {"total": 1}}) == UNWAIVED_SURVIVOR
+    assert _coverage_exit(PASSED, {"no_coverage": {"total": "1"}}) == PASSED
+    assert _coverage_exit(4, {"no_coverage": {"total": 3}}) == 4
+
+
+def test_has_unwaived_is_true_only_for_a_blocking_survivor() -> None:
+    assert _has_unwaived([{"waiver": "because", "blocking": False}]) is False
+    assert _has_unwaived([{"waiver": None, "blocking": False}]) is False
+    assert _has_unwaived([{"waiver": "because", "blocking": True}]) is True
+    assert _has_unwaived([{"blocking": True}]) is True
+    assert _has_unwaived([]) is False
 
 
 def _passed() -> MutationOutcome:

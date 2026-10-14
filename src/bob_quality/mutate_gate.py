@@ -4,6 +4,7 @@ from dataclasses import replace
 from pathlib import Path
 
 from bob_quality.config import Config
+from bob_quality.exit_codes import PASSED, UNWAIVED_SURVIVOR
 from bob_quality.messages import Text, msg
 from bob_quality.models import GateResult
 from bob_quality.mutate import MutationOutcome, _passing_result, run_mutation_gate
@@ -59,6 +60,7 @@ def _merge(
             [_summary_part(python, "no_coverage"), _summary_part(typescript, "no_coverage")]
         ),
     }
+    code = _coverage_exit(code, summary)
     versions = dict(python.versions)
     versions.update(typescript.versions)
     merged = MutationOutcome(
@@ -90,6 +92,18 @@ def _note_skip(result: GateResult, skip: Text | None) -> GateResult:
     return GateResult("mutate", result.status, msg("probe.joined", first=result.reason, second=note))
 
 
+def _coverage_exit(code: int, summary: dict[str, object]) -> int:
+    if code != PASSED:
+        return code
+    uncovered = summary.get("no_coverage")
+    if not isinstance(uncovered, dict):
+        return code
+    total = uncovered.get("total")
+    if isinstance(total, int) and total > 0:
+        return UNWAIVED_SURVIVOR
+    return code
+
+
 def _merged_result(
     python: MutationOutcome,
     typescript: MutationOutcome,
@@ -97,12 +111,16 @@ def _merged_result(
     survivors: list[dict[str, object]],
     summary: dict[str, object],
 ) -> GateResult:
-    if code == 3:
+    if code == UNWAIVED_SURVIVOR and _has_unwaived(survivors):
         return _unwaived_result(survivors)
     if code in {2, 4}:
         return _hard_result(python, typescript, code)
     uncovered = summary["no_coverage"]
     return _passing_result(int(uncovered["total"]))
+
+
+def _has_unwaived(survivors: list[dict[str, object]]) -> bool:
+    return any(item.get("blocking") for item in survivors)
 
 
 def _unwaived_result(survivors: list[dict[str, object]]) -> GateResult:

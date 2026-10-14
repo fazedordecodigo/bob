@@ -12,9 +12,16 @@ from pathlib import Path
 
 import pytest
 
-from helpers import FIXTURE_PYTHON, commit_on_branch, commit_on_main, init_python_repo, run_bob
+from helpers import (
+    FIXTURE_PYTHON,
+    commit_on_branch,
+    commit_on_main,
+    init_python_repo,
+    run_bob_subprocess,
+)
 
 ADD_TOUCHED = (FIXTURE_PYTHON / "cases" / "add_touched.py").read_text()
+ADD_COMMENT = "def add(left: int, right: int) -> int:\n    return left + right  # soma\n"
 BROKEN_TEST = "from app.safe import add\n\n\ndef test_add() -> None:\n    assert add(1, 2) == 0\n"
 UNKNOWN_FLAG_INI = "[pytest]\ntestpaths = tests\npythonpath = src\naddopts = --no-such-flag\n"
 TEST_READING_THE_ROOT = """\
@@ -47,7 +54,7 @@ def _touched(repo_dir: Path) -> Path:
 
 
 def _check(repo: Path, gates: str) -> tuple[subprocess.CompletedProcess[str], dict[str, dict]]:
-    result = run_bob(repo, "check", "--base", "main", "--gates", gates)
+    result = run_bob_subprocess(repo, "check", "--base", "main", "--gates", gates)
     report = json.loads((repo / ".bob" / "report.json").read_text())
     return result, {gate["name"]: gate for gate in report["gates"]}
 
@@ -107,7 +114,7 @@ def test_check_takes_the_mutation_baseline_from_the_crap_pytest(tmp_path: Path) 
         log = tmp_path / f"{gates}.log"
         repo = init_python_repo(tmp_path / gates.replace(",", "-"))
         commit_on_main(repo, "tests/test_runs.py", RUN_LOGGER.format(log=str(log)), "log runs")
-        commit_on_branch(repo, "touch", "src/app/safe.py", ADD_TOUCHED, "touch add")
+        commit_on_branch(repo, "touch", "src/app/safe.py", ADD_COMMENT, "touch add")
 
         codes[gates] = _check(repo, gates)[0].returncode
         repo_runs[gates] = log.read_text().splitlines().count("repo")

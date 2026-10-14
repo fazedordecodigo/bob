@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 import shutil
 import subprocess
 import sys
@@ -145,13 +146,17 @@ def _findings(payload: dict[str, object]) -> list[dict[str, object]]:
 
 @contextmanager
 def _without_semgrep() -> Iterator[None]:
-    binary = Path(sys.executable).parent / "semgrep"
-    hidden = binary.with_name("semgrep.bob-hidden")
-    binary.rename(hidden)
+    original = os.environ.get("PATH", "")
+    kept = [
+        entry
+        for entry in original.split(os.pathsep)
+        if not entry or not (Path(entry) / "uvx").exists()
+    ]
+    os.environ["PATH"] = os.pathsep.join(kept)
     try:
         yield
     finally:
-        hidden.rename(binary)
+        os.environ["PATH"] = original
 
 
 def test_bandit_high_on_a_changed_line_fails(tmp_path: Path) -> None:
@@ -457,7 +462,7 @@ def test_missing_semgrep_on_a_typescript_repo_is_not_run(tmp_path: Path) -> None
     assert _gate(payload) == {
         "name": "security",
         "status": "not_run",
-        "reason": "missing tool: semgrep",
+        "reason": "semgrep runner missing: uvx",
     }
     assert payload["security"] == {"findings": [], "unmeasured": ["semgrep"]}
     assert "semgrep" not in payload["tool_versions"]
@@ -551,7 +556,7 @@ def test_a_missing_language_warns_when_another_measured(tmp_path: Path) -> None:
     assert _gate(payload) == {
         "name": "security",
         "status": "warn",
-        "reason": "missing tool: semgrep",
+        "reason": "semgrep runner missing: uvx",
     }
     assert payload["security"]["unmeasured"] == ["semgrep"]
     assert payload["security"]["findings"] == []
@@ -569,7 +574,7 @@ def test_a_missing_language_keeps_a_failure(tmp_path: Path) -> None:
     assert _gate(payload) == {
         "name": "security",
         "status": "failed",
-        "reason": "1 findings in security.fail_severities; missing tool: semgrep",
+        "reason": "1 findings in security.fail_severities; semgrep runner missing: uvx",
     }
     assert _findings(payload)[0]["disposition"] == "fail"
     assert payload["security"]["unmeasured"] == ["semgrep"]

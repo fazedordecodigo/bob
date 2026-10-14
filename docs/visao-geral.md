@@ -26,7 +26,7 @@ O [README.pt-BR.md](../README.pt-BR.md) ainda lista como planejado:
 - O comando `bob report`. O parser em `src/bob_quality/cli.py` não o registra.
 - Publicação no PyPI e nos marketplaces.
 
-O mesmo README lista um aviso de mutantes `no_coverage` como planejado ([#31](https://github.com/fazedordecodigo/bob/issues/31)). O código já grava esse aviso e não muda o exit code por causa dele. A fase 2 da decisão 11 da [SPEC](SPEC.md) (esses mutantes nas funções do diff falhando com exit `3`) não está no `_finish` de `src/bob_quality/mutate.py`. Detalhe em [Mutação](gates.md#mutação).
+`no_coverage` nas funções do diff falha o gate mutate com exit `3`, como a fase 2 da decisão 11 da [SPEC](SPEC.md). O relatório lista o total por função e arquivo. Detalhe em [Mutação](gates.md#mutação).
 
 ## Fluxo
 

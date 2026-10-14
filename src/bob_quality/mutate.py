@@ -13,10 +13,10 @@ from pathlib import Path
 from bob_quality.adapters.lizard import LizardParseError, parse_lizard_csv
 from bob_quality.adapters.mutmut import (
     MutmutParseError,
+    id_matches_function,
     ids_for_show,
     mutants_from_raw,
     mutation_targets,
-    mutmut_id_prefix,
     mutmut_run_patterns,
 )
 from bob_quality.config import Config
@@ -326,7 +326,7 @@ def _with_file_lines(mutants: list[Mutant], functions: list[CyclomaticFunction])
 
 def _start_line(mutant: Mutant, functions: list[CyclomaticFunction]) -> int | None:
     for item in functions:
-        if mutant.id.startswith(mutmut_id_prefix(item.file, item.name)):
+        if id_matches_function(mutant.id, item.file, item.name):
             return item.start_line
     return None
 
@@ -528,6 +528,10 @@ def _blocks(mutant: Mutant, diff_lines: dict[str, set[int]]) -> bool:
     return mutant.line in diff_lines.get(mutant.file, ())
 
 
+def _blocking_mutants(judged: list[tuple[Mutant, bool]]) -> list[Mutant]:
+    return [item for item, blocking in judged if blocking]
+
+
 def _finish(
     mutants: list[Mutant],
     diff_lines: dict[str, set[int]],
@@ -540,13 +544,15 @@ def _finish(
     targets = survivor_targets(mutants)
     judged = [(item, _blocks(item, diff_lines)) for item in visible]
     rows = [_reported_survivor(item, blocking, targets) for item, blocking in judged]
-    blockers = [item for item, blocking in judged if blocking]
+    blockers = _blocking_mutants(judged)
     uncovered = no_coverage_summary(mutants, [*remutated, *reused])
     summary = {"remutated": remutated, "reused": reused, "no_coverage": uncovered}
     if not blockers:
+        result = _passing_result(int(uncovered["total"]))
+        code = UNWAIVED_SURVIVOR if result.status == "failed" else PASSED
         return _outcome(
-            _passing_result(int(uncovered["total"])),
-            PASSED,
+            result,
+            code,
             versions,
             waivers=waiver_rows,
             survivors=rows,
@@ -577,20 +583,19 @@ def no_coverage_summary(mutants: list[Mutant], labels: list[str]) -> dict[str, o
 
 
 def _label_count(mutants: list[Mutant], label: str) -> tuple[int, str, str] | None:
-    file, function = label.split("::")
-    prefix = mutmut_id_prefix(file, function)
-    count = sum(1 for item in mutants if _uncovered(item, file, function, prefix))
+    file, function = label.split("::", 1)
+    count = sum(1 for item in mutants if _uncovered(item, file, function))
     if not count:
         return None
     return count, file, function
 
 
-def _uncovered(item: Mutant, file: str, function: str, prefix: str) -> bool:
+def _uncovered(item: Mutant, file: str, function: str) -> bool:
     if item.status != "no_coverage":
         return False
     if item.file == file and item.function == function:
         return True
-    return item.id.startswith(prefix)
+    return id_matches_function(item.id, file, function)
 
 
 def _count_order(row: tuple[int, str, str]) -> tuple[int, str, str]:
@@ -607,7 +612,7 @@ def _passing_result(uncovered: int) -> GateResult:
     if not uncovered:
         return GateResult("mutate", "passed")
     key = "mutate.uncovered_one" if uncovered == 1 else "mutate.uncovered_many"
-    return GateResult("mutate", "warn", msg(key, count=uncovered))
+    return GateResult("mutate", "failed", msg(key, count=uncovered))
 
 
 def focus_with_survivors(
@@ -670,7 +675,7 @@ def _read_sources(cwd: Path, measured: list[CyclomaticFunction]) -> dict[str, st
 
 
 def _belongs(mutant: Mutant, functions: list[CyclomaticFunction]) -> bool:
-    return any(mutant.id.startswith(mutmut_id_prefix(item.file, item.name)) for item in functions)
+    return any(id_matches_function(mutant.id, item.file, item.name) for item in functions)
 
 
 def _cache_body(
@@ -678,8 +683,11 @@ def _cache_body(
 ) -> dict[str, object]:
     body: dict[str, object] = {}
     for item in functions:
-        prefix = mutmut_id_prefix(item.file, item.name)
-        own = [mutant for mutant in mutants if mutant.id.startswith(prefix)]
+        own = [
+            mutant
+            for mutant in mutants
+            if id_matches_function(mutant.id, item.file, item.name)
+        ]
         key = f"{item.file}::{item.name}"
         body[key] = {
             "hash": _function_hash(cwd, item.file, item.start_line, item.end_line),
@@ -711,7 +719,6 @@ def _write_cache(cache: _Cache, functions: dict[str, object]) -> None:
 
 
 def write_stryker_mutants(out_dir: Path, mutants: list[Mutant]) -> None:
-    """Os mutantes do último relatório do Stryker, para o `bob waive` saber os alvos."""
     _write_json(out_dir / STRYKER_MUTANTS_NAME, {"mutants": [_mutant_row(item) for item in mutants]})
 
 
@@ -731,10 +738,7 @@ def _write_json(path: Path, payload: dict[str, object]) -> None:
 
 
 def waivable_targets(out_dir: Path) -> frozenset[str]:
-    """Alvos que o `bob waive` aceita: os sobreviventes do último relatório Python e TypeScript.
-
-    Ignora a chave do cache. Mudar a suíte impede o reuso, mas não muda o que o relatório mostrou.
-    """
+    """Alvos que o `bob waive` aceita: os sobreviventes do último relatório Python e TypeScript."""
     mutants = [
         *_read_mutants(out_dir / CACHE_NAME, _cache_mutants),
         *_read_mutants(out_dir / STRYKER_MUTANTS_NAME, _cached_mutants),
@@ -747,10 +751,46 @@ def waivable_targets(out_dir: Path) -> frozenset[str]:
     return frozenset(found)
 
 
+def untested_targets(out_dir: Path) -> frozenset[str]:
+    mutants = [
+        *_read_mutants(out_dir / CACHE_NAME, _labeled_cache_mutants),
+        *_read_mutants(out_dir / STRYKER_MUTANTS_NAME, _cached_mutants),
+    ]
+    return frozenset(
+        f"{item.file}::{item.function}"
+        for item in mutants
+        if item.status == "no_coverage" and item.file and item.function
+    )
+
+
+def _labeled_cache_mutants(raw: dict[str, object]) -> list[Mutant]:
+    view = _view_cache(raw, {})
+    found: list[Mutant] = []
+    for key, entry in view.held.items():
+        file, function = _label_from_key(key)
+        for item in _cached_mutants(entry):
+            found.append(_fill_missing_location(item, file, function))
+    return found
+
+
+def _label_from_key(key: str) -> tuple[str, str]:
+    if "::" not in key:
+        return "", ""
+    file, function = key.split("::", 1)
+    return file, function
+
+
+def _fill_missing_location(mutant: Mutant, file: str, function: str) -> Mutant:
+    if mutant.file or not file:
+        return mutant
+    if mutant.function:
+        return replace(mutant, file=file)
+    return replace(mutant, file=file, function=function)
+
+
 def _read_mutants(
     path: Path, rows: Callable[[dict[str, object]], list[Mutant]]
 ) -> list[Mutant]:
-    """Um arquivo ausente ou quebrado não contribui com nada."""
     try:
         raw = json.loads(path.read_bytes().decode())
         return rows(raw) if isinstance(raw, dict) else []
