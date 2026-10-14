@@ -7,6 +7,7 @@ import pytest
 import bob_quality.test_smells as smells
 from bob_quality import check as check_mod
 from bob_quality.check import _Measured, _assemble, run_check
+from bob_quality.churn import ChurnUnavailable
 from bob_quality.config import Config
 from bob_quality.messages import msg
 from bob_quality.waivers import Waiver
@@ -291,7 +292,9 @@ def test_assemble_keeps_mutation_fields_and_both_dependency_sides() -> None:
         test_smells=(smell,),
     )
 
-    report = _assemble(measured, "a" * 40, "main", {"src/app.py": {1}}, 10.0, "bob check")
+    report = _assemble(
+        measured, "a" * 40, "main", {"src/app.py": {1}}, 10.0, "bob check", ChurnUnavailable()
+    )
 
     assert report.schema_version == 1
     assert report.commit == "a" * 40
@@ -308,6 +311,7 @@ def test_assemble_keeps_mutation_fields_and_both_dependency_sides() -> None:
     assert report.survivors == [survivor]
     assert report.mutation == summary
     assert report.test_smells == (smell,)
+    assert isinstance(report.churn, ChurnUnavailable)
     assert report.clones == measured.clones
     assert report.generated_at.endswith("+00:00")
     assert {"file": "src/extra.py", "risk": 100.0} in report.focus
@@ -320,12 +324,15 @@ def test_assemble_uses_idle_waivers_when_mutation_did_not_run() -> None:
         loaded_waivers=waivers,
     )
 
-    report = _assemble(measured, "a" * 40, "main", {}, 10.0, "bob check")
+    report = _assemble(
+        measured, "a" * 40, "main", {}, 10.0, "bob check", ChurnUnavailable()
+    )
 
     assert report.mutation is None
     assert report.waivers == waivers
     assert report.survivors == []
     assert report.test_smells is None
+    assert isinstance(report.churn, ChurnUnavailable)
     assert report.top_crap == []
     assert report.old_debt == []
 

@@ -34,6 +34,8 @@ duplication:
   min_similarity: 90
   min_lines: 8
 test_smells: true
+cognitive:
+  max_per_function: 12
 supply:
   osv_fail_severities: [CRITICAL]
   timeout_seconds: 12
@@ -65,11 +67,13 @@ def test_load_config_reads_every_key(tmp_path: Path) -> None:
         python_deps_config="deps.ini",
         typescript_deps_config="deps.cjs",
         min_tokens=80,
+        window_days=90,
         new_clones="fail",
         max_new_clones=2,
         min_similarity=90.0,
         min_lines=8,
         test_smells=True,
+        max_cognitive=12,
         language="pt-BR",
         osv_fail_severities=("CRITICAL",),
         supply_timeout_seconds=12,
@@ -87,6 +91,7 @@ def test_load_config_defaults_without_a_file(tmp_path: Path) -> None:
         python_deps_config=".importlinter",
         typescript_deps_config=".dependency-cruiser.cjs",
         min_tokens=50,
+        window_days=90,
         new_clones="warn",
         max_new_clones=0,
         min_similarity=0.0,
@@ -131,6 +136,23 @@ def test_load_config_rejects_a_list(tmp_path: Path) -> None:
 
 @pytest.mark.parametrize(
     "text",
+    [None, "", "{}\n", "churn:\n", "churn: null\n", "churn: {}\n"],
+)
+def test_omitted_churn_loads_90_window_days(tmp_path: Path, text: str | None) -> None:
+    if text is not None:
+        (tmp_path / "bob.yaml").write_text(text)
+
+    assert load_config(None, tmp_path).window_days == 90
+
+
+def test_load_config_stores_window_days(tmp_path: Path) -> None:
+    (tmp_path / "bob.yaml").write_text("churn:\n  window_days: 15\n")
+
+    assert load_config(None, tmp_path).window_days == 15
+
+
+@pytest.mark.parametrize(
+    "text",
     [
         "{}\n",
         "duplication: {}\n",
@@ -154,6 +176,16 @@ def test_load_config_rejects_zero_min_tokens(tmp_path: Path) -> None:
         "bob.yaml: duplication.min_tokens must be greater than 0",
         "bob.yaml: duplication.min_tokens deve ser maior que 0",
     )
+
+
+def test_load_config_defaults_the_cognitive_limit(tmp_path: Path) -> None:
+    assert load_config(None, tmp_path).max_cognitive == 15
+
+
+def test_load_config_stores_a_cognitive_limit_of_one(tmp_path: Path) -> None:
+    (tmp_path / "bob.yaml").write_text("cognitive:\n  max_per_function: 1\n")
+
+    assert load_config(None, tmp_path).max_cognitive == 1
 
 
 @pytest.mark.parametrize(
@@ -182,6 +214,39 @@ def test_load_config_stores_a_present_min_confidence(
     (tmp_path / "bob.yaml").write_text(f"dead_code:\n  min_confidence: {text}\n")
 
     assert load_config(None, tmp_path).dead_code_min_confidence == value
+
+
+@pytest.mark.parametrize(
+    ("text", "english", "portuguese"),
+    [
+        (
+            "cognitive:\n  max_per_function: true\n",
+            "bob.yaml: cognitive.max_per_function must be an integer",
+            "bob.yaml: cognitive.max_per_function deve ser um inteiro",
+        ),
+        (
+            "cognitive:\n  max_per_function: null\n",
+            "bob.yaml: cognitive.max_per_function must be an integer",
+            "bob.yaml: cognitive.max_per_function deve ser um inteiro",
+        ),
+        (
+            "cognitive:\n  max_per_function: 0\n",
+            "bob.yaml: cognitive.max_per_function must be greater than 0",
+            "bob.yaml: cognitive.max_per_function deve ser maior que 0",
+        ),
+        (
+            "cognitive: 0\n",
+            "bob.yaml: cognitive must be a mapping",
+            "bob.yaml: cognitive deve ser um mapeamento",
+        ),
+    ],
+)
+def test_load_config_rejects_a_bad_cognitive_limit(
+    tmp_path: Path, text: str, english: str, portuguese: str
+) -> None:
+    (tmp_path / "bob.yaml").write_text(text)
+
+    assert _config_error(tmp_path) == (english, portuguese)
 
 
 @pytest.mark.parametrize(
@@ -1049,6 +1114,12 @@ def test_load_config_rejects_an_illegal_semantic_value(
         ({"min_tokens": -1}, "min_tokens"),
         ({"min_tokens": 0}, "min_tokens"),
         ({"min_tokens": True}, "min_tokens"),
+        ({"max_cognitive": 0}, "max_cognitive"),
+        ({"max_cognitive": -1}, "max_cognitive"),
+        ({"max_cognitive": True}, "max_cognitive"),
+        ({"window_days": 0}, "window_days"),
+        ({"window_days": -1}, "window_days"),
+        ({"window_days": True}, "window_days"),
         ({"new_clones": "block"}, "new_clones"),
         ({"max_new_clones": -1}, "max_new_clones"),
         ({"min_similarity": 101}, "min_similarity"),

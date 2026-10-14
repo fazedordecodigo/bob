@@ -218,7 +218,8 @@ def test_json_secrets_array_is_the_blocking_rows_only() -> None:
     ]
     keys = list(payload)
     assert keys[keys.index("mutation") + 1] == "secrets"
-    assert keys[keys.index("secrets") + 1] == "reproduce"
+    assert keys[keys.index("secrets") + 1] == "churn"
+    assert keys[keys.index("churn") + 1] == "reproduce"
     Draft202012Validator(SCHEMA).validate(payload)
     leaked = {
         **payload,

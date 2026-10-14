@@ -42,6 +42,8 @@ def test_markdown_with_mutation_lists_waivers_dependencies_and_old_cycles() -> N
         "- `app.b → app.a` (Ciclo) (fora do diff; não bloqueia)\n\n"
         "## Clones novos\n\nNão executado.\n\n"
         "## Mutantes sobreviventes\n\nNenhum mutante sobrevivente.\n\n"
+        "## Rotatividade\n\n"
+        "Contagens de rotatividade indisponíveis. O código de saída não muda.\n\n"
         "## Como reproduzir\n\n```\nbob deps --lang pt-BR\n```\n"
     )
 
