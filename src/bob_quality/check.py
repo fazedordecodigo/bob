@@ -145,6 +145,7 @@ class _Measured:
     security: SecurityReport | None = None
     typing: dict[str, object] | None = None
     dead_code: DeadSection | None = None
+    memo: SuiteMemo = field(default_factory=lambda: SuiteMemo(False))
 
 
 def _measure(
@@ -162,6 +163,7 @@ def _measure(
 ) -> _Measured:
     state = _Measured()
     memo = SuiteMemo(want_lcov="coverage" in gates, want_json="crap" in gates)
+    state.memo = memo
     try:
         for gate in gates:
             _absorb(
@@ -177,7 +179,6 @@ def _measure(
                 max_workers,
                 dry_fail,
                 max_new_clones,
-                memo,
             )
     finally:
         memo.close()
@@ -197,7 +198,6 @@ def _absorb(
     max_workers: int | None,
     dry_fail: bool,
     max_new_clones: int | None,
-    memo: SuiteMemo,
 ) -> None:
     if gate == "crap":
         result, metrics, code, versions, baseline = run_crap_gate(
@@ -206,7 +206,7 @@ def _absorb(
             diff_lines=diff_lines,
             max_crap=max_crap,
             coverage_file=coverage_file,
-            memo=memo,
+            memo=state.memo,
         )
         state.metrics = metrics
         state.baseline = baseline
@@ -239,7 +239,7 @@ def _absorb(
         _record(state, mutation.result, mutation.exit_code, mutation.versions)
         return
     if gate == "coverage":
-        outcome = run_coverage_gate(cwd, config, base, coverage_file, memo)
+        outcome = run_coverage_gate(cwd, config, base, coverage_file, state.memo)
         state.diff_coverage = outcome.diff_coverage
         _record(state, outcome.result, outcome.exit_code, outcome.versions)
         return

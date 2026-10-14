@@ -55,25 +55,20 @@ def test_unknown_gate_is_not_run_and_leaves_the_others_alone(
 ) -> None:
     _forbid(monkeypatch)
     state = _Measured()
-    memo = SuiteMemo(want_lcov=False)
-    try:
-        _absorb(
-            state,
-            "nope",
-            tmp_path,
-            Config(),
-            "main",
-            DIFF,
-            10.0,
-            None,
-            tmp_path,
-            None,
-            False,
-            None,
-            memo,
-        )
-    finally:
-        memo.close()
+    _absorb(
+        state,
+        "nope",
+        tmp_path,
+        Config(),
+        "main",
+        DIFF,
+        10.0,
+        None,
+        tmp_path,
+        None,
+        False,
+        None,
+    )
 
     assert state.gates == [
         GateResult("nope", "not_run", msg("check.gate_not_implemented"))
@@ -113,6 +108,7 @@ def test_crap_records_metrics_baseline_and_the_exact_arguments(
 
     monkeypatch.setattr("bob_quality.check.run_crap_gate", fake)
     state = _Measured()
+    state.memo = memo
 
     try:
         _absorb(
@@ -128,7 +124,6 @@ def test_crap_records_metrics_baseline_and_the_exact_arguments(
             2,
             False,
             None,
-            memo,
         )
     finally:
         memo.close()
@@ -157,26 +152,20 @@ def test_dry_records_the_clones(monkeypatch: pytest.MonkeyPatch, tmp_path: Path)
 
     monkeypatch.setattr("bob_quality.check.run_dry_gate", fake)
     state = _Measured()
-    memo = SuiteMemo(want_lcov=False)
-
-    try:
-        _absorb(
-            state,
-            "dry",
-            tmp_path,
-            config,
-            "main",
-            DIFF,
-            10.0,
-            None,
-            tmp_path,
-            None,
-            False,
-            None,
-            memo,
-        )
-    finally:
-        memo.close()
+    _absorb(
+        state,
+        "dry",
+        tmp_path,
+        config,
+        "main",
+        DIFF,
+        10.0,
+        None,
+        tmp_path,
+        None,
+        False,
+        None,
+    )
 
     assert state.clones == [CLONE]
     assert state.gates == [result]
@@ -196,26 +185,20 @@ def test_deps_records_the_violation_set(monkeypatch: pytest.MonkeyPatch, tmp_pat
 
     monkeypatch.setattr("bob_quality.check.run_deps_gate", fake)
     state = _Measured()
-    memo = SuiteMemo(want_lcov=False)
-
-    try:
-        _absorb(
-            state,
-            "deps",
-            tmp_path,
-            config,
-            "main",
-            DIFF,
-            10.0,
-            None,
-            tmp_path,
-            None,
-            False,
-            None,
-            memo,
-        )
-    finally:
-        memo.close()
+    _absorb(
+        state,
+        "deps",
+        tmp_path,
+        config,
+        "main",
+        DIFF,
+        10.0,
+        None,
+        tmp_path,
+        None,
+        False,
+        None,
+    )
 
     assert state.violations == ["edge"]
     assert state.gates == [result]
@@ -250,26 +233,20 @@ def test_mutate_keeps_the_baseline_and_the_worker_count(
 
     monkeypatch.setattr("bob_quality.check.run_mutate_gate", fake)
     state = _Measured(baseline=7)
-    memo = SuiteMemo(want_lcov=False)
-
-    try:
-        _absorb(
-            state,
-            "mutate",
-            tmp_path,
-            config,
-            "main",
-            DIFF,
-            10.0,
-            None,
-            out,
-            2,
-            False,
-            None,
-            memo,
-        )
-    finally:
-        memo.close()
+    _absorb(
+        state,
+        "mutate",
+        tmp_path,
+        config,
+        "main",
+        DIFF,
+        10.0,
+        None,
+        out,
+        2,
+        False,
+        None,
+    )
 
     assert state.mutation is outcome
     assert state.gates == [outcome.result]
@@ -291,26 +268,20 @@ def test_typing_records_the_json_payload(monkeypatch: pytest.MonkeyPatch, tmp_pa
 
     monkeypatch.setattr("bob_quality.check.run_typing_gate", fake)
     state = _Measured()
-    memo = SuiteMemo(want_lcov=False)
-
-    try:
-        _absorb(
-            state,
-            "typing",
-            tmp_path,
-            config,
-            "main",
-            DIFF,
-            10.0,
-            None,
-            tmp_path,
-            None,
-            False,
-            None,
-            memo,
-        )
-    finally:
-        memo.close()
+    _absorb(
+        state,
+        "typing",
+        tmp_path,
+        config,
+        "main",
+        DIFF,
+        10.0,
+        None,
+        tmp_path,
+        None,
+        False,
+        None,
+    )
 
     assert state.typing == found
     assert state.gates == [result]
@@ -332,26 +303,20 @@ def test_cognitive_records_one_gate(monkeypatch: pytest.MonkeyPatch, tmp_path: P
 
     monkeypatch.setattr("bob_quality.check.run_cognitive_gate", fake)
     state = _Measured()
-    memo = SuiteMemo(want_lcov=False)
-
-    try:
-        _absorb(
-            state,
-            "cognitive",
-            tmp_path,
-            config,
-            "main",
-            DIFF,
-            10.0,
-            None,
-            tmp_path,
-            None,
-            False,
-            None,
-            memo,
-        )
-    finally:
-        memo.close()
+    _absorb(
+        state,
+        "cognitive",
+        tmp_path,
+        config,
+        "main",
+        DIFF,
+        10.0,
+        None,
+        tmp_path,
+        None,
+        False,
+        None,
+    )
 
     assert state.cognitive == found
     assert state.gates == [result]
@@ -537,9 +502,10 @@ def test_absorb_records_each_gate_from_the_arguments_it_received(monkeypatch) ->
 
     state = _Measured()
     memo = SuiteMemo(want_lcov=False)
+    state.memo = memo
     base = "origin/main"
     try:
-        _absorb(state, "crap", cwd, config, base, diff, 10.0, coverage, out, 2, True, 0, memo)
+        _absorb(state, "crap", cwd, config, base, diff, 10.0, coverage, out, 2, True, 0)
     finally:
         memo.close()
     assert seen["crap"] == {
@@ -557,7 +523,7 @@ def test_absorb_records_each_gate_from_the_arguments_it_received(monkeypatch) ->
     assert state.gates == [GateResult("crap", "failed")]
     assert set(seen) == {"crap"}
 
-    _absorb(state, "dry", cwd, config, base, diff, 10.0, coverage, out, 2, True, 0, memo)
+    _absorb(state, "dry", cwd, config, base, diff, 10.0, coverage, out, 2, True, 0)
     assert seen["dry"] == {
         "cwd": cwd,
         "config": config,
@@ -569,12 +535,12 @@ def test_absorb_records_each_gate_from_the_arguments_it_received(monkeypatch) ->
     assert state.versions["jscpd"] == "5.4.1"
     assert set(seen) == {"crap", "dry"}
 
-    _absorb(state, "deps", cwd, config, base, diff, 10.0, coverage, out, 2, True, 0, memo)
+    _absorb(state, "deps", cwd, config, base, diff, 10.0, coverage, out, 2, True, 0)
     assert seen["deps"] == (cwd, config, {"src/app.py"})
     assert state.violations == [violation]
     assert set(seen) == {"crap", "dry", "deps"}
 
-    _absorb(state, "mutate", cwd, config, base, diff, 10.0, coverage, out, 2, True, 0, memo)
+    _absorb(state, "mutate", cwd, config, base, diff, 10.0, coverage, out, 2, True, 0)
     assert seen["mutate"] == {
         "cwd": cwd,
         "config": config,
@@ -587,14 +553,14 @@ def test_absorb_records_each_gate_from_the_arguments_it_received(monkeypatch) ->
     assert state.exit_code == 3
     assert set(seen) == {"crap", "dry", "deps", "mutate"}
 
-    _absorb(state, "secrets", cwd, config, base, diff, 10.0, coverage, out, 2, True, 0, memo)
+    _absorb(state, "secrets", cwd, config, base, diff, 10.0, coverage, out, 2, True, 0)
     assert seen["secrets"] == {"cwd": cwd, "config": config, "diff_lines": diff}
     assert state.secrets == ledger
     assert state.versions["gitleaks"] == "8.30.1"
     assert [gate.name for gate in state.gates] == ["crap", "dry", "deps", "mutate", "secrets"]
     assert state.gates[-1].status == "failed"
 
-    _absorb(state, "supply", cwd, config, "origin/main", diff, 10.0, coverage, out, 2, True, 0, memo)
+    _absorb(state, "supply", cwd, config, "origin/main", diff, 10.0, coverage, out, 2, True, 0)
     assert seen["supply"] == (cwd, config, diff, "origin/main")
     assert state.supply == supply_report
     assert state.versions["deptry"] == "0.25.1"
@@ -612,25 +578,20 @@ def test_absorb_records_each_gate_from_the_arguments_it_received(monkeypatch) ->
 
 def test_absorb_unknown_gate_stays_not_run_and_exit_0() -> None:
     state = _Measured()
-    memo = SuiteMemo(want_lcov=False)
-    try:
-        _absorb(
-            state,
-            "nope",
-            Path("/repo"),
-            Config(),
-            "main",
-            {},
-            10.0,
-            None,
-            Path("/out"),
-            None,
-            False,
-            None,
-            memo,
-        )
-    finally:
-        memo.close()
+    _absorb(
+        state,
+        "nope",
+        Path("/repo"),
+        Config(),
+        "main",
+        {},
+        10.0,
+        None,
+        Path("/out"),
+        None,
+        False,
+        None,
+    )
 
     assert state.exit_code == 0
     assert state.versions == {}
@@ -735,25 +696,20 @@ def test_dead_code_records_the_warning(monkeypatch: pytest.MonkeyPatch, tmp_path
 
     monkeypatch.setattr("bob_quality.check.run_dead_code_gate", fake)
     state = _Measured()
-    memo = SuiteMemo(want_lcov=False)
-    try:
-        _absorb(
-            state,
-            "dead_code",
-            tmp_path,
-            Config(),
-            "main",
-            DIFF,
-            10.0,
-            None,
-            tmp_path,
-            None,
-            False,
-            None,
-            memo,
-        )
-    finally:
-        memo.close()
+    _absorb(
+        state,
+        "dead_code",
+        tmp_path,
+        Config(),
+        "main",
+        DIFF,
+        10.0,
+        None,
+        tmp_path,
+        None,
+        False,
+        None,
+    )
 
     assert state.dead_code == section
     assert state.gates == [advisory.as_gate()]
