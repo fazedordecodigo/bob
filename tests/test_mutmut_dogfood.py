@@ -159,7 +159,8 @@ def test_mutmut_stats_collection_does_not_die_on_this_repo() -> None:
         text=True,
         stdin=subprocess.DEVNULL,
         env=env,
-        timeout=1500,
+        # O 3.12 estoura 1500s na coleta de cobertura do mutmut.
+        timeout=2400,
         check=False,
     )
     blob = f"{completed.stdout}\n{completed.stderr}"
