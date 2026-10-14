@@ -165,6 +165,7 @@ _EN: dict[str, str] = {
     "waiver.field_string": "{path}: {field} must be a string",
     "waiver.reason_line": "{path}: {field} must be one non-empty line",
     "waiver.no_target": "waiver without a target",
+    "waiver.not_a_test": "waiver does not cover a mutant without a test: {target}",
     "waiver.unknown_target": (
         "no survivor matches {target}: copy file::function or a Target from the last mutation report"
     ),
@@ -221,7 +222,7 @@ _EN: dict[str, str] = {
     "report.secrets_outside": "Outside the diff; does not block.",
     "report.secrets_header": "| Target | File | Line | Rule |",
     "report.no_uncovered": "No mutants without tests.",
-    "report.uncovered_total": "⚠️ Total: {total}. Does not block.",
+    "report.uncovered_total": "❌ Total: {total}. Blocks.",
     "report.uncovered_header": "| Function | File | Mutants |",
     "report.no_waivers": "No waivers.",
     "report.waiver_header": "| Target | Reason | Author | Date |",
@@ -257,6 +258,7 @@ _EN: dict[str, str] = {
     "report.security_row": "| {tool} | {rule} | {location} | {severity} | {disposition} | {waiver} |",
     "security.failed": "{count} findings in security.fail_severities",
     "security.warn": "{count} findings outside security.fail_severities",
+    "security.runner_missing": "semgrep runner missing: {runner}",
     "security.rules_missing": "missing rules directory: .semgrep",
     "security.worktree_failed": "semgrep worktree failed: {detail}",
     "security.effect.fail": "fail",
@@ -453,6 +455,7 @@ _PT_BR: dict[str, str] = {
     "waiver.field_string": "{path}: {field} deve ser um texto",
     "waiver.reason_line": "{path}: {field} deve ser uma linha não vazia",
     "waiver.no_target": "waiver sem alvo",
+    "waiver.not_a_test": "waiver não cobre mutante sem teste: {target}",
     "waiver.unknown_target": (
         "nenhum sobrevivente casa com {target}:"
         " copie arquivo::função ou um Alvo do último relatório de mutação"
@@ -510,7 +513,7 @@ _PT_BR: dict[str, str] = {
     "report.secrets_outside": "Fora do diff; não bloqueia.",
     "report.secrets_header": "| Alvo | Arquivo | Linha | Regra |",
     "report.no_uncovered": "Nenhum mutante sem teste.",
-    "report.uncovered_total": "⚠️ Total: {total}. Não bloqueia.",
+    "report.uncovered_total": "❌ Total: {total}. Bloqueia.",
     "report.uncovered_header": "| Função | Arquivo | Mutantes |",
     "report.no_waivers": "Nenhum waiver.",
     "report.waiver_header": "| Alvo | Motivo | Autor | Data |",
@@ -546,6 +549,7 @@ _PT_BR: dict[str, str] = {
     "report.security_row": "| {tool} | {rule} | {location} | {severity} | {disposition} | {waiver} |",
     "security.failed": "{count} achados em security.fail_severities",
     "security.warn": "{count} achados fora de security.fail_severities",
+    "security.runner_missing": "executor do semgrep ausente: {runner}",
     "security.rules_missing": "diretório de regras ausente: .semgrep",
     "security.worktree_failed": "worktree do semgrep falhou: {detail}",
     "security.effect.fail": "falha",
