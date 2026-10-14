@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import importlib.metadata
-import os
+import shutil
 import sys
 from collections.abc import Callable, Iterator
 from dataclasses import dataclass
@@ -27,6 +27,8 @@ _BANDIT_EXCLUDE = (
 )
 _SEMGREP_SUFFIXES = (".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs")
 _MEASURED = frozenset({0, 1})
+SEMGREP_VERSION = "1.180.0"
+SEMGREP_RUNNER = "uvx"
 
 
 @dataclass(frozen=True)
@@ -71,6 +73,8 @@ class Scanner:
     argv: Argv
     parse: Parse
     installed: Installed
+    pinned_version: str | None = None
+    runner: str | None = None
 
 
 def _bandit_argv(ctx: ScanContext) -> list[str]:
@@ -97,9 +101,11 @@ def _bandit_argv(ctx: ScanContext) -> list[str]:
 
 
 def _semgrep_argv(ctx: ScanContext) -> list[str]:
-    binary = str(Path(sys.executable).parent / "semgrep")
     argv = [
-        binary,
+        SEMGREP_RUNNER,
+        "--from",
+        f"semgrep=={SEMGREP_VERSION}",
+        "semgrep",
         "scan",
         "--disable-version-check",
         "--metrics=off",
@@ -129,8 +135,7 @@ def _distribution_installed(name: str) -> bool:
 
 
 def _semgrep_installed() -> bool:
-    binary = Path(sys.executable).parent / "semgrep"
-    return binary.is_file() and os.access(binary, os.X_OK)
+    return shutil.which(SEMGREP_RUNNER) is not None
 
 
 def _bandit_installed() -> bool:
@@ -165,6 +170,8 @@ _SCANNERS: tuple[Scanner, ...] = (
         argv=_semgrep_argv,
         parse=parse_semgrep,
         installed=_semgrep_installed,
+        pinned_version=SEMGREP_VERSION,
+        runner=SEMGREP_RUNNER,
     ),
 )
 

@@ -115,6 +115,16 @@ def mutmut_id_prefix(file: str, name: str) -> str:
     return f"{module}.xǁ{owner}ǁ{method}__mutmut"
 
 
+def id_matches_function(mutant_id: str, file: str, name: str) -> bool:
+    return _prefix_match(mutant_id, mutmut_id_prefix(file, name))
+
+
+def _prefix_match(mutant_id: str, prefix: str) -> bool:
+    if not prefix:
+        return False
+    return mutant_id == prefix or mutant_id.startswith(f"{prefix}_")
+
+
 def mutmut_stats_key(file: str, name: str) -> str:
     """Chave da função em `tests_by_mangled_function_name` do mutmut 3.8."""
     return mutmut_id_prefix(file, name).removesuffix("__mutmut")

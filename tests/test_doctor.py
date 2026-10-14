@@ -58,7 +58,6 @@ PINS = (
     ("import-linter", "2.15", "lint-imports", "2.15"),
     ("grimp", "3.17", None, None),
     ("bandit", "1.9.4", None, None),
-    ("semgrep", "1.180.0", None, None),
     ("dependency-cruiser", "18.5.0", "dependency-cruiser", "18.5.0"),
     ("gitleaks", "8.30.1", "gitleaks", "8.30.1"),
     ("vulture", "2.16", "vulture", "vulture 2.16"),
@@ -81,7 +80,6 @@ INSTALL = {
     "grimp": "pip install 'grimp==3.17'",
     "complexipy": "pip install 'complexipy==8.0.1'",
     "bandit": "pip install 'bandit==1.9.4'",
-    "semgrep": "pip install 'semgrep==1.180.0'",
     "dependency-cruiser": "npm install dependency-cruiser@18.5.0",
     "knip": "npm install knip@6.41.0",
     "stryker": "npm install @stryker-mutator/core@10.0.0",
@@ -391,7 +389,8 @@ def test_doctor_expected_versions_match_pip_and_npm_pins(tmp_path: Path) -> None
     assert requirements["grimp"] == expected["grimp"]
     assert requirements["complexipy"] == expected["complexipy"]
     assert requirements["bandit"] == expected["bandit"]
-    assert requirements["semgrep"] == expected["semgrep"]
+    assert "semgrep" not in requirements
+    assert "semgrep" not in expected
 
     package = json.loads((ROOT / "package.json").read_text())
     assert package["private"] is True

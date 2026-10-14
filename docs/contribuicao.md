@@ -29,7 +29,7 @@ A spec pede teste pelo comportamento externo. A suíte está em `tests/`.
 - `tests/fixtures/python_app`, `ts_app` e `mixed_app`: repositórios mínimos. `tests/fixtures/raw` guarda saída das ferramentas pinadas.
 - `tests/test_crap.py` e o núcleo: fórmula, limiar, delta.
 - `tests/test_adapters.py` e os testes de deps: adaptadores contra fixture gravada.
-- `tests/test_mutate.py`, `test_no_coverage.py`, `test_mutmut_dogfood.py`: mutação, aviso de `no_coverage` e o próprio pacote sob mutmut.
+- `tests/test_mutate.py`, `test_no_coverage.py`, `test_mutmut_dogfood.py`: mutação, falha de `no_coverage` e o próprio pacote sob mutmut.
 - `tests/test_skills_contract.py`: as skills listadas nos dois manifestos.
 - `tests/test_hook.py`: o pre-push termina em menos de 60 s no fixture.
 
