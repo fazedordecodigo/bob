@@ -26,6 +26,8 @@ duplication:
   max_new_clones: 0
   min_similarity: 0
   min_lines: 0
+cognitive:
+  max_per_function: 15
 dependencies:
   python: .importlinter
   typescript: .dependency-cruiser.cjs
@@ -58,6 +60,7 @@ O `bob.yaml` deste repositório é mais curto: `base`, `languages: [python]`, `p
 | `duplication.max_new_clones` | inteiro ≥ 0 (bool não vale) | `0` | Teto de clones novos no modo fail |
 | `duplication.min_similarity` | número finito de 0 a 100 (bool não vale) | `0` | Similaridade mínima, em percentual, para o clone entrar na conta |
 | `duplication.min_lines` | inteiro ≥ 0 (bool não vale) | `0` | Linhas mínimas para o clone entrar na conta |
+| `cognitive.max_per_function` | inteiro maior que 0 | `15` | Aviso quando a função alterada chega nesse valor. O exit continua `0` |
 | `dependencies.python` | string | `.importlinter` | Config do import-linter |
 | `dependencies.typescript` | string | `.dependency-cruiser.cjs` | Config do dependency-cruiser |
 | `churn.window_days` | inteiro maior que 0 | `90` | Dias da janela de rotatividade, terminando na data do commit |
@@ -75,6 +78,8 @@ O `bob` resolve cada caminho relativo de `paths.include` a partir do diretório 
 Uma chave repetida no mesmo mapeamento sai com `4`. O stderr fica em inglês e cita a chave e a linha, como `invalid YAML in bob.yaml: found duplicate key 'scope' on line 3`. Uma chave escrita nesse mapeamento ainda pode substituir um valor mesclado com `<<`.
 
 `duplication` que não é mapeamento, ou `min_tokens` que não é um inteiro maior que 0, sai com `4`. A mensagem em inglês no stderr cita o arquivo e a chave, e nada é gravado. O [CHANGELOG](../CHANGELOG.md) descreve esse caso.
+
+`cognitive` que não é mapeamento, ou `max_per_function` que não é um inteiro maior que 0, sai com `4`. A mensagem em inglês no stderr cita o arquivo e a chave, e nada é gravado.
 
 `churn` ausente, `churn: null` e `churn: {}` ficam em 90. `churn.window_days: null`, um float, um bool, `0` ou um inteiro negativo saem com `4`. A mensagem em inglês no stderr cita `churn.window_days`, e nada é gravado. Qualquer outra chave `churn.*` é chave desconhecida, também com `4` e sem relatório.
 
@@ -108,7 +113,7 @@ O `_SCHEMA` aceita `security.fail_severities` e recusa outra chave dentro de `se
 
 ### Chaves que o loader recusa
 
-O `_SCHEMA` em `src/bob_quality/config.py` aceita `base`, `language`, `languages`, `paths.include`, `paths.exclude`, `crap.max_per_function`, `crap.scope`, `duplication.min_tokens`, `duplication.new_clones`, `duplication.max_new_clones`, `duplication.min_similarity`, `duplication.min_lines`, `dependencies.python`, `dependencies.typescript`, `churn.window_days`, `typing`, `secrets`, `supply.osv_fail_severities`, `supply.timeout_seconds`, `security.fail_severities` e `dead_code.min_confidence`. `_reject_unknown` recusa qualquer outra chave: exit `4`, mensagem em inglês no stderr, nenhum arquivo gravado.
+O `_SCHEMA` em `src/bob_quality/config.py` aceita `base`, `language`, `languages`, `paths.include`, `paths.exclude`, `crap.max_per_function`, `crap.scope`, `cognitive.max_per_function`, `duplication.min_tokens`, `duplication.new_clones`, `duplication.max_new_clones`, `duplication.min_similarity`, `duplication.min_lines`, `dependencies.python`, `dependencies.typescript`, `typing`, `secrets`, `churn.window_days`, `supply.osv_fail_severities`, `supply.timeout_seconds`, `security.fail_severities` e `dead_code.min_confidence`. `_reject_unknown` recusa qualquer outra chave: exit `4`, mensagem em inglês no stderr, nenhum arquivo gravado.
 
 `supply.osv_fail_severities: [MODERATE]` sai com `bob.yaml: supply.osv_fail_severities[0] must be HIGH or CRITICAL`. Lista vazia, item repetido ou texto solto também saem com `4`. `supply.timeout_seconds: 0` sai com `bob.yaml: supply.timeout_seconds must be greater than 0`. Bool e float saem com `must be an integer`. Nada é gravado.
 

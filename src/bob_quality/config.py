@@ -131,6 +131,19 @@ _SCHEMA = _Node(
             ),
         ),
         _Node(
+            "cognitive",
+            "",
+            (),
+            children=(
+                _Node(
+                    "max_per_function",
+                    "max_cognitive",
+                    (_Check("integer"), _Bound("gt", 0)),
+                    null_is_default=False,
+                ),
+            ),
+        ),
+        _Node(
             "duplication",
             "",
             (),
@@ -246,6 +259,7 @@ class Config:
     exclude: tuple[str, ...] = tuple(DEFAULT_EXCLUDE)
     max_crap: float = 10.0
     crap_scope: CrapScope = "changed"
+    max_cognitive: int = 15
     python_deps_config: str = ".importlinter"
     typescript_deps_config: str = ".dependency-cruiser.cjs"
     min_tokens: int = 50

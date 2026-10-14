@@ -10,6 +10,7 @@ from bob_quality.messages import Language, Message, Text, msg, render
 from bob_quality.models import (
     Advisory,
     Clone,
+    CognitiveFunction,
     DepViolation,
     FunctionMetric,
     GateResult,
@@ -79,10 +80,17 @@ def to_json(report: Report) -> dict[str, object]:
         "mutation": report.mutation,
         **_supply_field(report),
     }
+    _json_tail(payload, report)
+    return payload
+
+
+def _json_tail(payload: dict[str, object], report: Report) -> None:
     if report.typing is not None:
         payload["typing"] = report.typing
     if report.secrets is not None:
         payload["secrets"] = [secret_row(row) for row in report.secrets.blocking]
+    if _cognitive_requested(report):
+        payload["cognitive"] = [cognitive_row(item) for item in report.cognitive]
     if report.dead_code is not None:
         payload["dead_code"] = {"symbols": [dead_row(row) for row in report.dead_code.rows]}
     if report.security is not None:
@@ -90,7 +98,6 @@ def to_json(report: Report) -> dict[str, object]:
     payload["churn"] = _churn_json(report.churn)
     payload["reproduce"] = report.reproduce
     payload["exit_code"] = report.exit_code
-    return payload
 
 
 def _json_reason(reason: Text | None) -> str | None:
@@ -128,6 +135,7 @@ def to_markdown(report: Report, lang: Language) -> str:
     lines.extend(supply_lines(report))
     lines.extend(_types_lines(report))
     lines.extend(_secrets_lines(report))
+    lines.extend(_cognitive_lines(report))
     lines.extend(_dead_lines(report))
     lines.extend(_security_lines(report))
     lines.extend(_churn_lines(report.churn))
@@ -262,6 +270,36 @@ def _waiver_section(waivers: list[dict[str, object]]) -> list[Text]:
         )
     lines.append("")
     return lines
+
+
+def _cognitive_lines(report: Report) -> list[Text]:
+    if not _cognitive_requested(report):
+        return []
+    lines: list[Text] = ["", msg("report.cognitive"), ""]
+    lines.extend(_cognitive_body(report))
+    return lines
+
+
+def _cognitive_body(report: Report) -> list[Text]:
+    gate = _gate_named(report, "cognitive")
+    if gate is not None and gate.status == "not_run":
+        return [msg("report.cognitive_not_run", reason=gate.reason or "")]
+    if not report.cognitive:
+        return [msg("report.cognitive_none")]
+    lines: list[Text] = [msg("report.cognitive_header"), "|---|---|---:|---|---|"]
+    lines.extend(_cognitive_row(item) for item in report.cognitive)
+    return lines
+
+
+def _cognitive_row(item: CognitiveFunction) -> Message:
+    return msg(
+        "report.cognitive_row",
+        name=item.name,
+        loc=f"{item.file}:{item.start_line}-{item.end_line}",
+        score=item.score,
+        language=item.language,
+        waiver=item.waiver_id(),
+    )
 
 
 def _churn_json(section: ChurnSection) -> dict[str, object]:
@@ -572,6 +610,22 @@ def dead_row(row: LedgerRow) -> dict[str, object]:
 def _footer(report: Report, lang: Language) -> list[Text]:
     command = f"{report.reproduce} --lang {lang}" if report.reproduce else ""
     return ["", msg("report.reproduce"), "", "```", command, "```", ""]
+
+
+def cognitive_row(item: CognitiveFunction) -> dict[str, object]:
+    return {
+        "file": item.file,
+        "name": item.name,
+        "start_line": item.start_line,
+        "end_line": item.end_line,
+        "score": item.score,
+        "language": item.language,
+        "waiver_id": item.waiver_id(),
+    }
+
+
+def _cognitive_requested(report: Report) -> bool:
+    return any(gate.name == "cognitive" for gate in report.gates)
 
 
 def clone_row(clone: Clone) -> dict[str, object]:
