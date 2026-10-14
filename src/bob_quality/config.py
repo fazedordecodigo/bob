@@ -20,6 +20,7 @@ NewClonesMode = Literal["warn", "fail"]
 
 SOURCE_LANGUAGES: tuple[SourceLanguage, ...] = ("python", "typescript")
 CRAP_SCOPES: tuple[CrapScope, ...] = ("changed", "all")
+FAIL_SEVERITIES: tuple[str, ...] = ("HIGH", "CRITICAL")
 NEW_CLONES_MODES: tuple[NewClonesMode, ...] = ("warn", "fail")
 _SUFFIX_LANGUAGE: dict[str, SourceLanguage] = {
     ".py": "python",
@@ -181,6 +182,23 @@ _SCHEMA = _Node(
         _Node("typing", "", (), mapping=True),
         _Node("secrets", "", (), mapping=True),
         _Node(
+            "supply",
+            "",
+            (),
+            children=(
+                _Node(
+                    "osv_fail_severities",
+                    "osv_fail_severities",
+                    (_Check("members", choices=FAIL_SEVERITIES),),
+                ),
+                _Node(
+                    "timeout_seconds",
+                    "supply_timeout_seconds",
+                    (_Check("integer"), _Bound("gt", 0)),
+                ),
+            ),
+        ),
+        _Node(
             "security",
             "",
             (),
@@ -224,10 +242,12 @@ class Config:
     min_lines: int = 0
     dead_code_min_confidence: int | None = None
     language: Language | None = None
+    osv_fail_severities: tuple[str, ...] = FAIL_SEVERITIES
+    supply_timeout_seconds: int = 30
     fail_severities: tuple[str, ...] = ("HIGH", "CRITICAL", "ERROR")
 
     def __post_init__(self) -> None:
-        for name in ("languages", "include", "exclude", "fail_severities"):
+        for name in ("languages", "include", "exclude", "osv_fail_severities", "fail_severities"):
             value = getattr(self, name)
             if isinstance(value, list):
                 object.__setattr__(self, name, tuple(value))
