@@ -83,6 +83,11 @@ def to_json(report: Report) -> dict[str, object]:
         **_supply_field(report),
     }
     _put_diff_reports(payload, report)
+    _json_tail(payload, report)
+    return payload
+
+
+def _json_tail(payload: dict[str, object], report: Report) -> None:
     if report.typing is not None:
         payload["typing"] = report.typing
     if report.secrets is not None:
@@ -96,7 +101,6 @@ def to_json(report: Report) -> dict[str, object]:
     payload["churn"] = _churn_json(report.churn)
     payload["reproduce"] = report.reproduce
     payload["exit_code"] = report.exit_code
-    return payload
 
 
 def _put_diff_reports(payload: dict[str, object], report: Report) -> None:
