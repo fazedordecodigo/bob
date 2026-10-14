@@ -29,6 +29,9 @@ duplication:
 dependencies:
   python: .importlinter
   typescript: .dependency-cruiser.cjs
+supply:
+  osv_fail_severities: [HIGH, CRITICAL]
+  timeout_seconds: 30
 security:
   fail_severities: [HIGH, CRITICAL, ERROR]
 ```
@@ -55,6 +58,8 @@ O `bob.yaml` deste repositório é mais curto: `base`, `languages: [python]`, `p
 | `duplication.min_lines` | inteiro ≥ 0 (bool não vale) | `0` | Linhas mínimas para o clone entrar na conta |
 | `dependencies.python` | string | `.importlinter` | Config do import-linter |
 | `dependencies.typescript` | string | `.dependency-cruiser.cjs` | Config do dependency-cruiser |
+| `supply.osv_fail_severities` | lista de `HIGH` e `CRITICAL` | `[HIGH, CRITICAL]` | Severidades de advisory que bloqueiam. `MODERATE` e `LOW` não entram na lista |
+| `supply.timeout_seconds` | inteiro maior que 0 | `30` | Prazo de cada chamada HTTP e de cada processo do gate supply |
 | `security.fail_severities` | lista de strings | `[HIGH, CRITICAL, ERROR]` | Severidades que falham o gate `security` |
 | `typing` | mapeamento vazio | ausente | Aceito e ignorado. Não liga o gate de tipos |
 | `secrets` | mapeamento vazio | ausente | Não liga o gate e não tem filhos |
@@ -98,7 +103,9 @@ O `_SCHEMA` aceita `security.fail_severities` e recusa outra chave dentro de `se
 
 ### Chaves que o loader recusa
 
-O `_SCHEMA` em `src/bob_quality/config.py` aceita `base`, `language`, `languages`, `paths.include`, `paths.exclude`, `crap.max_per_function`, `crap.scope`, `duplication.min_tokens`, `duplication.new_clones`, `duplication.max_new_clones`, `duplication.min_similarity`, `duplication.min_lines`, `dependencies.python`, `dependencies.typescript`, `security.fail_severities`, `typing`, `secrets` e `dead_code.min_confidence`. `_reject_unknown` recusa qualquer outra chave: exit `4`, mensagem em inglês no stderr, nenhum arquivo gravado.
+O `_SCHEMA` em `src/bob_quality/config.py` aceita `base`, `language`, `languages`, `paths.include`, `paths.exclude`, `crap.max_per_function`, `crap.scope`, `duplication.min_tokens`, `duplication.new_clones`, `duplication.max_new_clones`, `duplication.min_similarity`, `duplication.min_lines`, `dependencies.python`, `dependencies.typescript`, `typing`, `secrets`, `supply.osv_fail_severities`, `supply.timeout_seconds`, `security.fail_severities` e `dead_code.min_confidence`. `_reject_unknown` recusa qualquer outra chave: exit `4`, mensagem em inglês no stderr, nenhum arquivo gravado.
+
+`supply.osv_fail_severities: [MODERATE]` sai com `bob.yaml: supply.osv_fail_severities[0] must be HIGH or CRITICAL`. Lista vazia, item repetido ou texto solto também saem com `4`. `supply.timeout_seconds: 0` sai com `bob.yaml: supply.timeout_seconds must be greater than 0`. Bool e float saem com `must be an integer`. Nada é gravado.
 
 `secrets` ausente, `secrets:`, `secrets: null` e `secrets: {}` são o mesmo mapeamento vazio. A chave não tem limiar nem filhos e não liga o gate. O gate só roda com `--gates secrets`. `secrets: true` e `secrets: {threshold: 1}` saem com `4`, em inglês no stderr, e nada é gravado.
 

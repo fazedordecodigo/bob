@@ -25,12 +25,14 @@ from bob_quality.models import (
     Report,
     SecretLedger,
     SecurityReport,
+    SupplyReport,
 )
 from bob_quality.mutate import MutationOutcome, focus_with_survivors
 from bob_quality.mutate_gate import run_mutate_gate
 from bob_quality.report import metric_row, violation_rows, write_report
 from bob_quality.secrets_gate import run_secrets_gate
 from bob_quality.security_gate import run_security_gate
+from bob_quality.supply import run_supply_gate
 from bob_quality.waivers import WaiverError, load_waivers
 
 DEFAULT_GATES = ("crap", "dry", "deps")
@@ -123,6 +125,7 @@ class _Measured:
     secrets: SecretLedger | None = None
     loaded_waivers: list[dict[str, object]] = field(default_factory=list)
     baseline: int | None = None
+    supply: SupplyReport | None = None
     security: SecurityReport | None = None
     typing: dict[str, object] | None = None
     dead_code: DeadSection | None = None
@@ -211,6 +214,22 @@ def _absorb(
         )
         state.mutation = mutation
         _record(state, mutation.result, mutation.exit_code, mutation.versions)
+        return
+    _absorb_rest(state, gate, cwd, config, base, diff_lines)
+
+
+def _absorb_rest(
+    state: _Measured,
+    gate: str,
+    cwd: Path,
+    config: Config,
+    base: str,
+    diff_lines: dict[str, set[int]],
+) -> None:
+    if gate == "supply":
+        result, code, versions, supply = run_supply_gate(cwd, config, diff_lines, base)
+        state.supply = supply
+        _record(state, result, code, versions)
         return
     if gate == "security":
         result, code, versions, security = run_security_gate(cwd, config, base, diff_lines)
@@ -301,6 +320,7 @@ def _assemble(
         waivers=waivers,
         survivors=survivors,
         mutation=summary,
+        supply=measured.supply,
         security=measured.security,
         typing=measured.typing,
         secrets=measured.secrets,
