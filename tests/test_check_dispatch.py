@@ -9,6 +9,7 @@ import pytest
 
 import bob_quality.check as check
 from bob_quality.check import _Measured, _absorb, _assemble
+from bob_quality.churn import ChurnUnavailable
 from bob_quality.config import Config
 from bob_quality.dead_code import WarningOnly
 from bob_quality.messages import msg, render
@@ -42,6 +43,7 @@ def _forbid(monkeypatch: pytest.MonkeyPatch) -> None:
         "run_typing_gate",
         "run_coverage_gate",
         "run_security_gate",
+        "run_cognitive_gate",
         "run_secrets_gate",
         "run_dead_code_gate",
     ):
@@ -316,6 +318,47 @@ def test_typing_records_the_json_payload(monkeypatch: pytest.MonkeyPatch, tmp_pa
     assert state.exit_code == 1
 
 
+def test_cognitive_records_one_gate(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    _forbid(monkeypatch)
+    config = Config()
+    result = GateResult("cognitive", "warn", "1 function at or above the cognitive limit")
+    found = []
+
+    def fake(cwd: Path, got: Config, diff_lines: dict[str, set[int]]) -> tuple[object, ...]:
+        assert cwd == tmp_path
+        assert got is config
+        assert diff_lines == DIFF
+        return result, found, 0, {"complexipy": "8.0.1"}
+
+    monkeypatch.setattr("bob_quality.check.run_cognitive_gate", fake)
+    state = _Measured()
+    memo = SuiteMemo(want_lcov=False)
+
+    try:
+        _absorb(
+            state,
+            "cognitive",
+            tmp_path,
+            config,
+            "main",
+            DIFF,
+            10.0,
+            None,
+            tmp_path,
+            None,
+            False,
+            None,
+            memo,
+        )
+    finally:
+        memo.close()
+
+    assert state.cognitive == found
+    assert state.gates == [result]
+    assert state.versions == {"complexipy": "8.0.1"}
+    assert state.exit_code == 0
+
+
 def _patch_report_parts(monkeypatch: pytest.MonkeyPatch, clone: Clone) -> None:
     def files_by_risk(metrics: object, clones: object, files: object) -> list[dict[str, object]]:
         assert metrics == ["metric"]
@@ -362,7 +405,7 @@ def test_assemble_without_mutation_keeps_idle_waivers_and_empty_survivors(
         loaded_waivers=[{"id": "idle"}],
     )
 
-    report = _assemble(measured, "abc", "main", DIFF, 10.0, "bob check")
+    report = _assemble(measured, "abc", "main", DIFF, 10.0, "bob check", ChurnUnavailable())
 
     assert report.schema_version == 1
     assert report.commit == "abc"
@@ -385,6 +428,7 @@ def test_assemble_without_mutation_keeps_idle_waivers_and_empty_survivors(
     assert report.security is None
     assert report.secrets is None
     assert report.dead_code is None
+    assert report.churn == ChurnUnavailable()
 
 
 def test_assemble_with_mutation_replaces_waivers_and_keeps_typing(
@@ -420,7 +464,9 @@ def test_assemble_with_mutation_replaces_waivers_and_keeps_typing(
         typing=found,
     )
 
-    report = _assemble(measured, "def", "origin/main", DIFF, 10.0, "bob check --gates mutate")
+    report = _assemble(
+        measured, "def", "origin/main", DIFF, 10.0, "bob check --gates mutate", ChurnUnavailable()
+    )
 
     assert report.generated_at.endswith("+00:00")
     assert report.focus == [{"file": "src/a.py", "risk": 9, "survivors": 1}]
@@ -428,6 +474,7 @@ def test_assemble_with_mutation_replaces_waivers_and_keeps_typing(
     assert report.survivors == [{"id": "survivor"}]
     assert report.mutation == {"remutated": ["fn"]}
     assert report.typing == found
+    assert report.churn == ChurnUnavailable()
     assert report.exit_code == 3
     assert report.reproduce == "bob check --gates mutate"
 
@@ -635,7 +682,15 @@ def test_assemble_copies_measurement_and_keeps_secrets() -> None:
         baseline=0,
     )
 
-    report = _assemble(measured, "abc123", "origin/main", {"src/app.py": {1}}, 10.0, "bob check")
+    report = _assemble(
+        measured,
+        "abc123",
+        "origin/main",
+        {"src/app.py": {1}},
+        10.0,
+        "bob check",
+        ChurnUnavailable(),
+    )
 
     assert report.schema_version == 1
     assert report.commit == "abc123"
@@ -657,6 +712,7 @@ def test_assemble_copies_measurement_and_keeps_secrets() -> None:
     assert report.survivors == [survivor]
     assert report.mutation == summary
     assert report.secrets == ledger
+    assert report.churn == ChurnUnavailable()
     assert report.security is None
 
 

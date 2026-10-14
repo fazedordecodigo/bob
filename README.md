@@ -255,7 +255,10 @@ A waiver without a one-line reason is rejected with exit `4`. `bob waive` of an 
 7. `Dependency violations and cycles`, and `Information (dependencies outside the diff)`.
 8. `New clones`.
 9. `Surviving mutants`.
-10. `How to reproduce`, the exact command to run locally, including `--lang`. The same command in `report.json` omits `--lang`.
+10. `Churn`, the commit counts and the relative rate (changed lines divided by the file size) for the changed files inside the include paths. The heading is always there, and the section does not change the exit code.
+11. `How to reproduce`, the exact command to run locally, including `--lang`. The same command in `report.json` omits `--lang`.
+
+Churn counts the commits `git log` lists for each changed file inside `paths.include`, over `churn.window_days` calendar days (default 90) ending on that commit's own date. Relative churn for a file is its changed lines divided by its line count. The rate is null when the file has no lines or cannot be read, and the commit count stays. A changed function's hotspot is the commit count times its cyclomatic complexity. Diffusion is how many of those files changed, and how many parent directories they sit in. When the count cannot be read, the heading stays and the numbers do not. The JSON field is `churn`, and `schema_version` stays 1.
 
 ## Concepts
 

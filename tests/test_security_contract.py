@@ -11,6 +11,7 @@ from pathlib import Path
 import pytest
 from helpers import in_both
 
+from bob_quality.churn import ChurnUnavailable
 from bob_quality.config import Config
 from bob_quality.exit_codes import CONFIG_OR_TOOL, GATE_FAILED, PASSED
 from bob_quality.messages import msg
@@ -510,7 +511,9 @@ def test_measure_forwards_security_and_assemble_publishes_it(tmp_path: Path, mon
         [{"file": "src/survivor.py", "blocking": True}],
         {"remutated": ["src/app.py::add"], "reused": []},
     )
-    report = check_mod._assemble(state, "abc123", "main", diff, 10.0, "bob check")
+    report = check_mod._assemble(
+        state, "abc123", "main", diff, 10.0, "bob check", ChurnUnavailable()
+    )
 
     assert report.schema_version == 1
     assert report.commit == "abc123"
@@ -521,6 +524,7 @@ def test_measure_forwards_security_and_assemble_publishes_it(tmp_path: Path, mon
     assert report.clones == [clone]
     assert report.reproduce == "bob check"
     assert report.exit_code == PASSED
+    assert report.churn == ChurnUnavailable()
     assert report.security is security
     assert report.secrets is None
     assert report.dead_code is None
@@ -534,7 +538,9 @@ def test_measure_forwards_security_and_assemble_publishes_it(tmp_path: Path, mon
     assert any(row["file"] == "src/survivor.py" for row in report.focus)
 
     state.mutation = None
-    idle = check_mod._assemble(state, "abc123", "main", diff, 10.0, "bob check")
+    idle = check_mod._assemble(
+        state, "abc123", "main", diff, 10.0, "bob check", ChurnUnavailable()
+    )
     assert idle.mutation is None
     assert idle.waivers == [{"id": "idle"}]
     assert idle.survivors == []
@@ -557,6 +563,9 @@ def test_security_section_renders_a_hit_a_gap_and_an_empty_scan() -> None:
     assert "| bandit | B\\|602 | src/app.py:1-3 | HIGH | falha | — |" in portuguese
     assert "dispensado" in portuguese
     payload = to_json(report)
+    keys = list(payload)
+    assert keys[keys.index("security") + 1] == "churn"
+    assert keys[keys.index("churn") + 1] == "reproduce"
     assert payload["security"] == {
         "findings": [
             {

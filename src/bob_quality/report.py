@@ -5,10 +5,12 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+from bob_quality.churn import ChurnMeasured, ChurnSection, ChurnUnavailable, Hotspot
 from bob_quality.messages import Language, Message, Text, msg, render
 from bob_quality.models import (
     Advisory,
     Clone,
+    CognitiveFunction,
     DepViolation,
     DiffCoverage,
     FunctionMetric,
@@ -85,18 +87,21 @@ def to_json(report: Report) -> dict[str, object]:
         payload["typing"] = report.typing
     if report.secrets is not None:
         payload["secrets"] = [secret_row(row) for row in report.secrets.blocking]
-    payload["reproduce"] = report.reproduce
-    payload["exit_code"] = report.exit_code
+    if _cognitive_requested(report):
+        payload["cognitive"] = [cognitive_row(item) for item in report.cognitive]
     if report.dead_code is not None:
         payload["dead_code"] = {"symbols": [dead_row(row) for row in report.dead_code.rows]}
+    if report.security is not None:
+        payload["security"] = _security_json(report.security)
+    payload["churn"] = _churn_json(report.churn)
+    payload["reproduce"] = report.reproduce
+    payload["exit_code"] = report.exit_code
     return payload
 
 
 def _put_diff_reports(payload: dict[str, object], report: Report) -> None:
     if report.diff_coverage is not None:
         payload["diff_coverage"] = _diff_coverage_json(report.diff_coverage)
-    if report.security is not None:
-        payload["security"] = _security_json(report.security)
 
 
 def _diff_coverage_json(coverage: DiffCoverage) -> dict[str, object]:
@@ -145,8 +150,10 @@ def to_markdown(report: Report, lang: Language) -> str:
     lines.extend(supply_lines(report))
     lines.extend(_types_lines(report))
     lines.extend(_secrets_lines(report))
+    lines.extend(_cognitive_lines(report))
     lines.extend(_dead_lines(report))
     lines.extend(_security_lines(report))
+    lines.extend(_churn_lines(report.churn))
     lines.extend(_footer(report, lang))
     return "\n".join(render(line, lang) for line in lines)
 
@@ -296,6 +303,130 @@ def _waiver_section(waivers: list[dict[str, object]]) -> list[Text]:
         )
     lines.append("")
     return lines
+
+
+def _cognitive_lines(report: Report) -> list[Text]:
+    if not _cognitive_requested(report):
+        return []
+    lines: list[Text] = ["", msg("report.cognitive"), ""]
+    lines.extend(_cognitive_body(report))
+    return lines
+
+
+def _cognitive_body(report: Report) -> list[Text]:
+    gate = _gate_named(report, "cognitive")
+    if gate is not None and gate.status == "not_run":
+        return [msg("report.cognitive_not_run", reason=gate.reason or "")]
+    if not report.cognitive:
+        return [msg("report.cognitive_none")]
+    lines: list[Text] = [msg("report.cognitive_header"), "|---|---|---:|---|---|"]
+    lines.extend(_cognitive_row(item) for item in report.cognitive)
+    return lines
+
+
+def _cognitive_row(item: CognitiveFunction) -> Message:
+    return msg(
+        "report.cognitive_row",
+        name=item.name,
+        loc=f"{item.file}:{item.start_line}-{item.end_line}",
+        score=item.score,
+        language=item.language,
+        waiver=item.waiver_id(),
+    )
+
+
+def _churn_json(section: ChurnSection) -> dict[str, object]:
+    if isinstance(section, ChurnUnavailable):
+        return {"kind": "unavailable"}
+    if isinstance(section, ChurnMeasured):
+        return {
+            "kind": "measured",
+            "window_days": section.window.days,
+            "ends_on": section.window.ends_on.isoformat(),
+            "files": [
+                {"path": item.path, "commits": item.commits, "relative": item.relative}
+                for item in section.files
+            ],
+            "hotspots": [
+                {
+                    "file": row.file,
+                    "function": row.function,
+                    "start_line": row.start_line,
+                    "cc": row.cc,
+                    "commits": row.commits,
+                    "hotspot": row.hotspot,
+                }
+                for row in section.hotspots
+            ],
+            "diffusion": {"files": section.file_count(), "modules": section.module_count()},
+        }
+    raise AssertionError(type(section))
+
+
+def _churn_lines(section: ChurnSection) -> list[Text]:
+    if isinstance(section, ChurnUnavailable):
+        return ["", msg("report.churn"), "", msg("report.churn_unavailable")]
+    if isinstance(section, ChurnMeasured):
+        return _measured_churn_lines(section)
+    raise AssertionError(type(section))
+
+
+def _measured_churn_lines(section: ChurnMeasured) -> list[Text]:
+    lines: list[Text] = [
+        "",
+        msg("report.churn"),
+        "",
+        msg(
+            "report.churn_window",
+            days=section.window.days,
+            date=section.window.ends_on.isoformat(),
+        ),
+        msg(
+            "report.churn_diffusion",
+            files=section.file_count(),
+            modules=section.module_count(),
+        ),
+    ]
+    names = section.module_names()
+    if names:
+        shown = ", ".join(f"`{name}`" for name in names)
+        lines.append(msg("report.churn_modules", names=shown))
+    lines.append("")
+    if section.files:
+        lines.append(msg("report.churn_file_header"))
+        lines.append("|---|---:|---:|")
+        lines.extend(
+            msg(
+                "report.churn_file_row",
+                path=item.path,
+                commits=item.commits,
+                relative=_relative_text(item.relative),
+            )
+            for item in section.files
+        )
+    else:
+        lines.append(msg("report.churn_no_files"))
+    lines.append("")
+    if section.hotspots:
+        lines.append(msg("report.churn_hotspot_header"))
+        lines.append("|---|---|---:|---:|---:|")
+        lines.extend(_hotspot_row(row) for row in section.hotspots)
+    else:
+        lines.append(msg("report.churn_no_hotspots"))
+    return lines
+
+
+def _relative_text(value: float | None) -> Text:
+    if value is None:
+        return msg("report.churn_relative_missing")
+    return f"{value:.4f}"
+
+
+def _hotspot_row(row: Hotspot) -> str:
+    return (
+        f"| `{row.function}` | `{row.file}:{row.start_line}` | {row.cc} | "
+        f"{row.commits} | {row.hotspot} |"
+    )
 
 
 _SECURITY_EFFECT = {
@@ -512,6 +643,22 @@ def dead_row(row: LedgerRow) -> dict[str, object]:
 def _footer(report: Report, lang: Language) -> list[Text]:
     command = f"{report.reproduce} --lang {lang}" if report.reproduce else ""
     return ["", msg("report.reproduce"), "", "```", command, "```", ""]
+
+
+def cognitive_row(item: CognitiveFunction) -> dict[str, object]:
+    return {
+        "file": item.file,
+        "name": item.name,
+        "start_line": item.start_line,
+        "end_line": item.end_line,
+        "score": item.score,
+        "language": item.language,
+        "waiver_id": item.waiver_id(),
+    }
+
+
+def _cognitive_requested(report: Report) -> bool:
+    return any(gate.name == "cognitive" for gate in report.gates)
 
 
 def clone_row(clone: Clone) -> dict[str, object]:
@@ -860,4 +1007,3 @@ def _advisory_gap_json(finding: UnverifiedAdvisory) -> dict[str, object]:
         "line": finding.line,
         "cause": finding.cause,
     }
-

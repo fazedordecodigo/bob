@@ -7,6 +7,7 @@ from pathlib import Path
 import pytest
 
 from bob_quality.adapters.lizard import LizardParseError
+from bob_quality.churn import ChurnUnavailable
 from bob_quality.adapters.stryker import StrykerParseError
 from bob_quality.check import DEFAULT_GATES, _Measured, _assemble, run_check
 from bob_quality.config import Config
@@ -629,8 +630,9 @@ def test_run_check_forwards_defaults_and_measured_arguments(
         diff_lines: dict[str, set[int]],
         max_crap: float,
         command: str,
+        churn: object,
     ) -> Report:
-        seen["assemble"] = (state, commit, base, diff_lines, max_crap, command)
+        seen["assemble"] = (state, commit, base, diff_lines, max_crap, command, churn)
         return report
 
     def fake_written(got_report: Report, out_dir: Path, fmt: str, lang: str) -> int:
@@ -676,7 +678,15 @@ def test_run_check_forwards_defaults_and_measured_arguments(
     )
     assert loads == [(tmp_path, "origin/feature", "bob check", ["crap", "dry", "deps"])]
     assert measured.loaded_waivers is waivers
-    assert seen["assemble"] == (measured, "abc123", "origin/feature", diff, 9.5, "bob check")
+    assert seen["assemble"] == (
+        measured,
+        "abc123",
+        "origin/feature",
+        diff,
+        9.5,
+        "bob check",
+        ChurnUnavailable(),
+    )
     assert seen["written"] == (report, out, "json", "pt-BR")
 
     measured.mutation = _outcome(0, status="passed")
@@ -704,6 +714,7 @@ def test_run_check_forwards_defaults_and_measured_arguments(
         diff,
         9.5,
         "bob mutate --since-last-run",
+        ChurnUnavailable(),
     )
 
     failed = Report(
@@ -769,7 +780,9 @@ def test_assemble_copies_every_measured_field() -> None:
     state.loaded_waivers = [{"id": "idle", "reason": "kept", "author": "ada", "date": "2026-10-12"}]
     state.diff_coverage = coverage
 
-    idle = _assemble(state, "abc123", "origin/main", {"src/a.py": {1}}, 10.0, "bob check")
+    idle = _assemble(
+        state, "abc123", "origin/main", {"src/a.py": {1}}, 10.0, "bob check", ChurnUnavailable()
+    )
 
     assert idle.schema_version == 1
     assert idle.commit == "abc123"
@@ -829,7 +842,9 @@ def test_assemble_copies_every_measured_field() -> None:
         summary={"remutated": ["src/a.py::add"], "reused": [], "no_coverage": {"total": 1}},
     )
     state.mutation = mutation
-    reported = _assemble(state, "abc123", "origin/main", {"src/a.py": {1}}, 10.0, "bob check")
+    reported = _assemble(
+        state, "abc123", "origin/main", {"src/a.py": {1}}, 10.0, "bob check", ChurnUnavailable()
+    )
 
     assert reported.survivors == mutation.survivors
     assert reported.waivers == mutation.waivers

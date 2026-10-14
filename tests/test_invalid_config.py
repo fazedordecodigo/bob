@@ -365,6 +365,12 @@ _SEMANTIC_YAML = (
     ("duplication: false\n", "bob.yaml: duplication must be a mapping\n"),
     ('duplication: ""\n', "bob.yaml: duplication must be a mapping\n"),
     ("duplication: [1]\n", "bob.yaml: duplication must be a mapping\n"),
+    ("churn:\n  window_days: 0\n", "bob.yaml: churn.window_days must be greater than 0\n"),
+    ("churn:\n  window_days: -3\n", "bob.yaml: churn.window_days must be greater than 0\n"),
+    ("churn:\n  window_days: null\n", "bob.yaml: churn.window_days must be an integer\n"),
+    ("churn:\n  window_days: 1.5\n", "bob.yaml: churn.window_days must be an integer\n"),
+    ("churn:\n  window_days: true\n", "bob.yaml: churn.window_days must be an integer\n"),
+    ("churn:\n  other: 1\n", "bob.yaml: unknown key churn.other\n"),
     ("security: []\n", "bob.yaml: security must be a mapping\n"),
     (
         "security:\n  fail_severities: HIGH\n",
@@ -394,6 +400,36 @@ _SEMANTIC_YAML = (
         "bob.yaml: coverage.min_percent must be at least 0\n",
     ),
     ("coverage: 0\n", "bob.yaml: coverage must be a mapping\n"),
+    (
+        "cognitive:\n  max_per_function: true\n",
+        "bob.yaml: cognitive.max_per_function must be an integer\n",
+    ),
+    (
+        'cognitive:\n  max_per_function: "1"\n',
+        "bob.yaml: cognitive.max_per_function must be an integer\n",
+    ),
+    (
+        "cognitive:\n  max_per_function: 1.5\n",
+        "bob.yaml: cognitive.max_per_function must be an integer\n",
+    ),
+    (
+        "cognitive:\n  max_per_function: .inf\n",
+        "bob.yaml: cognitive.max_per_function must be an integer\n",
+    ),
+    (
+        "cognitive:\n  max_per_function: null\n",
+        "bob.yaml: cognitive.max_per_function must be an integer\n",
+    ),
+    (
+        "cognitive:\n  max_per_function: -1\n",
+        "bob.yaml: cognitive.max_per_function must be greater than 0\n",
+    ),
+    (
+        "cognitive:\n  max_per_function: 0\n",
+        "bob.yaml: cognitive.max_per_function must be greater than 0\n",
+    ),
+    ("cognitive: 0\n", "bob.yaml: cognitive must be a mapping\n"),
+    ("cognitive:\n  scope: changed\n", "bob.yaml: unknown key cognitive.scope\n"),
     (
         "supply:\n  osv_fail_severities: [MODERATE]\n",
         "bob.yaml: supply.osv_fail_severities[0] must be HIGH or CRITICAL\n",
