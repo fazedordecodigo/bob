@@ -35,6 +35,9 @@ duplication:
   min_lines: 8
 coverage:
   min_percent: 90
+supply:
+  osv_fail_severities: [CRITICAL]
+  timeout_seconds: 12
 """
 
 
@@ -69,6 +72,8 @@ def test_load_config_reads_every_key(tmp_path: Path) -> None:
         min_lines=8,
         coverage_min_percent=90.0,
         language="pt-BR",
+        osv_fail_severities=("CRITICAL",),
+        supply_timeout_seconds=12,
     )
 
 
@@ -493,6 +498,17 @@ def test_load_config_treats_null_and_empty_collections_as_defaults(tmp_path: Pat
     )
 
     assert load_config(None, tmp_path) == Config()
+
+
+def test_load_config_keeps_supply_defaults_when_the_keys_are_null(tmp_path: Path) -> None:
+    (tmp_path / "bob.yaml").write_text(
+        "supply:\n  osv_fail_severities:\n  timeout_seconds:\n"
+    )
+
+    loaded = load_config(None, tmp_path)
+
+    assert loaded.osv_fail_severities == ("HIGH", "CRITICAL")
+    assert loaded.supply_timeout_seconds == 30
 
 
 def test_load_config_keeps_numeric_thresholds_and_string_lists(tmp_path: Path) -> None:
@@ -939,6 +955,21 @@ def test_bad_yaml_language_fails_even_when_the_flag_wins(
             "bob.yaml: coverage deve ser um mapeamento",
         ),
         (
+            "supply:\n  osv_fail_severities: [MODERATE]\n",
+            "bob.yaml: supply.osv_fail_severities[0] must be HIGH or CRITICAL",
+            "bob.yaml: supply.osv_fail_severities[0] deve ser HIGH ou CRITICAL",
+        ),
+        (
+            "supply:\n  timeout_seconds: 0\n",
+            "bob.yaml: supply.timeout_seconds must be greater than 0",
+            "bob.yaml: supply.timeout_seconds deve ser maior que 0",
+        ),
+        (
+            "supply:\n  timeout_seconds: true\n",
+            "bob.yaml: supply.timeout_seconds must be an integer",
+            "bob.yaml: supply.timeout_seconds deve ser um inteiro",
+        ),
+        (
             "security:\n  fail_severities: [NOPE]\n",
             "bob.yaml: security.fail_severities[0] must be one of "
             "CRITICAL, ERROR, HIGH, INFO, LOW, MEDIUM, UNDEFINED, WARNING",
@@ -1028,6 +1059,10 @@ def test_load_config_rejects_an_illegal_semantic_value(
         ({"languages": ()}, "languages"),
         ({"languages": ("python", "python")}, "languages"),
         ({"languages": "python"}, "languages"),
+        ({"osv_fail_severities": ("MODERATE",)}, "osv_fail_severities"),
+        ({"osv_fail_severities": ()}, "osv_fail_severities"),
+        ({"supply_timeout_seconds": 0}, "supply_timeout_seconds"),
+        ({"supply_timeout_seconds": True}, "supply_timeout_seconds"),
         ({"fail_severities": ("NOPE",)}, "fail_severities"),
         ({"fail_severities": ()}, "fail_severities"),
         ({"fail_severities": ("HIGH", "HIGH")}, "fail_severities"),

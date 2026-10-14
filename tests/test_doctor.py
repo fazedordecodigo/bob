@@ -40,6 +40,7 @@ ROOT = Path(__file__).resolve().parents[1]
 # (nome no relatório, versão pinada, executável, banner de --version)
 PINS = (
     ("lizard", "1.24.1", "lizard", "1.24.1"),
+    ("deptry", "0.25.1", None, None),
     (
         "coverage.py",
         "7.16.2",
@@ -78,6 +79,7 @@ INSTALL = {
     "bandit": "pip install 'bandit==1.9.4'",
     "semgrep": "pip install 'semgrep==1.180.0'",
     "dependency-cruiser": "npm install dependency-cruiser@18.5.0",
+    "knip": "npm install knip@6.41.0",
     "stryker": "npm install @stryker-mutator/core@10.0.0",
     "stryker-vitest-runner": "npm install @stryker-mutator/vitest-runner@10.0.0",
 }

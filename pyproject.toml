@@ -12,6 +12,7 @@ license = { text = "MIT" }
 authors = [{ name = "Emerson Delatorre" }]
 dependencies = [
     "lizard==1.24.1",
+    "deptry==0.25.1",
     "coverage==7.16.2",
     "diff-cover==10.6.0",
     "PyYAML==6.0.3",

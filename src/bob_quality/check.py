@@ -27,6 +27,7 @@ from bob_quality.models import (
     Report,
     SecretLedger,
     SecurityReport,
+    SupplyReport,
 )
 from bob_quality.mutate import MutationOutcome, focus_with_survivors
 from bob_quality.mutate_gate import run_mutate_gate
@@ -34,6 +35,7 @@ from bob_quality.report import metric_row, violation_rows, write_report
 from bob_quality.secrets_gate import run_secrets_gate
 from bob_quality.security_gate import run_security_gate
 from bob_quality.suite_memo import SuiteMemo
+from bob_quality.supply import run_supply_gate
 from bob_quality.waivers import WaiverError, load_waivers
 
 DEFAULT_GATES = ("crap", "dry", "deps")
@@ -127,6 +129,7 @@ class _Measured:
     loaded_waivers: list[dict[str, object]] = field(default_factory=list)
     baseline: int | None = None
     diff_coverage: DiffCoverage | None = None
+    supply: SupplyReport | None = None
     security: SecurityReport | None = None
     typing: dict[str, object] | None = None
     dead_code: DeadSection | None = None
@@ -228,6 +231,27 @@ def _absorb(
         state.diff_coverage = outcome.diff_coverage
         _record(state, outcome.result, outcome.exit_code, outcome.versions)
         return
+    _absorb_rest(state, gate, cwd, config, base, diff_lines)
+
+
+def _absorb_rest(
+    state: _Measured,
+    gate: str,
+    cwd: Path,
+    config: Config,
+    base: str,
+    diff_lines: dict[str, set[int]],
+) -> None:
+    if gate == "supply":
+        result, code, versions, supply = run_supply_gate(cwd, config, diff_lines, base)
+        state.supply = supply
+        _record(state, result, code, versions)
+        return
+    if gate == "security":
+        result, code, versions, security = run_security_gate(cwd, config, base, diff_lines)
+        state.security = security
+        _record(state, result, code, versions)
+        return
     if gate == "typing":
         result, code, versions, found = run_typing_gate(cwd, config, diff_lines)
         state.typing = found
@@ -241,28 +265,12 @@ def _absorb(
     if gate == "dead_code":
         _record_dead(state, run_dead_code_gate(cwd, config, diff_lines))
         return
-    _absorb_other(state, gate, cwd, config, base, diff_lines)
-
-
-def _absorb_other(
-    state: _Measured,
-    gate: str,
-    cwd: Path,
-    config: Config,
-    base: str,
-    diff_lines: dict[str, set[int]],
-) -> None:
-    if gate != "security":
-        _record(
-            state,
-            GateResult(gate, "not_run", msg("check.gate_not_implemented")),
-            PASSED,
-            {},
-        )
-        return
-    result, code, versions, security = run_security_gate(cwd, config, base, diff_lines)
-    state.security = security
-    _record(state, result, code, versions)
+    _record(
+        state,
+        GateResult(gate, "not_run", msg("check.gate_not_implemented")),
+        PASSED,
+        {},
+    )
 
 
 def _absorb_deps(
@@ -329,6 +337,7 @@ def _assemble(
         survivors=survivors,
         mutation=summary,
         diff_coverage=measured.diff_coverage,
+        supply=measured.supply,
         security=measured.security,
         typing=measured.typing,
         secrets=measured.secrets,
