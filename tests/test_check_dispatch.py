@@ -39,6 +39,7 @@ def _forbid(monkeypatch: pytest.MonkeyPatch) -> None:
         "run_mutate_gate",
         "run_typing_gate",
         "run_security_gate",
+        "run_cognitive_gate",
         "run_secrets_gate",
         "run_dead_code_gate",
     ):
@@ -202,6 +203,29 @@ def test_typing_records_the_json_payload(monkeypatch: pytest.MonkeyPatch, tmp_pa
     assert state.gates == [result]
     assert state.versions == {"mypy": "1"}
     assert state.exit_code == 1
+
+
+def test_cognitive_records_one_gate(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    _forbid(monkeypatch)
+    config = Config()
+    result = GateResult("cognitive", "warn", "1 function at or above the cognitive limit")
+    found = []
+
+    def fake(cwd: Path, got: Config, diff_lines: dict[str, set[int]]) -> tuple[object, ...]:
+        assert cwd == tmp_path
+        assert got is config
+        assert diff_lines == DIFF
+        return result, found, 0, {"complexipy": "8.0.1"}
+
+    monkeypatch.setattr("bob_quality.check.run_cognitive_gate", fake)
+    state = _Measured()
+
+    _absorb(state, "cognitive", tmp_path, config, "main", DIFF, 10.0, None, tmp_path, None, False, None)
+
+    assert state.cognitive == found
+    assert state.gates == [result]
+    assert state.versions == {"complexipy": "8.0.1"}
+    assert state.exit_code == 0
 
 
 def _patch_report_parts(monkeypatch: pytest.MonkeyPatch, clone: Clone) -> None:
