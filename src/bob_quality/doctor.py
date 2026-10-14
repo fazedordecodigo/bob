@@ -63,6 +63,7 @@ NODE = NodePin(floor=NodeVersion(22, 14, 0))
 
 PINS: tuple[Pin, ...] = (
     RequiresDist("lizard", "lizard"),
+    RequiresDist("deptry", "deptry"),
     RequiresDist("coverage.py", "coverage"),
     NODE,
     NpmPin("c8", "12.0.0", "c8", npm_package="c8"),

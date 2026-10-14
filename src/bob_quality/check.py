@@ -27,12 +27,14 @@ from bob_quality.models import (
     Report,
     SecretLedger,
     SecurityReport,
+    SupplyReport,
 )
 from bob_quality.mutate import MutationOutcome, focus_with_survivors
 from bob_quality.mutate_gate import run_mutate_gate
 from bob_quality.report import metric_row, violation_rows, write_report
 from bob_quality.secrets_gate import run_secrets_gate
 from bob_quality.security_gate import run_security_gate
+from bob_quality.supply import run_supply_gate
 from bob_quality.waivers import WaiverError, load_waivers
 
 DEFAULT_GATES = ("crap", "dry", "deps")
@@ -126,6 +128,7 @@ class _Measured:
     loaded_waivers: list[dict[str, object]] = field(default_factory=list)
     baseline: int | None = None
     cognitive: list[CognitiveFunction] = field(default_factory=list)
+    supply: SupplyReport | None = None
     security: SecurityReport | None = None
     typing: dict[str, object] | None = None
     dead_code: DeadSection | None = None
@@ -215,7 +218,36 @@ def _absorb(
         state.mutation = mutation
         _record(state, mutation.result, mutation.exit_code, mutation.versions)
         return
-    if _absorb_added(state, gate, cwd, config, base, diff_lines):
+    _absorb_rest(state, gate, cwd, config, base, diff_lines)
+
+
+def _absorb_rest(
+    state: _Measured,
+    gate: str,
+    cwd: Path,
+    config: Config,
+    base: str,
+    diff_lines: dict[str, set[int]],
+) -> None:
+    if gate == "cognitive":
+        result, found, code, versions = run_cognitive_gate(cwd, config, diff_lines)
+        state.cognitive = found
+        _record(state, result, code, versions)
+        return
+    if gate == "supply":
+        result, code, versions, supply = run_supply_gate(cwd, config, diff_lines, base)
+        state.supply = supply
+        _record(state, result, code, versions)
+        return
+    if gate == "security":
+        result, code, versions, security = run_security_gate(cwd, config, base, diff_lines)
+        state.security = security
+        _record(state, result, code, versions)
+        return
+    if gate == "typing":
+        result, code, versions, found = run_typing_gate(cwd, config, diff_lines)
+        state.typing = found
+        _record(state, result, code, versions)
         return
     if gate == "secrets":
         outcome = run_secrets_gate(cwd=cwd, config=config, diff_lines=diff_lines)
@@ -231,32 +263,6 @@ def _absorb(
         PASSED,
         {},
     )
-
-
-def _absorb_added(
-    state: _Measured,
-    gate: str,
-    cwd: Path,
-    config: Config,
-    base: str,
-    diff_lines: dict[str, set[int]],
-) -> bool:
-    if gate == "cognitive":
-        result, found, code, versions = run_cognitive_gate(cwd, config, diff_lines)
-        state.cognitive = found
-        _record(state, result, code, versions)
-        return True
-    if gate == "security":
-        result, code, versions, security = run_security_gate(cwd, config, base, diff_lines)
-        state.security = security
-        _record(state, result, code, versions)
-        return True
-    if gate == "typing":
-        result, code, versions, found = run_typing_gate(cwd, config, diff_lines)
-        state.typing = found
-        _record(state, result, code, versions)
-        return True
-    return False
 
 
 def _absorb_deps(
@@ -323,6 +329,7 @@ def _assemble(
         survivors=survivors,
         mutation=summary,
         cognitive=measured.cognitive,
+        supply=measured.supply,
         security=measured.security,
         typing=measured.typing,
         secrets=measured.secrets,

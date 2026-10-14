@@ -7,6 +7,7 @@ from pathlib import Path
 
 from bob_quality.messages import Language, Message, Text, msg, render
 from bob_quality.models import (
+    Advisory,
     Clone,
     CognitiveFunction,
     DepViolation,
@@ -15,11 +16,19 @@ from bob_quality.models import (
     GateStatus,
     Judged,
     LedgerRow,
+    MissingPackage,
     PythonDead,
     Report,
+    RowWaived,
     SecretRow,
     SecurityReport,
+    SupplyFinding,
+    SupplyReport,
+    SupplyRow,
     TypeScriptDead,
+    UndeclaredImport,
+    UnverifiedAdvisory,
+    UnverifiedExistence,
     Waived,
 )
 
@@ -68,6 +77,7 @@ def to_json(report: Report) -> dict[str, object]:
         "waivers": report.waivers,
         "survivors": report.survivors,
         "mutation": report.mutation,
+        **_supply_field(report),
     }
     _json_tail(payload, report)
     return payload
@@ -120,6 +130,7 @@ def to_markdown(report: Report, lang: Language) -> str:
     lines.extend(_clone_lines(report))
     lines.extend(_survivor_lines(report, lang))
     lines.extend(_no_coverage_lines(report))
+    lines.extend(supply_lines(report))
     lines.extend(_types_lines(report))
     lines.extend(_secrets_lines(report))
     lines.extend(_cognitive_lines(report))
@@ -288,7 +299,7 @@ def _cognitive_row(item: CognitiveFunction) -> Message:
     )
 
 
-_EFFECT = {
+_SECURITY_EFFECT = {
     "fail": "security.effect.fail",
     "warn": "security.effect.warn",
     "waived": "security.effect.waived",
@@ -352,7 +363,7 @@ def _security_row(item: Judged) -> Message:
         rule=_cell(finding.rule),
         location=_cell(location),
         severity=finding.severity,
-        disposition=msg(_EFFECT[item.kind]),
+        disposition=msg(_SECURITY_EFFECT[item.kind]),
         waiver=waiver,
     )
 
@@ -642,3 +653,227 @@ def _tools(versions: dict[str, str]) -> str:
     if not versions:
         return "—"
     return ", ".join(f"{name} {ver}" for name, ver in versions.items())
+
+
+def _supply_field(report: Report) -> dict[str, object]:
+    if report.supply is None:
+        return {}
+    return {"supply": supply_json(report.supply)}
+
+
+def supply_json(supply: SupplyReport) -> dict[str, object]:
+    return {
+        "measured": list(supply.measured),
+        "skipped": list(supply.skipped),
+        "findings": [_finding_json(row) for row in supply.rows],
+    }
+
+
+def supply_lines(report: Report) -> list[Text]:
+    supply = report.supply
+    if supply is None:
+        return []
+    lines: list[Text] = ["", msg("report.supply"), ""]
+    lines.extend(_supply_body(report, supply))
+    return lines
+
+
+_EXISTENCE_WHAT = {
+    "timeout": "report.supply_unverified_timeout",
+    "dns": "report.supply_unverified_dns",
+    "undecided": "report.supply_unverified_undecided",
+}
+_ADVISORY_CAUSE = {
+    "timeout": "report.supply_cause_timeout",
+    "dns": "report.supply_cause_dns",
+    "undecided": "report.supply_cause_undecided",
+}
+_SUPPLY_EFFECT = {
+    "block": "report.supply_effect_block",
+    "warn": "report.supply_effect_warn",
+    "waived": "report.supply_effect_waived",
+}
+_INDEX_LABEL = {"pypi": "PyPI", "npm": "npm"}
+
+
+def _supply_body(report: Report, supply: SupplyReport) -> list[Text]:
+    if not supply.measured:
+        return [_unmeasured_line(report)]
+    lines = _measured_lines(supply)
+    lines.extend(msg("report.supply_skipped", language=language) for language in supply.skipped)
+    return lines
+
+
+def _unmeasured_line(report: Report) -> Text:
+    gate = _gate_named(report, "supply")
+    if gate is not None and gate.reason is not None:
+        return gate.reason
+    return msg("supply.unmeasured")
+
+
+def _measured_lines(supply: SupplyReport) -> list[Text]:
+    if not supply.rows:
+        return [msg("report.supply_none")]
+    lines: list[Text] = [msg("report.supply_header"), "|---|---|---|---|"]
+    lines.extend(_supply_row(row) for row in supply.rows)
+    return lines
+
+
+def _supply_row(row: SupplyRow) -> Message:
+    return msg(
+        "report.supply_row",
+        name=_cell(_row_name(row)),
+        where=_cell(_row_where(row)),
+        what=_row_what(row),
+        effect=msg(_SUPPLY_EFFECT[row.effect]),
+    )
+
+
+def _row_name(row: SupplyRow) -> str:
+    finding = row.finding
+    if isinstance(finding, UndeclaredImport):
+        return f"`{finding.module}`"
+    return f"`{finding.name}`"
+
+
+def _row_where(row: SupplyRow) -> str:
+    finding = row.finding
+    return f"`{finding.file}:{finding.line}`"
+
+
+def _row_what(row: SupplyRow) -> Text:
+    finding = row.finding
+    if isinstance(finding, MissingPackage):
+        return _missing_what(finding, row)
+    if isinstance(finding, UndeclaredImport):
+        return _undeclared_what(row)
+    if isinstance(finding, Advisory):
+        return _advisory_what(finding, row)
+    if isinstance(finding, UnverifiedExistence):
+        return msg(_EXISTENCE_WHAT[finding.cause])
+    return _unverified_advisory_what(finding)
+
+
+def _missing_what(finding: MissingPackage, row: SupplyRow) -> Text:
+    index = _INDEX_LABEL[finding.index]
+    waiver = _waiver(row)
+    if waiver is None:
+        return msg("report.supply_missing", index=index)
+    return msg("report.supply_missing_waived", index=index, waiver=waiver)
+
+
+def _undeclared_what(row: SupplyRow) -> Text:
+    waiver = _waiver(row)
+    if waiver is None:
+        return msg("report.supply_undeclared")
+    return msg("report.supply_undeclared_waived", waiver=waiver)
+
+
+def _advisory_what(finding: Advisory, row: SupplyRow) -> Text:
+    waiver = _waiver(row)
+    if waiver is None:
+        return msg(
+            "report.supply_advisory",
+            severity=finding.severity,
+            advisory=finding.advisory_id,
+        )
+    return msg(
+        "report.supply_advisory_waived",
+        severity=finding.severity,
+        advisory=finding.advisory_id,
+        waiver=waiver,
+    )
+
+
+def _unverified_advisory_what(finding: UnverifiedAdvisory) -> Text:
+    if finding.advisory_id is None:
+        return msg(_EXISTENCE_WHAT[finding.cause])
+    if finding.cause == "no_severity":
+        return msg("report.supply_no_severity", advisory=finding.advisory_id)
+    return msg(
+        "report.supply_unverified_advisory",
+        advisory=finding.advisory_id,
+        cause=msg(_ADVISORY_CAUSE[finding.cause]),
+    )
+
+
+def _waiver(row: SupplyRow) -> str | None:
+    if isinstance(row, RowWaived):
+        return row.waiver_id
+    return None
+
+
+def _finding_json(row: SupplyRow) -> dict[str, object]:
+    finding = row.finding
+    payload = _kind_json(finding)
+    payload["effect"] = row.effect
+    payload["waiver"] = _waiver(row)
+    return payload
+
+
+def _kind_json(finding: SupplyFinding) -> dict[str, object]:
+    if isinstance(finding, MissingPackage):
+        return _missing_json(finding)
+    if isinstance(finding, UndeclaredImport):
+        return _undeclared_json(finding)
+    if isinstance(finding, Advisory):
+        return _advisory_json(finding)
+    if isinstance(finding, UnverifiedExistence):
+        return _existence_json(finding)
+    return _advisory_gap_json(finding)
+
+
+def _missing_json(finding: MissingPackage) -> dict[str, object]:
+    return {
+        "kind": "missing",
+        "index": finding.index,
+        "name": finding.name,
+        "file": finding.file,
+        "line": finding.line,
+    }
+
+
+def _undeclared_json(finding: UndeclaredImport) -> dict[str, object]:
+    return {
+        "kind": "undeclared",
+        "file": finding.file,
+        "module": finding.module,
+        "line": finding.line,
+    }
+
+
+def _advisory_json(finding: Advisory) -> dict[str, object]:
+    return {
+        "kind": "advisory",
+        "advisory": finding.advisory_id,
+        "index": finding.index,
+        "name": finding.name,
+        "severity": finding.severity,
+        "file": finding.file,
+        "line": finding.line,
+    }
+
+
+def _existence_json(finding: UnverifiedExistence) -> dict[str, object]:
+    return {
+        "kind": "unverified",
+        "question": "existence",
+        "index": finding.index,
+        "name": finding.name,
+        "file": finding.file,
+        "line": finding.line,
+        "cause": finding.cause,
+    }
+
+
+def _advisory_gap_json(finding: UnverifiedAdvisory) -> dict[str, object]:
+    return {
+        "kind": "unverified",
+        "question": "advisory",
+        "advisory": finding.advisory_id,
+        "index": finding.index,
+        "name": finding.name,
+        "file": finding.file,
+        "line": finding.line,
+        "cause": finding.cause,
+    }
