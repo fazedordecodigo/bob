@@ -7,7 +7,15 @@ import re
 from pathlib import Path
 
 import pytest
-from helpers import RISKY_SOURCE, commit_on_branch, init_python_repo, run_bob
+from helpers import (
+    BAD_LANGUAGE_YAML,
+    LANGUAGE_CASES,
+    LanguageCase,
+    RISKY_SOURCE,
+    commit_on_branch,
+    init_python_repo,
+    run_bob,
+)
 
 EN = "en"
 PT = "pt-BR"
@@ -98,28 +106,19 @@ def _markdown(repo: Path) -> str:
     return re.sub(r"- (Date|Data): .+", r"- \1: <date>", text)
 
 
-@pytest.mark.parametrize(
-    ("flag", "env", "configured", "expected"),
-    [
-        (None, None, None, EN),
-        (PT, None, None, PT),
-        (None, PT, None, PT),
-        (None, None, PT, PT),
-        (None, EN, PT, EN),
-        (EN, PT, PT, EN),
-        (PT, EN, EN, PT),
-    ],
-)
+@pytest.mark.parametrize("case", LANGUAGE_CASES)
 def test_report_md_follows_flag_then_env_then_yaml_then_en(
-    tmp_path: Path, flag: str | None, env: str | None, configured: str | None, expected: str
+    tmp_path: Path, case: LanguageCase
 ) -> None:
-    repo = _repo(tmp_path, configured)
-    lang_args = ["--lang", flag] if flag else []
+    repo = _repo(tmp_path, case.configured)
+    lang_args = ["--lang", case.flag] if case.flag else []
 
-    result = run_bob(repo, "check", *lang_args, "--gates", "nope", "--base", "main", bob_lang=env)
+    result = run_bob(
+        repo, "check", *lang_args, "--gates", "nope", "--base", "main", bob_lang=case.env
+    )
 
     assert result.returncode == 0, result.stderr
-    assert _markdown(repo) == EXPECTED_MARKDOWN[expected]
+    assert _markdown(repo) == EXPECTED_MARKDOWN[case.expected]
 
 
 def test_lang_flag_also_works_before_the_command(tmp_path: Path) -> None:
@@ -186,15 +185,7 @@ _COMMANDS = (
 
 
 @pytest.mark.parametrize("command", _COMMANDS)
-@pytest.mark.parametrize(
-    ("text", "stderr"),
-    [
-        ("language: fr\n", "bob.yaml: language must be en or pt-BR\n"),
-        ("language: 5\n", "bob.yaml: language must be a string\n"),
-        ("- base\n", "bob.yaml must be a mapping\n"),
-        (":\n  - [\n", "invalid YAML in bob.yaml: while parsing a block mapping\n"),
-    ],
-)
+@pytest.mark.parametrize(("text", "stderr"), BAD_LANGUAGE_YAML)
 @pytest.mark.parametrize("lang", [None, "pt-BR"])
 def test_bad_bob_yaml_exits_4_on_stderr_and_writes_nothing(
     tmp_path: Path,

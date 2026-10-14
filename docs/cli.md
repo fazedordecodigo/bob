@@ -31,11 +31,13 @@ Roda os gates pedidos e grava `.bob/` (ou `--out`).
 | `--out` | `.bob/` | Pasta do relatório |
 | `--gates` | `crap,dry,deps` | Lista separada por vírgula. Constante `DEFAULT_GATES` em `src/bob_quality/check.py` |
 | `--format` | `both` | `md`, `json` ou `both` |
+| `--dry-fail` | desligada | Liga o modo fail do DRY nesta execução, como `duplication.new_clones: fail`. Ver [Gates](gates.md#dry) |
+| `--max-new-clones` | `duplication.max_new_clones` | Teto de clones novos no modo fail nesta execução. `0` é um teto de verdade. Negativo sai com `4` |
 | `--lang` | ver [Idioma](#idioma---lang) | `en` ou `pt-BR` |
 
 Um `--config` que aponta para um arquivo inexistente sai com `4`. O stderr fica em inglês e cita o caminho, como em `config file not found: <caminho>`. Nada é gravado. O mesmo vale para `crap`, `dry`, `deps` e `mutate`. Detalhe em [Exit 4](exit-codes.md#exit-4).
 
-Um nome de gate que o código não trata vira status `not_run`, com o motivo `gate não implementado nesta fatia` em `pt-BR`, e esse gate contribui exit `0` (`check.py`, ramo final de `_absorb`). Os nomes implementados são `crap`, `dry`, `deps`, `mutate`, `secrets` e `dead_code`. `secrets` e `dead_code` só entram por `--gates` no `bob check`. Não há comando `bob secrets` nem `bob dead_code`.
+Um nome de gate que o código não trata vira status `not_run`, com o motivo `gate não implementado nesta fatia` em `pt-BR`, e esse gate contribui exit `0` (`check.py`, ramo final de `_absorb`). Os nomes implementados são `crap`, `dry`, `deps`, `mutate`, `typing`, `secrets` e `dead_code`. `typing`, `secrets` e `dead_code` só entram por `--gates` no `bob check`. Não há comando `bob typing`, `bob secrets` nem `bob dead_code`.
 
 `bob check` sem `mutate` na lista não roda mutação. `bob check --gates mutate` e `bob mutate` rodam.
 
@@ -48,7 +50,7 @@ Quando mais de um gate devolve código, fica o maior (`_worse` em `check.py`).
 | Comando | Flags a mais |
 |---|---|
 | `bob crap` | `--threshold` substitui `crap.max_per_function` nesta execução e segue a mesma regra, um número finito maior que `0`. `--coverage-file` aponta um arquivo de cobertura já gerado |
-| `bob dry` | nenhuma além das compartilhadas |
+| `bob dry` | `--dry-fail` e `--max-new-clones`, as mesmas de `bob check` |
 | `bob deps` | nenhuma além das compartilhadas |
 | `bob mutate` | `--max-workers` vira `--max-children` do mutmut (`src/bob_quality/mutmut_tool.py`). `--since-last-run` não muda a medição: a ajuda diz que reusar o cache já é o padrão. A flag só entra na linha `reproduce` do relatório quando foi passada |
 
@@ -58,7 +60,7 @@ Quando mais de um gate devolve código, fica o maior (`_worse` em `check.py`).
 
 Lista cada pino de `src/bob_quality/doctor.py` com a versão esperada e a encontrada. Sai com `0` quando cada pino está satisfeito e com `4` quando algum falta ou fica fora do pino, e imprime o comando de instalação. Não grava `.bob/report.md`. Um sufixo `-rc` na versão encontrada fica de fora do pino e o doctor sai com `4`.
 
-Pinos, na ordem do código: lizard 1.24.1, coverage.py 7.16.2, node `>=22.14.0 <23`, c8 12.0.0, vitest 5.0.3, jscpd 5.4.1, mutmut 3.8.0, import-linter 2.15, grimp 3.17, dependency-cruiser 18.5.0, gitleaks 8.30.1, vulture 2.16, knip 6.41.0, stryker 10.0.0, stryker-vitest-runner 10.0.0. A versão esperada de uma ferramenta Python vem do Requires-Dist instalado do `bob-quality`.
+Pinos, na ordem do código: lizard 1.24.1, coverage.py 7.16.2, node `>=22.14.0 <23`, c8 12.0.0, vitest 5.0.3, jscpd 5.4.1, mutmut 3.8.0, import-linter 2.15, grimp 3.17, bandit 1.9.4, semgrep 1.180.0, dependency-cruiser 18.5.0, gitleaks 8.30.1, vulture 2.16, knip 6.41.0, stryker 10.0.0, stryker-vitest-runner 10.0.0. A versão esperada de uma ferramenta Python vem do Requires-Dist instalado do `bob-quality`.
 
 `bob doctor --install` roda `npm ci` no pacote instalado e depois imprime o mesmo relatório. Ver [Instalação](instalacao.md#pacote-pip-bob-quality).
 
@@ -80,7 +82,7 @@ Um `.bob/waivers.yaml` que já está inválido é recusado antes, em inglês no 
 
 ## Idioma (`--lang`)
 
-Vale a primeira fonte definida (`resolve_language` em `src/bob_quality/config.py`, chamada a partir de `cli.py`):
+Vale a primeira fonte definida (`resolve_language` em `src/bob_quality/config.py`, chamada pela CLI e pelo comentário da Action):
 
 1. `--lang en` ou `--lang pt-BR`, antes ou depois do comando.
 2. A variável `BOB_LANG`.
@@ -91,11 +93,11 @@ A caixa importa. `pt-br` é inválido. Os valores aceitos são os de `LANGUAGES`
 
 Um `--lang` ou `BOB_LANG` vazio é inválido. A CLI sai com `4`, imprime `invalid language: "" (use en or pt-BR)` no stderr e não grava relatório. Uma chave `language` vazia no YAML continua ausente.
 
-Idioma inválido, `language` que não é string, YAML que não é mapeamento, erro de sintaxe no `bob.yaml` e chave com tipo errado também saem com `4` em inglês no stderr, mesmo que se pretendesse `pt-BR`, e não gravam relatório. O mesmo vale para `paths`, `languages`, `base`, `dependencies` e as listas `include` e `exclude`, em `check`, `doctor`, `waive` e nos outros comandos.
+Idioma inválido, `language` que não é string, YAML que não é mapeamento, erro de sintaxe no `bob.yaml` e chave com tipo errado também saem com `4` em inglês no stderr, mesmo que se pretendesse `pt-BR`, e não gravam relatório. O mesmo vale para `paths`, `languages`, `base`, `dependencies` e as listas `include` e `exclude`, em `check`, `doctor`, `waive` e nos outros comandos. Uma entrada de `paths.include` que não existe no disco segue o mesmo caminho. O stderr cita o arquivo e cada entrada ausente, como `bob.yaml: paths.include does not exist: missing-root`. Um `paths.include` omitido ou vazio continua `src` e não é verificado.
 
 Uma chave `duplication` inválida também sai com `4`, em inglês no stderr, sem gravar relatório. `reject_config_types` percorre o schema inteiro, inclusive `duplication`. O [CHANGELOG.md](../CHANGELOG.md) descreve esse caso. Uma chave desconhecida segue o mesmo caminho. Ver [Exit codes](exit-codes.md#exit-4).
 
-O que muda com o idioma: mensagens da CLI, texto do `--help`, `bob doctor`, o hook (porque ele chama a CLI), `.bob/report.md` e a nota de truncamento do comentário da Action. O `.bob/report.json` é o mesmo arquivo nos dois idiomas (`JSON_LANGUAGE = "en"` em `report.py`). Detalhe em [Relatórios](relatorios.md#o-que-não-muda-com-o-idioma).
+O que muda com o idioma: mensagens da CLI, texto do `--help`, `bob doctor`, o hook (porque ele chama a CLI), `.bob/report.md`, a nota de truncamento do comentário da Action e os erros desse comentário (repo, pr ou token ausente, relatório ausente, lista de comentários inválida). O `.bob/report.json` é o mesmo arquivo nos dois idiomas (`JSON_LANGUAGE = "en"` em `report.py`). Detalhe em [Relatórios](relatorios.md#o-que-não-muda-com-o-idioma).
 
 No CI, `language: pt-BR` no `bob.yaml` ou `BOB_LANG: pt-BR` no `env` do job. O input `language` da Action repassa a escolha ao `bob check` e ao comentário. Input vazio deixa `BOB_LANG` e o `bob.yaml`.
 

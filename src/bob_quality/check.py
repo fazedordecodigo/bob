@@ -13,6 +13,7 @@ from bob_quality.dead_code import WarningOnly, run_dead_code_gate
 from bob_quality.deps_gate import run_deps_gate
 from bob_quality.diff import GitError, changed_lines, current_commit
 from bob_quality.dry_gate import run_dry_gate
+from bob_quality.typing_gate import run_typing_gate
 from bob_quality.exit_codes import CONFIG_OR_TOOL, PASSED
 from bob_quality.messages import DEFAULT_LANGUAGE, Language, Text, msg, reason
 from bob_quality.models import (
@@ -23,11 +24,13 @@ from bob_quality.models import (
     GateResult,
     Report,
     SecretLedger,
+    SecurityReport,
 )
 from bob_quality.mutate import MutationOutcome, focus_with_survivors
 from bob_quality.mutate_gate import run_mutate_gate
 from bob_quality.report import metric_row, violation_rows, write_report
 from bob_quality.secrets_gate import run_secrets_gate
+from bob_quality.security_gate import run_security_gate
 from bob_quality.waivers import WaiverError, load_waivers
 
 DEFAULT_GATES = ("crap", "dry", "deps")
@@ -45,6 +48,8 @@ def run_check(
     reproduce: str | None = None,
     max_workers: int | None = None,
     lang: Language = DEFAULT_LANGUAGE,
+    dry_fail: bool = False,
+    max_new_clones: int | None = None,
 ) -> int:
     chosen_gates = gates or list(DEFAULT_GATES)
     chosen_out = out_dir or (cwd / ".bob")
@@ -56,12 +61,15 @@ def run_check(
     measured = _measure(
         cwd,
         config,
+        chosen_base,
         diff_lines,
         max_crap,
         coverage_file,
         chosen_gates,
         chosen_out,
         max_workers,
+        dry_fail,
+        max_new_clones,
     )
     if measured.mutation is None:
         loaded = _load_idle_waivers(cwd, chosen_base, command, chosen_gates)
@@ -115,18 +123,23 @@ class _Measured:
     secrets: SecretLedger | None = None
     loaded_waivers: list[dict[str, object]] = field(default_factory=list)
     baseline: int | None = None
+    security: SecurityReport | None = None
+    typing: dict[str, object] | None = None
     dead_code: DeadSection | None = None
 
 
 def _measure(
     cwd: Path,
     config: Config,
+    base: str,
     diff_lines: dict[str, set[int]],
     max_crap: float,
     coverage_file: Path | None,
     gates: list[str],
     out_dir: Path,
     max_workers: int | None,
+    dry_fail: bool,
+    max_new_clones: int | None,
 ) -> _Measured:
     state = _Measured()
     for gate in gates:
@@ -135,11 +148,14 @@ def _measure(
             gate,
             cwd,
             config,
+            base,
             diff_lines,
             max_crap,
             coverage_file,
             out_dir,
             max_workers,
+            dry_fail,
+            max_new_clones,
         )
     return state
 
@@ -149,11 +165,14 @@ def _absorb(
     gate: str,
     cwd: Path,
     config: Config,
+    base: str,
     diff_lines: dict[str, set[int]],
     max_crap: float,
     coverage_file: Path | None,
     out_dir: Path,
     max_workers: int | None,
+    dry_fail: bool,
+    max_new_clones: int | None,
 ) -> None:
     if gate == "crap":
         result, metrics, code, versions, baseline = run_crap_gate(
@@ -169,7 +188,11 @@ def _absorb(
         return
     if gate == "dry":
         result, found, code, versions = run_dry_gate(
-            cwd=cwd, config=config, diff_lines=diff_lines
+            cwd=cwd,
+            config=config,
+            diff_lines=diff_lines,
+            dry_fail=dry_fail,
+            max_new_clones=max_new_clones,
         )
         state.clones = found
         _record(state, result, code, versions)
@@ -188,6 +211,16 @@ def _absorb(
         )
         state.mutation = mutation
         _record(state, mutation.result, mutation.exit_code, mutation.versions)
+        return
+    if gate == "security":
+        result, code, versions, security = run_security_gate(cwd, config, base, diff_lines)
+        state.security = security
+        _record(state, result, code, versions)
+        return
+    if gate == "typing":
+        result, code, versions, found = run_typing_gate(cwd, config, diff_lines)
+        state.typing = found
+        _record(state, result, code, versions)
         return
     if gate == "secrets":
         outcome = run_secrets_gate(cwd=cwd, config=config, diff_lines=diff_lines)
@@ -268,6 +301,8 @@ def _assemble(
         waivers=waivers,
         survivors=survivors,
         mutation=summary,
+        security=measured.security,
+        typing=measured.typing,
         secrets=measured.secrets,
         dead_code=measured.dead_code,
     )

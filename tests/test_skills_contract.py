@@ -9,9 +9,9 @@ SPEC = (ROOT / "docs" / "SPEC.md").read_text(encoding="utf-8")
 
 # Verbatim CLI surface from docs/SPEC.md (Implementation Decisions).
 SPEC_CLI_LINES = [
-    "bob check   [--base REF] [--gates crap,dry,deps,mutate] [--config bob.yaml] [--format md|json|both] [--out .bob/]",
+    "bob check   [--base REF] [--gates crap,dry,deps,mutate] [--config bob.yaml] [--format md|json|both] [--out .bob/] [--dry-fail] [--max-new-clones N]",
     "bob crap    [--base REF] [--threshold N] [--coverage-file PATH]",
-    "bob dry     [--base REF]",
+    "bob dry     [--base REF] [--dry-fail] [--max-new-clones N]",
     "bob deps",
     "bob mutate  [--base REF] [--since-last-run] [--max-workers N]",
     "bob report  [--in .bob/] [--out .bob/report.md]",
@@ -21,9 +21,9 @@ SPEC_CLI_LINES = [
 ]
 
 SKILL_CLI_LINES = [
-    "bob check   [--base REF] [--gates crap,dry,deps,mutate] [--config bob.yaml] [--format md|json|both] [--out .bob/]",
+    "bob check   [--base REF] [--gates crap,dry,deps,mutate] [--config bob.yaml] [--format md|json|both] [--out .bob/] [--dry-fail] [--max-new-clones N]",
     "bob crap    [--base REF] [--threshold N] [--coverage-file PATH]",
-    "bob dry     [--base REF]",
+    "bob dry     [--base REF] [--dry-fail] [--max-new-clones N]",
     "bob deps",
     "bob mutate  [--base REF] [--since-last-run] [--max-workers N]",
     'bob waive   <file::function|Target> --reason "texto de uma linha"',

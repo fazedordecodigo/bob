@@ -2,20 +2,22 @@
 
 [Índice](README.md) · [Visão geral](visao-geral.md) · [CLI](cli.md) · [Configuração](configuracao.md) · [Exit codes](exit-codes.md) · [Relatórios](relatorios.md) · [SPEC](SPEC.md)
 
-Seis gates. Cada um devolve um status `passed`, `warn`, `failed` ou `not_run`. O Markdown traduz para passou, aviso, falhou e não executado, com ✅ ⚠️ ❌ ⏭️ (`GATE_MARK` em `src/bob_quality/report.py`). Um gate que não rodou fica ⏭️ com motivo. Ele não aparece como ✅.
+Oito gates. Cada um devolve um status `passed`, `warn`, `failed` ou `not_run`. O Markdown traduz para passou, aviso, falhou e não executado, com ✅ ⚠️ ❌ ⏭️ (`GATE_MARK` em `src/bob_quality/report.py`). Um gate que não rodou fica ⏭️ com motivo. Ele não aparece como ✅.
 
 O exit code do `bob check` é o maior entre os gates que rodaram. Aviso não aumenta o código. Ver [Exit codes](exit-codes.md).
 
 | Gate | Ferramenta | O que bloqueia | Exit quando bloqueia |
 |---|---|---|---|
 | [CRAP](#crap) | lizard + coverage.py ou c8/vitest | função no escopo com CRAP ≥ limite | `1` |
-| [DRY](#dry) | jscpd | nada; clone novo é aviso | `0` |
+| [DRY](#dry) | jscpd | no modo fail, mais clones novos que `duplication.max_new_clones`. No modo warn, o padrão, nada | `1` no modo fail, `0` no warn |
 | [Mutação](#mutação) | mutmut (Python), StrykerJS (TypeScript) | sobrevivente sem waiver | `3` |
 | [Dependências](#dependências) | import-linter, dependency-cruiser, mais a regra de ciclo | violação cuja origem, destino ou outro módulo do ciclo está no diff | `1` |
+| [Segurança](#segurança) | Bandit no Python, Semgrep no TypeScript | achado novo cuja severidade está em `security.fail_severities`, sem waiver | `1` |
+| [Tipos](#tipos) | mypy, pyright ou tsc do próprio repositório | diagnóstico ou escape numa linha nova do diff, sem waiver | `1` |
 | [Segredos](#segredos) | gitleaks | segredo novo no diff | `1` |
 | [Código morto](#código-morto) | vulture e knip | nada; símbolo morto cuja definição está no diff é aviso | `0` |
 
-Versões pinadas: lizard 1.24.1, coverage 7.16.2, c8 12.0.0, vitest 5.0.3, jscpd 5.4.1, mutmut 3.8.0, `@stryker-mutator/core` 10.0.0, `@stryker-mutator/vitest-runner` 10.0.0, import-linter 2.15, grimp 3.17, dependency-cruiser 18.5.0, gitleaks 8.30.1, vulture 2.16, knip 6.41.0. Node `>=22.14.0 <23`. Fonte: `pyproject.toml`, `package.json` e `doctor.py`. O doctor lê os pinos pip do Requires-Dist instalado.
+Versões pinadas: lizard 1.24.1, coverage 7.16.2, c8 12.0.0, vitest 5.0.3, jscpd 5.4.1, mutmut 3.8.0, `@stryker-mutator/core` 10.0.0, `@stryker-mutator/vitest-runner` 10.0.0, import-linter 2.15, grimp 3.17, dependency-cruiser 18.5.0, bandit 1.9.4, semgrep 1.180.0, gitleaks 8.30.1, vulture 2.16, knip 6.41.0. Node `>=22.14.0 <23`. Fonte: `pyproject.toml`, `package.json` e `doctor.py`. O doctor lê os pinos pip do Requires-Dist instalado. mypy, pyright e tsc ficam de fora dessa lista. O gate de tipos usa o executável que o `PATH` do repositório resolver, e o doctor não confere a versão.
 
 ## CRAP
 
@@ -45,11 +47,15 @@ Python: coverage.py rodando pytest. TypeScript: c8 rodando vitest. Os dois camin
 
 Um clone é um bloco que repete outro. O gate roda o jscpd com `duplication.min_tokens` (padrão 50) e fica com os clones em que pelo menos um lado toca uma linha alterada (`_new_clones` em `dry_gate.py`).
 
-Um ou mais clones novos deixam o gate em `warn` e o exit em `0`. A linha do relatório traz os dois lados (`arquivo:início-fim`), a quantidade de linhas, os tokens e a similaridade (`85%`, ou `exata` quando o clone é `exact` e não há percentual). Sem clones novos, o status é `passed`.
+Dois filtros escolhem quais clones novos entram na conta, nos dois modos. O clone precisa de pelo menos `duplication.min_lines` linhas (padrão 0) e de pelo menos `duplication.min_similarity` por cento de similaridade (padrão 0). Um clone sem percentual, como o `exact`, conta como 100. O jscpd já descarta clones com menos de 5 linhas (o `--min-lines` padrão dele), então um `min_lines` abaixo de 5 não traz esses clones de volta. Clone fora da conta não aparece no relatório.
 
-Sem Node, ou sem o jscpd instalado, o status é `not_run` e o exit continua `0` (o retorno de `_skipped` é `PASSED`). O jscpd precisa de Node também num repositório só Python, se `dry` estiver na lista.
+No modo warn, o padrão, um ou mais clones na conta deixam o gate em `warn` e o exit em `0`. No modo fail, o gate fica `failed` e o exit `1` quando a conta passa de `duplication.max_new_clones` (padrão 0). Com o teto 0, um clone na conta já falha. O motivo cita a chave e o teto, como em `1 new clone exceeds duplication.max_new_clones 0`. Até o teto, o modo fail fica em `warn`. A linha do relatório traz os dois lados (`arquivo:início-fim`), a quantidade de linhas, os tokens e a similaridade (`85%`, ou `exata` quando o clone é `exact` e não há percentual). Sem clones na conta, o status é `passed`.
 
-A spec marca clones novos como aviso no MVP. O código faz isso no gate. `duplication.new_clones` não está no schema: sai com `4`. Ver [Configuração](configuracao.md#chaves-que-o-loader-recusa).
+O modo fail vem de `duplication.new_clones: fail` ou de `--dry-fail`. `--max-new-clones N` substitui `duplication.max_new_clones` nessa execução, e `0` é um teto de verdade. As duas flags existem em `bob dry` e `bob check`. Não há flag para forçar warn. Um `--max-new-clones` negativo sai com `4` antes de gravar relatório. O hook continua `crap,dry,deps`, sem essas flags.
+
+Sem Node, ou sem o jscpd instalado, o status é `not_run` e o exit continua `0` (o retorno de `_skipped` é `PASSED`), também no modo fail. O jscpd precisa de Node também num repositório só Python, se `dry` estiver na lista.
+
+A decisão 4 da [SPEC](SPEC.md), revista em 12/10/2026, define os dois modos. As chaves estão em [Configuração](configuracao.md#duplication).
 
 ## Mutação
 
@@ -84,6 +90,47 @@ Uma violação bloqueia quando a origem, o destino, ou outro módulo do mesmo co
 
 Ferramenta ausente que impede a medição pedida deixa o gate `not_run` e o exit `4` (`ToolError` em `run_deps_gate`). O mesmo exit `4` vale para um JSON do dependency-cruiser que não é objeto ou não traz a lista `violations`, e para o import-linter com exit 0 cuja última linha `Contracts:` não é `N kept, 0 broken.`
 
+## Segurança
+
+O gate só entra com `--gates security`. O `bob check` sem `--gates` continua `crap,dry,deps`. O hook `pre-push` e a Action, sem inputs, também não o incluem.
+
+Python roda o Bandit (`python -m bandit`). TypeScript roda o Semgrep, o executável `semgrep` ao lado do interpretador, com `scan`. Uma linguagem fora de `languages` não roda e não conta como ferramenta ausente. Repositório só Python não chama o Semgrep.
+
+O achado falha quando o intervalo de linhas cruza `changed_lines`, a severidade está em `security.fail_severities` e nenhum waiver casa. O padrão da lista é `HIGH`, `CRITICAL` e `ERROR`. `ERROR` é a palavra que regras antigas do Semgrep emitem. Não vira `HIGH`. O resto no diff fica em `warn` e o exit continua `0`. Achado fora do diff aparece no relatório como `off_diff` e não muda o exit. A confiança do Bandit (`issue_confidence`) não filtra.
+
+O waiver fica em `.bob/waivers.yaml`. O id `sast:<ferramenta>:<regra>` cobre essa regra em todo o diff. O id `sast:<ferramenta>:<regra>:<arquivo>:<linha>` cobre a linha primária do achado, inclusive fora do diff. A comparação é igualdade das duas strings. Um id de regra com `:` continua inteiro. Quando os dois casam, o motivo gravado é o do id com arquivo e linha.
+
+O Semgrep recebe `--baseline-commit` com o SHA de `git merge-base <base> HEAD`, o mesmo merge-base do diff. A execução é num worktree destacado de `HEAD`, apagado no fim. Árvore suja, índice sujo e arquivo não commitado não entram nesse scan e não abortam o gate. As regras são o diretório `.semgrep/` commitado na raiz. Sem `.yml` ou `.yaml` ali, o Semgrep não inicia e essa linguagem fica sem medição, com o motivo `missing rules directory: .semgrep`. O gate só fica `not_run` quando nenhuma linguagem pedida mediu. Não há id de registry e não há download.
+
+O Bandit varre o diretório de trabalho. Um `.bandit` do projeto não escolhe a severidade. O bob passa `--ini` num arquivo vazio. `# nosec` e `nosem` continuam visíveis para o waiver (`--ignore-nosec` e `--disable-nosem`).
+
+Se uma linguagem mede e a outra não, a que faltou sai do veredito. Um passe vira `warn` com exit `0`. Uma falha continua `failed` com exit `1`, e o motivo junta os dois com `probe.joined`. Se toda linguagem pedida fica sem medição, o gate é `not_run`, o exit é `4` e o relatório é gravado. Exit da ferramenta fora de `0` e `1`, JSON que não parseia, ou binário ausente contam como sem medição. O bob não copia o inteiro da ferramenta.
+
+## Tipos
+
+O gate roda com `bob check --gates typing`. O `bob check` sem `--gates` continua `crap,dry,deps` (`DEFAULT_GATES`). O hook `src/bob_quality/hooks/pre-push` passa esses três. A Action `.github/actions/bob/action.yml`, sem inputs, continua `crap,dry,deps,mutate`. Nenhum dos três inclui `typing`.
+
+mypy, pyright e tsc são os executáveis do repositório. O bob não os pina, não os instala e não os chama com `python -m` nem com `npx`. A primeira linha não vazia de `--version` vai para `tool_versions`. Se o processo não chegou a subir, a chave desse checker não entra.
+
+Não há limiar de type-coverage. A chave `typing` no `bob.yaml` não tem filhos. `typing: {}` é aceito e não liga o gate. Quem liga é `--gates typing`. Ver [Configuração](configuracao.md#typing).
+
+Bloqueia, com status `failed` e exit `1`, um diagnóstico do checker ou um escape que esteja numa linha nova do diff e não tenha waiver. O id é `typing:<arquivo>:<linha>:<código>`, comparado pelo texto inteiro. O motivo do gate, quando falha, é o primeiro id. O relatório lista o resto. Um achado fora do diff entra na tabela com disposição `off_diff` e não muda o exit.
+
+Os escapes são `Any` e `type: ignore` em `.py` e `.pyi`, e `as any`, `@ts-ignore` e `@ts-expect-error` em `.ts` e `.tsx`. Não entra `.js`. O código gravado de um ignore do Python é sempre `type: ignore`, inclusive em `# type: ignore[arg-type]` e `# type:ignore`. `@ts-ignore` dentro de uma string não conta. O escape só é lido em arquivo do diff, dentro de `paths.include`, e só se a linguagem tiver config de checker.
+
+A linguagem vem de `languages`. Sem config de checker, ela fica `not_run`, contribui `0`, e o motivo do gate é `no checker config`.
+
+- mypy roda quando existe `mypy.ini`, `.mypy.ini`, a seção `[mypy]` no `setup.cfg`, ou `[tool.mypy]` no `pyproject.toml`.
+- pyright roda quando existe `pyrightconfig.json` ou `[tool.pyright]`.
+- Se os dois existem, os dois rodam.
+- tsc roda quando o `tsconfig.json` da raiz é um arquivo. Um `tsconfig` aninhado não conta. Sem o arquivo da raiz, TypeScript fica `not_run` e contribui `0`.
+
+Config presente e executável ausente deixa esse checker sem medição (`missing_executable`). Exit `4` só quando o gate foi pedido e nenhum checker mediu. Se um mediu e o outro não, o exit é o da medição, e o motivo de um passe continua vazio.
+
+Contam como medição os exits `0` e `1` do mypy, `0` e `1` do pyright, e `0`, `1` e `2` do tsc. O `2` do mypy, os exits `2`, `3` e `4` do pyright, e os exits `3` e `4` do tsc ficam `exit_outside_measurement`. Exit `0` com uma linha de erro, ou um exit de erro sem linha de diagnóstico, fica `unparseable_output`. Uma linha do tsc sem arquivo é ignorada. Os diagnósticos que têm arquivo permanecem. Stdout e stderr entram os dois na leitura.
+
+O `report.md` ganha `## Types` ou `## Tipos` depois dos mutantes sem teste e antes de `## Segredos`, também quando a lista de achados está vazia. O `report.json` ganha o objeto `typing`. `schema_version` continua `1`, e `typing` não é obrigatório no schema.
+
 ## Segredos
 
 Este gate não entra na lista padrão do `bob check`. O comando é `bob check --gates secrets`. Ele roda `gitleaks detect --no-git` com o gitleaks 8.30.1 nas raízes de `paths.include`.
@@ -96,7 +143,7 @@ A chave `secrets` no `bob.yaml` fica vazia. Ausente, `secrets:`, `secrets: null`
 
 O JSON inclui `secrets` só quando o gate mediu. O array traz os achados que bloqueiam. Cada objeto tem `file`, `line` e `rule_id`. Sem medição, a chave não aparece.
 
-A seção `## Segredos` fica depois de `## Mutantes sem teste` e antes de `## Código morto`, quando esse gate rodou, e antes de `## Como reproduzir`. Sem medição, a seção não aparece. A saída bruta do gitleaks fica fora de `.bob/`.
+A seção `## Segredos` fica depois de `## Mutantes sem teste` e de `## Tipos`, quando essa seção existe, e antes de `## Código morto`, quando esse gate rodou, e antes de `## Como reproduzir`. Sem medição, a seção não aparece. A saída bruta do gitleaks fica fora de `.bob/`.
 
 Um arquivo `.gitleaksignore` numa raiz de include deixa o gate `not_run` e o exit `4`, antes de chamar o binário. As entradas vão para `.bob/waivers.yaml`.
 
@@ -118,7 +165,7 @@ Exit 0 ou 1 do knip com JSON válido é medição, inclusive quando o knip sai 1
 
 Se uma linguagem mediu e a outra não, o status segue o ledger medido. Ledger limpo é `passed`. Símbolo no diff sem waiver é `warn`. O motivo da linguagem que faltou continua na linha do gate. Isso não força `warn` e não usa exit `4`. Sem nenhuma medição, o status é `not_run` e o exit continua `0`. O relatório é gravado nos dois casos.
 
-A seção `## Código morto` sai só quando o gate foi pedido, depois de `## Segredos` quando essa seção existe, e antes de `## Como reproduzir`. O JSON traz `dead_code` depois de `exit_code` nesse caso e omite a chave quando o gate não rodou. `schema_version` continua 1. O `reason` do JSON fica em inglês.
+A seção `## Código morto` sai só quando o gate foi pedido, depois de `## Tipos` e de `## Segredos` quando essas seções existem, e antes de `## Segurança`. A seção `## Segurança` sai só quando o gate foi pedido, antes de `## Como reproduzir`. O JSON traz `security` depois de `mutation`, `secrets` quando o gate de segredos mediu, `typing` quando o gate de tipos foi pedido, e `dead_code` depois de `exit_code`. Sem o gate, a chave não existe. `schema_version` continua 1. O `reason` do JSON fica em inglês.
 
 ## Monorepo e Node ausente
 
@@ -128,3 +175,5 @@ Decisão 10 da [SPEC](SPEC.md), implementada em `crap_gate.py` e `deps_gate.py`:
 - Repositório só TypeScript sem Node: a ferramenta ausente impede a medição pedida e o exit é `4`.
 
 O DRY, sozinho, trata Node ausente como `not_run` com exit `0`, também num repo só Python.
+
+O gate `security` usa o mesmo corte entre linguagens. Semgrep ausente num repositório que também mediu o Python não sai `4`. As duas linguagens sem medição saem `4`.

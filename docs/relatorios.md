@@ -22,8 +22,9 @@ O schema está em `src/bob_quality/schemas/report_v1.json`. `schema_version` é 
 10. `## Mutantes sobreviventes`, só se a mutação rodou. Colunas: alvo, função, local, operador, waiver. O alvo é `arquivo::função::<descrição>`, o valor que `bob waive` aceita para dispensar esse sobrevivente. Ele vira `—` quando outro sobrevivente da mesma função tem a mesma descrição. Nesse caso só `arquivo::função` dispensa. O `report.json` traz o mesmo valor em `survivors[].target`, ou `null`.
 11. `## Mutantes sem teste`, só se o resumo de mutação traz `no_coverage`. Total, e tabela por função e arquivo. A linha do total diz que não bloqueia.
 12. `## Segredos`, só quando o gate de segredos mediu. A tabela traz o alvo `secret:<regra>:<arquivo>:<linha>`, o arquivo, a linha e a regra. Sem segredo novo, o texto é `Nenhum segredo novo no diff.` A linha `Fora do diff; não bloqueia.` introduz os achados que não mudam o exit. Sem medição, a seção não aparece.
-13. `## Código morto`, só quando o gate foi pedido. Um símbolo por linha. Sem símbolo no diff, o texto é `Nenhum símbolo morto no diff.` Sem medição, a seção não aparece.
-14. `## Como reproduzir`: o comando, dentro de uma cerca, com `--lang` do idioma que gerou o arquivo.
+13. `## Código morto` em `pt-BR`, `## Dead code` em `en`, só quando o gate `dead_code` rodou, inclusive `not_run`. Sem símbolo no diff, o texto é `Nenhum símbolo morto no diff.` / `No unused symbol in the diff.` O tipo no Markdown traduz. O JSON guarda `kind` em inglês.
+14. `## Segurança` em `pt-BR`, `## Security` em `en`, só quando o gate `security` rodou, inclusive `not_run`. Sem achados e sem linguagem de fora, o texto é `Nenhum achado.` / `No findings.` Linguagem sem medição e tabela vazia mostra o motivo do gate, sem essa frase. A tabela tem ferramenta, regra, local (`arquivo:linha` ou `arquivo:linha-fim`), severidade, disposição e waiver. A disposição no Markdown traduz (`falha`, `aviso`, `dispensado`, `fora do diff`). O JSON guarda `fail`, `warn`, `waived` e `off_diff`.
+15. `## Como reproduzir`: o comando, dentro de uma cerca, com `--lang` do idioma que gerou o arquivo.
 
 Seções vazias de dívida e de mutação somem. Foco, top 5, clones e veredito aparecem mesmo vazios, com a frase de “nenhum”.
 
@@ -31,7 +32,7 @@ A [SPEC](SPEC.md) descreve a ordem começando pelo cabeçalho e pelo veredito, e
 
 ## report.json
 
-Campos obrigatórios no schema: `schema_version`, `commit`, `base`, `generated_at`, `tool_versions`, `gates`, `focus`, `top_crap`, `reproduce`, `exit_code`. O render também escreve `old_debt`, `dependencies`, `old_dependencies`, `clones`, `waivers`, `survivors` e `mutation` quando `to_json` os inclui. `secrets` entra só quando o gate mediu, depois de `mutation` e antes de `reproduce`. O array traz os achados que bloqueiam. Cada objeto tem `file`, `line` e `rule_id`. `dead_code` entra só quando o gate foi pedido, depois de `exit_code`. O objeto tem `symbols`. Sem medição, a chave não vai no JSON. `schema_version` continua `1`.
+Campos obrigatórios no schema: `schema_version`, `commit`, `base`, `generated_at`, `tool_versions`, `gates`, `focus`, `top_crap`, `reproduce`, `exit_code`. `schema_version` continua `1`. O render também escreve `old_debt`, `dependencies`, `old_dependencies`, `clones`, `waivers`, `survivors` e `mutation`. `security` entra só quando esse gate foi pedido, depois de `mutation`. Sem ele, a chave não existe. O objeto tem `findings` e `unmeasured`. `findings` traz `tool`, `rule`, `file`, `line`, `end_line`, `severity`, `disposition` e `waiver` (`null` quando não há). `unmeasured` lista o nome da ferramenta que não mediu. `secrets` entra só quando o gate mediu, depois de `security` quando os dois existem, e antes de `reproduce`. O array traz os achados que bloqueiam. Cada objeto tem `file`, `line` e `rule_id`. `dead_code` entra só quando o gate foi pedido, depois de `exit_code`. O objeto tem `symbols`. Sem medição, a chave não vai no JSON.
 
 `gates[].status` é `passed`, `warn`, `failed` ou `not_run`. O `reason` no JSON é renderizado em inglês (`JSON_LANGUAGE`).
 
@@ -47,7 +48,7 @@ O `report.md` e o comentário do pull request traduzem a regra de ciclo e o fall
 
 ## Comentário no pull request
 
-A Action (`.github/actions/bob/upsert_comment.py`) cria ou atualiza um único comentário com o Markdown, em pull request. O limite do corpo é `GITHUB_BODY_LIMIT = 65536`. Acima disso, o comentário é truncado e a nota usa o idioma do input `language` (ou `BOB_LANG` / `bob.yaml` / `en`). O exit code do job é o do bob (`propagate_exit.sh`).
+A Action (`.github/actions/bob/upsert_comment.py`) cria ou atualiza um único comentário com o Markdown, em pull request. O limite do corpo é `GITHUB_BODY_LIMIT = 65536`. Acima disso, o comentário é truncado e a nota usa o idioma do input `language` (ou `BOB_LANG` / `bob.yaml` / `en`). Os erros do comentário usam esse mesmo idioma. São repo, pr ou token ausente, relatório ausente e lista de comentários inválida. O exit code do job é o do bob (`propagate_exit.sh`).
 
 O artefato `bob-mutation-cache` sobe com `.bob/mutation-cache.json` mesmo quando o check falha (`if: always()` na action). O GitHub guarda esse artefato por 7 dias (`retention-days: 7`).
 

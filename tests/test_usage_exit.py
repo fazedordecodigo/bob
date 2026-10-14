@@ -87,6 +87,13 @@ def test_check_format_outside_choices(tmp_path: Path) -> None:
 def test_numeric_flags_reject_text(tmp_path: Path) -> None:
     _usage_4(run_bob(tmp_path, "mutate", "--max-workers", "nope"), tmp_path)
     _usage_4(run_bob(tmp_path, "crap", "--threshold", "nope"), tmp_path)
+    _usage_4(run_bob(tmp_path, "dry", "--max-new-clones", "nope"), tmp_path)
+    _usage_4(run_bob(tmp_path, "check", "--max-new-clones", "1.5"), tmp_path)
+
+
+def test_dry_limits_exist_only_on_dry_and_check(tmp_path: Path) -> None:
+    _usage_4(run_bob(tmp_path, "crap", "--dry-fail"), tmp_path)
+    _usage_4(run_bob(tmp_path, "deps", "--max-new-clones", "0"), tmp_path)
 
 
 def test_waive_without_a_target(tmp_path: Path) -> None:
@@ -229,7 +236,7 @@ _TOP_HELP = (
     "{check,crap,dry,deps,mutate,report,waive,doctor}",
     "Run the requested gates and write .bob/",
     "Measure CRAP of the changed functions",
-    "Report new clones in the diff, without blocking",
+    "Report new clones in the diff; blocks only in fail mode",
     "Check dependency cycles and rules",
     "Mutate the changed functions with mutmut",
     "Render report.json from a directory as Markdown",
@@ -244,9 +251,11 @@ _SUB_HELP = {
         "--gates GATES",
         "Comma-separated list (default: crap,dry,deps)",
         "--format {md,json,both}",
+        "--dry-fail]",
+        "--max-new-clones MAX_NEW_CLONES",
     ),
     "crap": ("usage: bob crap", "--threshold THRESHOLD", "--coverage-file COVERAGE_FILE"),
-    "dry": ("usage: bob dry",),
+    "dry": ("usage: bob dry", "--dry-fail]", "--max-new-clones MAX_NEW_CLONES"),
     "deps": ("usage: bob deps",),
     "mutate": (
         "usage: bob mutate",

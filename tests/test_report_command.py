@@ -379,6 +379,21 @@ def _metric(**overrides: object) -> dict[str, object]:
     return row
 
 
+def _finding(**overrides: object) -> dict[str, object]:
+    row: dict[str, object] = {
+        "tool": "bandit",
+        "rule": "B602",
+        "file": "src/app.py",
+        "line": 4,
+        "end_line": 4,
+        "severity": "HIGH",
+        "disposition": "fail",
+        "waiver": None,
+    }
+    row.update(overrides)
+    return row
+
+
 def _secret(**overrides: object) -> dict[str, object]:
     row: dict[str, object] = {
         "file": "src/app.py",
@@ -528,6 +543,71 @@ def test_report_renders_saved_secrets(tmp_path: Path) -> None:
     assert "| `secret:generic-api-key:src/old.py:2` | src/old.py | 2 | generic-api-key |" in markdown
 
 
+def test_report_renders_saved_security_and_types(tmp_path: Path) -> None:
+    payload = dict(_MINIMAL)
+    payload["security"] = {
+        "findings": [
+            {
+                "tool": "bandit",
+                "rule": "B602",
+                "file": "src/app.py",
+                "line": 4,
+                "end_line": 6,
+                "severity": "HIGH",
+                "disposition": "fail",
+                "waiver": None,
+            },
+            {
+                "tool": "semgrep",
+                "rule": "rule",
+                "file": "src/app.py",
+                "line": 2,
+                "end_line": 2,
+                "severity": "MEDIUM",
+                "disposition": "waived",
+                "waiver": "because",
+            },
+        ],
+        "unmeasured": [],
+    }
+    payload["typing"] = {
+        "absent": [],
+        "checkers": [],
+        "findings": [
+            {
+                "kind": "diagnostic",
+                "disposition": "blocking",
+                "file": "src/app.py",
+                "line": 4,
+                "code": "assignment",
+                "tool": "mypy",
+                "waiver_id": "typing:src/app.py:4:assignment",
+            }
+        ],
+    }
+    _save(tmp_path, payload)
+
+    result = _invoke(tmp_path, "report")
+    markdown = (tmp_path / ".bob" / "report.md").read_text()
+
+    assert result.returncode == 0
+    assert "| bandit | B602 | src/app.py:4-6 | HIGH | fail | — |" in markdown
+    assert "| semgrep | rule | src/app.py:2 | MEDIUM | waived | because |" in markdown
+    assert "| `src/app.py` | 4 | `assignment` | blocking | `typing:src/app.py:4:assignment` |" in markdown
+
+
+def test_report_renders_an_empty_security_report(tmp_path: Path) -> None:
+    payload = dict(_MINIMAL)
+    payload["security"] = {"findings": [], "unmeasured": []}
+    _save(tmp_path, payload)
+
+    result = _invoke(tmp_path, "report")
+    markdown = (tmp_path / ".bob" / "report.md").read_text()
+
+    assert result.returncode == 0
+    assert "\n\n## Security\n\nNo findings.\n" in markdown
+
+
 def test_report_renders_an_empty_secrets_list(tmp_path: Path) -> None:
     payload = dict(_MINIMAL)
     payload["secrets"] = []
@@ -582,6 +662,17 @@ def test_report_renders_an_empty_secrets_list(tmp_path: Path) -> None:
         {**_MINIMAL, "tool_versions": []},
         {**_MINIMAL, "dead_code": "nope"},
         {**_MINIMAL, "secrets": "nope"},
+        {**_MINIMAL, "security": "nope"},
+        {**_MINIMAL, "security": {}},
+        {**_MINIMAL, "security": {"findings": [], "unmeasured": [1]}},
+        {**_MINIMAL, "security": {"findings": [_finding(disposition="nope")], "unmeasured": []}},
+        {**_MINIMAL, "security": {"findings": [_finding(waiver="because")], "unmeasured": []}},
+        {**_MINIMAL, "security": {"findings": [_finding(disposition="waived", waiver="")], "unmeasured": []}},
+        {**_MINIMAL, "security": {"findings": [_finding(disposition="waived", waiver=None)], "unmeasured": []}},
+        {**_MINIMAL, "security": {"findings": [_finding(line="4")], "unmeasured": []}},
+        {**_MINIMAL, "typing": "nope"},
+        {**_MINIMAL, "typing": {}},
+        {**_MINIMAL, "typing": {"findings": [{"file": 1, "line": 4, "code": "assignment", "disposition": "blocking", "waiver_id": "typing:x"}]}},
         {**_MINIMAL, "secrets": [1]},
         {**_MINIMAL, "secrets": [_secret(line=0)]},
         {**_MINIMAL, "secrets": [_secret(line="12")]},

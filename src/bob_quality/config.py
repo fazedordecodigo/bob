@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import math
+import os
 from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any, Callable, Literal, TypeGuard
@@ -8,15 +9,18 @@ from typing import Any, Callable, Literal, TypeGuard
 import yaml
 
 from bob_quality.messages import DEFAULT_LANGUAGE, LANGUAGES, Language, msg
+from bob_quality.security_scanners import severity_vocabulary
 from bob_quality.yaml_text import parse_yaml
 
 DEFAULT_EXCLUDE = ["tests", "node_modules", "dist"]
 
 SourceLanguage = Literal["python", "typescript"]
 CrapScope = Literal["changed", "all"]
+NewClonesMode = Literal["warn", "fail"]
 
 SOURCE_LANGUAGES: tuple[SourceLanguage, ...] = ("python", "typescript")
 CRAP_SCOPES: tuple[CrapScope, ...] = ("changed", "all")
+NEW_CLONES_MODES: tuple[NewClonesMode, ...] = ("warn", "fail")
 _SUFFIX_LANGUAGE: dict[str, SourceLanguage] = {
     ".py": "python",
     ".ts": "typescript",
@@ -37,8 +41,9 @@ _CheckKind = Literal[
     "one_of",
     "members",
     "language",
+    "vocabulary",
 ]
-_BoundKind = Literal["gt"]
+_BoundKind = Literal["gt", "at_least", "at_most"]
 _Failure = tuple[str, str, dict[str, object]]
 
 
@@ -74,6 +79,10 @@ class _Node:
     empty_is_default: bool = False
     null_is_default: bool = True
     mapping: bool = False
+
+    def __post_init__(self) -> None:
+        if self.mapping and (self.children or self.attr or self.checks):
+            raise ValueError(self.key)
 
 
 _SCHEMA = _Node(
@@ -131,6 +140,28 @@ _SCHEMA = _Node(
                     (_Check("integer"), _Bound("gt", 0)),
                     null_is_default=False,
                 ),
+                _Node(
+                    "new_clones",
+                    "new_clones",
+                    (_Check("string"), _Check("one_of", choices=NEW_CLONES_MODES)),
+                    empty_is_default=True,
+                ),
+                _Node(
+                    "max_new_clones",
+                    "max_new_clones",
+                    (_Check("integer"), _Bound("at_least", 0)),
+                ),
+                _Node(
+                    "min_similarity",
+                    "min_similarity",
+                    (
+                        _Check("number"),
+                        _Check("finite"),
+                        _Bound("at_least", 0),
+                        _Bound("at_most", 100),
+                    ),
+                ),
+                _Node("min_lines", "min_lines", (_Check("integer"), _Bound("at_least", 0))),
             ),
         ),
         _Node(
@@ -147,7 +178,23 @@ _SCHEMA = _Node(
                 ),
             ),
         ),
+        _Node("typing", "", (), mapping=True),
         _Node("secrets", "", (), mapping=True),
+        _Node(
+            "security",
+            "",
+            (),
+            children=(
+                _Node(
+                    "fail_severities",
+                    "fail_severities",
+                    (
+                        _Check("string_list"),
+                        _Check("vocabulary", choices=severity_vocabulary()),
+                    ),
+                ),
+            ),
+        ),
         _Node(
             "dead_code",
             "",
@@ -171,11 +218,16 @@ class Config:
     python_deps_config: str = ".importlinter"
     typescript_deps_config: str = ".dependency-cruiser.cjs"
     min_tokens: int = 50
+    new_clones: NewClonesMode = "warn"
+    max_new_clones: int = 0
+    min_similarity: float = 0.0
+    min_lines: int = 0
     dead_code_min_confidence: int | None = None
     language: Language | None = None
+    fail_severities: tuple[str, ...] = ("HIGH", "CRITICAL", "ERROR")
 
     def __post_init__(self) -> None:
-        for name in ("languages", "include", "exclude"):
+        for name in ("languages", "include", "exclude", "fail_severities"):
             value = getattr(self, name)
             if isinstance(value, list):
                 object.__setattr__(self, name, tuple(value))
@@ -208,7 +260,22 @@ def reject_config_types(path: Path | None, cwd: Path) -> None:
     load_config(path, cwd)
 
 
-def configured_language(path: Path | None, cwd: Path) -> Language | None:
+def resolve_language(flag: str | None, config_path: Path | None, cwd: Path) -> Language:
+    if flag is not None:
+        chosen = _parse_language(flag)
+    else:
+        env = os.environ.get("BOB_LANG")
+        chosen = None if env is None else _parse_language(env)
+    # --lang ou BOB_LANG válido ainda lê o bob.yaml para um arquivo inválido continuar falhando.
+    configured = _configured_language(config_path, cwd)
+    if chosen is not None:
+        return chosen
+    if configured is None:
+        return DEFAULT_LANGUAGE
+    return configured
+
+
+def _configured_language(path: Path | None, cwd: Path) -> Language | None:
     config_path = path if path is not None else cwd / "bob.yaml"
     if not config_path.is_file():
         return None
@@ -218,22 +285,10 @@ def configured_language(path: Path | None, cwd: Path) -> Language | None:
     found = values.get("language")
     if not isinstance(found, str):
         return None
-    return parse_language(found)
+    return _parse_language(found)
 
 
-def resolve_language(
-    flag: str | None, env: str | None, configured: Language | None
-) -> Language:
-    if flag is not None:
-        return parse_language(flag)
-    if env is not None:
-        return parse_language(env)
-    if configured is None:
-        return DEFAULT_LANGUAGE
-    return configured
-
-
-def parse_language(value: str) -> Language:
+def _parse_language(value: str) -> Language:
     for language in LANGUAGES:
         if value == language:
             return language
@@ -243,7 +298,9 @@ def parse_language(value: str) -> Language:
 
 def _config_from_file(config_path: Path, cwd: Path) -> Config:
     raw = _read_mapping(config_path, cwd)
-    values = _read_node(_SCHEMA, raw, _config_label(config_path, cwd), "")
+    label = _config_label(config_path, cwd)
+    values = _read_node(_SCHEMA, raw, label, "")
+    _reject_missing_include(values.get("include"), label, cwd)
     config = Config(**values)
     if "languages" in values:
         return config
@@ -296,6 +353,15 @@ def _excluded(relative: Path, exclude: tuple[str, ...]) -> bool:
         if pattern in relative.parts:
             return True
     return False
+
+
+def _reject_missing_include(include: object, label: str, cwd: Path) -> None:
+    if not _string_items(include):
+        return
+    missing = [item for item in include if not (cwd / item).exists()]
+    if not missing:
+        return
+    raise ConfigError(msg("config.include_missing", path=label, missing=", ".join(missing)))
 
 
 def _read_mapping(config_path: Path, cwd: Path) -> dict[str, Any]:
@@ -394,14 +460,26 @@ def _reject(child: _Node, value: object, label: str, dotted: str) -> None:
 
 def _failure_for(rule: _Rule, value: object) -> _Failure | None:
     if isinstance(rule, _Bound):
-        return _bound_failure(rule, value)
+        return _BOUNDED[rule.kind](value, rule.bound)
     return _UNBOUND[rule.kind](rule, value)
 
 
-def _bound_failure(rule: _Bound, value: object) -> _Failure | None:
-    if value > rule.bound:
+def _greater(value: object, bound: int | float) -> _Failure | None:
+    if value > bound:
         return None
-    return ("config.key_greater_than", "", {"bound": rule.bound})
+    return ("config.key_greater_than", "", {"bound": bound})
+
+
+def _at_least(value: object, bound: int | float) -> _Failure | None:
+    if value >= bound:
+        return None
+    return ("config.key_at_least", "", {"bound": bound})
+
+
+def _at_most(value: object, bound: int | float) -> _Failure | None:
+    if value <= bound:
+        return None
+    return ("config.key_at_most", "", {"bound": bound})
 
 
 def _text(check: _Check, value: object) -> _Failure | None:
@@ -485,6 +563,26 @@ def _member_at(check: _Check, value: list[str] | tuple[str, ...]) -> _Failure | 
     return None
 
 
+def _vocabulary(check: _Check, value: object) -> _Failure | None:
+    if not _string_items(value):
+        return ("config.key_string_list", "", {})
+    return _vocabulary_at(check, value)
+
+
+def _vocabulary_at(check: _Check, value: list[str] | tuple[str, ...]) -> _Failure | None:
+    if len(value) == 0:
+        return ("config.key_non_empty", "", {})
+    allowed = ", ".join(sorted(check.choices))
+    seen: set[str] = set()
+    for index, item in enumerate(value):
+        if item not in check.choices:
+            return ("config.key_vocabulary", f"[{index}]", {"allowed": allowed})
+        if item in seen:
+            return ("config.repeated_member", f"[{index}]", {"value": item})
+        seen.add(item)
+    return None
+
+
 def _language(check: _Check, value: object) -> _Failure | None:
     if value is None:
         return None
@@ -500,6 +598,13 @@ def _language(check: _Check, value: object) -> _Failure | None:
 
 
 _FailFn = Callable[[_Check, object], _Failure | None]
+_BoundFn = Callable[[object, int | float], _Failure | None]
+
+_BOUNDED: dict[_BoundKind, _BoundFn] = {
+    "gt": _greater,
+    "at_least": _at_least,
+    "at_most": _at_most,
+}
 
 _UNBOUND: dict[_CheckKind, _FailFn] = {
     "string": _text,
@@ -511,6 +616,7 @@ _UNBOUND: dict[_CheckKind, _FailFn] = {
     "one_of": _one_of,
     "members": _members,
     "language": _language,
+    "vocabulary": _vocabulary,
 }
 
 
