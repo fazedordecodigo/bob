@@ -1,0 +1,10 @@
+{
+  "id": "PYSEC-1",
+  "modified": "2024-01-03T00:00:00Z",
+  "severity": [
+    {
+      "type": "CVSS_V2",
+      "score": "AV:N/AC:L/Au:N/C:P/I:P/A:P"
+    }
+  ]
+}

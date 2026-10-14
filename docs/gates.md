@@ -2,7 +2,7 @@
 
 [Índice](README.md) · [Visão geral](visao-geral.md) · [CLI](cli.md) · [Configuração](configuracao.md) · [Exit codes](exit-codes.md) · [Relatórios](relatorios.md) · [SPEC](SPEC.md)
 
-Oito gates. Cada um devolve um status `passed`, `warn`, `failed` ou `not_run`. O Markdown traduz para passou, aviso, falhou e não executado, com ✅ ⚠️ ❌ ⏭️ (`GATE_MARK` em `src/bob_quality/report.py`). Um gate que não rodou fica ⏭️ com motivo. Ele não aparece como ✅.
+Nove gates. Cada um devolve um status `passed`, `warn`, `failed` ou `not_run`. O Markdown traduz para passou, aviso, falhou e não executado, com ✅ ⚠️ ❌ ⏭️ (`GATE_MARK` em `src/bob_quality/report.py`). Um gate que não rodou fica ⏭️ com motivo. Ele não aparece como ✅.
 
 O exit code do `bob check` é o maior entre os gates que rodaram. Aviso não aumenta o código. Ver [Exit codes](exit-codes.md).
 
@@ -12,12 +12,15 @@ O exit code do `bob check` é o maior entre os gates que rodaram. Aviso não aum
 | [DRY](#dry) | jscpd | no modo fail, mais clones novos que `duplication.max_new_clones`. No modo warn, o padrão, nada | `1` no modo fail, `0` no warn |
 | [Mutação](#mutação) | mutmut (Python), StrykerJS (TypeScript) | sobrevivente sem waiver | `3` |
 | [Dependências](#dependências) | import-linter, dependency-cruiser, mais a regra de ciclo | violação cuja origem, destino ou outro módulo do ciclo está no diff | `1` |
+| [Dependências novas](#dependências-novas) | deptry, knip, PyPI, npm e OSV | pacote novo com 404, import não declarado, ou advisory `HIGH`/`CRITICAL` numa linha nova | `1` |
 | [Segurança](#segurança) | Bandit no Python, Semgrep no TypeScript | achado novo cuja severidade está em `security.fail_severities`, sem waiver | `1` |
 | [Tipos](#tipos) | mypy, pyright ou tsc do próprio repositório | diagnóstico ou escape numa linha nova do diff, sem waiver | `1` |
 | [Segredos](#segredos) | gitleaks | segredo novo no diff | `1` |
 | [Código morto](#código-morto) | vulture e knip | nada; símbolo morto cuja definição está no diff é aviso | `0` |
 
-Versões pinadas: lizard 1.24.1, coverage 7.16.2, c8 12.0.0, vitest 5.0.3, jscpd 5.4.1, mutmut 3.8.0, `@stryker-mutator/core` 10.0.0, `@stryker-mutator/vitest-runner` 10.0.0, import-linter 2.15, grimp 3.17, dependency-cruiser 18.5.0, bandit 1.9.4, semgrep 1.180.0, gitleaks 8.30.1, vulture 2.16, knip 6.41.0. Node `>=22.14.0 <23`. Fonte: `pyproject.toml`, `package.json` e `doctor.py`. O doctor lê os pinos pip do Requires-Dist instalado. mypy, pyright e tsc ficam de fora dessa lista. O gate de tipos usa o executável que o `PATH` do repositório resolver, e o doctor não confere a versão.
+`supply` não entra no `bob check` sem `--gates`, nem no hook, nem na Action. O comando é `bob check --gates supply`. O mesmo vale para `typing`, `security`, `secrets` e `dead_code`.
+
+Versões pinadas: lizard 1.24.1, deptry 0.25.1, coverage 7.16.2, c8 12.0.0, vitest 5.0.3, jscpd 5.4.1, mutmut 3.8.0, `@stryker-mutator/core` 10.0.0, `@stryker-mutator/vitest-runner` 10.0.0, import-linter 2.15, grimp 3.17, dependency-cruiser 18.5.0, bandit 1.9.4, semgrep 1.180.0, gitleaks 8.30.1, vulture 2.16, knip 6.41.0. Node `>=22.14.0 <23`. Fonte: `pyproject.toml`, `package.json` e `doctor.py`. O doctor lê os pinos pip do Requires-Dist instalado. mypy, pyright e tsc ficam de fora dessa lista. O gate de tipos usa o executável que o `PATH` do repositório resolver, e o doctor não confere a versão.
 
 ## CRAP
 
@@ -63,7 +66,7 @@ A cobertura mostra que a linha rodou. A mutação altera o código e roda a suí
 
 Não há status separado para mutante equivalente. A skill `harden` manda registrar um waiver. O waiver é `arquivo::função`, para todo sobrevivente da função, ou o Alvo da tabela de sobreviventes, `arquivo::função::<descrição>`, para um só. A descrição é o operador do mutante. `bob waive` recusa com exit `4` um alvo que nenhum sobrevivente do último relatório tem. Ver a [ADR 0006](adr/0006-chave-estavel-do-waiver.md).
 
-O bob muta Python com mutmut e TypeScript com Stryker. O mutmut roda em `<--out>/mutmut/`, uma pasta de links simbólicos para o topo do repo, e nunca escreve o `setup.cfg` nem o `mutants/` do repo. O arquivo incremental do Stryker fica em `.bob/stryker-incremental.json` (ou `<--out>/stryker-incremental.json`). Ele não entra em `.bob/mutation-cache.json`. Os mutantes do último relatório do Stryker ficam em `<--out>/stryker-mutants.json`, para `bob waive`. A Action restaura só o cache do mutmut.
+O bob muta Python com mutmut e TypeScript com Stryker. O mutmut roda em `<--out>/mutmut/`, uma pasta de links simbólicos para o topo do repo, e nunca escreve o `setup.cfg` nem o `mutants/` do repo. O arquivo incremental do Stryker fica em `.bob/stryker-incremental.json` (ou `<--out>/stryker-incremental.json`). Ele não entra em `.bob/mutation-cache.json`. Os mutantes do último relatório do Stryker ficam em `<--out>/stryker-mutants.json`, para `bob waive`. A Action restaura e publica os dois arquivos no artefato `bob-mutation-cache`.
 
 Antes de mutar, a baseline roda. Se o `crap` já mediu o pytest na mesma execução, esse código é reusado. Baseline quebrada: o gate fica `not_run` e o exit é `2`.
 
@@ -71,7 +74,7 @@ Entram na mutação as funções alteradas no diff e as funções do cache que a
 
 Se a versão do mutmut ou a impressão da suíte diferir da chave do arquivo, `_read_cache` devolve vazio e o cache inteiro deixa de ser reusado. Função com hash diferente, ou com sobrevivente ainda sem waiver, é mutada de novo. `--since-last-run` não liga nem desliga isso; o cache já é o caminho padrão.
 
-A Action restaura e publica o artefato `bob-mutation-cache` com esse JSON (`.github/actions/bob/action.yml`) e o guarda por 7 dias (`retention-days: 7`). Falha ao restaurar não interrompe o check (`restore_cache.py || echo ...` no workflow da action). A action também instala o Node `22.14.0` e o jscpd `5.4.1` antes do check, senão o dry fica `not_run`.
+A Action restaura e publica o artefato `bob-mutation-cache` com esse JSON e com `.bob/stryker-incremental.json` (`.github/actions/bob/action.yml`) e o guarda por 7 dias (`retention-days: 7`). Falha ao restaurar não interrompe o check (`restore_cache.py || echo ...` no workflow da action). A action também instala o Node `22.14.0` e o jscpd `5.4.1` antes do check, senão o dry fica `not_run`.
 
 O limite efetivo é zero sobreviventes sem waiver numa linha do lado novo do diff (`git diff --unified=0`, âncora de hunk vazio incluída). Um desses deixa o gate `failed` e o exit `3`. Sobrevivente sem waiver fora dessas linhas continua na tabela, com a nota `fora do diff; não bloqueia`, e não muda o exit. Sem arquivo, ou com linha menor ou igual a zero, o sobrevivente sem waiver ainda bloqueia. `killed`, `timeout` e `no_coverage` não entram nessa lista. Sobrevivente com waiver continua na tabela de sobreviventes, com a justificativa, e não conta para o `3`. A seleção do que mutar continua por função (`_candidate_keys`).
 
@@ -89,6 +92,25 @@ O nome da regra de ciclo no JSON (sempre inglês) é `Forbidden dependency cycle
 Uma violação bloqueia quando a origem, o destino, ou outro módulo do mesmo componente fortemente conexo, está no diff (`_edge_in_diff`). As outras aparecem em “Informação (dependências fora do diff)” e não mudam o exit code. Zero violações no diff: `passed` e exit `0`. Uma no diff: `failed` e exit `1`.
 
 Ferramenta ausente que impede a medição pedida deixa o gate `not_run` e o exit `4` (`ToolError` em `run_deps_gate`). O mesmo exit `4` vale para um JSON do dependency-cruiser que não é objeto ou não traz a lista `violations`, e para o import-linter com exit 0 cuja última linha `Contracts:` não é `N kept, 0 broken.`
+
+## Dependências novas
+
+O gate só roda com `bob check --gates supply`. Ele olha o que o diff acrescenta.
+
+Um nome direto entra quando o manifesto em `HEAD` o declara, o mesmo manifesto na base não o tem, e a linha dessa declaração está no lado novo. Um bump de versão de um nome que a base já tem não entra. O gate só olha `paths.include` (padrão `src`) para o import não declarado. O pin direto continua no manifesto da raiz (`pyproject.toml`, `requirements*.txt`, `package.json`), mesmo quando essa raiz fica fora de `paths.include`. Caminho em `paths.exclude` não conta. Lockfile não acrescenta nome. Ele só preenche a versão quando a linha não tem pin exato.
+
+Python usa o deptry 0.25.1. `DEP001` e `DEP003` são imports não declarados. `DEP002`, `DEP004` e `DEP005` ficam de fora. TypeScript usa o knip 6.41.0, nos achados `unlisted` e `unresolved`. Um specifier que começa com `.` ou `/` não entra. O id do advisory vem de `POST https://api.osv.dev/v1/querybatch`. Essa resposta traz `id` e `modified`. A severidade vem de `GET https://api.osv.dev/v1/vulns/{id}`, com o mesmo `supply.timeout_seconds`. Falha nesse GET deixa o advisory não verificado e só avisa. Um documento obtido sem severidade publicada também só avisa. O texto diz que a severidade não foi publicada. O osv-scanner não é executado.
+
+O veredito, em `judge`:
+
+- 404 do PyPI ou do npm bloqueia.
+- Import não declarado bloqueia, mesmo com a rede fora.
+- Advisory cuja severidade está em `supply.osv_fail_severities` bloqueia. O padrão é `HIGH` e `CRITICAL`. `MODERATE` e `LOW` avisam.
+- Timeout, falha de DNS ou resposta que não decide avisam e ficam não verificados. Esse aviso não é exit `4`.
+- Waiver com id `supply:missing:<índice>:<nome>`, `supply:undeclared:<arquivo>:<módulo>` ou `supply:osv:<advisory>`. O id tem de ser igual. Um achado não verificado não tem waiver.
+- Qualquer linha que bloqueia deixa o gate `failed` e o exit `1`. Sem bloqueio, um aviso deixa `warn` e exit `0`. Um bloqueio dispensado mais um `MODERATE` que ficou é `warn` e exit `0`, e a linha dispensada continua na tabela.
+
+Se uma linguagem configurada mede e a outra não, o veredito é o da que mediu. A que não mediu aparece como linha própria e não muda o status. Exit `4`, com relatório, só quando nenhuma linguagem configurada mediu. A seção markdown é `## New dependencies` ou `## Dependências novas`, depois de mutantes sem teste e antes de segredos, de código morto e de como reproduzir. O JSON omite a chave `supply` quando o gate não rodou. `schema_version` continua `1`.
 
 ## Segurança
 
@@ -143,7 +165,7 @@ A chave `secrets` no `bob.yaml` fica vazia. Ausente, `secrets:`, `secrets: null`
 
 O JSON inclui `secrets` só quando o gate mediu. O array traz os achados que bloqueiam. Cada objeto tem `file`, `line` e `rule_id`. Sem medição, a chave não aparece.
 
-A seção `## Segredos` fica depois de `## Mutantes sem teste` e de `## Tipos`, quando essa seção existe, e antes de `## Código morto`, quando esse gate rodou, e antes de `## Como reproduzir`. Sem medição, a seção não aparece. A saída bruta do gitleaks fica fora de `.bob/`.
+A seção `## Segredos` fica depois de `## Dependências novas` e de `## Tipos`, quando essas seções existem, e antes de `## Código morto` e de `## Como reproduzir`. Sem medição, a seção não aparece. A saída bruta do gitleaks fica fora de `.bob/`.
 
 Um arquivo `.gitleaksignore` numa raiz de include deixa o gate `not_run` e o exit `4`, antes de chamar o binário. As entradas vão para `.bob/waivers.yaml`.
 

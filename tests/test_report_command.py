@@ -379,6 +379,20 @@ def _metric(**overrides: object) -> dict[str, object]:
     return row
 
 
+def _supply_item(**overrides: object) -> dict[str, object]:
+    row: dict[str, object] = {
+        "kind": "missing",
+        "index": "pypi",
+        "name": "left",
+        "file": "pyproject.toml",
+        "line": 14,
+        "effect": "block",
+        "waiver": None,
+    }
+    row.update(overrides)
+    return row
+
+
 def _finding(**overrides: object) -> dict[str, object]:
     row: dict[str, object] = {
         "tool": "bandit",
@@ -630,6 +644,124 @@ def test_report_renders_an_empty_security_report(tmp_path: Path) -> None:
     assert "\n\n## Security\n\nNo findings.\n" in markdown
 
 
+def test_report_renders_saved_supply(tmp_path: Path) -> None:
+    payload = dict(_MINIMAL)
+    payload["supply"] = {
+        "measured": ["python"],
+        "skipped": ["typescript"],
+        "findings": [
+            _supply_item(
+                name="no|such",
+                effect="waived",
+                waiver="supply:missing:pypi:no|such",
+            ),
+            {
+                "kind": "undeclared",
+                "file": "src/app.py",
+                "module": "requests",
+                "line": 3,
+                "effect": "block",
+                "waiver": None,
+            },
+            {
+                "kind": "advisory",
+                "advisory": "GHSA-1111",
+                "index": "npm",
+                "name": "left-pad",
+                "severity": "HIGH",
+                "file": "package.json",
+                "line": 8,
+                "effect": "block",
+                "waiver": None,
+            },
+            {
+                "kind": "unverified",
+                "question": "advisory",
+                "advisory": "GHSA-9",
+                "index": "npm",
+                "name": "left-pad",
+                "file": "package.json",
+                "line": 9,
+                "cause": "dns",
+                "effect": "warn",
+                "waiver": None,
+            },
+            {
+                "kind": "unverified",
+                "question": "advisory",
+                "advisory": "GHSA-0000-0000-0000",
+                "index": "pypi",
+                "name": "left",
+                "file": "pyproject.toml",
+                "line": 5,
+                "cause": "no_severity",
+                "effect": "warn",
+                "waiver": None,
+            },
+            {
+                "kind": "unverified",
+                "question": "existence",
+                "index": "pypi",
+                "name": "left",
+                "file": "pyproject.toml",
+                "line": 6,
+                "cause": "dns",
+                "effect": "warn",
+                "waiver": None,
+            },
+            {
+                "kind": "unverified",
+                "question": "advisory",
+                "advisory": None,
+                "index": "npm",
+                "name": "orphan",
+                "file": "package.json",
+                "line": 2,
+                "cause": "timeout",
+                "effect": "warn",
+                "waiver": None,
+            },
+        ],
+    }
+    _save(tmp_path, payload)
+
+    result = _invoke(tmp_path, "report")
+    markdown = (tmp_path / ".bob" / "report.md").read_text()
+
+    assert result.returncode == 0
+    assert "typescript did not measure." in markdown
+    assert (
+        "| `no\\|such` | `pyproject.toml:14` | missing on PyPI, waived as "
+        "`supply:missing:pypi:no|such` | waived |"
+    ) in markdown
+    assert "| `requests` | `src/app.py:3` | undeclared import | blocks |" in markdown
+    assert "| `left-pad` | `package.json:8` | HIGH advisory GHSA-1111 | blocks |" in markdown
+    assert (
+        "| `left-pad` | `package.json:9` | advisory GHSA-9 left unverified (DNS failure) | warns |"
+    ) in markdown
+    assert (
+        "| `left` | `pyproject.toml:5` | advisory GHSA-0000-0000-0000, no severity published | warns |"
+    ) in markdown
+    assert (
+        "| `left` | `pyproject.toml:6` | registry DNS failure, left unverified | warns |"
+    ) in markdown
+    assert (
+        "| `orphan` | `package.json:2` | registry timeout, left unverified | warns |"
+    ) in markdown
+
+
+def test_report_renders_an_unmeasured_supply_section(tmp_path: Path) -> None:
+    payload = dict(_MINIMAL)
+    payload["supply"] = {"measured": [], "skipped": [], "findings": []}
+    _save(tmp_path, payload)
+
+    result = _invoke(tmp_path, "report")
+    markdown = (tmp_path / ".bob" / "report.md").read_text()
+
+    assert result.returncode == 0
+    assert "\n\n## New dependencies\n\nno configured language produced a measurement\n" in markdown
+
+
 def test_report_renders_an_empty_secrets_list(tmp_path: Path) -> None:
     payload = dict(_MINIMAL)
     payload["secrets"] = []
@@ -702,6 +834,32 @@ def test_report_renders_an_empty_secrets_list(tmp_path: Path) -> None:
         {**_MINIMAL, "security": {"findings": [_finding(end_line="4")], "unmeasured": []}},
         {**_MINIMAL, "security": {"findings": [_finding(severity=1)], "unmeasured": []}},
         {**_MINIMAL, "security": {"findings": [_finding(disposition=["fail"])], "unmeasured": []}},
+        {**_MINIMAL, "supply": "nope"},
+        {**_MINIMAL, "supply": {}},
+        {**_MINIMAL, "supply": {"measured": [], "skipped": []}},
+        {**_MINIMAL, "supply": {"measured": [], "findings": []}},
+        {**_MINIMAL, "supply": {"skipped": [], "findings": []}},
+        {**_MINIMAL, "supply": {"measured": "python", "skipped": [], "findings": []}},
+        {**_MINIMAL, "supply": {"measured": [1], "skipped": [], "findings": []}},
+        {**_MINIMAL, "supply": {"measured": ["nope"], "skipped": [], "findings": []}},
+        {**_MINIMAL, "supply": {"measured": [], "skipped": ["nope"], "findings": []}},
+        {**_MINIMAL, "supply": {"measured": ["python"], "skipped": [], "findings": {}}},
+        {**_MINIMAL, "supply": {"measured": ["python"], "skipped": [], "findings": [_supply_item(kind="nope")]}},
+        {**_MINIMAL, "supply": {"measured": ["python"], "skipped": [], "findings": [_supply_item(effect="warn")]}},
+        {**_MINIMAL, "supply": {"measured": ["python"], "skipped": [], "findings": [_supply_item(effect="waived", waiver="")]}},
+        {**_MINIMAL, "supply": {"measured": ["python"], "skipped": [], "findings": [_supply_item(effect="waived", waiver=None)]}},
+        {**_MINIMAL, "supply": {"measured": ["python"], "skipped": [], "findings": [_supply_item(waiver="because")]}},
+        {**_MINIMAL, "supply": {"measured": ["python"], "skipped": [], "findings": [_supply_item(name=1)]}},
+        {**_MINIMAL, "supply": {"measured": ["python"], "skipped": [], "findings": [_supply_item(index="crates")]}},
+        {**_MINIMAL, "supply": {"measured": ["python"], "skipped": [], "findings": [_supply_item(file=1)]}},
+        {**_MINIMAL, "supply": {"measured": ["python"], "skipped": [], "findings": [_supply_item(line="14")]}},
+        {**_MINIMAL, "supply": {"measured": ["python"], "skipped": [], "findings": [{"kind": "undeclared", "file": "src/app.py", "module": 1, "line": 3, "effect": "block", "waiver": None}]}},
+        {**_MINIMAL, "supply": {"measured": ["python"], "skipped": [], "findings": [{"kind": "advisory", "advisory": 1, "index": "npm", "name": "left", "severity": "HIGH", "file": "package.json", "line": 8, "effect": "block", "waiver": None}]}},
+        {**_MINIMAL, "supply": {"measured": ["python"], "skipped": [], "findings": [{"kind": "advisory", "advisory": "GHSA-1", "index": "npm", "name": "left", "severity": "EXTREME", "file": "package.json", "line": 8, "effect": "block", "waiver": None}]}},
+        {**_MINIMAL, "supply": {"measured": ["python"], "skipped": [], "findings": [{"kind": "unverified", "question": "nope", "index": "pypi", "name": "left", "file": "pyproject.toml", "line": 6, "cause": "dns", "effect": "warn", "waiver": None}]}},
+        {**_MINIMAL, "supply": {"measured": ["python"], "skipped": [], "findings": [{"kind": "unverified", "question": "existence", "index": "pypi", "name": "left", "file": "pyproject.toml", "line": 6, "cause": "no_severity", "effect": "warn", "waiver": None}]}},
+        {**_MINIMAL, "supply": {"measured": ["python"], "skipped": [], "findings": [{"kind": "unverified", "question": "advisory", "advisory": None, "index": "pypi", "name": "left", "file": "pyproject.toml", "line": 6, "cause": "no_severity", "effect": "warn", "waiver": None}]}},
+        {**_MINIMAL, "supply": {"measured": ["python"], "skipped": [], "findings": [{"kind": "unverified", "question": "existence", "index": "pypi", "name": "left", "file": "pyproject.toml", "line": 6, "cause": "dns", "effect": "block", "waiver": None}]}},
         {**_MINIMAL, "typing": "nope"},
         {**_MINIMAL, "typing": {}},
         {**_MINIMAL, "typing": {"findings": [{"file": 1, "line": 4, "code": "assignment", "disposition": "blocking", "waiver_id": "typing:x"}]}},
