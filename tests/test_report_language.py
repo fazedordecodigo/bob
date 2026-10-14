@@ -360,11 +360,18 @@ def test_json_is_the_schema_with_english_reasons_whatever_the_markdown_language(
             "reused": [],
             "no_coverage": {"total": 2, "functions": [ORPHAN]},
         },
+        "typing": found,
         "churn": {"kind": "unavailable"},
         "reproduce": "bob check --base main",
         "exit_code": 3,
-        "typing": found,
     }
+    keys = list(to_json(report))
+    assert keys[keys.index("mutation") + 1 :] == [
+        "typing",
+        "churn",
+        "reproduce",
+        "exit_code",
+    ]
 
 
 def test_an_empty_reproduce_command_stays_blank_in_markdown() -> None:

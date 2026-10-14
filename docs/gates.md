@@ -165,7 +165,7 @@ Exit 0 ou 1 do knip com JSON válido é medição, inclusive quando o knip sai 1
 
 Se uma linguagem mediu e a outra não, o status segue o ledger medido. Ledger limpo é `passed`. Símbolo no diff sem waiver é `warn`. O motivo da linguagem que faltou continua na linha do gate. Isso não força `warn` e não usa exit `4`. Sem nenhuma medição, o status é `not_run` e o exit continua `0`. O relatório é gravado nos dois casos.
 
-A seção `## Código morto` sai só quando o gate foi pedido, depois de `## Tipos` e de `## Segredos` quando essas seções existem, e antes de `## Segurança` e de `## Rotatividade`. A seção `## Segurança` sai só quando o gate foi pedido, antes de `## Rotatividade` e de `## Como reproduzir`. O JSON traz `churn` sempre, `security` depois de `churn` quando o gate foi pedido, `secrets` quando o gate de segredos mediu, `typing` quando o gate de tipos foi pedido, e `dead_code` depois de `exit_code`. Sem o gate, a chave não existe. `schema_version` continua 1. O `reason` do JSON fica em inglês.
+A seção `## Código morto` sai só quando o gate foi pedido, depois de `## Tipos` e de `## Segredos` quando essas seções existem, e antes de `## Segurança` e de `## Rotatividade`. A seção `## Segurança` sai só quando o gate foi pedido, antes de `## Rotatividade` e de `## Como reproduzir`. O JSON segue a ordem do Markdown. Depois de `mutation` vêm `typing` quando o gate de tipos foi pedido, `secrets` quando o gate de segredos mediu, `dead_code` quando esse gate foi pedido e `security` quando esse gate foi pedido. `churn` sai sempre, antes de `reproduce`. Sem o gate, a chave não existe. `schema_version` continua 1. O `reason` do JSON fica em inglês.
 
 ## Monorepo e Node ausente
 

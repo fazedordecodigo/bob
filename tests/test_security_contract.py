@@ -555,6 +555,9 @@ def test_security_section_renders_a_hit_a_gap_and_an_empty_scan() -> None:
     assert "| bandit | B\\|602 | src/app.py:1-3 | HIGH | falha | — |" in portuguese
     assert "dispensado" in portuguese
     payload = to_json(report)
+    keys = list(payload)
+    assert keys[keys.index("security") + 1] == "churn"
+    assert keys[keys.index("churn") + 1] == "reproduce"
     assert payload["security"] == {
         "findings": [
             {

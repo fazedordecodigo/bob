@@ -68,18 +68,18 @@ def to_json(report: Report) -> dict[str, object]:
         "waivers": report.waivers,
         "survivors": report.survivors,
         "mutation": report.mutation,
-        "churn": _churn_json(report.churn),
     }
-    if report.security is not None:
-        payload["security"] = _security_json(report.security)
-    if report.secrets is not None:
-        payload["secrets"] = [secret_row(row) for row in report.secrets.blocking]
     if report.typing is not None:
         payload["typing"] = report.typing
-    payload["reproduce"] = report.reproduce
-    payload["exit_code"] = report.exit_code
+    if report.secrets is not None:
+        payload["secrets"] = [secret_row(row) for row in report.secrets.blocking]
     if report.dead_code is not None:
         payload["dead_code"] = {"symbols": [dead_row(row) for row in report.dead_code.rows]}
+    if report.security is not None:
+        payload["security"] = _security_json(report.security)
+    payload["churn"] = _churn_json(report.churn)
+    payload["reproduce"] = report.reproduce
+    payload["exit_code"] = report.exit_code
     return payload
 
 

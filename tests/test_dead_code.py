@@ -380,6 +380,8 @@ def test_the_dead_section_sits_between_untested_mutants_and_reproduce() -> None:
         "## Como reproduzir"
     ) in portuguese
     payload = to_json(report)
+    keys = list(payload)
+    assert keys[keys.index("dead_code") + 1] == "churn"
     Draft202012Validator(SCHEMA).validate(payload)
     assert payload["exit_code"] == 0
     assert payload["gates"] == [
