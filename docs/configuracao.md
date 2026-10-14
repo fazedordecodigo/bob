@@ -32,6 +32,8 @@ dependencies:
 supply:
   osv_fail_severities: [HIGH, CRITICAL]
   timeout_seconds: 30
+security:
+  fail_severities: [HIGH, CRITICAL, ERROR]
 ```
 
 `language: en` no bloco acima é o resultado da resolução, não uma chave que o arquivo vazio precise ter. Sem chave, `resolve_language` devolve `en`.
@@ -58,6 +60,7 @@ O `bob.yaml` deste repositório é mais curto: `base`, `languages: [python]`, `p
 | `dependencies.typescript` | string | `.dependency-cruiser.cjs` | Config do dependency-cruiser |
 | `supply.osv_fail_severities` | lista de `HIGH` e `CRITICAL` | `[HIGH, CRITICAL]` | Severidades de advisory que bloqueiam. `MODERATE` e `LOW` não entram na lista |
 | `supply.timeout_seconds` | inteiro maior que 0 | `30` | Prazo de cada chamada HTTP e de cada processo do gate supply |
+| `security.fail_severities` | lista de strings | `[HIGH, CRITICAL, ERROR]` | Severidades que falham o gate `security` |
 | `typing` | mapeamento vazio | ausente | Aceito e ignorado. Não liga o gate de tipos |
 | `secrets` | mapeamento vazio | ausente | Não liga o gate e não tem filhos |
 | `dead_code.min_confidence` | inteiro de 0 a 100, ou ausente | ausente | Confiança mínima do vulture. Ausente ou nulo não passa `--min-confidence`. `0` passa a flag. O knip ignora a chave |
@@ -90,9 +93,17 @@ Uma lista vazia ou um item repetido sai com 4.
 
 O gate DRY mapeia `typescript` para os formatos `typescript` e `javascript` do jscpd (`dry_gate.py`).
 
+### security.fail_severities
+
+A lista diz quais severidades do Bandit e do Semgrep falham o gate. O padrão é `HIGH`, `CRITICAL` e `ERROR`. Ausente ou nula, a lista continua essa. `[]` não volta ao padrão.
+
+Cada item tem de estar no vocabulário que as linhas de scanner emitem: `CRITICAL`, `ERROR`, `HIGH`, `INFO`, `LOW`, `MEDIUM`, `UNDEFINED`, `WARNING`. Palavra fora dessa lista, item repetido, lista vazia ou valor que não é lista de strings sai com `4`. O stderr fica em inglês, cita o arquivo e a chave, e nada é gravado. `ERROR` não é apelido de `HIGH`. Uma lista que tira `ERROR` deixa um achado `ERROR` em aviso.
+
+O `_SCHEMA` aceita `security.fail_severities` e recusa outra chave dentro de `security`.
+
 ### Chaves que o loader recusa
 
-O `_SCHEMA` em `src/bob_quality/config.py` aceita `base`, `language`, `languages`, `paths.include`, `paths.exclude`, `crap.max_per_function`, `crap.scope`, `duplication.min_tokens`, `duplication.new_clones`, `duplication.max_new_clones`, `duplication.min_similarity`, `duplication.min_lines`, `dependencies.python`, `dependencies.typescript`, `typing`, `secrets`, `supply.osv_fail_severities`, `supply.timeout_seconds` e `dead_code.min_confidence`. `_reject_unknown` recusa qualquer outra chave: exit `4`, mensagem em inglês no stderr, nenhum arquivo gravado.
+O `_SCHEMA` em `src/bob_quality/config.py` aceita `base`, `language`, `languages`, `paths.include`, `paths.exclude`, `crap.max_per_function`, `crap.scope`, `duplication.min_tokens`, `duplication.new_clones`, `duplication.max_new_clones`, `duplication.min_similarity`, `duplication.min_lines`, `dependencies.python`, `dependencies.typescript`, `typing`, `secrets`, `supply.osv_fail_severities`, `supply.timeout_seconds`, `security.fail_severities` e `dead_code.min_confidence`. `_reject_unknown` recusa qualquer outra chave: exit `4`, mensagem em inglês no stderr, nenhum arquivo gravado.
 
 `supply.osv_fail_severities: [MODERATE]` sai com `bob.yaml: supply.osv_fail_severities[0] must be HIGH or CRITICAL`. Lista vazia, item repetido ou texto solto também saem com `4`. `supply.timeout_seconds: 0` sai com `bob.yaml: supply.timeout_seconds must be greater than 0`. Bool e float saem com `must be an integer`. Nada é gravado.
 

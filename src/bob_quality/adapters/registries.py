@@ -11,7 +11,7 @@ from dataclasses import dataclass
 from typing import Union
 
 from bob_quality.adapters.manifests import AddedPackage, pep503
-from bob_quality.models import AdvisoryGap, Severity, UndecidedCause
+from bob_quality.models import AdvisoryGap, AdvisorySeverity, UndecidedCause
 
 _OSV = "https://api.osv.dev/v1/querybatch"
 _VULN = "https://api.osv.dev/v1/vulns/"
@@ -65,7 +65,7 @@ Existence = PackageExists | PackageMissing | PackageUndecided
 @dataclass(frozen=True)
 class DecidedAdvisory:
     advisory_id: str
-    severity: Severity
+    severity: AdvisorySeverity
 
 
 @dataclass(frozen=True)
@@ -298,7 +298,7 @@ def _ids(vuln: dict[str, object]) -> list[str]:
     return names
 
 
-def _severity(vuln: dict[str, object]) -> Severity | None:
+def _severity(vuln: dict[str, object]) -> AdvisorySeverity | None:
     label = _database_severity(vuln.get("database_specific"))
     if label is not None:
         return label
@@ -308,7 +308,7 @@ def _severity(vuln: dict[str, object]) -> Severity | None:
     return _band(score)
 
 
-def _database_severity(value: object) -> Severity | None:
+def _database_severity(value: object) -> AdvisorySeverity | None:
     if not isinstance(value, dict):
         return None
     label = value.get("severity")
@@ -353,7 +353,7 @@ def _numeric(score: str) -> float | None:
         return None
 
 
-def _band(score: float | None) -> Severity | None:
+def _band(score: float | None) -> AdvisorySeverity | None:
     if score is None:
         return None
     if score >= 9.0:

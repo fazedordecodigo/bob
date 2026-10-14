@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Literal
+from typing import Literal, NewType
 
 from bob_quality.messages import Text
 
@@ -237,6 +237,7 @@ class Report:
     survivors: list[dict[str, object]] = field(default_factory=list)
     mutation: dict[str, object] | None = None
     supply: SupplyReport | None = None
+    security: SecurityReport | None = None
     typing: dict[str, object] | None = None
     secrets: SecretLedger | None = None
     dead_code: DeadSection | None = None
@@ -245,7 +246,7 @@ class Report:
 SupplyLanguage = Literal["python", "typescript"]
 SupplyIndex = Literal["pypi", "npm"]
 FailSeverity = Literal["HIGH", "CRITICAL"]
-Severity = Literal["CRITICAL", "HIGH", "MODERATE", "LOW"]
+AdvisorySeverity = Literal["CRITICAL", "HIGH", "MODERATE", "LOW"]
 UndecidedCause = Literal["timeout", "dns", "undecided"]
 AdvisoryGap = Literal["timeout", "dns", "undecided", "no_severity"]
 
@@ -272,7 +273,7 @@ class Advisory:
     advisory_id: str
     index: SupplyIndex
     name: str
-    severity: Severity
+    severity: AdvisorySeverity
     file: str
     line: int
     kind: Literal["advisory"] = "advisory"
@@ -335,3 +336,67 @@ class SupplyReport:
     measured: tuple[SupplyLanguage, ...]
     skipped: tuple[SupplyLanguage, ...]
     rows: tuple[SupplyRow, ...]
+
+
+Severity = NewType("Severity", str)
+
+
+@dataclass(frozen=True)
+class Finding:
+    tool: str
+    rule: str
+    file: str
+    line: int
+    end_line: int
+    severity: Severity
+
+
+@dataclass(frozen=True)
+class Fail:
+    finding: Finding
+    kind: Literal["fail"] = "fail"
+
+
+@dataclass(frozen=True)
+class Warn:
+    finding: Finding
+    kind: Literal["warn"] = "warn"
+
+
+@dataclass(frozen=True)
+class Waived:
+    finding: Finding
+    reason: str
+    kind: Literal["waived"] = "waived"
+
+    def __post_init__(self) -> None:
+        if self.reason == "":
+            raise ValueError("reason")
+
+
+@dataclass(frozen=True)
+class OffDiff:
+    finding: Finding
+    kind: Literal["off_diff"] = "off_diff"
+
+
+Judged = Fail | Warn | Waived | OffDiff
+
+
+@dataclass(frozen=True)
+class Measured:
+    tool: str
+    version: str
+    findings: tuple[Finding, ...]
+
+
+@dataclass(frozen=True)
+class Unmeasured:
+    tool: str
+    reason: Text
+
+
+@dataclass(frozen=True)
+class SecurityReport:
+    findings: tuple[Judged, ...]
+    unmeasured: tuple[str, ...]

@@ -66,6 +66,7 @@ def test_measure_passes_the_base_into_supply(tmp_path: Path) -> None:
         state = _measure(
             tmp_path,
             Config(),
+            "origin/main",
             {"pyproject.toml": {4}},
             10.0,
             None,
@@ -74,7 +75,6 @@ def test_measure_passes_the_base_into_supply(tmp_path: Path) -> None:
             None,
             False,
             None,
-            "origin/main",
         )
     finally:
         check_mod.run_supply_gate = original

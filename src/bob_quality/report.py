@@ -13,12 +13,14 @@ from bob_quality.models import (
     FunctionMetric,
     GateResult,
     GateStatus,
+    Judged,
     LedgerRow,
     MissingPackage,
     PythonDead,
     Report,
     RowWaived,
     SecretRow,
+    SecurityReport,
     SupplyFinding,
     SupplyReport,
     SupplyRow,
@@ -26,6 +28,7 @@ from bob_quality.models import (
     UndeclaredImport,
     UnverifiedAdvisory,
     UnverifiedExistence,
+    Waived,
 )
 
 JSON_LANGUAGE: Language = "en"
@@ -75,6 +78,8 @@ def to_json(report: Report) -> dict[str, object]:
         "mutation": report.mutation,
         **_supply_field(report),
     }
+    if report.security is not None:
+        payload["security"] = _security_json(report.security)
     if report.secrets is not None:
         payload["secrets"] = [secret_row(row) for row in report.secrets.blocking]
     if report.typing is not None:
@@ -122,6 +127,7 @@ def to_markdown(report: Report, lang: Language) -> str:
     lines.extend(_types_lines(report))
     lines.extend(_secrets_lines(report))
     lines.extend(_dead_lines(report))
+    lines.extend(_security_lines(report))
     lines.extend(_footer(report, lang))
     return "\n".join(render(line, lang) for line in lines)
 
@@ -253,6 +259,75 @@ def _waiver_section(waivers: list[dict[str, object]]) -> list[Text]:
         )
     lines.append("")
     return lines
+
+
+_SECURITY_EFFECT = {
+    "fail": "security.effect.fail",
+    "warn": "security.effect.warn",
+    "waived": "security.effect.waived",
+    "off_diff": "security.effect.off_diff",
+}
+
+
+def _security_json(security: SecurityReport) -> dict[str, object]:
+    return {
+        "findings": [_security_finding(item) for item in security.findings],
+        "unmeasured": list(security.unmeasured),
+    }
+
+
+def _security_finding(item: Judged) -> dict[str, object]:
+    finding = item.finding
+    waiver = item.reason if isinstance(item, Waived) else None
+    return {
+        "tool": finding.tool,
+        "rule": finding.rule,
+        "file": finding.file,
+        "line": finding.line,
+        "end_line": finding.end_line,
+        "severity": finding.severity,
+        "disposition": item.kind,
+        "waiver": waiver,
+    }
+
+
+def _security_lines(report: Report) -> list[Text]:
+    security = report.security
+    if security is None:
+        return []
+    lines: list[Text] = ["", msg("report.security"), ""]
+    if security.findings:
+        lines.append(msg("report.security_header"))
+        lines.append("|---|---|---|---|---|---|")
+        lines.extend(_security_row(item) for item in security.findings)
+        return lines
+    if security.unmeasured:
+        gate = _gate_named(report, "security")
+        if gate is not None and gate.reason is not None:
+            lines.append(gate.reason)
+            return lines
+    lines.append(msg("report.security_none"))
+    return lines
+
+
+def _security_row(item: Judged) -> Message:
+    finding = item.finding
+    if finding.line == finding.end_line:
+        location = f"{finding.file}:{finding.line}"
+    else:
+        location = f"{finding.file}:{finding.line}-{finding.end_line}"
+    waiver = "—"
+    if isinstance(item, Waived):
+        waiver = item.reason.replace("|", "\\|")
+    return msg(
+        "report.security_row",
+        tool=_cell(finding.tool),
+        rule=_cell(finding.rule),
+        location=_cell(location),
+        severity=finding.severity,
+        disposition=msg(_SECURITY_EFFECT[item.kind]),
+        waiver=waiver,
+    )
 
 
 def _types_lines(report: Report) -> list[Text]:
@@ -559,7 +634,7 @@ _ADVISORY_CAUSE = {
     "dns": "report.supply_cause_dns",
     "undecided": "report.supply_cause_undecided",
 }
-_EFFECT = {
+_SUPPLY_EFFECT = {
     "block": "report.supply_effect_block",
     "warn": "report.supply_effect_warn",
     "waived": "report.supply_effect_waived",
@@ -596,7 +671,7 @@ def _supply_row(row: SupplyRow) -> Message:
         name=_cell(_row_name(row)),
         where=_cell(_row_where(row)),
         what=_row_what(row),
-        effect=msg(_EFFECT[row.effect]),
+        effect=msg(_SUPPLY_EFFECT[row.effect]),
     )
 
 

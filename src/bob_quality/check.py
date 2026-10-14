@@ -24,12 +24,14 @@ from bob_quality.models import (
     GateResult,
     Report,
     SecretLedger,
+    SecurityReport,
     SupplyReport,
 )
 from bob_quality.mutate import MutationOutcome, focus_with_survivors
 from bob_quality.mutate_gate import run_mutate_gate
 from bob_quality.report import metric_row, violation_rows, write_report
 from bob_quality.secrets_gate import run_secrets_gate
+from bob_quality.security_gate import run_security_gate
 from bob_quality.supply import run_supply_gate
 from bob_quality.waivers import WaiverError, load_waivers
 
@@ -61,6 +63,7 @@ def run_check(
     measured = _measure(
         cwd,
         config,
+        chosen_base,
         diff_lines,
         max_crap,
         coverage_file,
@@ -69,7 +72,6 @@ def run_check(
         max_workers,
         dry_fail,
         max_new_clones,
-        chosen_base,
     )
     if measured.mutation is None:
         loaded = _load_idle_waivers(cwd, chosen_base, command, chosen_gates)
@@ -124,6 +126,7 @@ class _Measured:
     loaded_waivers: list[dict[str, object]] = field(default_factory=list)
     baseline: int | None = None
     supply: SupplyReport | None = None
+    security: SecurityReport | None = None
     typing: dict[str, object] | None = None
     dead_code: DeadSection | None = None
 
@@ -131,6 +134,7 @@ class _Measured:
 def _measure(
     cwd: Path,
     config: Config,
+    base: str,
     diff_lines: dict[str, set[int]],
     max_crap: float,
     coverage_file: Path | None,
@@ -139,7 +143,6 @@ def _measure(
     max_workers: int | None,
     dry_fail: bool,
     max_new_clones: int | None,
-    base: str,
 ) -> _Measured:
     state = _Measured()
     for gate in gates:
@@ -148,6 +151,7 @@ def _measure(
             gate,
             cwd,
             config,
+            base,
             diff_lines,
             max_crap,
             coverage_file,
@@ -155,7 +159,6 @@ def _measure(
             max_workers,
             dry_fail,
             max_new_clones,
-            base,
         )
     return state
 
@@ -165,6 +168,7 @@ def _absorb(
     gate: str,
     cwd: Path,
     config: Config,
+    base: str,
     diff_lines: dict[str, set[int]],
     max_crap: float,
     coverage_file: Path | None,
@@ -172,7 +176,6 @@ def _absorb(
     max_workers: int | None,
     dry_fail: bool,
     max_new_clones: int | None,
-    base: str,
 ) -> None:
     if gate == "crap":
         result, metrics, code, versions, baseline = run_crap_gate(
@@ -212,9 +215,25 @@ def _absorb(
         state.mutation = mutation
         _record(state, mutation.result, mutation.exit_code, mutation.versions)
         return
+    _absorb_rest(state, gate, cwd, config, base, diff_lines)
+
+
+def _absorb_rest(
+    state: _Measured,
+    gate: str,
+    cwd: Path,
+    config: Config,
+    base: str,
+    diff_lines: dict[str, set[int]],
+) -> None:
     if gate == "supply":
         result, code, versions, supply = run_supply_gate(cwd, config, diff_lines, base)
         state.supply = supply
+        _record(state, result, code, versions)
+        return
+    if gate == "security":
+        result, code, versions, security = run_security_gate(cwd, config, base, diff_lines)
+        state.security = security
         _record(state, result, code, versions)
         return
     if gate == "typing":
@@ -302,6 +321,7 @@ def _assemble(
         survivors=survivors,
         mutation=summary,
         supply=measured.supply,
+        security=measured.security,
         typing=measured.typing,
         secrets=measured.secrets,
         dead_code=measured.dead_code,

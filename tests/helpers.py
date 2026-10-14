@@ -107,6 +107,8 @@ def _init_repo(source: Path, dest: Path) -> Path:
     _git(dest, "init", "-b", "main")
     _git(dest, "config", "user.email", "bob-test@example.com")
     _git(dest, "config", "user.name", "bob-test")
+    # The image signs every commit. The signer fails under load and the baseline exits 2.
+    _git(dest, "config", "commit.gpgsign", "false")
     _git(dest, "add", ".")
     _git(dest, "commit", "-m", "fixture base")
     return dest
