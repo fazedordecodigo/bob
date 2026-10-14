@@ -16,10 +16,12 @@ from bob_quality.cognitive_gate import (
     _function_fields,
     _items,
     _measure_python,
+    _measure_typescript,
     _parse_payload,
     _python_files,
     _python_functions,
     _relative,
+    _run_eslint,
     _whole,
     run_cognitive_gate,
 )
@@ -35,6 +37,7 @@ from bob_quality.models import (
     GateResult,
 )
 from bob_quality.mutate import MutationOutcome
+from bob_quality.tools import ToolError
 
 
 def _function(
@@ -614,3 +617,204 @@ def test_assemble_keeps_a_cloned_file_in_the_diff_and_the_mutation_summary() -> 
     assert idle.survivors == []
     assert idle.mutation is None
     assert idle.waivers == loaded
+
+
+def test_measure_typescript_misses_when_node_is_absent(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def prefix() -> Path:
+        raise AssertionError("npm prefix is not used when node is missing")
+
+    monkeypatch.setattr("bob_quality.cognitive_gate.node_missing_message", lambda: msg("x"))
+    monkeypatch.setattr("bob_quality.cognitive_gate.npm_prefix", prefix)
+
+    outcome = _measure_typescript(tmp_path, Config())
+
+    assert isinstance(outcome, _LanguageMiss)
+    assert outcome.reason == msg("cognitive.tool_missing", tool="node")
+
+
+def test_measure_typescript_misses_when_the_npm_prefix_fails(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def prefix() -> Path:
+        raise ToolError("missing")
+
+    monkeypatch.setattr("bob_quality.cognitive_gate.node_missing_message", lambda: None)
+    monkeypatch.setattr("bob_quality.cognitive_gate.npm_prefix", prefix)
+
+    outcome = _measure_typescript(tmp_path, Config())
+
+    assert isinstance(outcome, _LanguageMiss)
+    assert outcome.reason == msg("cognitive.tool_missing", tool="eslint")
+
+
+def test_measure_typescript_returns_the_functions_and_the_versions(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    prefix = tmp_path / "prefix"
+    row = {
+        "file": "src/foo.ts",
+        "name": "Foo::save",
+        "start_line": 2,
+        "end_line": 4,
+        "score": 15,
+    }
+
+    def version(got: Path, package: str) -> str:
+        assert got == prefix
+        return {"eslint": "9.39.5", "eslint-plugin-sonarjs": "2.0.4"}[package]
+
+    def eslint(cwd: Path, config: Config, got: Path) -> str:
+        assert cwd == tmp_path
+        assert got == prefix
+        assert config.max_cognitive == 15
+        return json.dumps([row])
+
+    monkeypatch.setattr("bob_quality.cognitive_gate.node_missing_message", lambda: None)
+    monkeypatch.setattr("bob_quality.cognitive_gate.npm_prefix", lambda: prefix)
+    monkeypatch.setattr("bob_quality.cognitive_gate.installed_npm_version", version)
+    monkeypatch.setattr("bob_quality.cognitive_gate._run_eslint", eslint)
+
+    outcome = _measure_typescript(tmp_path, Config(max_cognitive=15))
+
+    assert isinstance(outcome, _LanguageFunctions)
+    assert outcome.versions == {"eslint": "9.39.5", "eslint-plugin-sonarjs": "2.0.4"}
+    assert outcome.functions == [
+        CognitiveFunction(
+            file="src/foo.ts",
+            name="Foo::save",
+            start_line=2,
+            end_line=4,
+            score=15,
+            language="typescript",
+        )
+    ]
+
+
+def test_measure_typescript_wraps_a_bad_eslint(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def broken(cwd: Path, config: Config, prefix: Path) -> str:
+        raise OSError("disk {full}\nsecond")
+
+    monkeypatch.setattr("bob_quality.cognitive_gate.node_missing_message", lambda: None)
+    monkeypatch.setattr("bob_quality.cognitive_gate.npm_prefix", lambda: tmp_path)
+    monkeypatch.setattr(
+        "bob_quality.cognitive_gate.installed_npm_version",
+        lambda prefix, package: "1",
+    )
+    monkeypatch.setattr("bob_quality.cognitive_gate._run_eslint", broken)
+
+    outcome = _measure_typescript(tmp_path, Config())
+
+    assert isinstance(outcome, _LanguageMiss)
+    assert outcome.reason == msg("cognitive.tool_bad", tool="eslint", detail="disk (full)")
+
+
+def test_measure_typescript_wraps_a_value_error(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def broken(cwd: Path, config: Config, prefix: Path) -> str:
+        raise ValueError("eslint failed")
+
+    monkeypatch.setattr("bob_quality.cognitive_gate.node_missing_message", lambda: None)
+    monkeypatch.setattr("bob_quality.cognitive_gate.npm_prefix", lambda: tmp_path)
+    monkeypatch.setattr(
+        "bob_quality.cognitive_gate.installed_npm_version",
+        lambda prefix, package: "1",
+    )
+    monkeypatch.setattr("bob_quality.cognitive_gate._run_eslint", broken)
+
+    outcome = _measure_typescript(tmp_path, Config())
+
+    assert isinstance(outcome, _LanguageMiss)
+    assert outcome.reason == msg("cognitive.tool_bad", tool="eslint", detail="eslint failed")
+
+
+def test_run_eslint_sends_the_payload_and_returns_stdout(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    prefix = tmp_path / "prefix"
+    seen: dict[str, object] = {}
+
+    def fake_run(args: list[str], **kwargs: object) -> SimpleNamespace:
+        seen["args"] = args
+        seen["kwargs"] = kwargs
+        return SimpleNamespace(returncode=0, stdout="[]\n", stderr="noise")
+
+    monkeypatch.setenv("PYTEST_SENTINEL", "1")
+    monkeypatch.setenv("BOB_KEEP", "yes")
+    monkeypatch.setattr("bob_quality.cognitive_gate.subprocess.run", fake_run)
+    config = Config(include=("src",), exclude=("dist",), max_cognitive=15)
+
+    raw = _run_eslint(tmp_path, config, prefix)
+
+    script = (
+        Path(__file__).resolve().parents[1]
+        / "src"
+        / "bob_quality"
+        / "js"
+        / "eslint_cognitive.mjs"
+    )
+    kwargs = seen["kwargs"]
+    assert isinstance(kwargs, dict)
+    env = kwargs["env"]
+    assert isinstance(env, dict)
+    assert raw == "[]\n"
+    assert seen["args"] == ["node", str(script)]
+    assert kwargs["cwd"] == tmp_path
+    assert kwargs["capture_output"] is True
+    assert kwargs["text"] is True
+    assert json.loads(str(kwargs["input"])) == {
+        "limit": 15,
+        "cwd": str(tmp_path.resolve()),
+        "include": ["src"],
+        "exclude": ["dist"],
+    }
+    assert "PYTEST_SENTINEL" not in env
+    assert "PYTEST_CURRENT_TEST" not in env
+    assert env["BOB_KEEP"] == "yes"
+    assert env["NODE_PATH"] == str(prefix / "node_modules")
+
+
+def test_run_eslint_prefers_stderr_and_strips_it(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def fake_run(args: list[str], **kwargs: object) -> SimpleNamespace:
+        return SimpleNamespace(returncode=2, stdout="out\n", stderr="  boom  \n")
+
+    monkeypatch.setattr("bob_quality.cognitive_gate.subprocess.run", fake_run)
+
+    with pytest.raises(ValueError) as caught:
+        _run_eslint(tmp_path, Config(), tmp_path)
+
+    assert str(caught.value) == "boom"
+
+
+def test_run_eslint_uses_stdout_when_stderr_is_empty(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def fake_run(args: list[str], **kwargs: object) -> SimpleNamespace:
+        return SimpleNamespace(returncode=-1, stdout="  from stdout  ", stderr="")
+
+    monkeypatch.setattr("bob_quality.cognitive_gate.subprocess.run", fake_run)
+
+    with pytest.raises(ValueError) as caught:
+        _run_eslint(tmp_path, Config(), tmp_path)
+
+    assert str(caught.value) == "from stdout"
+
+
+def test_run_eslint_names_a_blank_failure(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def fake_run(args: list[str], **kwargs: object) -> SimpleNamespace:
+        return SimpleNamespace(returncode=1, stdout="   ", stderr="")
+
+    monkeypatch.setattr("bob_quality.cognitive_gate.subprocess.run", fake_run)
+
+    with pytest.raises(ValueError) as caught:
+        _run_eslint(tmp_path, Config(), tmp_path)
+
+    assert str(caught.value) == "eslint failed"
