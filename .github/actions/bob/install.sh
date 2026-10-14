@@ -15,3 +15,4 @@ if [[ "$spec" == ".[dev]" ]]; then
 else
   "$py" -m pip install --disable-pip-version-check "$spec"
 fi
+"$py" -m pip install --disable-pip-version-check 'uv==0.13.0'
