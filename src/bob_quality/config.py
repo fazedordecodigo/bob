@@ -9,6 +9,7 @@ from typing import Any, Callable, Literal, TypeGuard
 import yaml
 
 from bob_quality.messages import DEFAULT_LANGUAGE, LANGUAGES, Language, msg
+from bob_quality.security_scanners import severity_vocabulary
 from bob_quality.yaml_text import parse_yaml
 
 DEFAULT_EXCLUDE = ["tests", "node_modules", "dist"]
@@ -40,6 +41,7 @@ _CheckKind = Literal[
     "one_of",
     "members",
     "language",
+    "vocabulary",
 ]
 _BoundKind = Literal["gt", "at_least", "at_most"]
 _Failure = tuple[str, str, dict[str, object]]
@@ -197,6 +199,21 @@ _SCHEMA = _Node(
         _Node("typing", "", (), mapping=True),
         _Node("secrets", "", (), mapping=True),
         _Node(
+            "security",
+            "",
+            (),
+            children=(
+                _Node(
+                    "fail_severities",
+                    "fail_severities",
+                    (
+                        _Check("string_list"),
+                        _Check("vocabulary", choices=severity_vocabulary()),
+                    ),
+                ),
+            ),
+        ),
+        _Node(
             "dead_code",
             "",
             (),
@@ -226,9 +243,10 @@ class Config:
     coverage_min_percent: float = 80.0
     dead_code_min_confidence: int | None = None
     language: Language | None = None
+    fail_severities: tuple[str, ...] = ("HIGH", "CRITICAL", "ERROR")
 
     def __post_init__(self) -> None:
-        for name in ("languages", "include", "exclude"):
+        for name in ("languages", "include", "exclude", "fail_severities"):
             value = getattr(self, name)
             if isinstance(value, list):
                 object.__setattr__(self, name, tuple(value))
@@ -564,6 +582,26 @@ def _member_at(check: _Check, value: list[str] | tuple[str, ...]) -> _Failure | 
     return None
 
 
+def _vocabulary(check: _Check, value: object) -> _Failure | None:
+    if not _string_items(value):
+        return ("config.key_string_list", "", {})
+    return _vocabulary_at(check, value)
+
+
+def _vocabulary_at(check: _Check, value: list[str] | tuple[str, ...]) -> _Failure | None:
+    if len(value) == 0:
+        return ("config.key_non_empty", "", {})
+    allowed = ", ".join(sorted(check.choices))
+    seen: set[str] = set()
+    for index, item in enumerate(value):
+        if item not in check.choices:
+            return ("config.key_vocabulary", f"[{index}]", {"allowed": allowed})
+        if item in seen:
+            return ("config.repeated_member", f"[{index}]", {"value": item})
+        seen.add(item)
+    return None
+
+
 def _language(check: _Check, value: object) -> _Failure | None:
     if value is None:
         return None
@@ -597,6 +635,7 @@ _UNBOUND: dict[_CheckKind, _FailFn] = {
     "one_of": _one_of,
     "members": _members,
     "language": _language,
+    "vocabulary": _vocabulary,
 }
 
 

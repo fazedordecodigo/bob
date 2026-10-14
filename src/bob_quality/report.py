@@ -13,11 +13,14 @@ from bob_quality.models import (
     FunctionMetric,
     GateResult,
     GateStatus,
+    Judged,
     LedgerRow,
     PythonDead,
     Report,
     SecretRow,
+    SecurityReport,
     TypeScriptDead,
+    Waived,
     flatten_uncovered,
 )
 
@@ -67,8 +70,7 @@ def to_json(report: Report) -> dict[str, object]:
         "survivors": report.survivors,
         "mutation": report.mutation,
     }
-    if report.diff_coverage is not None:
-        payload["diff_coverage"] = _diff_coverage_json(report.diff_coverage)
+    _put_diff_reports(payload, report)
     if report.typing is not None:
         payload["typing"] = report.typing
     if report.secrets is not None:
@@ -78,6 +80,13 @@ def to_json(report: Report) -> dict[str, object]:
     if report.dead_code is not None:
         payload["dead_code"] = {"symbols": [dead_row(row) for row in report.dead_code.rows]}
     return payload
+
+
+def _put_diff_reports(payload: dict[str, object], report: Report) -> None:
+    if report.diff_coverage is not None:
+        payload["diff_coverage"] = _diff_coverage_json(report.diff_coverage)
+    if report.security is not None:
+        payload["security"] = _security_json(report.security)
 
 
 def _diff_coverage_json(coverage: DiffCoverage) -> dict[str, object]:
@@ -126,6 +135,7 @@ def to_markdown(report: Report, lang: Language) -> str:
     lines.extend(_types_lines(report))
     lines.extend(_secrets_lines(report))
     lines.extend(_dead_lines(report))
+    lines.extend(_security_lines(report))
     lines.extend(_footer(report, lang))
     return "\n".join(render(line, lang) for line in lines)
 
@@ -275,6 +285,75 @@ def _waiver_section(waivers: list[dict[str, object]]) -> list[Text]:
         )
     lines.append("")
     return lines
+
+
+_EFFECT = {
+    "fail": "security.effect.fail",
+    "warn": "security.effect.warn",
+    "waived": "security.effect.waived",
+    "off_diff": "security.effect.off_diff",
+}
+
+
+def _security_json(security: SecurityReport) -> dict[str, object]:
+    return {
+        "findings": [_security_finding(item) for item in security.findings],
+        "unmeasured": list(security.unmeasured),
+    }
+
+
+def _security_finding(item: Judged) -> dict[str, object]:
+    finding = item.finding
+    waiver = item.reason if isinstance(item, Waived) else None
+    return {
+        "tool": finding.tool,
+        "rule": finding.rule,
+        "file": finding.file,
+        "line": finding.line,
+        "end_line": finding.end_line,
+        "severity": finding.severity,
+        "disposition": item.kind,
+        "waiver": waiver,
+    }
+
+
+def _security_lines(report: Report) -> list[Text]:
+    security = report.security
+    if security is None:
+        return []
+    lines: list[Text] = ["", msg("report.security"), ""]
+    if security.findings:
+        lines.append(msg("report.security_header"))
+        lines.append("|---|---|---|---|---|---|")
+        lines.extend(_security_row(item) for item in security.findings)
+        return lines
+    if security.unmeasured:
+        gate = _gate_named(report, "security")
+        if gate is not None and gate.reason is not None:
+            lines.append(gate.reason)
+            return lines
+    lines.append(msg("report.security_none"))
+    return lines
+
+
+def _security_row(item: Judged) -> Message:
+    finding = item.finding
+    if finding.line == finding.end_line:
+        location = f"{finding.file}:{finding.line}"
+    else:
+        location = f"{finding.file}:{finding.line}-{finding.end_line}"
+    waiver = "—"
+    if isinstance(item, Waived):
+        waiver = item.reason.replace("|", "\\|")
+    return msg(
+        "report.security_row",
+        tool=_cell(finding.tool),
+        rule=_cell(finding.rule),
+        location=_cell(location),
+        severity=finding.severity,
+        disposition=msg(_EFFECT[item.kind]),
+        waiver=waiver,
+    )
 
 
 def _types_lines(report: Report) -> list[Text]:

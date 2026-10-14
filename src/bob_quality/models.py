@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Literal
+from typing import Literal, NewType
 
 from bob_quality.messages import Text
 
@@ -255,6 +255,71 @@ class Report:
     survivors: list[dict[str, object]] = field(default_factory=list)
     mutation: dict[str, object] | None = None
     diff_coverage: DiffCoverage | None = None
+    security: SecurityReport | None = None
     typing: dict[str, object] | None = None
     secrets: SecretLedger | None = None
     dead_code: DeadSection | None = None
+
+
+Severity = NewType("Severity", str)
+
+
+@dataclass(frozen=True)
+class Finding:
+    tool: str
+    rule: str
+    file: str
+    line: int
+    end_line: int
+    severity: Severity
+
+
+@dataclass(frozen=True)
+class Fail:
+    finding: Finding
+    kind: Literal["fail"] = "fail"
+
+
+@dataclass(frozen=True)
+class Warn:
+    finding: Finding
+    kind: Literal["warn"] = "warn"
+
+
+@dataclass(frozen=True)
+class Waived:
+    finding: Finding
+    reason: str
+    kind: Literal["waived"] = "waived"
+
+    def __post_init__(self) -> None:
+        if self.reason == "":
+            raise ValueError("reason")
+
+
+@dataclass(frozen=True)
+class OffDiff:
+    finding: Finding
+    kind: Literal["off_diff"] = "off_diff"
+
+
+Judged = Fail | Warn | Waived | OffDiff
+
+
+@dataclass(frozen=True)
+class Measured:
+    tool: str
+    version: str
+    findings: tuple[Finding, ...]
+
+
+@dataclass(frozen=True)
+class Unmeasured:
+    tool: str
+    reason: Text
+
+
+@dataclass(frozen=True)
+class SecurityReport:
+    findings: tuple[Judged, ...]
+    unmeasured: tuple[str, ...]

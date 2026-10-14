@@ -72,6 +72,8 @@ PINS: tuple[Pin, ...] = (
     RequiresDist("import-linter", "import-linter"),
     RequiresDist("grimp", "grimp"),
     RequiresDist("diff-cover", "diff-cover"),
+    RequiresDist("bandit", "bandit"),
+    RequiresDist("semgrep", "semgrep"),
     NpmPin(
         "dependency-cruiser",
         "18.5.0",

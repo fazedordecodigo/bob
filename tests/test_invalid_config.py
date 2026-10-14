@@ -365,6 +365,22 @@ _SEMANTIC_YAML = (
     ("duplication: false\n", "bob.yaml: duplication must be a mapping\n"),
     ('duplication: ""\n', "bob.yaml: duplication must be a mapping\n"),
     ("duplication: [1]\n", "bob.yaml: duplication must be a mapping\n"),
+    ("security: []\n", "bob.yaml: security must be a mapping\n"),
+    (
+        "security:\n  fail_severities: HIGH\n",
+        "bob.yaml: security.fail_severities must be a list of strings\n",
+    ),
+    ("security:\n  fail_severities: []\n", "bob.yaml: security.fail_severities must not be empty\n"),
+    (
+        "security:\n  fail_severities: [HIGH, HIGH]\n",
+        "bob.yaml: security.fail_severities[1] repeats HIGH\n",
+    ),
+    (
+        "security:\n  fail_severities: [NOPE]\n",
+        "bob.yaml: security.fail_severities[0] must be one of "
+        "CRITICAL, ERROR, HIGH, INFO, LOW, MEDIUM, UNDEFINED, WARNING\n",
+    ),
+    ("security:\n  nope: [HIGH]\n", "bob.yaml: unknown key security.nope\n"),
     (
         "coverage:\n  min_percent: true\n",
         "bob.yaml: coverage.min_percent must be a number\n",

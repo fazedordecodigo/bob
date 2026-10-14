@@ -108,7 +108,7 @@ def _with_stryker(
 ) -> tuple[MutationOutcome | None, Text | None]:
     try:
         return _run(cwd, out_dir, spans, diff_lines, versions, waiver_rows, waivers), None
-    except (OSError, json.JSONDecodeError, StrykerParseError) as exc:
+    except (OSError, json.JSONDecodeError, UnicodeDecodeError, StrykerParseError) as exc:
         return _not_run(reason(exc), versions, waiver_rows), None
 
 
@@ -315,7 +315,7 @@ def _from_report(
     waiver_rows: list[dict[str, object]],
     waivers: list[Waiver],
 ) -> MutationOutcome:
-    payload = json.loads(report_path.read_text())
+    payload = json.loads(report_path.read_bytes().decode())
     if not isinstance(payload, dict):
         raise StrykerParseError(msg("stryker.bad_report", detail=REPORT_NAME))
     mutants = apply_waivers(mutants_from_report(payload, spans), waivers)

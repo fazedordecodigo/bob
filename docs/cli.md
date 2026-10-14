@@ -60,7 +60,7 @@ Quando mais de um gate devolve código, fica o maior (`_worse` em `check.py`).
 
 Lista cada pino de `src/bob_quality/doctor.py` com a versão esperada e a encontrada. Sai com `0` quando cada pino está satisfeito e com `4` quando algum falta ou fica fora do pino, e imprime o comando de instalação. Não grava `.bob/report.md`. Um sufixo `-rc` na versão encontrada fica de fora do pino e o doctor sai com `4`.
 
-Pinos, na ordem do código: lizard 1.24.1, coverage.py 7.16.2, node `>=22.14.0 <23`, c8 12.0.0, vitest 5.0.3, jscpd 5.4.1, mutmut 3.8.0, import-linter 2.15, grimp 3.17, diff-cover 10.6.0, dependency-cruiser 18.5.0, gitleaks 8.30.1, vulture 2.16, knip 6.41.0, stryker 10.0.0, stryker-vitest-runner 10.0.0. A versão esperada de uma ferramenta Python vem do Requires-Dist instalado do `bob-quality`.
+Pinos, na ordem do código: lizard 1.24.1, coverage.py 7.16.2, node `>=22.14.0 <23`, c8 12.0.0, vitest 5.0.3, jscpd 5.4.1, mutmut 3.8.0, import-linter 2.15, grimp 3.17, diff-cover 10.6.0, bandit 1.9.4, semgrep 1.180.0, dependency-cruiser 18.5.0, gitleaks 8.30.1, vulture 2.16, knip 6.41.0, stryker 10.0.0, stryker-vitest-runner 10.0.0. A versão esperada de uma ferramenta Python vem do Requires-Dist instalado do `bob-quality`.
 
 `bob doctor --install` roda `npm ci` no pacote instalado e depois imprime o mesmo relatório. Ver [Instalação](instalacao.md#pacote-pip-bob-quality).
 

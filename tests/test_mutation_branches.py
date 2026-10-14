@@ -432,13 +432,13 @@ def test_absorb_records_every_gate_argument_and_result(
     state = check_mod._measure(
         tmp_path,
         config,
+        "main",
         diff,
         10.0,
         coverage,
         ["crap", "dry", "deps", "mutate", "nope"],
         out,
         4,
-        "origin/main",
         True,
         0,
     )
@@ -524,13 +524,13 @@ def test_absorb_records_every_gate_argument_and_result(
     covered = check_mod._measure(
         tmp_path,
         config,
+        "origin/main",
         diff,
         10.0,
         coverage,
         ["coverage"],
         out,
         4,
-        "origin/main",
         False,
         None,
     )
@@ -591,26 +591,26 @@ def test_run_check_forwards_defaults_and_measured_arguments(
     def fake_measure(
         cwd: Path,
         got_config: Config,
+        base: str,
         diff_lines: dict[str, set[int]],
         max_crap: float,
         coverage_file: Path | None,
         gates: list[str],
         out_dir: Path,
         max_workers: int | None,
-        base: str,
         dry_fail: bool,
         max_new_clones: int | None,
     ) -> _Measured:
         seen["measure"] = (
             cwd,
             got_config,
+            base,
             diff_lines,
             max_crap,
             coverage_file,
             gates,
             out_dir,
             max_workers,
-            base,
             dry_fail,
             max_new_clones,
         )
@@ -662,13 +662,13 @@ def test_run_check_forwards_defaults_and_measured_arguments(
     assert seen["measure"] == (
         tmp_path,
         config,
+        "origin/feature",
         diff,
         9.5,
         coverage,
         ["crap", "dry", "deps"],
         out,
         3,
-        "origin/feature",
         False,
         None,
     )
@@ -1034,6 +1034,40 @@ def test_a_json_list_is_not_a_stryker_report(tmp_path: Path) -> None:
         "invalid Stryker report: stryker-report.json",
         "relatório do Stryker inválido: stryker-report.json",
     )
+
+
+def test_a_non_utf8_stryker_report_exits_4_without_a_traceback(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    from bob_quality import stryker_gate
+
+    def invoke(_cwd: Path, report: Path, argv: list[str]) -> subprocess.CompletedProcess[str]:
+        report.write_bytes(b"\xff")
+        return subprocess.CompletedProcess(argv, 1, stdout="", stderr="")
+
+    monkeypatch.setattr(stryker_gate, "_write_config", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(stryker_gate, "_argv", lambda *_args, **_kwargs: ["npx"])
+    monkeypatch.setattr(stryker_gate, "_invoke", invoke)
+
+    outcome, skip = stryker_gate._with_stryker(
+        tmp_path,
+        tmp_path / "out",
+        [CyclomaticFunction("src/safe.ts", "add", 1, 4, 1)],
+        {},
+        _VERSIONS,
+        [],
+        [_WAIVER],
+    )
+
+    detail = "'utf-8' codec can't decode byte 0xff in position 0: invalid start byte"
+    assert skip is None
+    assert outcome is not None
+    assert outcome.exit_code == 4
+    assert outcome.result.name == "mutate"
+    assert outcome.result.status == "not_run"
+    assert outcome.versions == _VERSIONS
+    assert outcome.waivers == [_WAIVER]
+    assert in_both(outcome.result.reason) == (detail, detail)
 
 
 def test_from_report_keeps_versions_and_waiver_rows(tmp_path: Path) -> None:
