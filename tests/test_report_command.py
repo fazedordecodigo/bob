@@ -588,7 +588,7 @@ def test_report_renders_saved_security_and_types(tmp_path: Path) -> None:
                 "waiver": None,
             },
         ],
-        "unmeasured": [],
+        "unmeasured": ["semgrep"],
     }
     payload["typing"] = {
         "absent": [],
@@ -696,6 +696,12 @@ def test_report_renders_an_empty_secrets_list(tmp_path: Path) -> None:
         {**_MINIMAL, "security": {"findings": [_finding(disposition="waived", waiver="")], "unmeasured": []}},
         {**_MINIMAL, "security": {"findings": [_finding(disposition="waived", waiver=None)], "unmeasured": []}},
         {**_MINIMAL, "security": {"findings": [_finding(line="4")], "unmeasured": []}},
+        {**_MINIMAL, "security": {"findings": [_finding(tool=1)], "unmeasured": []}},
+        {**_MINIMAL, "security": {"findings": [_finding(rule=1)], "unmeasured": []}},
+        {**_MINIMAL, "security": {"findings": [_finding(file=1)], "unmeasured": []}},
+        {**_MINIMAL, "security": {"findings": [_finding(end_line="4")], "unmeasured": []}},
+        {**_MINIMAL, "security": {"findings": [_finding(severity=1)], "unmeasured": []}},
+        {**_MINIMAL, "security": {"findings": [_finding(disposition=["fail"])], "unmeasured": []}},
         {**_MINIMAL, "typing": "nope"},
         {**_MINIMAL, "typing": {}},
         {**_MINIMAL, "typing": {"findings": [{"file": 1, "line": 4, "code": "assignment", "disposition": "blocking", "waiver_id": "typing:x"}]}},
