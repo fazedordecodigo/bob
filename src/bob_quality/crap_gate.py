@@ -39,7 +39,7 @@ def run_crap_gate(
         probed = measure_typescript(cwd, config, diff_lines, memo)
         if "python" in config.languages and _node_is_missing(probed):
             versions.update(probed.versions)
-            typescript_skip = probed.gate.reason if probed.gate is not None else None
+            typescript_skip = probed.gate.reason
         else:
             failure = _absorb(probed, metrics, versions)
             if failure is not None:
@@ -49,7 +49,7 @@ def run_crap_gate(
 
 
 def _with_typescript_skip(verdict: GateResult, typescript_skip: Text | None) -> GateResult:
-    if not typescript_skip:
+    if typescript_skip is None:
         return verdict
     note = msg("probe.typescript_skipped", reason=typescript_skip)
     if verdict.status == "passed":
