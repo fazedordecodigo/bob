@@ -2,10 +2,8 @@
 
 from __future__ import annotations
 
-import os
 import shutil
 import subprocess
-import sys
 import tempfile
 from pathlib import Path
 
@@ -347,15 +345,7 @@ def test_installed_checks_name_the_distribution(monkeypatch: pytest.MonkeyPatch)
     assert _bandit_installed() is True
     assert seen == ["bandit"]
 
-    binary = Path(sys.executable).parent / "semgrep"
-    assert binary.is_file()
-
-    def access(path: object, mode: int) -> bool:
-        if Path(str(path)) == binary:
-            return False
-        return os.access(path, mode)
-
-    monkeypatch.setattr(scanners.os, "access", access)
+    monkeypatch.setattr(scanners.shutil, "which", lambda name: None)
     assert _semgrep_installed() is False
 
 

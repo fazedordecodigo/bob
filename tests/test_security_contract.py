@@ -133,9 +133,11 @@ def test_scanner_commands_are_pinned(tmp_path: Path) -> None:
         ",".join((*_BANDIT_EXCLUDE, "tests", "node_modules", "dist")),
         "src",
     ]
-    binary = str(Path(sys.executable).parent / "semgrep")
     assert _semgrep_argv(ctx) == [
-        binary,
+        "uvx",
+        "--from",
+        "semgrep==1.180.0",
+        "semgrep",
         "scan",
         "--disable-version-check",
         "--metrics=off",
@@ -177,8 +179,10 @@ def test_scanner_table_rejects_a_broken_row_and_publishes_the_vocabulary() -> No
     assert scanners_for(()) == ()
     assert severity_vocabulary() == _VOCABULARY
     assert distribution_version("bandit") == "1.9.4"
-    assert distribution_version("semgrep") == "1.180.0"
+    assert distribution_version("semgrep") is None
     assert distribution_version("bob-missing-distribution") is None
+    assert semgrep.pinned_version == "1.180.0"
+    assert semgrep.runner == "uvx"
     assert _bandit_installed() is True
     assert _semgrep_installed() is True
     _reject_bad_table((bandit, semgrep))
