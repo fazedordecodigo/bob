@@ -36,7 +36,7 @@ SPEC_EXIT_LINES = [
     "`0` passou",
     "`1` algum gate falhou (limite violado)",
     "`2` baseline quebrado (testes falham antes de medir)",
-    "`3` mutante sobrevivente sem waiver",
+    "`3` mutante sobrevivente sem waiver, ou `no_coverage` nas funções do diff",
     "`4` erro de configuração ou ferramenta ausente",
 ]
 

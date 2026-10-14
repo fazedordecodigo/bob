@@ -2,11 +2,10 @@
 
 from __future__ import annotations
 
-import os
 import shutil
 import subprocess
-import sys
 import tempfile
+from dataclasses import replace
 from pathlib import Path
 
 import pytest
@@ -281,6 +280,15 @@ def test_scan_at_pins_the_context_the_crash_and_the_parse_root(
     assert measured.version == ""
     assert parsed == [tmp_path]
 
+    pinned = _scan_at(
+        tmp_path,
+        Config(include=("src",)),
+        replace(row, pinned_version="1.180.0"),
+        "abc123",
+    )
+    assert isinstance(pinned, Measured)
+    assert pinned.version == "1.180.0"
+
 
 def test_rules_ready_accepts_yml_and_yaml_only(tmp_path: Path) -> None:
     missing = tmp_path / "missing"
@@ -347,15 +355,7 @@ def test_installed_checks_name_the_distribution(monkeypatch: pytest.MonkeyPatch)
     assert _bandit_installed() is True
     assert seen == ["bandit"]
 
-    binary = Path(sys.executable).parent / "semgrep"
-    assert binary.is_file()
-
-    def access(path: object, mode: int) -> bool:
-        if Path(str(path)) == binary:
-            return False
-        return os.access(path, mode)
-
-    monkeypatch.setattr(scanners.os, "access", access)
+    monkeypatch.setattr(scanners.shutil, "which", lambda name: None)
     assert _semgrep_installed() is False
 
 

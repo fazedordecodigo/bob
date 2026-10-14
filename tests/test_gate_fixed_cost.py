@@ -21,7 +21,7 @@ from helpers import (
     commit_on_main,
     in_both,
     init_python_repo,
-    run_bob,
+    run_bob_subprocess,
 )
 
 ADD_AND_SCALE = (FIXTURE_PYTHON / "cases" / "add_and_scale.py").read_text()
@@ -364,7 +364,7 @@ def test_the_gate_runs_tests_of_other_functions_only_for_the_baseline_and_the_st
     )
     commit_on_branch(repo, "touch-add", "src/app/safe.py", ADD_TOUCHED, "comment inside add")
 
-    result = run_bob(repo, "mutate", "--base", "main")
+    result = run_bob_subprocess(repo, "mutate", "--base", "main")
 
     assert result.returncode == 0
     runs = log.read_text().splitlines()

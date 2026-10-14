@@ -29,7 +29,6 @@ These parts work on `main`:
 
 These parts are planned:
 
-- A warning for `no_coverage` mutants in the report ([#31](https://github.com/fazedordecodigo/bob/issues/31)).
 - Publication on PyPI and on the agent marketplaces.
 
 ## Flow
@@ -299,7 +298,7 @@ For example, a mutant changes `if total > limit:` to `if total >= limit:`. If no
 
 bob mutates Python with mutmut and TypeScript with Stryker. It runs the baseline tests first and exits with `2` if they fail. It mutates the changed functions, plus the functions that still have survivors without a waiver. The cache `.bob/mutation-cache.json` stores a hash of each function's text. Reuse also requires the mutmut version and the suite fingerprint to match. A mismatch still remutates an unwaived survivor outside the diff. The GitHub Action restores and publishes the cache as the `bob-mutation-cache` artifact. TypeScript keeps Stryker's incremental file at `.bob/stryker-incremental.json`. The Action restores and publishes that file in the same artifact. mutmut runs in `.bob/mutmut/` and never writes the repository's `setup.cfg` or `mutants/`.
 
-The limit is zero unwaived survivors on a changed line. One of those fails the gate with exit `3`. An unwaived survivor on a line the diff did not change stays in the report and does not change the exit. The report lists only survivors. Mutants with `killed`, `timeout`, and `no_coverage` do not block. A warning for `no_coverage` mutants is planned ([#31](https://github.com/fazedordecodigo/bob/issues/31)).
+The limit is zero unwaived survivors on a changed line, and zero `no_coverage` mutants on a changed function. Either one fails the gate with exit `3`. An unwaived survivor on a line the diff did not change stays in the report and does not change the exit. The report lists survivors, and it lists `no_coverage` mutants by function and file. `killed` and `timeout` do not block. A waiver does not cover `no_coverage`.
 
 ### Dependencies
 

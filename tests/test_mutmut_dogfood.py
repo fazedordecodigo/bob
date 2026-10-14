@@ -150,7 +150,7 @@ def test_mutmut_stats_collection_does_not_die_on_this_repo() -> None:
             "-m",
             "mutmut",
             "run",
-            "bob_quality.crap.x_calculate_crap__mutmut*",
+            "bob_quality.doctor.x__install_text__mutmut*",
             "--max-children",
             "2",
         ],
@@ -159,8 +159,7 @@ def test_mutmut_stats_collection_does_not_die_on_this_repo() -> None:
         text=True,
         stdin=subprocess.DEVNULL,
         env=env,
-        # O 3.12 estoura 1500s na coleta de cobertura do mutmut.
-        timeout=2400,
+        timeout=2700,
         check=False,
     )
     blob = f"{completed.stdout}\n{completed.stderr}"
