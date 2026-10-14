@@ -29,6 +29,7 @@ from bob_quality.models import (
     SecretLedger,
     SecurityReport,
     SupplyReport,
+    TestSmell,
 )
 from bob_quality.mutate import MutationOutcome, focus_with_survivors
 from bob_quality.mutate_gate import run_mutate_gate
@@ -36,6 +37,7 @@ from bob_quality.report import metric_row, violation_rows, write_report
 from bob_quality.secrets_gate import run_secrets_gate
 from bob_quality.security_gate import run_security_gate
 from bob_quality.supply import run_supply_gate
+from bob_quality.test_smells import run_test_smells_gate
 from bob_quality.waivers import WaiverError, load_waivers
 
 DEFAULT_GATES = ("crap", "dry", "deps")
@@ -63,19 +65,27 @@ def run_check(
     if isinstance(opened, Report):
         return _written(opened, chosen_out, fmt, lang)
     config, chosen_base, max_crap, commit, diff_lines = opened
-    measured = _measure(
-        cwd,
-        config,
-        chosen_base,
-        diff_lines,
-        max_crap,
-        coverage_file,
-        chosen_gates,
-        chosen_out,
-        max_workers,
-        dry_fail,
-        max_new_clones,
-    )
+    try:
+        measured = _measure(
+            cwd,
+            config,
+            chosen_base,
+            diff_lines,
+            max_crap,
+            coverage_file,
+            chosen_gates,
+            chosen_out,
+            max_workers,
+            dry_fail,
+            max_new_clones,
+        )
+    except WaiverError as exc:
+        return _written(
+            _fail_early(CONFIG_OR_TOOL, reason(exc), chosen_base, command, chosen_gates),
+            chosen_out,
+            fmt,
+            lang,
+        )
     if measured.mutation is None:
         loaded = _load_idle_waivers(cwd, chosen_base, command, chosen_gates)
         if isinstance(loaded, Report):
@@ -136,6 +146,7 @@ class _Measured:
     secrets: SecretLedger | None = None
     loaded_waivers: list[dict[str, object]] = field(default_factory=list)
     baseline: int | None = None
+    test_smells: tuple[TestSmell, ...] | None = None
     cognitive: list[CognitiveFunction] = field(default_factory=list)
     supply: SupplyReport | None = None
     security: SecurityReport | None = None
@@ -212,6 +223,11 @@ def _absorb(
         state.clones = found
         _record(state, result, code, versions)
         return
+    if gate == "test_smells":
+        result, smells, code, versions = run_test_smells_gate(cwd, config, diff_lines)
+        state.test_smells = smells
+        _record(state, result, code, versions)
+        return
     if gate == "deps":
         _absorb_deps(state, cwd, config, diff_lines)
         return
@@ -263,6 +279,16 @@ def _absorb_rest(
         state.secrets = outcome.ledger
         _record(state, outcome.result, outcome.exit_code, outcome.versions)
         return
+    _absorb_remaining(state, gate, cwd, config, diff_lines)
+
+
+def _absorb_remaining(
+    state: _Measured,
+    gate: str,
+    cwd: Path,
+    config: Config,
+    diff_lines: dict[str, set[int]],
+) -> None:
     if gate == "dead_code":
         _record_dead(state, run_dead_code_gate(cwd, config, diff_lines))
         return
@@ -338,6 +364,7 @@ def _assemble(
         waivers=waivers,
         survivors=survivors,
         mutation=summary,
+        test_smells=measured.test_smells,
         cognitive=measured.cognitive,
         churn=churn,
         supply=measured.supply,

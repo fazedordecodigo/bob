@@ -53,6 +53,7 @@ from bob_quality.models import (
     SupplyFinding,
     SupplyReport,
     SupplyRow,
+    TestSmell,
     TypeScriptDead,
     UndeclaredImport,
     UnverifiedAdvisory,
@@ -61,6 +62,7 @@ from bob_quality.models import (
     Warn,
     Waived,
 )
+from bob_quality.test_smells import waiver_id
 
 JSON_LANGUAGE: Language = "en"
 _VULTURE_KIND: dict[str, VultureKind] = {kind: kind for kind in get_args(VultureKind)}
@@ -109,10 +111,17 @@ def to_json(report: Report) -> dict[str, object]:
         "waivers": report.waivers,
         "survivors": report.survivors,
         "mutation": report.mutation,
+        **_smell_field(report),
         **_supply_field(report),
     }
     _json_tail(payload, report)
     return payload
+
+
+def _smell_field(report: Report) -> dict[str, object]:
+    if report.test_smells is None:
+        return {}
+    return {"test_smells": [smell_row(smell) for smell in report.test_smells]}
 
 
 def _json_tail(payload: dict[str, object], report: Report) -> None:
@@ -163,6 +172,7 @@ def to_markdown(report: Report, lang: Language) -> str:
     lines.extend(_clone_lines(report))
     lines.extend(_survivor_lines(report, lang))
     lines.extend(_no_coverage_lines(report))
+    lines.extend(_test_smell_lines(report))
     lines.extend(supply_lines(report))
     lines.extend(_types_lines(report))
     lines.extend(_secrets_lines(report))
@@ -301,6 +311,28 @@ def _waiver_section(waivers: list[dict[str, object]]) -> list[Text]:
         )
     lines.append("")
     return lines
+
+
+def _test_smell_lines(report: Report) -> list[Text]:
+    if report.test_smells is None:
+        return []
+    lines: list[Text] = ["", msg("report.test_smells"), ""]
+    if report.test_smells:
+        lines.append(msg("report.test_smell_header"))
+        lines.append("|---|---|")
+        lines.extend(_test_smell_row(smell) for smell in report.test_smells)
+        return lines
+    gate = _gate_named(report, "test_smells")
+    if gate is not None and gate.status == "not_run" and gate.reason:
+        lines.append(gate.reason)
+        return lines
+    lines.append(msg("report.no_test_smells"))
+    return lines
+
+
+def _test_smell_row(smell: TestSmell) -> str:
+    reason = (smell.waiver or "—").replace("|", "\\|")
+    return f"| `{waiver_id(smell)}` | {reason} |"
 
 
 def _cognitive_lines(report: Report) -> list[Text]:
@@ -641,6 +673,10 @@ def dead_row(row: LedgerRow) -> dict[str, object]:
 def _footer(report: Report, lang: Language) -> list[Text]:
     command = f"{report.reproduce} --lang {lang}" if report.reproduce else ""
     return ["", msg("report.reproduce"), "", "```", command, "```", ""]
+
+
+def smell_row(smell: TestSmell) -> dict[str, object]:
+    return {"file": smell.file, "line": smell.line, "rule": smell.rule, "waiver": smell.waiver}
 
 
 def cognitive_row(item: CognitiveFunction) -> dict[str, object]:
