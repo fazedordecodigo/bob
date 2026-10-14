@@ -834,6 +834,7 @@ def test_assemble_copies_each_measurement_into_the_report() -> None:
     assert report.reproduce == "bob check"
     assert report.clones == [clone]
     assert report.dead_code == section
+    assert report.security is None
     assert report.waivers == [{"id": "w", "reason": "because"}]
     assert report.survivors == [{"file": "src/survivor.py", "waiver": None, "blocking": True}]
     assert report.mutation == {"remutated": ["kept"]}

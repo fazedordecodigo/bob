@@ -25,11 +25,13 @@ from bob_quality.models import (
     GateResult,
     Report,
     SecretLedger,
+    SecurityReport,
 )
 from bob_quality.mutate import MutationOutcome, focus_with_survivors
 from bob_quality.mutate_gate import run_mutate_gate
 from bob_quality.report import metric_row, violation_rows, write_report
 from bob_quality.secrets_gate import run_secrets_gate
+from bob_quality.security_gate import run_security_gate
 from bob_quality.waivers import WaiverError, load_waivers
 
 DEFAULT_GATES = ("crap", "dry", "deps")
@@ -60,6 +62,7 @@ def run_check(
     measured = _measure(
         cwd,
         config,
+        chosen_base,
         diff_lines,
         max_crap,
         coverage_file,
@@ -129,6 +132,7 @@ class _Measured:
     secrets: SecretLedger | None = None
     loaded_waivers: list[dict[str, object]] = field(default_factory=list)
     baseline: int | None = None
+    security: SecurityReport | None = None
     typing: dict[str, object] | None = None
     dead_code: DeadSection | None = None
 
@@ -136,6 +140,7 @@ class _Measured:
 def _measure(
     cwd: Path,
     config: Config,
+    base: str,
     diff_lines: dict[str, set[int]],
     max_crap: float,
     coverage_file: Path | None,
@@ -152,6 +157,7 @@ def _measure(
             gate,
             cwd,
             config,
+            base,
             diff_lines,
             max_crap,
             coverage_file,
@@ -168,6 +174,7 @@ def _absorb(
     gate: str,
     cwd: Path,
     config: Config,
+    base: str,
     diff_lines: dict[str, set[int]],
     max_crap: float,
     coverage_file: Path | None,
@@ -213,6 +220,11 @@ def _absorb(
         )
         state.mutation = mutation
         _record(state, mutation.result, mutation.exit_code, mutation.versions)
+        return
+    if gate == "security":
+        result, code, versions, security = run_security_gate(cwd, config, base, diff_lines)
+        state.security = security
+        _record(state, result, code, versions)
         return
     if gate == "typing":
         result, code, versions, found = run_typing_gate(cwd, config, diff_lines)
@@ -300,6 +312,7 @@ def _assemble(
         survivors=survivors,
         mutation=summary,
         churn=churn,
+        security=measured.security,
         typing=measured.typing,
         secrets=measured.secrets,
         dead_code=measured.dead_code,

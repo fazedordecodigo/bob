@@ -14,7 +14,7 @@ Os códigos estão em `src/bob_quality/exit_codes.py`. A [SPEC](SPEC.md) os insp
 
 ## Exit 0
 
-Todos os gates pedidos que de fato rodaram passaram. Aviso também termina em `0`: clone novo no modo warn ou até o teto no modo fail, mutante `no_coverage` sem sobrevivente sem waiver, e TypeScript pulado num monorepo quando o que foi medido cabe no limite. O veredito do gate fica ⚠️. O exit continua `0`.
+Todos os gates pedidos que de fato rodaram passaram. Aviso também termina em `0`: clone novo no modo warn ou até o teto no modo fail, mutante `no_coverage` sem sobrevivente sem waiver, TypeScript pulado num monorepo quando o que foi medido cabe no limite, achado de segurança no diff fora de `security.fail_severities`, e símbolo morto no diff. O mesmo `0` vale quando o gate `security` mediu uma linguagem e a outra ficou de fora: o passe vira `warn`. O veredito do gate fica ⚠️. O exit continua `0`.
 
 Um nome de gate desconhecido é `not_run` e contribui `0`.
 
@@ -27,6 +27,8 @@ Um nome de gate desconhecido é `not_run` e contribui `0`.
 `crap_verdict` devolve `1` quando alguma função considerada tem CRAP maior ou igual a `crap.max_per_function` (ou a `--threshold`). O motivo traz os nomes no formato `função@arquivo:linha`.
 
 `deps_verdict` devolve `1` quando alguma violação está marcada `in_diff`. O motivo traz `origem → destino`.
+
+`security_verdict` devolve `1` quando algum achado no diff tem severidade em `security.fail_severities` e não tem waiver. Achado fora do diff, achado com waiver e severidade fora da lista não devolvem `1`. Se a outra linguagem do gate não mediu, a falha continua `1`.
 
 DRY devolve `1` só no modo fail (`duplication.new_clones: fail` ou `--dry-fail`), quando a conta de clones novos passa de `duplication.max_new_clones` ou de `--max-new-clones`. O motivo traz a chave e o teto, como `1 new clone exceeds duplication.max_new_clones 0`. No modo warn, o padrão, DRY não devolve `1`. Mutação não devolve `1`: sobrevivente sem waiver é `3`.
 
@@ -65,7 +67,8 @@ A configuração inválida imprime inglês no stderr quando:
 - `--lang` ou `BOB_LANG` é vazio ou não é `en` nem `pt-BR`;
 - `language` no YAML não é string ou não é um desses dois valores;
 - o YAML do `bob.yaml` tem erro de sintaxe, repete uma chave no mesmo mapeamento, ou não é um mapeamento. A chave repetida cita a chave e a linha, como `invalid YAML in bob.yaml: found duplicate key 'base' on line 2`;
-- uma chave lida por `_parsed` tem o tipo errado (`base`, `languages`, `paths`, `include`, `exclude`, `crap`, `max_per_function`, `scope`, `dependencies`, `python`, `typescript`);
+- uma chave lida por `_parsed` tem o tipo errado (`base`, `languages`, `paths`, `include`, `exclude`, `crap`, `max_per_function`, `scope`, `dependencies`, `python`, `typescript`, `security`, `fail_severities`);
+- `security.fail_severities` tem palavra fora do vocabulário, item repetido ou lista vazia;
 - `.bob/waivers.yaml` existe e o YAML é inválido, repete uma chave, ou o formato não é o da [Configuração](configuracao.md#arquivo-inválido). A mensagem cita o caminho e o campo. A chave repetida cita a chave e a linha, como `invalid YAML in .bob/waivers.yaml: found duplicate key 'id' on line 3`;
 
 `--config` apontando para um arquivo que não existe entra nessa barreira. `reject_config_types` chama `load_config`. O arquivo ausente levanta `ConfigError`, e `_blocked_config` imprime inglês no stderr (`config file not found: <caminho>`) e devolve `4` sem gravar relatório. A flag existe em `check`, `crap`, `dry`, `deps` e `mutate`. `doctor` e `waive` não a aceitam. Um `bob.yaml` ausente, sem `--config`, continua nos padrões.
@@ -80,7 +83,7 @@ Um `--reason` ausente no `bob waive` também é `4`, e essa frase segue o idioma
 
 ### Durante a medição, com relatório
 
-Se a ferramenta falta no meio do gate (lizard, mutmut, import-linter, dependency-cruiser, Node num repo só TypeScript, git que falha ao calcular o diff), o gate fica `not_run` e o exit é `4`. O mesmo exit `4` vale quando o JSON do dependency-cruiser não é um objeto ou não traz a lista `violations`, e quando a última linha `Contracts:` do import-linter com exit 0 não é `N kept, 0 broken.` `write_report` grava `.bob/report.md` e `report.json` com esse código. `GitError` em `_open` segue o mesmo relatório precoce.
+Se a ferramenta falta no meio do gate (lizard, mutmut, import-linter, dependency-cruiser, Node num repo só TypeScript, Bandit ou Semgrep quando nenhuma linguagem do gate `security` mediu, git que falha ao calcular o diff), o gate fica `not_run` e o exit é `4`. O relatório é gravado, inclusive com a chave `security` quando esse gate foi pedido. O mesmo exit `4` vale quando o JSON do dependency-cruiser não é um objeto ou não traz a lista `violations`, e quando a última linha `Contracts:` do import-linter com exit 0 não é `N kept, 0 broken.` `write_report` grava `.bob/report.md` e `report.json` com esse código. `GitError` em `_open` segue o mesmo relatório precoce.
 
 `bob doctor` com pino ausente ou versão diferente sai com `4` no stdout do próprio doctor, sem relatório em `.bob/`.
 

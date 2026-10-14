@@ -231,13 +231,15 @@ def test_run_check_threads_the_defaults_and_the_overrides(
 
     assert code == 0
     assert defaults["open"] == (tmp_path, None, None, 12.5, "bob check", list(DEFAULT_GATES))
-    assert defaults["measure"][3] == 8.0
-    assert defaults["measure"][4] == cov
-    assert defaults["measure"][5] == list(DEFAULT_GATES)
-    assert defaults["measure"][6] == out
-    assert defaults["measure"][7] == 3
-    assert defaults["measure"][8] is False
-    assert defaults["measure"][9] is None
+    assert defaults["measure"][2] == "trunk"
+    assert defaults["measure"][3] == {"a.py": {1}}
+    assert defaults["measure"][4] == 8.0
+    assert defaults["measure"][5] == cov
+    assert defaults["measure"][6] == list(DEFAULT_GATES)
+    assert defaults["measure"][7] == out
+    assert defaults["measure"][8] == 3
+    assert defaults["measure"][9] is False
+    assert defaults["measure"][10] is None
     assert defaults["waivers"] == (tmp_path, "trunk", "bob check", list(DEFAULT_GATES))
     assert defaults["state"].loaded_waivers == [{"id": "w"}]
     assert defaults["assemble"][1:] == (
@@ -278,8 +280,9 @@ def test_run_check_threads_the_defaults_and_the_overrides(
         "bob check --gates dry",
         ["dry"],
     )
-    assert forced["measure"][8] is True
-    assert forced["measure"][9] == 0
+    assert forced["measure"][2] == "trunk"
+    assert forced["measure"][9] is True
+    assert forced["measure"][10] == 0
     assert forced["assemble"][5] == "bob check --gates dry"
     assert forced["written"][1:] == (forced_out, "md", "en")
 

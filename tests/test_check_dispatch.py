@@ -39,6 +39,7 @@ def _forbid(monkeypatch: pytest.MonkeyPatch) -> None:
         "run_deps_gate",
         "run_mutate_gate",
         "run_typing_gate",
+        "run_security_gate",
         "run_secrets_gate",
         "run_dead_code_gate",
     ):
@@ -51,7 +52,7 @@ def test_unknown_gate_is_not_run_and_leaves_the_others_alone(
     _forbid(monkeypatch)
     state = _Measured()
 
-    _absorb(state, "nope", tmp_path, Config(), DIFF, 10.0, None, tmp_path, None, False, None)
+    _absorb(state, "nope", tmp_path, Config(), "main", DIFF, 10.0, None, tmp_path, None, False, None)
 
     assert state.gates == [
         GateResult("nope", "not_run", msg("check.gate_not_implemented"))
@@ -62,6 +63,7 @@ def test_unknown_gate_is_not_run_and_leaves_the_others_alone(
     assert state.violations == []
     assert state.mutation is None
     assert state.typing is None
+    assert state.security is None
     assert state.secrets is None
     assert state.dead_code is None
     assert state.baseline is None
@@ -88,7 +90,7 @@ def test_crap_records_metrics_baseline_and_the_exact_arguments(
     monkeypatch.setattr("bob_quality.check.run_crap_gate", fake)
     state = _Measured()
 
-    _absorb(state, "crap", tmp_path, config, DIFF, 10.0, coverage, tmp_path, 2, False, None)
+    _absorb(state, "crap", tmp_path, config, "main", DIFF, 10.0, coverage, tmp_path, 2, False, None)
 
     assert state.metrics == ["metric"]
     assert state.baseline == 7
@@ -115,7 +117,7 @@ def test_dry_records_the_clones(monkeypatch: pytest.MonkeyPatch, tmp_path: Path)
     monkeypatch.setattr("bob_quality.check.run_dry_gate", fake)
     state = _Measured()
 
-    _absorb(state, "dry", tmp_path, config, DIFF, 10.0, None, tmp_path, None, False, None)
+    _absorb(state, "dry", tmp_path, config, "main", DIFF, 10.0, None, tmp_path, None, False, None)
 
     assert state.clones == [CLONE]
     assert state.gates == [result]
@@ -136,7 +138,7 @@ def test_deps_records_the_violation_set(monkeypatch: pytest.MonkeyPatch, tmp_pat
     monkeypatch.setattr("bob_quality.check.run_deps_gate", fake)
     state = _Measured()
 
-    _absorb(state, "deps", tmp_path, config, DIFF, 10.0, None, tmp_path, None, False, None)
+    _absorb(state, "deps", tmp_path, config, "main", DIFF, 10.0, None, tmp_path, None, False, None)
 
     assert state.violations == ["edge"]
     assert state.gates == [result]
@@ -172,7 +174,7 @@ def test_mutate_keeps_the_baseline_and_the_worker_count(
     monkeypatch.setattr("bob_quality.check.run_mutate_gate", fake)
     state = _Measured(baseline=7)
 
-    _absorb(state, "mutate", tmp_path, config, DIFF, 10.0, None, out, 2, False, None)
+    _absorb(state, "mutate", tmp_path, config, "main", DIFF, 10.0, None, out, 2, False, None)
 
     assert state.mutation is outcome
     assert state.gates == [outcome.result]
@@ -195,7 +197,7 @@ def test_typing_records_the_json_payload(monkeypatch: pytest.MonkeyPatch, tmp_pa
     monkeypatch.setattr("bob_quality.check.run_typing_gate", fake)
     state = _Measured()
 
-    _absorb(state, "typing", tmp_path, config, DIFF, 10.0, None, tmp_path, None, False, None)
+    _absorb(state, "typing", tmp_path, config, "main", DIFF, 10.0, None, tmp_path, None, False, None)
 
     assert state.typing == found
     assert state.gates == [result]
@@ -269,6 +271,7 @@ def test_assemble_without_mutation_keeps_idle_waivers_and_empty_survivors(
     assert report.survivors == []
     assert report.mutation is None
     assert report.typing is None
+    assert report.security is None
     assert report.secrets is None
     assert report.dead_code is None
     assert report.churn == ChurnUnavailable()
@@ -372,7 +375,7 @@ def test_absorb_records_each_gate_from_the_arguments_it_received(monkeypatch) ->
     monkeypatch.setattr(check, "run_secrets_gate", secrets)
 
     state = _Measured()
-    _absorb(state, "crap", cwd, config, diff, 10.0, coverage, out, 2, True, 0)
+    _absorb(state, "crap", cwd, config, "main", diff, 10.0, coverage, out, 2, True, 0)
     assert seen["crap"] == {
         "cwd": cwd,
         "config": config,
@@ -387,7 +390,7 @@ def test_absorb_records_each_gate_from_the_arguments_it_received(monkeypatch) ->
     assert state.gates == [GateResult("crap", "failed")]
     assert set(seen) == {"crap"}
 
-    _absorb(state, "dry", cwd, config, diff, 10.0, coverage, out, 2, True, 0)
+    _absorb(state, "dry", cwd, config, "main", diff, 10.0, coverage, out, 2, True, 0)
     assert seen["dry"] == {
         "cwd": cwd,
         "config": config,
@@ -399,12 +402,12 @@ def test_absorb_records_each_gate_from_the_arguments_it_received(monkeypatch) ->
     assert state.versions["jscpd"] == "5.4.1"
     assert set(seen) == {"crap", "dry"}
 
-    _absorb(state, "deps", cwd, config, diff, 10.0, coverage, out, 2, True, 0)
+    _absorb(state, "deps", cwd, config, "main", diff, 10.0, coverage, out, 2, True, 0)
     assert seen["deps"] == (cwd, config, {"src/app.py"})
     assert state.violations == [violation]
     assert set(seen) == {"crap", "dry", "deps"}
 
-    _absorb(state, "mutate", cwd, config, diff, 10.0, coverage, out, 2, True, 0)
+    _absorb(state, "mutate", cwd, config, "main", diff, 10.0, coverage, out, 2, True, 0)
     assert seen["mutate"] == {
         "cwd": cwd,
         "config": config,
@@ -417,7 +420,7 @@ def test_absorb_records_each_gate_from_the_arguments_it_received(monkeypatch) ->
     assert state.exit_code == 3
     assert set(seen) == {"crap", "dry", "deps", "mutate"}
 
-    _absorb(state, "secrets", cwd, config, diff, 10.0, coverage, out, 2, True, 0)
+    _absorb(state, "secrets", cwd, config, "main", diff, 10.0, coverage, out, 2, True, 0)
     assert seen["secrets"] == {"cwd": cwd, "config": config, "diff_lines": diff}
     assert state.secrets == ledger
     assert state.versions["gitleaks"] == "8.30.1"
@@ -428,7 +431,7 @@ def test_absorb_records_each_gate_from_the_arguments_it_received(monkeypatch) ->
 
 def test_absorb_unknown_gate_stays_not_run_and_exit_0() -> None:
     state = _Measured()
-    _absorb(state, "nope", Path("/repo"), Config(), {}, 10.0, None, Path("/out"), None, False, None)
+    _absorb(state, "nope", Path("/repo"), Config(), "main", {}, 10.0, None, Path("/out"), None, False, None)
 
     assert state.exit_code == 0
     assert state.versions == {}
@@ -511,6 +514,7 @@ def test_assemble_copies_measurement_and_keeps_secrets() -> None:
     assert report.mutation == summary
     assert report.secrets == ledger
     assert report.churn == ChurnUnavailable()
+    assert report.security is None
 
 
 def _metric(name: str, file: str, *, changed: bool, crap: float) -> FunctionMetric:
@@ -532,7 +536,7 @@ def test_dead_code_records_the_warning(monkeypatch: pytest.MonkeyPatch, tmp_path
 
     monkeypatch.setattr("bob_quality.check.run_dead_code_gate", fake)
     state = _Measured()
-    _absorb(state, "dead_code", tmp_path, Config(), DIFF, 10.0, None, tmp_path, None, False, None)
+    _absorb(state, "dead_code", tmp_path, Config(), "main", DIFF, 10.0, None, tmp_path, None, False, None)
 
     assert state.dead_code == section
     assert state.gates == [advisory.as_gate()]
