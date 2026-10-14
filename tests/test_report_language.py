@@ -312,7 +312,8 @@ def test_markdown_explains_why_dependencies_and_clones_were_not_measured() -> No
 
 def test_json_is_the_schema_with_english_reasons_whatever_the_markdown_language() -> None:
     near = Clone("src/c.py", 2, 9, "src/d.py", 4, 11, 8, 60, 0.93)
-    report = replace(_rich(), clones=[near], exit_code=3)
+    found = {"findings": [{"file": "src/app.py", "line": 4}]}
+    report = replace(_rich(), clones=[near], exit_code=3, typing=found)
 
     assert to_json(report) == {
         "schema_version": 1,
@@ -357,6 +358,7 @@ def test_json_is_the_schema_with_english_reasons_whatever_the_markdown_language(
         },
         "reproduce": "bob check --base main",
         "exit_code": 3,
+        "typing": found,
     }
 
 

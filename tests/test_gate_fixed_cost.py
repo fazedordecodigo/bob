@@ -307,8 +307,6 @@ STATS = {
     "bob_quality.crap.x_calculate_crap_delta": {"tests/test_crap.py::test_delta"},
     "bob_quality.cli.x_main": {"tests/test_cli.py::test_main"},
 }
-
-
 def test_the_clean_run_picks_only_the_tests_of_the_function() -> None:
     patterns = mutmut_run_patterns("src/bob_quality/crap.py", "calculate_crap")
 
@@ -333,6 +331,26 @@ def test_the_run_patterns_select_only_the_mutants_of_the_function() -> None:
     patterns = mutmut_run_patterns("src/bob_quality/crap.py", "calculate_crap")
 
     assert _mutants_run(patterns, own + siblings) == own
+
+
+def test_the_run_patterns_of_a_method_select_only_its_mutants_and_tests() -> None:
+    own = ["app.box.xǁBoxǁopen__mutmut_1", "app.box.xǁBoxǁopen__mutmut_6"]
+    siblings = [
+        "app.box.x_open__mutmut_1",
+        "app.box.xǁCrateǁopen__mutmut_1",
+        "app.box.xǁBoxǁopen_all__mutmut_1",
+    ]
+    stats = {
+        "app.box.xǁBoxǁopen": {"tests/test_box.py::test_box_open"},
+        "app.box.x_open": {"tests/test_box.py::test_open"},
+        "app.box.xǁCrateǁopen": {"tests/test_box.py::test_crate_open"},
+    }
+
+    patterns = mutmut_run_patterns("src/app/box.py", "Box.open")
+
+    assert patterns == ["app.box.xǁBoxǁopen__mutmut*", "*app.box.xǁBoxǁopen"]
+    assert _mutants_run(patterns, own + siblings) == own
+    assert _clean_run_tests(patterns, stats) == {"tests/test_box.py::test_box_open"}
 
 
 def test_the_gate_runs_tests_of_other_functions_only_for_the_baseline_and_the_stats(

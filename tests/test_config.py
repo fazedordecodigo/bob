@@ -942,6 +942,28 @@ def test_bad_yaml_language_fails_even_when_the_flag_wins(
             "bob.yaml: duplication.min_tokens deve ser maior que 0",
         ),
         (
+            "security:\n  fail_severities: [NOPE]\n",
+            "bob.yaml: security.fail_severities[0] must be one of "
+            "CRITICAL, ERROR, HIGH, INFO, LOW, MEDIUM, UNDEFINED, WARNING",
+            "bob.yaml: security.fail_severities[0] deve ser um de "
+            "CRITICAL, ERROR, HIGH, INFO, LOW, MEDIUM, UNDEFINED, WARNING",
+        ),
+        (
+            "security:\n  fail_severities: []\n",
+            "bob.yaml: security.fail_severities must not be empty",
+            "bob.yaml: security.fail_severities não deve ser vazio",
+        ),
+        (
+            "security:\n  fail_severities: [HIGH, HIGH]\n",
+            "bob.yaml: security.fail_severities[1] repeats HIGH",
+            "bob.yaml: security.fail_severities[1] repete HIGH",
+        ),
+        (
+            "security:\n  fail_severities: HIGH\n",
+            "bob.yaml: security.fail_severities must be a list of strings",
+            "bob.yaml: security.fail_severities deve ser uma lista de textos",
+        ),
+        (
             "duplication:\n  new_clones: block\n",
             "bob.yaml: duplication.new_clones must be warn or fail",
             "bob.yaml: duplication.new_clones deve ser warn ou fail",
@@ -1008,6 +1030,10 @@ def test_load_config_rejects_an_illegal_semantic_value(
         ({"languages": ()}, "languages"),
         ({"languages": ("python", "python")}, "languages"),
         ({"languages": "python"}, "languages"),
+        ({"fail_severities": ("NOPE",)}, "fail_severities"),
+        ({"fail_severities": ()}, "fail_severities"),
+        ({"fail_severities": ("HIGH", "HIGH")}, "fail_severities"),
+        ({"fail_severities": "HIGH"}, "fail_severities"),
     ],
 )
 def test_config_rejects_an_illegal_in_process_value(kwargs: dict[str, object], name: str) -> None:
@@ -1062,6 +1088,21 @@ def test_schema_literals_match_config_fields() -> None:
     assert {item.name for item in fields(config_module.Config)} == _schema_attrs(
         config_module._SCHEMA
     )
+
+
+def test_load_config_reads_fail_severities_and_keeps_the_default(tmp_path: Path) -> None:
+    assert load_config(None, tmp_path).fail_severities == ("HIGH", "CRITICAL", "ERROR")
+    (tmp_path / "bob.yaml").write_text("security:\n  fail_severities: [MEDIUM, HIGH]\n")
+
+    assert load_config(None, tmp_path).fail_severities == ("MEDIUM", "HIGH")
+
+    (tmp_path / "bob.yaml").write_text("security:\n  fail_severities:\n")
+
+    assert load_config(None, tmp_path).fail_severities == ("HIGH", "CRITICAL", "ERROR")
+
+
+def test_vocabulary_check_accepts_the_severity_list() -> None:
+    _Check("vocabulary", choices=("HIGH", "CRITICAL", "ERROR"))
 
 
 def _schema_attrs(node: object) -> set[str]:

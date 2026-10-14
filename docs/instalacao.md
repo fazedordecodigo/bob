@@ -21,7 +21,7 @@ Num Ubuntu atual o Python do sistema recusa `pip install` pela PEP 668. Use um v
 bob = "bob_quality.cli:main"
 ```
 
-As dependências Python pinadas no pacote são `lizard==1.24.1`, `coverage==7.16.2`, `PyYAML==6.0.3`, `import-linter==2.15`, `grimp==3.17` e `mutmut==3.8.0`. O extra `dev` traz `pytest`, `jsonschema`, `build` e `twine`.
+As dependências Python pinadas no pacote são `lizard==1.24.1`, `coverage==7.16.2`, `PyYAML==6.0.3`, `import-linter==2.15`, `grimp==3.17`, `mutmut==3.8.0`, `bandit==1.9.4` e `semgrep==1.180.0`. O extra `dev` traz `pytest`, `jsonschema==4.25.1`, `build` e `twine`. No Python anterior ao 3.11 o extra também pina `tomli==2.4.1`.
 
 Num checkout, para desenvolver:
 
@@ -124,7 +124,7 @@ A action composta `.github/actions/bob` instala o bob, roda `bob check` e coment
 
 Este repositório chama a action em `.github/workflows/bob.yml`. O `bob-quality` ainda não está no PyPI, então no checkout deste repositório a action usa `pip install -e ".[dev]"` (descrito no README; o script é `.github/actions/bob/install.sh`). Publicação no GitHub Marketplace está fora desta fatia, no README.
 
-A action instala o Node `22.14.0` com `actions/setup-node` pinado por SHA e o jscpd `5.4.1` no prefixo npm do plugin (`install_jscpd.sh`, via `npm ci` do `bob doctor --install`). Sem isso, o gate dry fica `not_run` em repositórios que não instalam o Node. O artefato `bob-mutation-cache` fica 7 dias (`retention-days`).
+A action instala o Node `22.14.0` com `actions/setup-node` pinado por SHA e o jscpd `5.4.1` no prefixo npm do plugin (`install_jscpd.sh`, via `npm ci` do `bob doctor --install`). Sem isso, o gate dry fica `not_run` em repositórios que não instalam o Node. O artefato `bob-mutation-cache` fica 7 dias (`retention-days`) e leva `.bob/mutation-cache.json` e `.bob/stryker-incremental.json`.
 
 ## Hook pre-push
 
