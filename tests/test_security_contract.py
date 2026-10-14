@@ -133,9 +133,11 @@ def test_scanner_commands_are_pinned(tmp_path: Path) -> None:
         ",".join((*_BANDIT_EXCLUDE, "tests", "node_modules", "dist")),
         "src",
     ]
-    binary = str(Path(sys.executable).parent / "semgrep")
     assert _semgrep_argv(ctx) == [
-        binary,
+        "uvx",
+        "--from",
+        "semgrep==1.180.0",
+        "semgrep",
         "scan",
         "--disable-version-check",
         "--metrics=off",
@@ -177,8 +179,10 @@ def test_scanner_table_rejects_a_broken_row_and_publishes_the_vocabulary() -> No
     assert scanners_for(()) == ()
     assert severity_vocabulary() == _VOCABULARY
     assert distribution_version("bandit") == "1.9.4"
-    assert distribution_version("semgrep") == "1.180.0"
+    assert distribution_version("semgrep") is None
     assert distribution_version("bob-missing-distribution") is None
+    assert semgrep.pinned_version == "1.180.0"
+    assert semgrep.runner == "uvx"
     assert _bandit_installed() is True
     assert _semgrep_installed() is True
     _reject_bad_table((bandit, semgrep))
@@ -330,6 +334,10 @@ def test_missing_rules_and_a_missing_tool_stay_unmeasured(tmp_path: Path) -> Non
     hidden = replace(scanners_for(("python",))[0], installed=lambda: False)
     missed = _scan_row(repo, Config(), hidden, None, None)
     assert missed == Unmeasured("bandit", msg("tool.missing", tool="bandit"))
+
+    hidden_runner = replace(scanners_for(("typescript",))[0], installed=lambda: False)
+    missed = _scan_row(repo, Config(), hidden_runner, "abc123", None)
+    assert missed == Unmeasured("semgrep", msg("security.runner_missing", runner="uvx"))
 
     semgrep = scanners_for(("typescript",))[0]
     missed = _scan_row(repo, Config(languages=("typescript",)), semgrep, None, None)
