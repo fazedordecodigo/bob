@@ -719,7 +719,6 @@ def _write_cache(cache: _Cache, functions: dict[str, object]) -> None:
 
 
 def write_stryker_mutants(out_dir: Path, mutants: list[Mutant]) -> None:
-    """Os mutantes do último relatório do Stryker, para o `bob waive` saber os alvos."""
     _write_json(out_dir / STRYKER_MUTANTS_NAME, {"mutants": [_mutant_row(item) for item in mutants]})
 
 
@@ -739,10 +738,7 @@ def _write_json(path: Path, payload: dict[str, object]) -> None:
 
 
 def waivable_targets(out_dir: Path) -> frozenset[str]:
-    """Alvos que o `bob waive` aceita: os sobreviventes do último relatório Python e TypeScript.
-
-    Ignora a chave do cache. Mudar a suíte impede o reuso, mas não muda o que o relatório mostrou.
-    """
+    """Alvos que o `bob waive` aceita: os sobreviventes do último relatório Python e TypeScript."""
     mutants = [
         *_read_mutants(out_dir / CACHE_NAME, _cache_mutants),
         *_read_mutants(out_dir / STRYKER_MUTANTS_NAME, _cached_mutants),
@@ -756,7 +752,6 @@ def waivable_targets(out_dir: Path) -> frozenset[str]:
 
 
 def untested_targets(out_dir: Path) -> frozenset[str]:
-    """`arquivo::função` dos mutantes sem teste. O `bob waive` recusa esses alvos."""
     mutants = [
         *_read_mutants(out_dir / CACHE_NAME, _labeled_cache_mutants),
         *_read_mutants(out_dir / STRYKER_MUTANTS_NAME, _cached_mutants),
@@ -796,7 +791,6 @@ def _fill_missing_location(mutant: Mutant, file: str, function: str) -> Mutant:
 def _read_mutants(
     path: Path, rows: Callable[[dict[str, object]], list[Mutant]]
 ) -> list[Mutant]:
-    """Um arquivo ausente ou quebrado não contribui com nada."""
     try:
         raw = json.loads(path.read_bytes().decode())
         return rows(raw) if isinstance(raw, dict) else []

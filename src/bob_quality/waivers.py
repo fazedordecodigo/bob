@@ -162,8 +162,7 @@ def add_waiver(
 ) -> Waiver:
     """`known` são os alvos dos sobreviventes do último relatório de mutação.
 
-    `untested` são os `arquivo::função` sem teste. Cada recusa acontece antes de
-    abrir o `.bob/waivers.yaml` para escrita.
+    `untested` são os `arquivo::função` sem teste.
     """
     text = normalize_reason(reason)
     wanted = target.strip()
@@ -219,7 +218,6 @@ def survivor_targets(mutants: list[Mutant]) -> dict[str, SurvivorTargets]:
     então `mutants` traz todos os sobreviventes de cada função que toca.
     """
     survivors = [item for item in mutants if item.status == "survived" and item.file]
-    # O load_waivers tira os espaços do id, e a descrição de uma linha apagada termina em espaço.
     text = {item.id: item.operator.strip() for item in survivors}
     count = Counter((item.file, item.function, text[item.id]) for item in survivors)
     targets: dict[str, SurvivorTargets] = {}
