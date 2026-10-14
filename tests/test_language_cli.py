@@ -197,6 +197,7 @@ _COMMANDS = (
     ("dry", "--base", "main"),
     ("deps", "--base", "main"),
     ("mutate", "--base", "main"),
+    ("report",),
     ("doctor",),
     ("waive", "app.x_add__mutmut_1", "--reason", "because"),
 )

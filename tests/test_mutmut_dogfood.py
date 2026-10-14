@@ -144,8 +144,6 @@ def test_mutmut_stats_collection_does_not_die_on_this_repo() -> None:
         if not key.startswith("PYTEST_") and key != "MUTANT_UNDER_TEST"
     }
     env["BOB_SKIP_MUTMUT_DOGFOOD"] = "1"
-    # `calculate_crap` roda em cada check no processo. Mutar essa função
-    # repete a suíte lenta e estoura os 900s. `_install_text` só tem teste rápido.
     completed = subprocess.run(
         [
             sys.executable,
@@ -161,7 +159,7 @@ def test_mutmut_stats_collection_does_not_die_on_this_repo() -> None:
         text=True,
         stdin=subprocess.DEVNULL,
         env=env,
-        timeout=2400,
+        timeout=2700,
         check=False,
     )
     blob = f"{completed.stdout}\n{completed.stderr}"

@@ -4,7 +4,7 @@
 
 O bob dá aos agentes de código (Cursor, Claude Code, GitHub Copilot, Devin) gates de qualidade determinísticos para o código que eles alteram, mais skills que dizem ao agente quando rodá-los. Os gates medem CRAP, duplicação, mutação e dependências, só nas funções do diff. Cada execução sai com um código que o agente consegue usar e grava um relatório de uma página que diz ao revisor humano onde olhar primeiro. Os gates seguem o fluxo do Uncle Bob (ver [Créditos](#créditos)).
 
-- CLI: `bob` (`bob check | crap | dry | deps | mutate | waive | doctor`)
+- CLI: `bob` (`bob check | crap | dry | deps | mutate | report | waive | doctor`)
 - Pacote PyPI: `bob-quality` (sdist e wheel prontos, ainda não publicado)
 - Nome nos marketplaces: `bob` (ainda não publicado)
 - Configuração: `bob.yaml`
@@ -24,11 +24,11 @@ Estas partes funcionam na `main`:
 - Mutação diferencial em Python e mutação incremental com Stryker em TypeScript, e `bob waive`.
 - A GitHub Action que comenta o relatório no pull request.
 - `bob doctor`, e o pacote `bob-quality` pronto para distribuir. Nada foi enviado ao PyPI.
+- `bob report`, que renderiza um `report.json` já gravado como Markdown.
 - Os manifestos de plugin para Claude Code, Cursor, Copilot e Devin, e o instalador de skills ([#10](https://github.com/fazedordecodigo/bob/issues/10)). Nada foi enviado a marketplace.
 
 Estas partes estão planejadas (planned):
 
-- O comando `bob report` que o `docs/SPEC.md` lista. A CLI ainda não o tem.
 - Publicação no PyPI e nos marketplaces dos agentes.
 
 ## Fluxo
