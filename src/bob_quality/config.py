@@ -195,6 +195,19 @@ _SCHEMA = _Node(
         _Node("typing", "", (), mapping=True),
         _Node("secrets", "", (), mapping=True),
         _Node(
+            "churn",
+            "",
+            (),
+            children=(
+                _Node(
+                    "window_days",
+                    "window_days",
+                    (_Check("integer"), _Bound("gt", 0)),
+                    null_is_default=False,
+                ),
+            ),
+        ),
+        _Node(
             "supply",
             "",
             (),
@@ -250,6 +263,7 @@ class Config:
     python_deps_config: str = ".importlinter"
     typescript_deps_config: str = ".dependency-cruiser.cjs"
     min_tokens: int = 50
+    window_days: int = 90
     new_clones: NewClonesMode = "warn"
     max_new_clones: int = 0
     min_similarity: float = 0.0

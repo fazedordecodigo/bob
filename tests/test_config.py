@@ -66,6 +66,7 @@ def test_load_config_reads_every_key(tmp_path: Path) -> None:
         python_deps_config="deps.ini",
         typescript_deps_config="deps.cjs",
         min_tokens=80,
+        window_days=90,
         new_clones="fail",
         max_new_clones=2,
         min_similarity=90.0,
@@ -88,6 +89,7 @@ def test_load_config_defaults_without_a_file(tmp_path: Path) -> None:
         python_deps_config=".importlinter",
         typescript_deps_config=".dependency-cruiser.cjs",
         min_tokens=50,
+        window_days=90,
         new_clones="warn",
         max_new_clones=0,
         min_similarity=0.0,
@@ -128,6 +130,23 @@ def test_load_config_rejects_a_list(tmp_path: Path) -> None:
         "bob.yaml must be a mapping",
         "bob.yaml deve ser um mapeamento",
     )
+
+
+@pytest.mark.parametrize(
+    "text",
+    [None, "", "{}\n", "churn:\n", "churn: null\n", "churn: {}\n"],
+)
+def test_omitted_churn_loads_90_window_days(tmp_path: Path, text: str | None) -> None:
+    if text is not None:
+        (tmp_path / "bob.yaml").write_text(text)
+
+    assert load_config(None, tmp_path).window_days == 90
+
+
+def test_load_config_stores_window_days(tmp_path: Path) -> None:
+    (tmp_path / "bob.yaml").write_text("churn:\n  window_days: 15\n")
+
+    assert load_config(None, tmp_path).window_days == 15
 
 
 @pytest.mark.parametrize(
@@ -1053,6 +1072,9 @@ def test_load_config_rejects_an_illegal_semantic_value(
         ({"max_cognitive": 0}, "max_cognitive"),
         ({"max_cognitive": -1}, "max_cognitive"),
         ({"max_cognitive": True}, "max_cognitive"),
+        ({"window_days": 0}, "window_days"),
+        ({"window_days": -1}, "window_days"),
+        ({"window_days": True}, "window_days"),
         ({"new_clones": "block"}, "new_clones"),
         ({"max_new_clones": -1}, "max_new_clones"),
         ({"min_similarity": 101}, "min_similarity"),

@@ -9,6 +9,7 @@ from typing import get_args
 import pytest
 
 from bob_quality.check import _Measured, _assemble
+from bob_quality.churn import ChurnUnavailable
 from bob_quality.cognitive_gate import (
     _LanguageFunctions,
     _LanguageMiss,
@@ -579,7 +580,9 @@ def test_assemble_keeps_a_cloned_file_in_the_diff_and_the_mutation_summary() -> 
         ),
     )
 
-    report = _assemble(measured, "abc", "main", {"src/a.py": {1}}, 10.0, "bob check")
+    report = _assemble(
+        measured, "abc", "main", {"src/a.py": {1}}, 10.0, "bob check", ChurnUnavailable()
+    )
 
     assert report.schema_version == 1
     assert report.commit == "abc"
@@ -609,6 +612,7 @@ def test_assemble_keeps_a_cloned_file_in_the_diff_and_the_mutation_summary() -> 
         {},
         10.0,
         "bob check",
+        ChurnUnavailable(),
     )
     assert idle.commit == "abc"
     assert idle.base == "main"

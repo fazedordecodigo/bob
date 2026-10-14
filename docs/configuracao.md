@@ -31,6 +31,8 @@ cognitive:
 dependencies:
   python: .importlinter
   typescript: .dependency-cruiser.cjs
+churn:
+  window_days: 90
 supply:
   osv_fail_severities: [HIGH, CRITICAL]
   timeout_seconds: 30
@@ -61,6 +63,7 @@ O `bob.yaml` deste repositório é mais curto: `base`, `languages: [python]`, `p
 | `cognitive.max_per_function` | inteiro maior que 0 | `15` | Aviso quando a função alterada chega nesse valor. O exit continua `0` |
 | `dependencies.python` | string | `.importlinter` | Config do import-linter |
 | `dependencies.typescript` | string | `.dependency-cruiser.cjs` | Config do dependency-cruiser |
+| `churn.window_days` | inteiro maior que 0 | `90` | Dias da janela de rotatividade, terminando na data do commit |
 | `supply.osv_fail_severities` | lista de `HIGH` e `CRITICAL` | `[HIGH, CRITICAL]` | Severidades de advisory que bloqueiam. `MODERATE` e `LOW` não entram na lista |
 | `supply.timeout_seconds` | inteiro maior que 0 | `30` | Prazo de cada chamada HTTP e de cada processo do gate supply |
 | `security.fail_severities` | lista de strings | `[HIGH, CRITICAL, ERROR]` | Severidades que falham o gate `security` |
@@ -77,6 +80,8 @@ Uma chave repetida no mesmo mapeamento sai com `4`. O stderr fica em inglês e c
 `duplication` que não é mapeamento, ou `min_tokens` que não é um inteiro maior que 0, sai com `4`. A mensagem em inglês no stderr cita o arquivo e a chave, e nada é gravado. O [CHANGELOG](../CHANGELOG.md) descreve esse caso.
 
 `cognitive` que não é mapeamento, ou `max_per_function` que não é um inteiro maior que 0, sai com `4`. A mensagem em inglês no stderr cita o arquivo e a chave, e nada é gravado.
+
+`churn` ausente, `churn: null` e `churn: {}` ficam em 90. `churn.window_days: null`, um float, um bool, `0` ou um inteiro negativo saem com `4`. A mensagem em inglês no stderr cita `churn.window_days`, e nada é gravado. Qualquer outra chave `churn.*` é chave desconhecida, também com `4` e sem relatório.
 
 ### duplication
 
@@ -108,7 +113,7 @@ O `_SCHEMA` aceita `security.fail_severities` e recusa outra chave dentro de `se
 
 ### Chaves que o loader recusa
 
-O `_SCHEMA` em `src/bob_quality/config.py` aceita `base`, `language`, `languages`, `paths.include`, `paths.exclude`, `crap.max_per_function`, `crap.scope`, `cognitive.max_per_function`, `duplication.min_tokens`, `duplication.new_clones`, `duplication.max_new_clones`, `duplication.min_similarity`, `duplication.min_lines`, `dependencies.python`, `dependencies.typescript`, `security.fail_severities`, `typing`, `secrets`, `supply.osv_fail_severities`, `supply.timeout_seconds` e `dead_code.min_confidence`. `_reject_unknown` recusa qualquer outra chave: exit `4`, mensagem em inglês no stderr, nenhum arquivo gravado.
+O `_SCHEMA` em `src/bob_quality/config.py` aceita `base`, `language`, `languages`, `paths.include`, `paths.exclude`, `crap.max_per_function`, `crap.scope`, `cognitive.max_per_function`, `duplication.min_tokens`, `duplication.new_clones`, `duplication.max_new_clones`, `duplication.min_similarity`, `duplication.min_lines`, `dependencies.python`, `dependencies.typescript`, `typing`, `secrets`, `churn.window_days`, `supply.osv_fail_severities`, `supply.timeout_seconds`, `security.fail_severities` e `dead_code.min_confidence`. `_reject_unknown` recusa qualquer outra chave: exit `4`, mensagem em inglês no stderr, nenhum arquivo gravado.
 
 `supply.osv_fail_severities: [MODERATE]` sai com `bob.yaml: supply.osv_fail_severities[0] must be HIGH or CRITICAL`. Lista vazia, item repetido ou texto solto também saem com `4`. `supply.timeout_seconds: 0` sai com `bob.yaml: supply.timeout_seconds must be greater than 0`. Bool e float saem com `must be an integer`. Nada é gravado.
 

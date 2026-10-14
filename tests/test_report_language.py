@@ -150,6 +150,10 @@ RICH_EN = """# bob report
 |---|---|---:|
 | orphan | src/app/orphan.py | 2 |
 
+## Churn
+
+Churn counts are unavailable. The exit code is unchanged.
+
 ## How to reproduce
 
 ```
@@ -221,6 +225,10 @@ RICH_PT_BR = """# Relatório bob
 |---|---|---:|
 | orphan | src/app/orphan.py | 2 |
 
+## Rotatividade
+
+Contagens de rotatividade indisponíveis. O código de saída não muda.
+
 ## Como reproduzir
 
 ```
@@ -267,6 +275,10 @@ No surviving mutants.
 ## Mutants without tests
 
 No mutants without tests.
+
+## Churn
+
+Churn counts are unavailable. The exit code is unchanged.
 
 ## How to reproduce
 
@@ -356,10 +368,18 @@ def test_json_is_the_schema_with_english_reasons_whatever_the_markdown_language(
             "reused": [],
             "no_coverage": {"total": 2, "functions": [ORPHAN]},
         },
+        "typing": found,
+        "churn": {"kind": "unavailable"},
         "reproduce": "bob check --base main",
         "exit_code": 3,
-        "typing": found,
     }
+    keys = list(to_json(report))
+    assert keys[keys.index("mutation") + 1 :] == [
+        "typing",
+        "churn",
+        "reproduce",
+        "exit_code",
+    ]
 
 
 def test_an_empty_reproduce_command_stays_blank_in_markdown() -> None:
@@ -464,6 +484,8 @@ def test_cognitive_section_lists_the_warning_in_both_languages() -> None:
         "| Function | File | Score | Language | Waiver |\n"
         "|---|---|---:|---|---|\n"
         f"{row}\n\n"
+        "## Churn\n\n"
+        "Churn counts are unavailable. The exit code is unchanged.\n\n"
         "## How to reproduce\n"
     ) in to_markdown(report, "en")
     assert (
@@ -473,6 +495,8 @@ def test_cognitive_section_lists_the_warning_in_both_languages() -> None:
         "| Função | Arquivo | Score | Idioma | Waiver |\n"
         "|---|---|---:|---|---|\n"
         f"{row}\n\n"
+        "## Rotatividade\n\n"
+        "Contagens de rotatividade indisponíveis. O código de saída não muda.\n\n"
         "## Como reproduzir\n"
     ) in to_markdown(report, "pt-BR")
     assert to_json(report)["cognitive"] == [
@@ -495,11 +519,15 @@ def test_cognitive_section_says_when_nothing_is_over_the_limit() -> None:
     assert (
         "## Cognitive complexity\n\n"
         "No changed function at or above the cognitive limit.\n\n"
+        "## Churn\n\n"
+        "Churn counts are unavailable. The exit code is unchanged.\n\n"
         "## How to reproduce\n"
     ) in to_markdown(report, "en")
     assert (
         "## Complexidade cognitiva\n\n"
         "Nenhuma função alterada no limite de complexidade cognitiva ou acima.\n\n"
+        "## Rotatividade\n\n"
+        "Contagens de rotatividade indisponíveis. O código de saída não muda.\n\n"
         "## Como reproduzir\n"
     ) in to_markdown(report, "pt-BR")
     assert to_json(report)["cognitive"] == []
@@ -511,11 +539,15 @@ def test_cognitive_section_explains_a_skip_and_stays_out_of_other_runs() -> None
     assert (
         "## Cognitive complexity\n\n"
         "Not run (complexipy is not installed).\n\n"
+        "## Churn\n\n"
+        "Churn counts are unavailable. The exit code is unchanged.\n\n"
         "## How to reproduce\n"
     ) in to_markdown(skipped, "en")
     assert (
         "## Complexidade cognitiva\n\n"
         "Não executado (complexipy não está instalado).\n\n"
+        "## Rotatividade\n\n"
+        "Contagens de rotatividade indisponíveis. O código de saída não muda.\n\n"
         "## Como reproduzir\n"
     ) in to_markdown(skipped, "pt-BR")
     assert to_json(skipped)["gates"][0]["reason"] == "complexipy is not installed"

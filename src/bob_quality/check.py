@@ -6,6 +6,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
 
+from bob_quality.churn import ChurnSection, measure_churn
 from bob_quality.cognitive_gate import run_cognitive_gate
 from bob_quality.config import Config, ConfigError, load_config
 from bob_quality.core import files_by_risk, informational_debt, top_changed_crap
@@ -80,8 +81,16 @@ def run_check(
         if isinstance(loaded, Report):
             return _written(loaded, chosen_out, fmt, lang)
         measured.loaded_waivers = loaded
+    section = measure_churn(
+        cwd,
+        commit,
+        config.window_days,
+        diff_lines,
+        config.include,
+        measured.metrics,
+    )
     return _written(
-        _assemble(measured, commit, chosen_base, diff_lines, max_crap, command),
+        _assemble(measured, commit, chosen_base, diff_lines, max_crap, command, section),
         chosen_out,
         fmt,
         lang,
@@ -300,6 +309,7 @@ def _assemble(
     diff_lines: dict[str, set[int]],
     max_crap: float,
     command: str,
+    churn: ChurnSection,
 ) -> Report:
     focus = files_by_risk(measured.metrics, measured.clones, set(diff_lines))
     survivors: list[dict[str, object]] = []
@@ -329,6 +339,7 @@ def _assemble(
         survivors=survivors,
         mutation=summary,
         cognitive=measured.cognitive,
+        churn=churn,
         supply=measured.supply,
         security=measured.security,
         typing=measured.typing,

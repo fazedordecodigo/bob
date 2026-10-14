@@ -365,6 +365,12 @@ _SEMANTIC_YAML = (
     ("duplication: false\n", "bob.yaml: duplication must be a mapping\n"),
     ('duplication: ""\n', "bob.yaml: duplication must be a mapping\n"),
     ("duplication: [1]\n", "bob.yaml: duplication must be a mapping\n"),
+    ("churn:\n  window_days: 0\n", "bob.yaml: churn.window_days must be greater than 0\n"),
+    ("churn:\n  window_days: -3\n", "bob.yaml: churn.window_days must be greater than 0\n"),
+    ("churn:\n  window_days: null\n", "bob.yaml: churn.window_days must be an integer\n"),
+    ("churn:\n  window_days: 1.5\n", "bob.yaml: churn.window_days must be an integer\n"),
+    ("churn:\n  window_days: true\n", "bob.yaml: churn.window_days must be an integer\n"),
+    ("churn:\n  other: 1\n", "bob.yaml: unknown key churn.other\n"),
     ("security: []\n", "bob.yaml: security must be a mapping\n"),
     (
         "security:\n  fail_severities: HIGH\n",

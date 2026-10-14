@@ -322,8 +322,9 @@ def test_clone_shorter_than_min_lines_is_dropped(tmp_path: Path, mode: str) -> N
     assert result.returncode == 0, result.stderr
     assert dry["status"] == "passed"
     assert payload["clones"] == []
-    assert "receipt_a.py" not in markdown
-    assert "No new clones in the diff." in markdown
+    clones = markdown.split("## New clones\n", 1)[1].split("\n## ", 1)[0]
+    assert "receipt_a.py" not in clones
+    assert "No new clones in the diff." in clones
 
 
 def test_exact_clone_at_both_floors_still_fails(tmp_path: Path) -> None:

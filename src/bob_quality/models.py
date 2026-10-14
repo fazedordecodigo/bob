@@ -6,6 +6,7 @@ from dataclasses import dataclass, field
 from pathlib import PurePosixPath
 from typing import Literal, NewType
 
+from bob_quality.churn import ChurnSection, ChurnUnavailable
 from bob_quality.messages import Text
 
 GateStatus = Literal["passed", "warn", "failed", "not_run"]
@@ -290,6 +291,7 @@ class Report:
     survivors: list[dict[str, object]] = field(default_factory=list)
     mutation: dict[str, object] | None = None
     cognitive: list[CognitiveFunction] = field(default_factory=list)
+    churn: ChurnSection = field(default_factory=ChurnUnavailable)
     supply: SupplyReport | None = None
     security: SecurityReport | None = None
     typing: dict[str, object] | None = None

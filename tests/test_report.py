@@ -110,7 +110,8 @@ def test_json_omits_supply_when_the_gate_did_not_run() -> None:
     keys = list(payload)
 
     assert "supply" not in payload
-    assert keys[keys.index("mutation") + 1] == "reproduce"
+    assert keys[keys.index("mutation") + 1] == "churn"
+    assert keys[keys.index("churn") + 1] == "reproduce"
 
 
 def test_json_supply_sits_after_mutation_and_matches_the_rows() -> None:
@@ -120,7 +121,8 @@ def test_json_supply_sits_after_mutation_and_matches_the_rows() -> None:
     keys = list(payload)
 
     assert keys[keys.index("mutation") + 1] == "supply"
-    assert keys[keys.index("supply") + 1] == "reproduce"
+    assert keys[keys.index("supply") + 1] == "churn"
+    assert keys[keys.index("churn") + 1] == "reproduce"
     assert payload["supply"] == {
         "measured": ["python", "typescript"],
         "skipped": [],
