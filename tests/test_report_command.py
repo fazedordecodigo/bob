@@ -558,6 +558,16 @@ def test_report_renders_saved_security_and_types(tmp_path: Path) -> None:
                 "waiver": None,
             },
             {
+                "tool": "bandit",
+                "rule": "B404",
+                "file": "src/app.py",
+                "line": 1,
+                "end_line": 1,
+                "severity": "LOW",
+                "disposition": "warn",
+                "waiver": None,
+            },
+            {
                 "tool": "semgrep",
                 "rule": "rule",
                 "file": "src/app.py",
@@ -566,6 +576,16 @@ def test_report_renders_saved_security_and_types(tmp_path: Path) -> None:
                 "severity": "MEDIUM",
                 "disposition": "waived",
                 "waiver": "because",
+            },
+            {
+                "tool": "semgrep",
+                "rule": "other",
+                "file": "src/old.py",
+                "line": 9,
+                "end_line": 9,
+                "severity": "INFO",
+                "disposition": "off_diff",
+                "waiver": None,
             },
         ],
         "unmeasured": [],
@@ -592,7 +612,9 @@ def test_report_renders_saved_security_and_types(tmp_path: Path) -> None:
 
     assert result.returncode == 0
     assert "| bandit | B602 | src/app.py:4-6 | HIGH | fail | — |" in markdown
+    assert "| bandit | B404 | src/app.py:1 | LOW | warn | — |" in markdown
     assert "| semgrep | rule | src/app.py:2 | MEDIUM | waived | because |" in markdown
+    assert "| semgrep | other | src/old.py:9 | INFO | off diff | — |" in markdown
     assert "| `src/app.py` | 4 | `assignment` | blocking | `typing:src/app.py:4:assignment` |" in markdown
 
 
@@ -664,7 +686,11 @@ def test_report_renders_an_empty_secrets_list(tmp_path: Path) -> None:
         {**_MINIMAL, "secrets": "nope"},
         {**_MINIMAL, "security": "nope"},
         {**_MINIMAL, "security": {}},
+        {**_MINIMAL, "security": {"findings": []}},
+        {**_MINIMAL, "security": {"unmeasured": []}},
         {**_MINIMAL, "security": {"findings": [], "unmeasured": [1]}},
+        {**_MINIMAL, "security": {"findings": [], "unmeasured": "nope"}},
+        {**_MINIMAL, "security": {"findings": {}, "unmeasured": []}},
         {**_MINIMAL, "security": {"findings": [_finding(disposition="nope")], "unmeasured": []}},
         {**_MINIMAL, "security": {"findings": [_finding(waiver="because")], "unmeasured": []}},
         {**_MINIMAL, "security": {"findings": [_finding(disposition="waived", waiver="")], "unmeasured": []}},
@@ -673,6 +699,11 @@ def test_report_renders_an_empty_secrets_list(tmp_path: Path) -> None:
         {**_MINIMAL, "typing": "nope"},
         {**_MINIMAL, "typing": {}},
         {**_MINIMAL, "typing": {"findings": [{"file": 1, "line": 4, "code": "assignment", "disposition": "blocking", "waiver_id": "typing:x"}]}},
+        {**_MINIMAL, "typing": {"findings": [{"file": "src/app.py", "line": "4", "code": "assignment", "disposition": "blocking", "waiver_id": "typing:x"}]}},
+        {**_MINIMAL, "typing": {"findings": [{"file": "src/app.py", "line": 4, "code": 1, "disposition": "blocking", "waiver_id": "typing:x"}]}},
+        {**_MINIMAL, "typing": {"findings": [{"file": "src/app.py", "line": 4, "code": "assignment", "disposition": 1, "waiver_id": "typing:x"}]}},
+        {**_MINIMAL, "typing": {"findings": [{"file": "src/app.py", "line": 4, "code": "assignment", "disposition": "blocking", "waiver_id": 1}]}},
+        {**_MINIMAL, "typing": {"findings": "nope"}},
         {**_MINIMAL, "secrets": [1]},
         {**_MINIMAL, "secrets": [_secret(line=0)]},
         {**_MINIMAL, "secrets": [_secret(line="12")]},
