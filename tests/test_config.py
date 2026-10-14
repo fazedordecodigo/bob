@@ -33,6 +33,7 @@ duplication:
   max_new_clones: 2
   min_similarity: 90
   min_lines: 8
+test_smells: true
 cognitive:
   max_per_function: 12
 coverage:
@@ -73,6 +74,7 @@ def test_load_config_reads_every_key(tmp_path: Path) -> None:
         max_new_clones=2,
         min_similarity=90.0,
         min_lines=8,
+        test_smells=True,
         max_cognitive=12,
         coverage_min_percent=90.0,
         language="pt-BR",
@@ -368,6 +370,49 @@ def test_load_config_stores_changed_when_scope_is_absent(tmp_path: Path, text: s
     (tmp_path / "bob.yaml").write_text(text)
 
     assert load_config(None, tmp_path).crap_scope == "changed"
+
+
+@pytest.mark.parametrize(
+    "text",
+    ["", "test_smells: true\n", "test_smells: null\n", "test_smells:\n"],
+)
+def test_load_config_accepts_test_smells_as_true(tmp_path: Path, text: str) -> None:
+    (tmp_path / "bob.yaml").write_text(text)
+
+    assert load_config(None, tmp_path).test_smells is True
+
+
+@pytest.mark.parametrize(
+    ("text", "english", "portuguese"),
+    [
+        (
+            "test_smells: false\n",
+            "bob.yaml: test_smells accepts only true",
+            "bob.yaml: test_smells aceita apenas true",
+        ),
+        (
+            "test_smells: {}\n",
+            "bob.yaml: test_smells accepts only true",
+            "bob.yaml: test_smells aceita apenas true",
+        ),
+        (
+            "test_smells:\n  enabled: true\n",
+            "bob.yaml: test_smells accepts only true",
+            "bob.yaml: test_smells aceita apenas true",
+        ),
+        (
+            "test_smells: 1\n",
+            "bob.yaml: test_smells accepts only true",
+            "bob.yaml: test_smells aceita apenas true",
+        ),
+    ],
+)
+def test_load_config_rejects_test_smells_that_is_not_true(
+    tmp_path: Path, text: str, english: str, portuguese: str
+) -> None:
+    (tmp_path / "bob.yaml").write_text(text)
+
+    assert _config_error(tmp_path) == (english, portuguese)
 
 
 def test_load_config_rejects_an_empty_languages_list(tmp_path: Path) -> None:
@@ -1130,6 +1175,9 @@ def test_load_config_rejects_an_illegal_semantic_value(
         ({"languages": ()}, "languages"),
         ({"languages": ("python", "python")}, "languages"),
         ({"languages": "python"}, "languages"),
+        ({"test_smells": False}, "test_smells"),
+        ({"test_smells": 1}, "test_smells"),
+        ({"test_smells": {}}, "test_smells"),
         ({"osv_fail_severities": ("MODERATE",)}, "osv_fail_severities"),
         ({"osv_fail_severities": ()}, "osv_fail_severities"),
         ({"supply_timeout_seconds": 0}, "supply_timeout_seconds"),

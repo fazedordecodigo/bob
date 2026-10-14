@@ -205,6 +205,19 @@
         }
       }
     },
+    "test_smells": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["file", "line", "rule", "waiver"],
+        "properties": {
+          "file": { "type": "string" },
+          "line": { "type": "integer" },
+          "rule": { "type": "string" },
+          "waiver": { "type": ["string", "null"] }
+        }
+      }
+    },
     "typing": {
       "type": "object",
       "additionalProperties": false,

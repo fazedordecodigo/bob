@@ -129,6 +129,14 @@ class Mutant:
 
 
 @dataclass(frozen=True)
+class TestSmell:
+    file: str
+    line: int
+    rule: str
+    waiver: str | None = None
+
+
+@dataclass(frozen=True)
 class Clone:
     """Par duplicado. Produzido pelo adaptador jscpd a partir do JSON."""
     first_file: str
@@ -309,6 +317,7 @@ class Report:
     survivors: list[dict[str, object]] = field(default_factory=list)
     mutation: dict[str, object] | None = None
     diff_coverage: DiffCoverage | None = None
+    test_smells: tuple[TestSmell, ...] | None = None
     cognitive: list[CognitiveFunction] = field(default_factory=list)
     churn: ChurnSection = field(default_factory=ChurnUnavailable)
     supply: SupplyReport | None = None

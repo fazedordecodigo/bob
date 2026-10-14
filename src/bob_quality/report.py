@@ -3,39 +3,72 @@
 from __future__ import annotations
 
 import json
+import os
+from datetime import date
 from pathlib import Path
+from typing import get_args
 
-from bob_quality.churn import ChurnMeasured, ChurnSection, ChurnUnavailable, Hotspot
+from bob_quality.churn import (
+    ChurnMeasured,
+    ChurnSection,
+    ChurnUnavailable,
+    ChurnWindow,
+    FileChurn,
+    Hotspot,
+)
+from bob_quality.config import ConfigError
+from bob_quality.exit_codes import (
+    BASELINE_BROKEN,
+    CONFIG_OR_TOOL,
+    GATE_FAILED,
+    PASSED,
+    UNWAIVED_SURVIVOR,
+)
 from bob_quality.messages import Language, Message, Text, msg, render
 from bob_quality.models import (
     Advisory,
     Clone,
     CognitiveFunction,
+    DeadSection,
     DepViolation,
     DiffCoverage,
+    Fail,
+    Finding,
     FunctionMetric,
     GateResult,
     GateStatus,
     Judged,
+    KnipKind,
     LedgerRow,
     MissingPackage,
+    OffDiff,
     PythonDead,
     Report,
+    RowBlock,
+    RowWarn,
     RowWaived,
+    SecretLedger,
     SecretRow,
     SecurityReport,
+    Severity,
     SupplyFinding,
     SupplyReport,
     SupplyRow,
+    TestSmell,
     TypeScriptDead,
     UndeclaredImport,
     UnverifiedAdvisory,
     UnverifiedExistence,
+    VultureKind,
+    Warn,
     Waived,
     flatten_uncovered,
 )
+from bob_quality.test_smells import waiver_id
 
 JSON_LANGUAGE: Language = "en"
+_VULTURE_KIND: dict[str, VultureKind] = {kind: kind for kind in get_args(VultureKind)}
+_KNIP_KIND: dict[str, KnipKind] = {kind: kind for kind in get_args(KnipKind)}
 
 GATE_MARK: dict[GateStatus, str] = {
     "passed": "✅",
@@ -80,11 +113,18 @@ def to_json(report: Report) -> dict[str, object]:
         "waivers": report.waivers,
         "survivors": report.survivors,
         "mutation": report.mutation,
+        **_smell_field(report),
         **_supply_field(report),
     }
     _put_diff_reports(payload, report)
     _json_tail(payload, report)
     return payload
+
+
+def _smell_field(report: Report) -> dict[str, object]:
+    if report.test_smells is None:
+        return {}
+    return {"test_smells": [smell_row(smell) for smell in report.test_smells]}
 
 
 def _json_tail(payload: dict[str, object], report: Report) -> None:
@@ -151,6 +191,7 @@ def to_markdown(report: Report, lang: Language) -> str:
     lines.extend(_survivor_lines(report, lang))
     lines.extend(_no_coverage_lines(report))
     lines.extend(_diff_coverage_lines(report))
+    lines.extend(_test_smell_lines(report))
     lines.extend(supply_lines(report))
     lines.extend(_types_lines(report))
     lines.extend(_secrets_lines(report))
@@ -307,6 +348,28 @@ def _waiver_section(waivers: list[dict[str, object]]) -> list[Text]:
         )
     lines.append("")
     return lines
+
+
+def _test_smell_lines(report: Report) -> list[Text]:
+    if report.test_smells is None:
+        return []
+    lines: list[Text] = ["", msg("report.test_smells"), ""]
+    if report.test_smells:
+        lines.append(msg("report.test_smell_header"))
+        lines.append("|---|---|")
+        lines.extend(_test_smell_row(smell) for smell in report.test_smells)
+        return lines
+    gate = _gate_named(report, "test_smells")
+    if gate is not None and gate.status == "not_run" and gate.reason:
+        lines.append(gate.reason)
+        return lines
+    lines.append(msg("report.no_test_smells"))
+    return lines
+
+
+def _test_smell_row(smell: TestSmell) -> str:
+    reason = (smell.waiver or "—").replace("|", "\\|")
+    return f"| `{waiver_id(smell)}` | {reason} |"
 
 
 def _cognitive_lines(report: Report) -> list[Text]:
@@ -649,6 +712,10 @@ def _footer(report: Report, lang: Language) -> list[Text]:
     return ["", msg("report.reproduce"), "", "```", command, "```", ""]
 
 
+def smell_row(smell: TestSmell) -> dict[str, object]:
+    return {"file": smell.file, "line": smell.line, "rule": smell.rule, "waiver": smell.waiver}
+
+
 def cognitive_row(item: CognitiveFunction) -> dict[str, object]:
     return {
         "file": item.file,
@@ -789,6 +856,619 @@ def _tools(versions: dict[str, str]) -> str:
     return ", ".join(f"{name} {ver}" for name, ver in versions.items())
 
 
+_SAVED_EXIT_CODES = frozenset(
+    {PASSED, GATE_FAILED, BASELINE_BROKEN, UNWAIVED_SURVIVOR, CONFIG_OR_TOOL}
+)
+_CLONE_TEXT = ("first_file", "second_file")
+_CLONE_INT = ("first_start", "first_end", "second_start", "second_end", "lines", "tokens")
+_REQUIRED_SAVED = (
+    "schema_version",
+    "commit",
+    "base",
+    "generated_at",
+    "tool_versions",
+    "gates",
+    "focus",
+    "top_crap",
+    "reproduce",
+    "exit_code",
+)
+
+
+def write_saved_markdown(source: Path, destination: Path, lang: Language) -> int:
+    text, code = render_saved(source, lang)
+    _replace_text(destination, text)
+    return code
+
+
+def render_saved(source: Path, lang: Language) -> tuple[str, int]:
+    report = load_saved_report(source)
+    return to_markdown(report, lang), report.exit_code
+
+
+def load_saved_report(directory: Path) -> Report:
+    path = directory / "report.json"
+    payload = _saved_object(_read_saved(path), path)
+    _require_saved(payload, path)
+    _schema_version(payload["schema_version"], path)
+    return _saved_report(payload, path)
+
+
+def _read_saved(path: Path) -> object:
+    if not path.is_file():
+        raise ConfigError(msg("report.input_missing", path=path))
+    try:
+        return json.loads(path.read_text())
+    except (OSError, UnicodeError, json.JSONDecodeError):
+        raise _invalid_saved(path) from None
+
+
+def _saved_object(payload: object, path: Path) -> dict[str, object]:
+    if isinstance(payload, dict):
+        return payload
+    raise _invalid_saved(path)
+
+
+def _require_saved(payload: dict[str, object], path: Path) -> None:
+    if any(key not in payload for key in _REQUIRED_SAVED):
+        raise _invalid_saved(path)
+
+
+def _schema_version(value: object, path: Path) -> None:
+    if type(value) is not int or value != 1:
+        raise _invalid_saved(path)
+
+
+def _saved_report(payload: dict[str, object], path: Path) -> Report:
+    return Report(
+        schema_version=1,
+        commit=_text(payload["commit"], path),
+        base=_text(payload["base"], path),
+        generated_at=_text(payload["generated_at"], path),
+        tool_versions=_versions(payload["tool_versions"], path),
+        gates=_gates(payload["gates"], path),
+        focus=_focus_rows(payload["focus"], path),
+        top_crap=_metric_rows(payload["top_crap"], path),
+        old_debt=_debt_rows(payload.get("old_debt", []), path),
+        dependencies=_edge_rows(payload.get("dependencies", []), path),
+        old_dependencies=_edge_rows(payload.get("old_dependencies", []), path),
+        clones=_clones(payload.get("clones", []), path),
+        reproduce=_text(payload["reproduce"], path),
+        exit_code=_exit_code(payload["exit_code"], path),
+        waivers=_dicts(payload.get("waivers", []), path),
+        survivors=_survivor_rows(payload.get("survivors", []), path),
+        mutation=_optional_mutation(payload, path),
+        dead_code=_dead_section(payload, path),
+        secrets=_secrets(payload, path),
+        security=_security(payload, path),
+        typing=_typing(payload, path),
+        supply=_supply(payload, path),
+        cognitive=_cognitive(payload, path),
+        churn=_churn(payload, path),
+    )
+
+
+def _cognitive(payload: dict[str, object], path: Path) -> list[CognitiveFunction]:
+    if "cognitive" not in payload:
+        return []
+    return [_cognitive_item(row, path) for row in _dicts(payload["cognitive"], path)]
+
+
+def _cognitive_item(row: dict[str, object], path: Path) -> CognitiveFunction:
+    try:
+        return CognitiveFunction(
+            _text(row.get("file"), path),
+            _text(row.get("name"), path),
+            _integer(row.get("start_line"), path),
+            _integer(row.get("end_line"), path),
+            _integer(row.get("score"), path),
+            _one_of(_text(row.get("language"), path), _LANGUAGE, path),
+        )
+    except ValueError:
+        raise _invalid_saved(path)
+
+
+def _churn(payload: dict[str, object], path: Path) -> ChurnSection:
+    if "churn" not in payload:
+        return ChurnUnavailable()
+    value = payload["churn"]
+    if not isinstance(value, dict) or "kind" not in value:
+        raise _invalid_saved(path)
+    if value["kind"] == "unavailable":
+        return ChurnUnavailable()
+    if value["kind"] == "measured":
+        return _measured_churn(value, path)
+    raise _invalid_saved(path)
+
+
+def _measured_churn(value: dict[str, object], path: Path) -> ChurnMeasured:
+    try:
+        return ChurnMeasured(
+            _churn_window(value, path),
+            tuple(_file_churn(row, path) for row in _dicts(value.get("files"), path)),
+            tuple(_hotspot(row, path) for row in _dicts(value.get("hotspots"), path)),
+        )
+    except ValueError:
+        raise _invalid_saved(path)
+
+
+def _churn_window(value: dict[str, object], path: Path) -> ChurnWindow:
+    try:
+        ends_on = date.fromisoformat(_text(value.get("ends_on"), path))
+    except ValueError:
+        raise _invalid_saved(path)
+    return ChurnWindow(_integer(value.get("window_days"), path), ends_on)
+
+
+def _file_churn(row: dict[str, object], path: Path) -> FileChurn:
+    return FileChurn(
+        _text(row.get("path"), path),
+        _integer(row.get("commits"), path),
+        _optional_number(row, "relative", path),
+    )
+
+
+def _hotspot(row: dict[str, object], path: Path) -> Hotspot:
+    return Hotspot(
+        _text(row.get("file"), path),
+        _text(row.get("function"), path),
+        _integer(row.get("start_line"), path),
+        _integer(row.get("cc"), path),
+        _integer(row.get("commits"), path),
+    )
+
+
+_JUDGED = {"fail": Fail, "warn": Warn, "off_diff": OffDiff}
+
+
+def _security(payload: dict[str, object], path: Path) -> SecurityReport | None:
+    if "security" not in payload:
+        return None
+    value = payload["security"]
+    if not isinstance(value, dict) or "findings" not in value or "unmeasured" not in value:
+        raise _invalid_saved(path)
+    findings = tuple(_judged(row, path) for row in _dicts(value["findings"], path))
+    return SecurityReport(findings, tuple(_string_list(value["unmeasured"], path)))
+
+
+def _judged(row: dict[str, object], path: Path) -> Judged:
+    finding = Finding(
+        _text(row.get("tool"), path),
+        _text(row.get("rule"), path),
+        _text(row.get("file"), path),
+        _integer(row.get("line"), path),
+        _integer(row.get("end_line"), path),
+        Severity(_text(row.get("severity"), path)),
+    )
+    disposition = row.get("disposition")
+    waiver = row.get("waiver")
+    if disposition == "waived":
+        if not isinstance(waiver, str) or waiver == "":
+            raise _invalid_saved(path)
+        return Waived(finding, waiver)
+    kind = _JUDGED.get(disposition) if isinstance(disposition, str) else None
+    if kind is None or waiver is not None:
+        raise _invalid_saved(path)
+    return kind(finding)
+
+
+def _typing(payload: dict[str, object], path: Path) -> dict[str, object] | None:
+    if "typing" not in payload:
+        return None
+    value = payload["typing"]
+    if not isinstance(value, dict) or "findings" not in value:
+        raise _invalid_saved(path)
+    for row in _dicts(value["findings"], path):
+        _text(row.get("file"), path)
+        _integer(row.get("line"), path)
+        _text(row.get("code"), path)
+        _text(row.get("disposition"), path)
+        _text(row.get("waiver_id"), path)
+    return value
+
+
+def _string_list(value: object, path: Path) -> list[str]:
+    if not isinstance(value, list):
+        raise _invalid_saved(path)
+    return [_text(item, path) for item in value]
+
+
+_LANGUAGE = frozenset({"python", "typescript"})
+_INDEX = frozenset({"pypi", "npm"})
+_SEVERITY = frozenset({"CRITICAL", "HIGH", "MODERATE", "LOW"})
+_EXISTENCE_CAUSE = frozenset({"timeout", "dns", "undecided"})
+_ADVISORY_GAP = _EXISTENCE_CAUSE | {"no_severity"}
+
+
+def _supply(payload: dict[str, object], path: Path) -> SupplyReport | None:
+    if "supply" not in payload:
+        return None
+    value = payload["supply"]
+    if not isinstance(value, dict):
+        raise _invalid_saved(path)
+    for key in ("measured", "skipped", "findings"):
+        if key not in value:
+            raise _invalid_saved(path)
+    measured = tuple(_one_of(item, _LANGUAGE, path) for item in _string_list(value["measured"], path))
+    skipped = tuple(_one_of(item, _LANGUAGE, path) for item in _string_list(value["skipped"], path))
+    rows = tuple(_saved_supply_row(row, path) for row in _dicts(value["findings"], path))
+    return SupplyReport(measured, skipped, rows)
+
+
+def _saved_supply_row(row: dict[str, object], path: Path) -> SupplyRow:
+    finding = _supply_finding(row, path)
+    effect = row.get("effect")
+    waiver = row.get("waiver")
+    if effect == "waived":
+        return _waived_supply(finding, waiver, path)
+    return _open_supply(finding, effect, waiver, path)
+
+
+def _waived_supply(finding: SupplyFinding, waiver: object, path: Path) -> RowWaived:
+    if not isinstance(waiver, str) or waiver == "" or not _can_waive(finding):
+        raise _invalid_saved(path)
+    return RowWaived(finding, waiver)
+
+
+def _open_supply(finding: SupplyFinding, effect: object, waiver: object, path: Path) -> SupplyRow:
+    if waiver is not None or effect not in {"block", "warn"}:
+        raise _invalid_saved(path)
+    if effect == "block":
+        return _blocked_supply(finding, path)
+    return _warned_supply(finding, path)
+
+
+def _blocked_supply(finding: SupplyFinding, path: Path) -> RowBlock:
+    if not _can_waive(finding):
+        raise _invalid_saved(path)
+    return RowBlock(finding)
+
+
+def _warned_supply(finding: SupplyFinding, path: Path) -> RowWarn:
+    if not _can_warn(finding):
+        raise _invalid_saved(path)
+    return RowWarn(finding)
+
+
+def _can_waive(finding: SupplyFinding) -> bool:
+    return isinstance(finding, (MissingPackage, UndeclaredImport, Advisory))
+
+
+def _can_warn(finding: SupplyFinding) -> bool:
+    return isinstance(finding, (UnverifiedExistence, UnverifiedAdvisory, Advisory))
+
+
+def _supply_finding(row: dict[str, object], path: Path) -> SupplyFinding:
+    kind = row.get("kind")
+    if kind == "missing":
+        return MissingPackage(
+            _one_of(_text(row.get("index"), path), _INDEX, path),
+            _text(row.get("name"), path),
+            _text(row.get("file"), path),
+            _integer(row.get("line"), path),
+        )
+    if kind == "undeclared":
+        return UndeclaredImport(
+            _text(row.get("file"), path),
+            _text(row.get("module"), path),
+            _integer(row.get("line"), path),
+        )
+    if kind == "advisory":
+        return Advisory(
+            _text(row.get("advisory"), path),
+            _one_of(_text(row.get("index"), path), _INDEX, path),
+            _text(row.get("name"), path),
+            _one_of(_text(row.get("severity"), path), _SEVERITY, path),
+            _text(row.get("file"), path),
+            _integer(row.get("line"), path),
+        )
+    if kind == "unverified":
+        return _unverified(row, path)
+    raise _invalid_saved(path)
+
+
+def _unverified(row: dict[str, object], path: Path) -> UnverifiedExistence | UnverifiedAdvisory:
+    question = row.get("question")
+    index = _one_of(_text(row.get("index"), path), _INDEX, path)
+    name = _text(row.get("name"), path)
+    file = _text(row.get("file"), path)
+    line = _integer(row.get("line"), path)
+    if question == "existence":
+        cause = _one_of(_text(row.get("cause"), path), _EXISTENCE_CAUSE, path)
+        return UnverifiedExistence(index, name, file, line, cause)
+    if question == "advisory":
+        return _advisory_gap(row, index, name, file, line, path)
+    raise _invalid_saved(path)
+
+
+def _advisory_gap(
+    row: dict[str, object],
+    index: str,
+    name: str,
+    file: str,
+    line: int,
+    path: Path,
+) -> UnverifiedAdvisory:
+    cause = _one_of(_text(row.get("cause"), path), _ADVISORY_GAP, path)
+    advisory = row.get("advisory")
+    if advisory is None:
+        if cause == "no_severity":
+            raise _invalid_saved(path)
+        return UnverifiedAdvisory(index, name, file, line, cause)
+    return UnverifiedAdvisory(index, name, file, line, cause, _text(advisory, path))
+
+
+def _one_of(value: str, allowed: frozenset[str], path: Path) -> str:
+    if value not in allowed:
+        raise _invalid_saved(path)
+    return value
+
+
+def _secrets(payload: dict[str, object], path: Path) -> SecretLedger | None:
+    if "secrets" not in payload:
+        return None
+    try:
+        rows = tuple(_secret_row(row, path) for row in _dicts(payload["secrets"], path))
+        return SecretLedger(rows)
+    except ValueError:
+        raise _invalid_saved(path) from None
+
+
+def _secret_row(row: dict[str, object], path: Path) -> SecretRow:
+    return SecretRow(
+        _text(row.get("file"), path),
+        _integer(row.get("line"), path),
+        _text(row.get("rule_id"), path),
+    )
+
+
+def _dead_section(payload: dict[str, object], path: Path) -> DeadSection | None:
+    if "dead_code" not in payload:
+        return None
+    value = payload["dead_code"]
+    if not isinstance(value, dict) or "symbols" not in value:
+        raise _invalid_saved(path)
+    rows = tuple(_ledger_row(row, path) for row in _dicts(value["symbols"], path))
+    return DeadSection(rows)
+
+
+def _ledger_row(row: dict[str, object], path: Path) -> LedgerRow:
+    file = _text(row.get("file"), path)
+    line = _integer(row.get("line"), path)
+    if line < 1:
+        raise _invalid_saved(path)
+    return LedgerRow(_dead_symbol(row, file, line, path), _symbol_waiver(row, path))
+
+
+def _symbol_waiver(row: dict[str, object], path: Path) -> str | None:
+    if "waiver" not in row or row["waiver"] is None:
+        return None
+    return _text(row["waiver"], path)
+
+
+def _dead_symbol(
+    row: dict[str, object], file: str, line: int, path: Path
+) -> PythonDead | TypeScriptDead:
+    name = _text(row.get("name"), path)
+    kind = row.get("kind")
+    if not isinstance(kind, str):
+        raise _invalid_saved(path)
+    language = row.get("language")
+    if language == "python":
+        found = _VULTURE_KIND.get(kind)
+        if found is None:
+            raise _invalid_saved(path)
+        return PythonDead(file, line, name, found, _confidence(row, path))
+    if language == "typescript":
+        found = _KNIP_KIND.get(kind)
+        if found is None:
+            raise _invalid_saved(path)
+        if row.get("confidence") is not None:
+            raise _invalid_saved(path)
+        return TypeScriptDead(file, line, name, found)
+    raise _invalid_saved(path)
+
+
+def _confidence(row: dict[str, object], path: Path) -> int:
+    value = row.get("confidence")
+    if type(value) is int and 0 <= value <= 100:
+        return value
+    raise _invalid_saved(path)
+
+
+def _exit_code(value: object, path: Path) -> int:
+    if type(value) is int and value in _SAVED_EXIT_CODES:
+        return value
+    raise _invalid_saved(path)
+
+
+def _versions(value: object, path: Path) -> dict[str, str]:
+    if not isinstance(value, dict):
+        raise _invalid_saved(path)
+    versions: dict[str, str] = {}
+    for key, item in value.items():
+        versions[key] = _text(item, path)
+    return versions
+
+
+def _gates(value: object, path: Path) -> list[GateResult]:
+    return [_gate(row, path) for row in _dicts(value, path)]
+
+
+def _gate(row: dict[str, object], path: Path) -> GateResult:
+    reason = row.get("reason")
+    if reason is not None and not isinstance(reason, str):
+        raise _invalid_saved(path)
+    return GateResult(_text(row.get("name"), path), _status(row.get("status"), path), reason)
+
+
+def _status(value: object, path: Path) -> GateStatus:
+    if value == "passed":
+        return "passed"
+    if value == "warn":
+        return "warn"
+    if value == "failed":
+        return "failed"
+    if value == "not_run":
+        return "not_run"
+    raise _invalid_saved(path)
+
+
+def _focus_rows(value: object, path: Path) -> list[dict[str, object]]:
+    rows = _dicts(value, path)
+    for row in rows:
+        _text(row.get("file"), path)
+        if "risk" not in row:
+            raise _invalid_saved(path)
+    return rows
+
+
+def _metric_rows(value: object, path: Path) -> list[dict[str, object]]:
+    rows = _dicts(value, path)
+    for row in rows:
+        _metric_row(row, path)
+    return rows
+
+
+def _metric_row(row: dict[str, object], path: Path) -> None:
+    _text(row.get("name"), path)
+    _text(row.get("file"), path)
+    _integer(row.get("start_line"), path)
+    _number(row.get("coverage"), path)
+    _number(row.get("cc"), path)
+    _number(row.get("crap"), path)
+    if "delta" in row and row["delta"] is not None:
+        _number(row["delta"], path)
+
+
+def _debt_rows(value: object, path: Path) -> list[dict[str, object]]:
+    rows = _dicts(value, path)
+    for row in rows:
+        _text(row.get("name"), path)
+        _text(row.get("file"), path)
+        _integer(row.get("start_line"), path)
+        _number(row.get("crap"), path)
+    return rows
+
+
+def _edge_rows(value: object, path: Path) -> list[dict[str, object]]:
+    rows = _dicts(value, path)
+    for row in rows:
+        _text(row.get("origin"), path)
+        _text(row.get("destination"), path)
+        _text(row.get("rule"), path)
+    return rows
+
+
+def _clones(value: object, path: Path) -> list[Clone]:
+    return [_clone(row, path) for row in _dicts(value, path)]
+
+
+def _clone(row: dict[str, object], path: Path) -> Clone:
+    texts = {key: _text(row.get(key), path) for key in _CLONE_TEXT}
+    ints = {key: _integer(row.get(key), path) for key in _CLONE_INT}
+    return Clone(
+        first_file=texts["first_file"],
+        first_start=ints["first_start"],
+        first_end=ints["first_end"],
+        second_file=texts["second_file"],
+        second_start=ints["second_start"],
+        second_end=ints["second_end"],
+        lines=ints["lines"],
+        tokens=ints["tokens"],
+        similarity=_optional_number(row, "similarity", path),
+        kind=_optional_text(row, "kind", path),
+    )
+
+
+def _survivor_rows(value: object, path: Path) -> list[dict[str, object]]:
+    rows = _dicts(value, path)
+    for row in rows:
+        _text(row.get("id"), path)
+        _text(row.get("function"), path)
+        _text(row.get("file"), path)
+        _integer(row.get("line"), path)
+    return rows
+
+
+def _optional_mutation(payload: dict[str, object], path: Path) -> dict[str, object] | None:
+    if "mutation" not in payload or payload["mutation"] is None:
+        return None
+    value = payload["mutation"]
+    if not isinstance(value, dict):
+        raise _invalid_saved(path)
+    if "no_coverage" in value:
+        _no_coverage(value["no_coverage"], path)
+    return value
+
+
+def _no_coverage(value: object, path: Path) -> None:
+    if not isinstance(value, dict):
+        raise _invalid_saved(path)
+    _integer(value.get("total"), path)
+    for row in _dicts(value.get("functions"), path):
+        _text(row.get("file"), path)
+        _text(row.get("function"), path)
+        _integer(row.get("count"), path)
+
+
+def _dicts(value: object, path: Path) -> list[dict[str, object]]:
+    if not isinstance(value, list):
+        raise _invalid_saved(path)
+    rows: list[dict[str, object]] = []
+    for item in value:
+        if not isinstance(item, dict):
+            raise _invalid_saved(path)
+        rows.append(item)
+    return rows
+
+
+def _optional_number(row: dict[str, object], key: str, path: Path) -> float | None:
+    if key not in row or row[key] is None:
+        return None
+    return _number(row[key], path)
+
+
+def _optional_text(row: dict[str, object], key: str, path: Path) -> str:
+    if key not in row:
+        return ""
+    return _text(row[key], path)
+
+
+def _text(value: object, path: Path) -> str:
+    if isinstance(value, str):
+        return value
+    raise _invalid_saved(path)
+
+
+def _integer(value: object, path: Path) -> int:
+    if type(value) is int:
+        return value
+    raise _invalid_saved(path)
+
+
+def _number(value: object, path: Path) -> float:
+    if type(value) in {int, float}:
+        return float(value)
+    raise _invalid_saved(path)
+
+
+def _replace_text(destination: Path, text: str) -> None:
+    temporary = destination.with_name(destination.name + ".tmp")
+    try:
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        temporary.write_text(text)
+        os.replace(temporary, destination)
+    except OSError:
+        try:
+            os.unlink(temporary)
+        except OSError:
+            pass
+        raise ConfigError(msg("report.output_failed", path=destination)) from None
+
+
+def _invalid_saved(path: Path) -> ConfigError:
+    return ConfigError(msg("report.input_invalid", path=path))
 def _supply_field(report: Report) -> dict[str, object]:
     if report.supply is None:
         return {}

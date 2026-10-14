@@ -13,6 +13,7 @@ _COMMANDS = (
     ("dry",),
     ("deps",),
     ("mutate",),
+    ("report",),
     ("doctor",),
     ("waive", "fn", "--reason", "because"),
 )
@@ -253,6 +254,7 @@ def test_explicit_config_names_that_file(tmp_path: Path) -> None:
 
 _SHAPE_COMMANDS = (
     ("check",),
+    ("report",),
     ("doctor",),
     ("waive", "fn", "--reason", "because"),
 )
@@ -365,6 +367,10 @@ _SEMANTIC_YAML = (
     ("duplication: false\n", "bob.yaml: duplication must be a mapping\n"),
     ('duplication: ""\n', "bob.yaml: duplication must be a mapping\n"),
     ("duplication: [1]\n", "bob.yaml: duplication must be a mapping\n"),
+    ("test_smells: false\n", "bob.yaml: test_smells accepts only true\n"),
+    ("test_smells: {}\n", "bob.yaml: test_smells accepts only true\n"),
+    ("test_smells:\n  enabled: true\n", "bob.yaml: test_smells accepts only true\n"),
+    ("test_smells: 1\n", "bob.yaml: test_smells accepts only true\n"),
     ("churn:\n  window_days: 0\n", "bob.yaml: churn.window_days must be greater than 0\n"),
     ("churn:\n  window_days: -3\n", "bob.yaml: churn.window_days must be greater than 0\n"),
     ("churn:\n  window_days: null\n", "bob.yaml: churn.window_days must be an integer\n"),

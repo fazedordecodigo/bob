@@ -1,5 +1,3 @@
-"""CLI `bob`: orquestra check, crap, dry, deps, mutate, waive e doctor."""
-
 from __future__ import annotations
 
 import argparse
@@ -15,6 +13,7 @@ from bob_quality.doctor import run_doctor
 from bob_quality.exit_codes import CONFIG_OR_TOOL, PASSED
 from bob_quality.messages import DEFAULT_LANGUAGE, Language, reason, render, t
 from bob_quality.mutate import untested_targets, waivable_targets
+from bob_quality.report import write_saved_markdown
 from bob_quality.waivers import WaiverError, add_waiver, reject_waiver_syntax
 
 
@@ -98,6 +97,15 @@ def build_parser(lang: Language = DEFAULT_LANGUAGE) -> _Parser:
         help=t(lang, "cli.since_last_run"),
     )
     mutate.add_argument("--max-workers", type=_max_workers)
+
+    report = sub.add_parser(
+        "report",
+        help=t(lang, "cli.report"),
+        description=t(lang, "cli.report"),
+    )
+    report.add_argument("--in", dest="in_dir", default=".bob/", metavar="DIR")
+    report.add_argument("--out", dest="out_file", default=".bob/report.md", metavar="FILE")
+    _add_lang(report, lang)
 
     waive = sub.add_parser("waive", help=t(lang, "cli.waive"))
     waive.add_argument("target", help=t(lang, "cli.waive_target"))
@@ -210,6 +218,8 @@ def main(argv: list[str] | None = None) -> int:
         return run_doctor(install=args.install, lang=lang)
     if args.command == "waive":
         return _waive_command(cwd, args, lang)
+    if args.command == "report":
+        return _report_command(cwd, args, lang)
     return _dispatch(
         args, cwd, _resolve_out(cwd, args.out), _resolve_config(cwd, args.config), lang
     )
@@ -251,6 +261,18 @@ def _blocked_config(cwd: Path, config: str | None) -> int | None:
         print(render(reason(exc), DEFAULT_LANGUAGE), file=sys.stderr)
         return CONFIG_OR_TOOL
     return None
+
+
+def _report_command(cwd: Path, args: argparse.Namespace, lang: Language) -> int:
+    try:
+        return write_saved_markdown(
+            _resolve_out(cwd, args.in_dir),
+            _resolve_out(cwd, args.out_file),
+            lang,
+        )
+    except ConfigError as exc:
+        print(render(reason(exc), DEFAULT_LANGUAGE), file=sys.stderr)
+        return CONFIG_OR_TOOL
 
 
 def _waive_command(cwd: Path, args: argparse.Namespace, lang: Language) -> int:

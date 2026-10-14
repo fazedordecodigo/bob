@@ -37,7 +37,7 @@ Roda os gates pedidos e grava `.bob/` (ou `--out`).
 
 Um `--config` que aponta para um arquivo inexistente sai com `4`. O stderr fica em inglês e cita o caminho, como em `config file not found: <caminho>`. Nada é gravado. O mesmo vale para `crap`, `dry`, `deps` e `mutate`. Detalhe em [Exit 4](exit-codes.md#exit-4).
 
-Um nome de gate que o código não trata vira status `not_run`, com o motivo `gate não implementado nesta fatia` em `pt-BR`, e esse gate contribui exit `0` (`check.py`, ramo final de `_absorb_rest`). Os nomes implementados são `crap`, `dry`, `deps`, `mutate`, `cognitive`, `supply`, `security`, `typing`, `secrets` e `dead_code`. `cognitive`, `supply`, `security`, `typing`, `secrets` e `dead_code` só entram por `--gates` no `bob check`. Não há comando `bob cognitive`, `bob supply`, `bob security`, `bob typing`, `bob secrets` nem `bob dead_code`.
+Um nome de gate que o código não trata vira status `not_run`, com o motivo `gate não implementado nesta fatia` em `pt-BR`, e esse gate contribui exit `0` (`check.py`, ramo final de `_absorb_remaining`). Os nomes implementados são `crap`, `dry`, `deps`, `mutate`, `coverage`, `test_smells`, `cognitive`, `supply`, `security`, `typing`, `secrets` e `dead_code`. `coverage`, `test_smells`, `cognitive`, `supply`, `security`, `typing`, `secrets` e `dead_code` entram só por `--gates` no `bob check`. Não há comando `bob coverage`, `bob test_smells`, `bob cognitive`, `bob supply`, `bob security`, `bob typing`, `bob secrets` nem `bob dead_code`.
 
 `bob check` sem `mutate` na lista não roda mutação. `bob check --gates mutate` e `bob mutate` rodam.
 
@@ -111,12 +111,16 @@ No CI, `language: pt-BR` no `bob.yaml` ou `BOB_LANG: pt-BR` no `env` do job. O i
 
 A [SPEC](SPEC.md) diz que o hook local executa `crap,dry,deps` e que no CI o `check` executa todos. O script do hook passa `crap,dry,deps`. O padrão da CLI é o mesmo trio; o CI pede `mutate` pelo input da Action, não porque o padrão da CLI tenha mudado. A skill `skills/bob-check/SKILL.md` cita esses dois comandos.
 
-## Comandos que a spec lista e a CLI ainda não tem
+## bob report
 
-`build_parser` registra `check`, `crap`, `dry`, `deps`, `mutate`, `waive` e `doctor`. Não registra `report`. A interface citada na [SPEC](SPEC.md) e nas skills inclui:
+`build_parser` registra `report` junto de `check`, `crap`, `dry`, `deps`, `mutate`, `waive` e `doctor`. A interface é a da [SPEC](SPEC.md):
 
 ```text
 bob report  [--in .bob/] [--out .bob/report.md]
 ```
 
-O [README.pt-BR.md](../README.pt-BR.md) marca esse comando como planejado. Quem precisa do Markdown gera com `bob check --format md` ou `--format both`.
+`--in` é a pasta que já contém `report.json`. O padrão é `.bob/`. `--out` é o arquivo Markdown. O padrão é `.bob/report.md`. O comando não mede de novo. Ele lê o JSON e grava o Markdown no idioma da saída, escolhido por `--lang`, por `BOB_LANG` ou por `language` no `bob.yaml`. O processo sai com o `exit_code` gravado nesse JSON. O inteiro tem de ser 0, 1, 2, 3 ou 4.
+
+Se o arquivo falta, se o texto não é JSON, ou se o formato é inválido, o comando sai com 4. O stderr fica em inglês. O comando não grava o `--out` e não trunca um arquivo que já estava lá. Um uso inválido da linha de comando também sai com 4 e não grava relatório. O preflight de `bob.yaml` e de `.bob/waivers.yaml` é o mesmo dos outros comandos.
+
+O `report.json` fica em inglês. `--lang pt-BR` traduz os títulos que o catálogo conhece. Um motivo de gate, ou o nome de uma regra, permanece em inglês quando o JSON já o gravou assim. Para gerar os dois arquivos durante a medição, use `bob check --format md` ou `--format both`.

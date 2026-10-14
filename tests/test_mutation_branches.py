@@ -24,6 +24,7 @@ from bob_quality.models import (
     GateResult,
     LanguageDiff,
     Report,
+    TestSmell as SmellRow,
 )
 from bob_quality.mutate import STRYKER_MUTANTS_NAME, MutationOutcome
 from bob_quality.mutate_gate import _coverage_exit, _has_unwaived
@@ -426,11 +427,18 @@ def test_absorb_records_every_gate_argument_and_result(
         closed.append(self)
         real_close(self)
 
+    smell = SmellRow("tests/test_gap.py", 1, "missing-assert")
+
+    def test_smells_gate(cwd: Path, got_config: Config, diff_lines: dict[str, set[int]]):
+        seen["test_smells"] = (cwd, got_config, diff_lines)
+        return GateResult("test_smells", "warn", "1 test smell in the diff"), (smell,), 0, {}
+
     monkeypatch.setattr(check_mod, "run_crap_gate", crap)
     monkeypatch.setattr(check_mod, "run_dry_gate", dry)
     monkeypatch.setattr(check_mod, "run_deps_gate", deps)
     monkeypatch.setattr(check_mod, "run_mutate_gate", mutate)
     monkeypatch.setattr(check_mod.SuiteMemo, "close", spy_close)
+    monkeypatch.setattr(check_mod, "run_test_smells_gate", test_smells_gate)
 
     state = check_mod._measure(
         tmp_path,
@@ -439,7 +447,7 @@ def test_absorb_records_every_gate_argument_and_result(
         diff,
         10.0,
         coverage,
-        ["crap", "dry", "deps", "mutate", "nope"],
+        ["crap", "dry", "deps", "mutate", "test_smells", "nope"],
         out,
         4,
         True,
@@ -477,6 +485,8 @@ def test_absorb_records_every_gate_argument_and_result(
     assert state.clones == [clone]
     assert state.violations == [violation]
     assert state.mutation is mutation
+    assert state.test_smells == (smell,)
+    assert seen["test_smells"] == (tmp_path, config, diff)
     assert state.exit_code == 1
     assert state.versions == {
         "lizard": "1.24.1",
@@ -490,6 +500,7 @@ def test_absorb_records_every_gate_argument_and_result(
         ("dry", "warn"),
         ("deps", "passed"),
         ("mutate", "passed"),
+        ("test_smells", "warn"),
         ("nope", "not_run"),
     ]
     assert in_both(state.gates[-1].reason) == (

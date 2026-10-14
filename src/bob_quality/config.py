@@ -42,6 +42,7 @@ _CheckKind = Literal[
     "one_of",
     "members",
     "language",
+    "only_true",
     "vocabulary",
 ]
 _BoundKind = Literal["gt", "at_least", "at_most"]
@@ -210,6 +211,7 @@ _SCHEMA = _Node(
                 ),
             ),
         ),
+        _Node("test_smells", "test_smells", (_Check("only_true"),)),
         _Node("typing", "", (), mapping=True),
         _Node("secrets", "", (), mapping=True),
         _Node(
@@ -287,6 +289,7 @@ class Config:
     min_similarity: float = 0.0
     min_lines: int = 0
     coverage_min_percent: float = 80.0
+    test_smells: bool = True
     dead_code_min_confidence: int | None = None
     language: Language | None = None
     osv_fail_severities: tuple[str, ...] = FAIL_SEVERITIES
@@ -630,6 +633,13 @@ def _member_at(check: _Check, value: list[str] | tuple[str, ...]) -> _Failure | 
     return None
 
 
+def _only_true(check: _Check, value: object) -> _Failure | None:
+    # `1 == True` in Python, so identity is the whole check.
+    if value is True:
+        return None
+    return ("config.key_only_true", "", {})
+
+
 def _vocabulary(check: _Check, value: object) -> _Failure | None:
     if not _string_items(value):
         return ("config.key_string_list", "", {})
@@ -683,6 +693,7 @@ _UNBOUND: dict[_CheckKind, _FailFn] = {
     "one_of": _one_of,
     "members": _members,
     "language": _language,
+    "only_true": _only_true,
     "vocabulary": _vocabulary,
 }
 

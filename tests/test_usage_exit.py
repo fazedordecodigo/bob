@@ -54,7 +54,7 @@ def test_missing_command_exits_4(tmp_path: Path) -> None:
 
 
 def test_unknown_command_exits_4(tmp_path: Path) -> None:
-    _usage_4(run_bob(tmp_path, "report"), tmp_path)
+    _usage_4(run_bob(tmp_path, "publish"), tmp_path)
 
 
 def test_every_command_rejects_an_unknown_flag(tmp_path: Path) -> None:
@@ -210,17 +210,18 @@ def test_invalid_lang_masks_a_later_usage_error(tmp_path: Path) -> None:
     assert not (tmp_path / ".bob").exists(), tmp_path
 
 
-_COMMANDS = ("check", "crap", "dry", "deps", "mutate", "waive", "doctor")
+_COMMANDS = ("check", "crap", "dry", "deps", "mutate", "report", "waive", "doctor")
 
 _TOP_HELP = (
     "usage: bob",
     "Quality gates for agents.",
-    "{check,crap,dry,deps,mutate,waive,doctor}",
+    "{check,crap,dry,deps,mutate,report,waive,doctor}",
     "Run the requested gates and write .bob/",
     "Measure CRAP of the changed functions",
     "Report new clones in the diff; blocks only in fail mode",
     "Check dependency cycles and rules",
     "Mutate the changed functions with mutmut",
+    "Render report.json from a directory as Markdown",
     "Record a waiver with a one-line reason",
     "Check the pinned tools and the installed versions",
     "Output language: en or pt-BR (default: en)",
@@ -244,6 +245,12 @@ _SUB_HELP = {
         "Reuse the cache; already the default behavior",
         "--max-workers MAX_WORKERS",
     ),
+    "report": (
+        "usage: bob report",
+        "--in DIR",
+        "--out FILE",
+        "Render report.json from a directory as Markdown",
+    ),
     "waive": (
         "usage: bob waive",
         "--reason REASON",
@@ -261,7 +268,7 @@ _SUB_HELP = {
 def _usage_argv() -> tuple[tuple[str, ...], ...]:
     scenarios = [
         (),
-        ("report",),
+        ("publish",),
         ("check", "--format", "xml"),
         ("mutate", "--max-workers", "nope"),
         ("crap", "--threshold", "nope"),

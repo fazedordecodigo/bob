@@ -66,6 +66,7 @@ O `bob.yaml` deste repositório é mais curto: `base`, `languages: [python]`, `p
 | `coverage.min_percent` | número finito de 0 a 100 | `80` | Piso da cobertura do diff. Igual ao piso passa |
 | `dependencies.python` | string | `.importlinter` | Config do import-linter |
 | `dependencies.typescript` | string | `.dependency-cruiser.cjs` | Config do dependency-cruiser |
+| `test_smells` | `true` | `true` | Aceito pelo loader. O gate não lê o campo |
 | `churn.window_days` | inteiro maior que 0 | `90` | Dias da janela de rotatividade, terminando na data do commit |
 | `supply.osv_fail_severities` | lista de `HIGH` e `CRITICAL` | `[HIGH, CRITICAL]` | Severidades de advisory que bloqueiam. `MODERATE` e `LOW` não entram na lista |
 | `supply.timeout_seconds` | inteiro maior que 0 | `30` | Prazo de cada chamada HTTP e de cada processo do gate supply |
@@ -96,6 +97,8 @@ Duas flags de `bob dry` e `bob check` vencem o arquivo nessa execução. `--dry-
 
 Um valor inválido sai com `4`, em inglês no stderr, e nada é gravado. A mensagem cita o arquivo e a chave, como `bob.yaml: duplication.new_clones must be warn or fail`, `bob.yaml: duplication.max_new_clones must be at least 0` ou `bob.yaml: duplication.min_similarity must be at most 100`.
 
+`test_smells` omitido, `null` ou `true` guarda `True`. `false`, um mapeamento (`{}` ou com filhos) e qualquer outro valor saem com `4`. O stderr é `bob.yaml: test_smells accepts only true`. Nada é gravado. O gate `test_smells` não consulta o campo.
+
 ### languages
 
 `languages` omitido ou nulo (`languages:` ou `languages: null`) é autodetectado. O mesmo vale quando o arquivo `bob.yaml` não existe e `--config` não foi passado. A varredura lê `paths.include` e ignora `paths.exclude`. Ela não segue symlink. Um link para arquivo ou diretório não escolhe linguagem, e um link que aponta de volta para um pai não entra em ciclo. `.py` escolhe `python`. `.ts`, `.tsx`, `.js`, `.jsx`, `.mjs` e `.cjs` escolhem `typescript`. O resultado sai nessa ordem. Sem nenhum desses arquivos, o resultado é `["python"]`. Uma lista explícita permanece como foi escrita.
@@ -116,7 +119,7 @@ O `_SCHEMA` aceita `security.fail_severities` e recusa outra chave dentro de `se
 
 ### Chaves que o loader recusa
 
-O `_SCHEMA` em `src/bob_quality/config.py` aceita `base`, `language`, `languages`, `paths.include`, `paths.exclude`, `crap.max_per_function`, `crap.scope`, `cognitive.max_per_function`, `duplication.min_tokens`, `duplication.new_clones`, `duplication.max_new_clones`, `duplication.min_similarity`, `duplication.min_lines`, `coverage.min_percent`, `dependencies.python`, `dependencies.typescript`, `typing`, `secrets`, `churn.window_days`, `supply.osv_fail_severities`, `supply.timeout_seconds`, `security.fail_severities` e `dead_code.min_confidence`. `_reject_unknown` recusa qualquer outra chave: exit `4`, mensagem em inglês no stderr, nenhum arquivo gravado.
+O `_SCHEMA` em `src/bob_quality/config.py` aceita `base`, `language`, `languages`, `paths.include`, `paths.exclude`, `crap.max_per_function`, `crap.scope`, `cognitive.max_per_function`, `duplication.min_tokens`, `duplication.new_clones`, `duplication.max_new_clones`, `duplication.min_similarity`, `duplication.min_lines`, `coverage.min_percent`, `dependencies.python`, `dependencies.typescript`, `test_smells`, `typing`, `secrets`, `churn.window_days`, `supply.osv_fail_severities`, `supply.timeout_seconds`, `security.fail_severities` e `dead_code.min_confidence`. `_reject_unknown` recusa qualquer outra chave: exit `4`, mensagem em inglês no stderr, nenhum arquivo gravado.
 
 `supply.osv_fail_severities: [MODERATE]` sai com `bob.yaml: supply.osv_fail_severities[0] must be HIGH or CRITICAL`. Lista vazia, item repetido ou texto solto também saem com `4`. `supply.timeout_seconds: 0` sai com `bob.yaml: supply.timeout_seconds must be greater than 0`. Bool e float saem com `must be an integer`. Nada é gravado.
 
