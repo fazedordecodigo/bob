@@ -3,8 +3,6 @@
 import json
 import os
 import shutil
-import subprocess
-import sys
 from pathlib import Path
 
 from helpers import TS_RISKY_SOURCE, TS_SAFE_CHANGE, commit_on_branch, init_ts_repo, run_bob
@@ -182,13 +180,7 @@ def test_check_exits_4_with_a_clear_message_when_node_is_missing(tmp_path: Path)
     os.symlink(shutil.which("git"), bindir / "git")
     env = {**os.environ, "PATH": str(bindir)}
 
-    result = subprocess.run(
-        [sys.executable, "-m", "bob_quality", "check", "--base", "main", "--gates", "crap"],
-        cwd=repo,
-        capture_output=True,
-        text=True,
-        env=env,
-    )
+    result = run_bob(repo, "check", "--base", "main", "--gates", "crap", env=env)
     payload = json.loads((repo / ".bob" / "report.json").read_text())
     markdown = (repo / ".bob" / "report.md").read_text()
     crap = next(gate for gate in payload["gates"] if gate["name"] == "crap")
