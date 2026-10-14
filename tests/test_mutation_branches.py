@@ -414,6 +414,7 @@ def test_absorb_records_every_gate_argument_and_result(
     state = check_mod._measure(
         tmp_path,
         config,
+        "main",
         diff,
         10.0,
         coverage,
@@ -671,6 +672,40 @@ def test_a_json_list_is_not_a_stryker_report(tmp_path: Path) -> None:
         "invalid Stryker report: stryker-report.json",
         "relatório do Stryker inválido: stryker-report.json",
     )
+
+
+def test_a_non_utf8_stryker_report_exits_4_without_a_traceback(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    from bob_quality import stryker_gate
+
+    def invoke(_cwd: Path, report: Path, argv: list[str]) -> subprocess.CompletedProcess[str]:
+        report.write_bytes(b"\xff")
+        return subprocess.CompletedProcess(argv, 1, stdout="", stderr="")
+
+    monkeypatch.setattr(stryker_gate, "_write_config", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(stryker_gate, "_argv", lambda *_args, **_kwargs: ["npx"])
+    monkeypatch.setattr(stryker_gate, "_invoke", invoke)
+
+    outcome, skip = stryker_gate._with_stryker(
+        tmp_path,
+        tmp_path / "out",
+        [CyclomaticFunction("src/safe.ts", "add", 1, 4, 1)],
+        {},
+        _VERSIONS,
+        [],
+        [_WAIVER],
+    )
+
+    detail = "'utf-8' codec can't decode byte 0xff in position 0: invalid start byte"
+    assert skip is None
+    assert outcome is not None
+    assert outcome.exit_code == 4
+    assert outcome.result.name == "mutate"
+    assert outcome.result.status == "not_run"
+    assert outcome.versions == _VERSIONS
+    assert outcome.waivers == [_WAIVER]
+    assert in_both(outcome.result.reason) == (detail, detail)
 
 
 def test_from_report_keeps_versions_and_waiver_rows(tmp_path: Path) -> None:

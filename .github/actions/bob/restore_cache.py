@@ -1,5 +1,3 @@
-"""Restaura `.bob/mutation-cache.json` do artefato mais recente de outra execução."""
-
 from __future__ import annotations
 
 import argparse
@@ -15,6 +13,7 @@ from pathlib import Path, PurePosixPath
 from github_http import GitHubStatus, next_link, raise_for_status, request
 
 CACHE_NAME = "mutation-cache.json"
+INCREMENTAL_NAME = "stryker-incremental.json"
 ARTIFACT_NAME = "bob-mutation-cache"
 
 
@@ -52,11 +51,25 @@ def select_artifact(
 
 def extract_cache(payload: bytes, dest: Path) -> bool:
     with zipfile.ZipFile(io.BytesIO(payload)) as archive:
-        member = _cache_member(archive)
-        if member is None:
-            return False
-        dest.parent.mkdir(parents=True, exist_ok=True)
-        dest.write_bytes(archive.read(member))
+        wrote_cache = _write_named(archive, CACHE_NAME, dest)
+        wrote_incremental = _write_named(
+            archive, INCREMENTAL_NAME, dest.parent / INCREMENTAL_NAME
+        )
+    if wrote_cache and wrote_incremental:
+        print("restored both")
+    elif wrote_cache:
+        print("restored mutmut")
+    elif wrote_incremental:
+        print("restored incremental")
+    return wrote_cache or wrote_incremental
+
+
+def _write_named(archive: zipfile.ZipFile, name: str, dest: Path) -> bool:
+    member = _named_member(archive, name)
+    if member is None:
+        return False
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    dest.write_bytes(archive.read(member))
     return True
 
 
@@ -99,12 +112,12 @@ def _created_at(artifact: dict[str, object]) -> datetime | None:
     return parsed
 
 
-def _cache_member(archive: zipfile.ZipFile) -> zipfile.ZipInfo | None:
+def _named_member(archive: zipfile.ZipFile, name: str) -> zipfile.ZipInfo | None:
     for info in archive.infolist():
         path = PurePosixPath(info.filename)
         if path.is_absolute() or ".." in path.parts:
             continue
-        if path.name == CACHE_NAME:
+        if path.name == name:
             return info
     return None
 
