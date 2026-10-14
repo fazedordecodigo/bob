@@ -18,6 +18,7 @@ from bob_quality.models import (
     RowBlock,
     RowWarn,
     RowWaived,
+    SecurityReport,
     SupplyReport,
     UndeclaredImport,
     UnverifiedAdvisory,
@@ -267,10 +268,16 @@ def test_json_records_no_severity_when_the_fetched_advisory_has_no_band() -> Non
     finding = UnverifiedAdvisory(
         "pypi", "left", "pyproject.toml", 5, "no_severity", "GHSA-0000-0000-0000"
     )
-    report = _bare(supply=SupplyReport(("python",), (), (RowWarn(finding),)))
+    report = _bare(
+        supply=SupplyReport(("python",), (), (RowWarn(finding),)),
+        diff_coverage=DiffCoverage((LanguageDiff("python", 80.0, ()),)),
+        security=SecurityReport((), ()),
+    )
 
     payload = to_json(report)
 
+    assert payload["diff_coverage"] == {"python": 80.0, "uncovered": []}
+    assert payload["security"] == {"findings": [], "unmeasured": []}
     assert payload["supply"]["findings"] == [
         {
             "kind": "unverified",
