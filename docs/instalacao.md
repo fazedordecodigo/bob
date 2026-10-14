@@ -124,7 +124,7 @@ A action composta `.github/actions/bob` instala o bob, roda `bob check` e coment
 
 Este repositório chama a action em `.github/workflows/bob.yml`. O `bob-quality` ainda não está no PyPI, então no checkout deste repositório a action usa `pip install -e ".[dev]"` (descrito no README; o script é `.github/actions/bob/install.sh`). Publicação no GitHub Marketplace está fora desta fatia, no README.
 
-A action instala o Node `22.14.0` com `actions/setup-node` pinado por SHA e o jscpd `5.4.1` no prefixo npm do plugin (`install_jscpd.sh`, via `npm ci` do `bob doctor --install`). Sem isso, o gate dry fica `not_run` em repositórios que não instalam o Node. O artefato `bob-mutation-cache` fica 7 dias (`retention-days`).
+A action instala o Node `22.14.0` com `actions/setup-node` pinado por SHA e o jscpd `5.4.1` no prefixo npm do plugin (`install_jscpd.sh`, via `npm ci` do `bob doctor --install`). Sem isso, o gate dry fica `not_run` em repositórios que não instalam o Node. O artefato `bob-mutation-cache` fica 7 dias (`retention-days`) e leva `.bob/mutation-cache.json` e `.bob/stryker-incremental.json`.
 
 ## Hook pre-push
 
