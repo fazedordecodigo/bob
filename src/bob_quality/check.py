@@ -24,12 +24,14 @@ from bob_quality.models import (
     GateResult,
     Report,
     SecretLedger,
+    SecurityReport,
     TestSmell,
 )
 from bob_quality.mutate import MutationOutcome, focus_with_survivors
 from bob_quality.mutate_gate import run_mutate_gate
 from bob_quality.report import metric_row, violation_rows, write_report
 from bob_quality.secrets_gate import run_secrets_gate
+from bob_quality.security_gate import run_security_gate
 from bob_quality.test_smells import run_test_smells_gate
 from bob_quality.waivers import WaiverError, load_waivers
 
@@ -62,6 +64,7 @@ def run_check(
         measured = _measure(
             cwd,
             config,
+            chosen_base,
             diff_lines,
             max_crap,
             coverage_file,
@@ -131,6 +134,7 @@ class _Measured:
     loaded_waivers: list[dict[str, object]] = field(default_factory=list)
     baseline: int | None = None
     test_smells: tuple[TestSmell, ...] | None = None
+    security: SecurityReport | None = None
     typing: dict[str, object] | None = None
     dead_code: DeadSection | None = None
 
@@ -138,6 +142,7 @@ class _Measured:
 def _measure(
     cwd: Path,
     config: Config,
+    base: str,
     diff_lines: dict[str, set[int]],
     max_crap: float,
     coverage_file: Path | None,
@@ -154,6 +159,7 @@ def _measure(
             gate,
             cwd,
             config,
+            base,
             diff_lines,
             max_crap,
             coverage_file,
@@ -170,6 +176,7 @@ def _absorb(
     gate: str,
     cwd: Path,
     config: Config,
+    base: str,
     diff_lines: dict[str, set[int]],
     max_crap: float,
     coverage_file: Path | None,
@@ -221,6 +228,11 @@ def _absorb(
         state.mutation = mutation
         _record(state, mutation.result, mutation.exit_code, mutation.versions)
         return
+    if gate == "security":
+        result, code, versions, security = run_security_gate(cwd, config, base, diff_lines)
+        state.security = security
+        _record(state, result, code, versions)
+        return
     if gate == "typing":
         result, code, versions, found = run_typing_gate(cwd, config, diff_lines)
         state.typing = found
@@ -231,6 +243,16 @@ def _absorb(
         state.secrets = outcome.ledger
         _record(state, outcome.result, outcome.exit_code, outcome.versions)
         return
+    _absorb_remaining(state, gate, cwd, config, diff_lines)
+
+
+def _absorb_remaining(
+    state: _Measured,
+    gate: str,
+    cwd: Path,
+    config: Config,
+    diff_lines: dict[str, set[int]],
+) -> None:
     if gate == "dead_code":
         _record_dead(state, run_dead_code_gate(cwd, config, diff_lines))
         return
@@ -306,6 +328,7 @@ def _assemble(
         survivors=survivors,
         mutation=summary,
         test_smells=measured.test_smells,
+        security=measured.security,
         typing=measured.typing,
         secrets=measured.secrets,
         dead_code=measured.dead_code,
