@@ -6,6 +6,7 @@ import math
 import os
 import subprocess
 from collections import Counter
+from collections.abc import Sequence
 from dataclasses import dataclass, fields, replace
 from datetime import datetime, timezone
 from pathlib import Path
@@ -75,6 +76,10 @@ def load_waivers(cwd: Path) -> list[Waiver]:
         seen[waiver.id] = index
         loaded.append(waiver)
     return loaded
+
+
+def with_prefix(waivers: Sequence[Waiver], prefix: str) -> tuple[Waiver, ...]:
+    return tuple(item for item in waivers if item.id.startswith(prefix))
 
 
 def reject_waiver_syntax(cwd: Path) -> None:

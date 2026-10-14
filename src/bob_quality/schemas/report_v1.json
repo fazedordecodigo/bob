@@ -149,6 +149,27 @@
         }
       }
     },
+    "diff_coverage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["uncovered"],
+      "properties": {
+        "python": { "type": "number" },
+        "typescript": { "type": "number" },
+        "uncovered": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["file", "line"],
+            "properties": {
+              "file": { "type": "string" },
+              "line": { "type": "integer" }
+            }
+          }
+        }
+      }
+    },
     "supply": {
       "type": "object",
       "required": ["measured", "skipped", "findings"],

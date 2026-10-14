@@ -10,7 +10,7 @@ from pathlib import Path
 import pytest
 
 from bob_quality.adapters.istanbul import parse_coverage_final
-from bob_quality.npm_tools import run_vitest_under_c8
+from bob_quality.npm_tools import _coverage_report_exists, run_vitest_under_c8
 from bob_quality.tools import ToolError
 from helpers import in_both
 
@@ -43,6 +43,16 @@ def test_run_vitest_under_c8_names_the_missing_node(
         "Node missing: install Node.js to measure TypeScript (c8 and vitest via npx)",
         "Node ausente: instale Node.js para medir TypeScript (c8 e vitest via npx)",
     )
+
+
+def test_lcov_reporter_is_forwarded_to_c8(tmp_path: Path) -> None:
+    reports = tmp_path / "coverage"
+
+    code = run_vitest_under_c8(FIXTURE_TS, ["src"], reports, _EXCLUDE, ("lcov",))
+
+    assert code == 0
+    assert (reports / "lcov.info").is_file()
+    assert (reports / "coverage-final.json").is_file() is False
 
 
 def test_c8_creates_a_nested_reports_directory_and_can_run_again(tmp_path: Path) -> None:
@@ -331,3 +341,13 @@ def test_c8_failure_without_stderr_reports_stdout(
         run_vitest_under_c8(FIXTURE_TS, ["src"], tmp_path / "coverage", _EXCLUDE)
 
     assert str(caught.value) == "C8_STDOUT_UNIQUE"
+
+
+def test_either_coverage_artifact_counts(tmp_path: Path) -> None:
+    assert _coverage_report_exists(tmp_path) is False
+    (tmp_path / "lcov.info").write_text("TN:\n")
+    assert _coverage_report_exists(tmp_path) is True
+    (tmp_path / "lcov.info").unlink()
+    assert _coverage_report_exists(tmp_path) is False
+    (tmp_path / "coverage-final.json").write_text("{}\n")
+    assert _coverage_report_exists(tmp_path) is True

@@ -2,16 +2,16 @@
 
 from __future__ import annotations
 
-import tempfile
 from pathlib import Path
 
 from bob_quality.adapters.coverage import CoverageParseError, parse_coverage_json
 from bob_quality.adapters.lizard import LizardParseError, parse_lizard_csv
 from bob_quality.config import Config
-from bob_quality.exit_codes import BASELINE_BROKEN, CONFIG_OR_TOOL, pytest_passed
+from bob_quality.exit_codes import BASELINE_BROKEN, CONFIG_OR_TOOL
 from bob_quality.messages import msg, reason
 from bob_quality.probe import ProbeResult, build_metrics
-from bob_quality.tools import ToolError, run_coverage, run_lizard_csv, tool_version
+from bob_quality.suite_memo import HoldBroken, HoldUnavailable, SuiteMemo
+from bob_quality.tools import ToolError, run_lizard_csv, tool_version
 
 
 def measure_python(
@@ -19,6 +19,7 @@ def measure_python(
     config: Config,
     diff_lines: dict[str, set[int]],
     coverage_file: Path | None,
+    memo: SuiteMemo,
 ) -> ProbeResult:
     versions: dict[str, str] = {}
     try:
@@ -27,18 +28,19 @@ def measure_python(
     except ToolError as exc:
         return ProbeResult.not_run(versions, msg("tool.missing", tool=reason(exc)), CONFIG_OR_TOOL)
 
+    hold = memo.python_hold(cwd, config.include, coverage_file)
+    if isinstance(hold, HoldBroken):
+        return ProbeResult.not_run(
+            versions, msg("probe.baseline_failed"), BASELINE_BROKEN, baseline=hold.tool_exit
+        )
+    if isinstance(hold, HoldUnavailable):
+        detail = msg("tool.detail", tool="coverage.py", detail=hold.reason)
+        return ProbeResult.not_run(versions, detail, CONFIG_OR_TOOL)
     try:
-        with tempfile.TemporaryDirectory(prefix="bob-coverage-") as tmp:
-            coverage_json = Path(tmp) / "coverage.json"
-            pytest_code = run_coverage(cwd, config.include, coverage_json, coverage_file)
-            raw_coverage = coverage_json.read_text() if coverage_json.is_file() else ""
+        raw_coverage = memo.python_json(cwd, config.include, coverage_file)
     except ToolError as exc:
         detail = msg("tool.detail", tool="coverage.py", detail=reason(exc))
         return ProbeResult.not_run(versions, detail, CONFIG_OR_TOOL)
-    if pytest_code is not None and not pytest_passed(pytest_code):
-        return ProbeResult.not_run(
-            versions, msg("probe.baseline_failed"), BASELINE_BROKEN, baseline=pytest_code
-        )
 
     try:
         raw_lizard = run_lizard_csv(cwd, config.include, config.exclude)
@@ -50,5 +52,5 @@ def measure_python(
     return ProbeResult(
         metrics=build_metrics(cwd, lizard_fns, coverage_files, diff_lines, "python"),
         versions=versions,
-        baseline=pytest_code,
+        baseline=hold.started.pytest_code,
     )

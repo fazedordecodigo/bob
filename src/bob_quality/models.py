@@ -51,7 +51,6 @@ def _require_sorted(rows: tuple[SecretRow, ...]) -> None:
 @dataclass(frozen=True)
 class CyclomaticFunction:
     """Função com CC. Produzido pelo adaptador lizard a partir da saída bruta."""
-
     file: str
     name: str
     start_line: int
@@ -62,7 +61,6 @@ class CyclomaticFunction:
 @dataclass(frozen=True)
 class FileCoverage:
     """Cobertura por linha de um arquivo. Produzido pelo adaptador coverage.py."""
-
     executed_lines: frozenset[int]
     missing_lines: frozenset[int]
 
@@ -121,7 +119,6 @@ MutantStatus = Literal["killed", "survived", "timeout", "no_coverage"]
 @dataclass(frozen=True)
 class Mutant:
     """Mutante. Produzido pelo adaptador mutmut a partir da saída bruta."""
-
     id: str
     function: str
     file: str
@@ -142,7 +139,6 @@ class TestSmell:
 @dataclass(frozen=True)
 class Clone:
     """Par duplicado. Produzido pelo adaptador jscpd a partir do JSON."""
-
     first_file: str
     first_start: int
     first_end: int
@@ -158,7 +154,6 @@ class Clone:
 @dataclass(frozen=True)
 class DepViolation:
     """Aresta proibida ou de ciclo. `origin → destination`."""
-
     origin: str
     destination: str
     rule: Text
@@ -209,7 +204,6 @@ DeadSymbol = PythonDead | TypeScriptDead
 @dataclass(frozen=True)
 class LedgerRow:
     """Definição no diff. `waiver` é o id `dead:` ou None quando a linha conta para o aviso."""
-
     symbol: DeadSymbol
     waiver: str | None
 
@@ -217,8 +211,32 @@ class LedgerRow:
 @dataclass(frozen=True)
 class DeadSection:
     """Presente no relatório quando o gate rodou. `rows` vazio continua verdadeiro."""
-
     rows: tuple[LedgerRow, ...] = ()
+
+
+@dataclass(frozen=True)
+class DiffLine:
+    file: str
+    line: int
+
+
+@dataclass(frozen=True)
+class LanguageDiff:
+    language: str
+    percent: float
+    uncovered: tuple[DiffLine, ...]
+
+
+@dataclass(frozen=True)
+class DiffCoverage:
+    languages: tuple[LanguageDiff, ...]
+
+
+def flatten_uncovered(coverage: DiffCoverage) -> tuple[DiffLine, ...]:
+    rows: list[DiffLine] = []
+    for item in coverage.languages:
+        rows.extend(item.uncovered)
+    return tuple(sorted(rows, key=lambda row: (row.file, row.line)))
 
 
 @dataclass(frozen=True)
@@ -298,6 +316,7 @@ class Report:
     waivers: list[dict[str, object]] = field(default_factory=list)
     survivors: list[dict[str, object]] = field(default_factory=list)
     mutation: dict[str, object] | None = None
+    diff_coverage: DiffCoverage | None = None
     test_smells: tuple[TestSmell, ...] | None = None
     cognitive: list[CognitiveFunction] = field(default_factory=list)
     churn: ChurnSection = field(default_factory=ChurnUnavailable)

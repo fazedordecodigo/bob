@@ -80,6 +80,7 @@ PINS: tuple[Pin, ...] = (
     RequiresDist("complexipy", "complexipy"),
     RequiresDist("import-linter", "import-linter"),
     RequiresDist("grimp", "grimp"),
+    RequiresDist("diff-cover", "diff-cover"),
     RequiresDist("bandit", "bandit"),
     NpmPin(
         "dependency-cruiser",

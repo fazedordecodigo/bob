@@ -85,6 +85,10 @@ def crap_verdict(
     )
 
 
+def below_floor(percent: float, floor: float) -> bool:
+    return percent < floor
+
+
 def cognitive_verdict(
     functions: list[CognitiveFunction],
     limit: int,

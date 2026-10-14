@@ -28,6 +28,8 @@ duplication:
   min_lines: 0
 cognitive:
   max_per_function: 15
+coverage:
+  min_percent: 80
 dependencies:
   python: .importlinter
   typescript: .dependency-cruiser.cjs
@@ -61,6 +63,7 @@ O `bob.yaml` deste repositório é mais curto: `base`, `languages: [python]`, `p
 | `duplication.min_similarity` | número finito de 0 a 100 (bool não vale) | `0` | Similaridade mínima, em percentual, para o clone entrar na conta |
 | `duplication.min_lines` | inteiro ≥ 0 (bool não vale) | `0` | Linhas mínimas para o clone entrar na conta |
 | `cognitive.max_per_function` | inteiro maior que 0 | `15` | Aviso quando a função alterada chega nesse valor. O exit continua `0` |
+| `coverage.min_percent` | número finito de 0 a 100 | `80` | Piso da cobertura do diff. Igual ao piso passa |
 | `dependencies.python` | string | `.importlinter` | Config do import-linter |
 | `dependencies.typescript` | string | `.dependency-cruiser.cjs` | Config do dependency-cruiser |
 | `test_smells` | `true` | `true` | Aceito pelo loader. O gate não lê o campo |
@@ -116,13 +119,15 @@ O `_SCHEMA` aceita `security.fail_severities` e recusa outra chave dentro de `se
 
 ### Chaves que o loader recusa
 
-O `_SCHEMA` em `src/bob_quality/config.py` aceita `base`, `language`, `languages`, `paths.include`, `paths.exclude`, `crap.max_per_function`, `crap.scope`, `cognitive.max_per_function`, `duplication.min_tokens`, `duplication.new_clones`, `duplication.max_new_clones`, `duplication.min_similarity`, `duplication.min_lines`, `dependencies.python`, `dependencies.typescript`, `test_smells`, `typing`, `secrets`, `churn.window_days`, `supply.osv_fail_severities`, `supply.timeout_seconds`, `security.fail_severities` e `dead_code.min_confidence`. `_reject_unknown` recusa qualquer outra chave: exit `4`, mensagem em inglês no stderr, nenhum arquivo gravado.
+O `_SCHEMA` em `src/bob_quality/config.py` aceita `base`, `language`, `languages`, `paths.include`, `paths.exclude`, `crap.max_per_function`, `crap.scope`, `cognitive.max_per_function`, `duplication.min_tokens`, `duplication.new_clones`, `duplication.max_new_clones`, `duplication.min_similarity`, `duplication.min_lines`, `coverage.min_percent`, `dependencies.python`, `dependencies.typescript`, `test_smells`, `typing`, `secrets`, `churn.window_days`, `supply.osv_fail_severities`, `supply.timeout_seconds`, `security.fail_severities` e `dead_code.min_confidence`. `_reject_unknown` recusa qualquer outra chave: exit `4`, mensagem em inglês no stderr, nenhum arquivo gravado.
 
 `supply.osv_fail_severities: [MODERATE]` sai com `bob.yaml: supply.osv_fail_severities[0] must be HIGH or CRITICAL`. Lista vazia, item repetido ou texto solto também saem com `4`. `supply.timeout_seconds: 0` sai com `bob.yaml: supply.timeout_seconds must be greater than 0`. Bool e float saem com `must be an integer`. Nada é gravado.
 
 `secrets` ausente, `secrets:`, `secrets: null` e `secrets: {}` são o mesmo mapeamento vazio. A chave não tem limiar nem filhos e não liga o gate. O gate só roda com `--gates secrets`. `secrets: true` e `secrets: {threshold: 1}` saem com `4`, em inglês no stderr, e nada é gravado.
 
-`dead_code.min_confidence` ausente, nulo, ou o bloco `dead_code` vazio deixam o campo sem valor. `0` e `100` são valores presentes. `101`, `-1`, `true` e `1.5` saem com `4` em `check`, `doctor` e `waive`. A mensagem em inglês cita `bob.yaml` e `dead_code.min_confidence`. Nada é gravado em `.bob/`.
+`coverage.min_percent` abaixo de 0, acima de 100, não finito ou booleano sai com `4`. A mensagem em inglês no stderr cita o arquivo e a chave, e nada é gravado. O gate que lê essa chave não entra na lista padrão do `bob check`.
+
+`dead_code.min_confidence` ausente, nulo, ou o bloco `dead_code` vazio deixam o campo sem valor. `0` e `100` são valores presentes. `101`, `-1`, `true` e `1.5` saem com `4` em `check`, `doctor` e `waive`. A mensagem em inglês cita `bob.yaml` e `dead_code.min_confidence`. Nada é gravado em `.bob/`. O gate que lê essa chave também não entra na lista padrão do `bob check`.
 
 Estas não entram no schema:
 
@@ -166,6 +171,8 @@ waivers:
 `bob waive` só grava um alvo de um sobrevivente do último relatório de mutação: `.bob/mutation-cache.json` no Python e `.bob/stryker-mutants.json` no TypeScript. Outro alvo, como o id do mutante ou o nome nu da função, sai com 4 e nada é gravado. `bob waive` de um id que já existe uma vez substitui essa linha e sai com 0 quando o resto do arquivo é válido. Um arquivo que já contém duas entradas com o mesmo id sai com 4, em inglês no stderr, e não é reescrito.
 
 Na hora de aplicar, um waiver casa com um sobrevivente em duas formas (`_matching_reason`). `arquivo::função` casa com todo sobrevivente da função. `arquivo::função::<descrição>` casa com um sobrevivente. A descrição é o operador do mutante, sem espaço nas pontas: o diff do `mutmut show` no Python, e `{mutatorName}@{linha}:{coluna}-{linha}:{coluna}`, mais ` -> {replacement}` quando houver, no TypeScript. Essa forma só existe quando nenhum outro sobrevivente da função tem a mesma descrição. A coluna Alvo do relatório mostra a forma exata de cada sobrevivente, ou `—` quando ela não existe. Um id que não casa com nenhum sobrevivente, escrito à mão, deixa o sobrevivente sem waiver. Ver a [ADR 0006](adr/0006-chave-estavel-do-waiver.md).
+
+O gate `coverage` lê só ids com o prefixo `coverage:`. `coverage:<arquivo>` tira o arquivo inteiro. `coverage:<arquivo>:<linha>` tira essa linha do numerador e do denominador. O trecho depois do último `:` é linha só quando é feito de dígitos. `_matching_reason` não usa o prefixo: um id de cobertura só casa com um mutante quando o id inteiro já é uma das chaves do mutante.
 
 ### Arquivo inválido
 

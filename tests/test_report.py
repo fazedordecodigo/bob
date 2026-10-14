@@ -5,6 +5,9 @@ from pathlib import Path
 
 from jsonschema import Draft202012Validator
 
+from bob_quality.models import DiffCoverage, DiffLine, GateResult, LanguageDiff, Report
+from bob_quality.models import flatten_uncovered
+from bob_quality.report import to_json, to_markdown
 from helpers import RISKY_SOURCE, commit_on_branch, init_python_repo, run_bob
 from bob_quality.messages import msg
 from bob_quality.models import (
@@ -15,6 +18,7 @@ from bob_quality.models import (
     RowBlock,
     RowWarn,
     RowWaived,
+    SecurityReport,
     SupplyReport,
     UndeclaredImport,
     UnverifiedAdvisory,
@@ -53,6 +57,8 @@ def test_check_report_matches_schema_v1_and_required_sections(tmp_path: Path) ->
     assert "## Top 5 functions by CRAP" in markdown
     assert "## How to reproduce" in markdown
     assert "src/app/risky.py" in markdown
+    assert "diff_coverage" not in payload
+    assert "## Diff coverage" not in markdown
 
 
 def test_crap_command_writes_the_same_report_files(tmp_path: Path) -> None:
@@ -72,6 +78,83 @@ def test_crap_command_writes_the_same_report_files(tmp_path: Path) -> None:
     Draft202012Validator(SCHEMA).validate(payload)
     assert any(gate["name"] == "crap" for gate in payload["gates"])
     assert "bob crap --base main" in payload["reproduce"]
+
+
+def _coverage_report(status: str, reason: str | None, coverage: DiffCoverage | None) -> Report:
+    return Report(
+        schema_version=1,
+        commit="abc",
+        base="main",
+        generated_at="2026-10-12T00:00:00+00:00",
+        tool_versions={"diff-cover": "10.6.0"},
+        gates=[GateResult("coverage", status, reason)],
+        focus=[],
+        top_crap=[],
+        reproduce="bob check --gates coverage",
+        exit_code=0 if status == "passed" else 1,
+        mutation={"no_coverage": {"total": 0, "functions": []}},
+        diff_coverage=coverage,
+    )
+
+
+def test_diff_coverage_is_omitted_until_a_language_is_measured() -> None:
+    report = _coverage_report("not_run", "baseline tests failed before measuring", None)
+
+    payload = to_json(report)
+    english = to_markdown(report, "en")
+    portuguese = to_markdown(report, "pt-BR")
+
+    assert "diff_coverage" not in payload
+    Draft202012Validator(SCHEMA).validate(payload)
+    assert english.index("## Mutants without tests") < english.index("## Diff coverage")
+    assert "\n\n## Diff coverage\n\n" in english
+    assert english.index("## Diff coverage") < english.index("## How to reproduce")
+    assert "baseline tests failed before measuring" in english
+    assert "| Language | Percent |" not in english
+    assert portuguese.index("## Mutantes sem teste") < portuguese.index("## Cobertura do diff")
+    assert "## Cobertura do diff" in portuguese
+    assert "| Linguagem | Percentual |" not in portuguese
+
+
+def test_diff_coverage_json_lists_measured_percents_and_uncovered_lines() -> None:
+    report = _coverage_report(
+        "failed",
+        "python 75.00% < 80",
+        DiffCoverage(
+            (
+                LanguageDiff("python", 75.0, (DiffLine("src/app/gap.py", 12),)),
+                LanguageDiff("typescript", 100.0, ()),
+            )
+        ),
+    )
+
+    payload = to_json(report)
+    english = to_markdown(report, "en")
+
+    Draft202012Validator(SCHEMA).validate(payload)
+    assert payload["diff_coverage"] == {
+        "python": 75.0,
+        "typescript": 100.0,
+        "uncovered": [{"file": "src/app/gap.py", "line": 12}],
+    }
+    assert "| Language | Percent |\n|---|---:|\n| python | 75.00% |" in english
+    assert "| typescript | 100.00% |" in english
+    assert "`src/app/gap.py:12`" in english
+
+
+def test_uncovered_lines_are_sorted_by_file_then_line() -> None:
+    coverage = DiffCoverage(
+        (
+            LanguageDiff("typescript", 0.0, (DiffLine("b.ts", 2), DiffLine("b.ts", 1))),
+            LanguageDiff("python", 50.0, (DiffLine("a.py", 3),)),
+        )
+    )
+
+    assert flatten_uncovered(coverage) == (
+        DiffLine("a.py", 3),
+        DiffLine("b.ts", 1),
+        DiffLine("b.ts", 2),
+    )
 
 
 def _bare(**extra: object) -> Report:
@@ -187,10 +270,16 @@ def test_json_records_no_severity_when_the_fetched_advisory_has_no_band() -> Non
     finding = UnverifiedAdvisory(
         "pypi", "left", "pyproject.toml", 5, "no_severity", "GHSA-0000-0000-0000"
     )
-    report = _bare(supply=SupplyReport(("python",), (), (RowWarn(finding),)))
+    report = _bare(
+        supply=SupplyReport(("python",), (), (RowWarn(finding),)),
+        diff_coverage=DiffCoverage((LanguageDiff("python", 80.0, ()),)),
+        security=SecurityReport((), ()),
+    )
 
     payload = to_json(report)
 
+    assert payload["diff_coverage"] == {"python": 80.0, "uncovered": []}
+    assert payload["security"] == {"findings": [], "unmeasured": []}
     assert payload["supply"]["findings"] == [
         {
             "kind": "unverified",

@@ -286,8 +286,8 @@ def run_vitest_under_c8(
     include: list[str],
     reports_dir: Path,
     exclude: list[str],
+    reporters: tuple[str, ...] = ("json",),
 ) -> int:
-    """Roda vitest sob c8 via npx e grava coverage-final.json. Devolve o exit do vitest."""
     missing = node_missing_message()
     if missing:
         raise ToolError(missing)
@@ -299,7 +299,7 @@ def run_vitest_under_c8(
     wrapper.write_text(_VITEST_WRAPPER)
     user_config = _user_vitest_config(cwd)
     completed = subprocess.run(
-        _c8_argv(prefix, cwd, include, exclude, reports_dir, wrapper),
+        _c8_argv(prefix, cwd, include, exclude, reports_dir, wrapper, reporters),
         cwd=cwd,
         capture_output=True,
         text=True,
@@ -317,17 +317,23 @@ def _c8_argv(
     exclude: list[str],
     reports_dir: Path,
     wrapper: Path,
+    reporters: tuple[str, ...] = ("json",),
 ) -> list[str]:
     args = [
         "npx",
         "--prefix",
         str(prefix),
         "c8",
-        "--reporter=json",
-        "--reports-dir",
-        str(reports_dir),
-        "--all",
     ]
+    for reporter in reporters:
+        args.append(f"--reporter={reporter}")
+    args.extend(
+        [
+            "--reports-dir",
+            str(reports_dir),
+            "--all",
+        ]
+    )
     for pattern in _c8_exclude_patterns(exclude):
         args.extend(["--exclude", pattern])
     for path in include or ["src"]:
@@ -377,10 +383,14 @@ def _needs_strip_types(user_config: Path, env: dict[str, str]) -> bool:
 
 
 def _raise_if_c8_failed(completed: subprocess.CompletedProcess[str], reports_dir: Path) -> None:
-    if completed.returncode == 0 or (reports_dir / "coverage-final.json").is_file():
+    if completed.returncode == 0 or _coverage_report_exists(reports_dir):
         return
     raw = completed.stderr or completed.stdout
     raise ToolError(raw.strip() if raw else msg("npm.c8_failed"))
+
+
+def _coverage_report_exists(reports_dir: Path) -> bool:
+    return (reports_dir / "coverage-final.json").is_file() or (reports_dir / "lcov.info").is_file()
 
 
 def _c8_exclude_patterns(exclude: list[str]) -> list[str]:

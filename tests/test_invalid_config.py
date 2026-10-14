@@ -394,6 +394,19 @@ _SEMANTIC_YAML = (
     ),
     ("security:\n  nope: [HIGH]\n", "bob.yaml: unknown key security.nope\n"),
     (
+        "coverage:\n  min_percent: true\n",
+        "bob.yaml: coverage.min_percent must be a number\n",
+    ),
+    (
+        "coverage:\n  min_percent: 101\n",
+        "bob.yaml: coverage.min_percent must be at most 100\n",
+    ),
+    (
+        "coverage:\n  min_percent: -1\n",
+        "bob.yaml: coverage.min_percent must be at least 0\n",
+    ),
+    ("coverage: 0\n", "bob.yaml: coverage must be a mapping\n"),
+    (
         "cognitive:\n  max_per_function: true\n",
         "bob.yaml: cognitive.max_per_function must be an integer\n",
     ),

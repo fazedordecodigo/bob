@@ -31,6 +31,7 @@ from bob_quality.models import (
     CognitiveFunction,
     DeadSection,
     DepViolation,
+    DiffCoverage,
     Fail,
     Finding,
     FunctionMetric,
@@ -61,6 +62,7 @@ from bob_quality.models import (
     VultureKind,
     Warn,
     Waived,
+    flatten_uncovered,
 )
 from bob_quality.test_smells import waiver_id
 
@@ -114,6 +116,7 @@ def to_json(report: Report) -> dict[str, object]:
         **_smell_field(report),
         **_supply_field(report),
     }
+    _put_diff_reports(payload, report)
     _json_tail(payload, report)
     return payload
 
@@ -138,6 +141,21 @@ def _json_tail(payload: dict[str, object], report: Report) -> None:
     payload["churn"] = _churn_json(report.churn)
     payload["reproduce"] = report.reproduce
     payload["exit_code"] = report.exit_code
+
+
+def _put_diff_reports(payload: dict[str, object], report: Report) -> None:
+    if report.diff_coverage is not None:
+        payload["diff_coverage"] = _diff_coverage_json(report.diff_coverage)
+
+
+def _diff_coverage_json(coverage: DiffCoverage) -> dict[str, object]:
+    payload: dict[str, object] = {}
+    for item in coverage.languages:
+        payload[item.language] = item.percent
+    payload["uncovered"] = [
+        {"file": row.file, "line": row.line} for row in flatten_uncovered(coverage)
+    ]
+    return payload
 
 
 def _json_reason(reason: Text | None) -> str | None:
@@ -172,6 +190,7 @@ def to_markdown(report: Report, lang: Language) -> str:
     lines.extend(_clone_lines(report))
     lines.extend(_survivor_lines(report, lang))
     lines.extend(_no_coverage_lines(report))
+    lines.extend(_diff_coverage_lines(report))
     lines.extend(_test_smell_lines(report))
     lines.extend(supply_lines(report))
     lines.extend(_types_lines(report))
@@ -276,6 +295,24 @@ def _no_coverage_lines(report: Report) -> list[Text]:
     lines.extend([msg("report.uncovered_header"), "|---|---|---:|"])
     for row in uncovered["functions"]:
         lines.append(f"| {row['function']} | {row['file']} | {row['count']} |")
+    return lines
+
+
+def _diff_coverage_lines(report: Report) -> list[Text]:
+    gate = _gate_named(report, "coverage")
+    if gate is None:
+        return []
+    lines: list[Text] = ["", msg("report.diff_coverage"), ""]
+    coverage = report.diff_coverage
+    if coverage is None or not coverage.languages:
+        if gate.reason:
+            lines.append(gate.reason)
+        return lines
+    lines.extend([msg("report.diff_header"), "|---|---:|"])
+    for item in coverage.languages:
+        lines.append(f"| {item.language} | {item.percent:.2f}% |")
+    for row in flatten_uncovered(coverage):
+        lines.append(f"- `{row.file}:{row.line}`")
     return lines
 
 

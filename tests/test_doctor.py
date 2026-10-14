@@ -57,6 +57,7 @@ PINS = (
     ("complexipy", "8.0.1", None, None),
     ("import-linter", "2.15", "lint-imports", "2.15"),
     ("grimp", "3.17", None, None),
+    ("diff-cover", "10.6.0", None, None),
     ("bandit", "1.9.4", None, None),
     ("dependency-cruiser", "18.5.0", "dependency-cruiser", "18.5.0"),
     ("gitleaks", "8.30.1", "gitleaks", "8.30.1"),
@@ -78,6 +79,7 @@ INSTALL = {
     "mutmut": "pip install 'mutmut==3.8.0'",
     "import-linter": "pip install 'import-linter==2.15'",
     "grimp": "pip install 'grimp==3.17'",
+    "diff-cover": "pip install 'diff-cover==10.6.0'",
     "complexipy": "pip install 'complexipy==8.0.1'",
     "bandit": "pip install 'bandit==1.9.4'",
     "dependency-cruiser": "npm install dependency-cruiser@18.5.0",
@@ -387,6 +389,7 @@ def test_doctor_expected_versions_match_pip_and_npm_pins(tmp_path: Path) -> None
     assert requirements["mutmut"] == expected["mutmut"]
     assert requirements["import-linter"] == expected["import-linter"]
     assert requirements["grimp"] == expected["grimp"]
+    assert requirements["diff-cover"] == expected["diff-cover"]
     assert requirements["complexipy"] == expected["complexipy"]
     assert requirements["bandit"] == expected["bandit"]
     assert "semgrep" not in requirements

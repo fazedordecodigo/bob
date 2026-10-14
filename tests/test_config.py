@@ -36,6 +36,8 @@ duplication:
 test_smells: true
 cognitive:
   max_per_function: 12
+coverage:
+  min_percent: 90
 supply:
   osv_fail_severities: [CRITICAL]
   timeout_seconds: 12
@@ -74,6 +76,7 @@ def test_load_config_reads_every_key(tmp_path: Path) -> None:
         min_lines=8,
         test_smells=True,
         max_cognitive=12,
+        coverage_min_percent=90.0,
         language="pt-BR",
         osv_fail_severities=("CRITICAL",),
         supply_timeout_seconds=12,
@@ -300,6 +303,26 @@ def test_load_config_stores_one_min_token(tmp_path: Path) -> None:
     (tmp_path / "bob.yaml").write_text("duplication:\n  min_tokens: 1\n")
 
     assert load_config(None, tmp_path).min_tokens == 1
+
+
+@pytest.mark.parametrize(
+    "text",
+    ["", "coverage:\n", "coverage: {}\n", "coverage: null\n"],
+)
+def test_load_config_defaults_the_coverage_floor(tmp_path: Path, text: str) -> None:
+    (tmp_path / "bob.yaml").write_text(text)
+
+    assert load_config(None, tmp_path).coverage_min_percent == 80.0
+
+
+@pytest.mark.parametrize(("text", "floor"), [("0", 0.0), ("100", 100.0), ("80.5", 80.5)])
+def test_load_config_stores_a_coverage_floor(tmp_path: Path, text: str, floor: float) -> None:
+    (tmp_path / "bob.yaml").write_text(f"coverage:\n  min_percent: {text}\n")
+
+    loaded = load_config(None, tmp_path).coverage_min_percent
+
+    assert type(loaded) is float
+    assert loaded == floor
 
 
 @pytest.mark.parametrize(
@@ -1022,6 +1045,26 @@ def test_bad_yaml_language_fails_even_when_the_flag_wins(
             "bob.yaml: duplication.min_tokens deve ser maior que 0",
         ),
         (
+            "coverage:\n  min_percent: true\n",
+            "bob.yaml: coverage.min_percent must be a number",
+            "bob.yaml: coverage.min_percent deve ser um número",
+        ),
+        (
+            "coverage:\n  min_percent: 101\n",
+            "bob.yaml: coverage.min_percent must be at most 100",
+            "bob.yaml: coverage.min_percent deve ser no máximo 100",
+        ),
+        (
+            "coverage:\n  min_percent: -1\n",
+            "bob.yaml: coverage.min_percent must be at least 0",
+            "bob.yaml: coverage.min_percent deve ser no mínimo 0",
+        ),
+        (
+            "coverage: 0\n",
+            "bob.yaml: coverage must be a mapping",
+            "bob.yaml: coverage deve ser um mapeamento",
+        ),
+        (
             "supply:\n  osv_fail_severities: [MODERATE]\n",
             "bob.yaml: supply.osv_fail_severities[0] must be HIGH or CRITICAL",
             "bob.yaml: supply.osv_fail_severities[0] deve ser HIGH ou CRITICAL",
@@ -1114,6 +1157,10 @@ def test_load_config_rejects_an_illegal_semantic_value(
         ({"min_tokens": -1}, "min_tokens"),
         ({"min_tokens": 0}, "min_tokens"),
         ({"min_tokens": True}, "min_tokens"),
+        ({"coverage_min_percent": 101}, "coverage_min_percent"),
+        ({"coverage_min_percent": -1}, "coverage_min_percent"),
+        ({"coverage_min_percent": True}, "coverage_min_percent"),
+        ({"coverage_min_percent": float("nan")}, "coverage_min_percent"),
         ({"max_cognitive": 0}, "max_cognitive"),
         ({"max_cognitive": -1}, "max_cognitive"),
         ({"max_cognitive": True}, "max_cognitive"),

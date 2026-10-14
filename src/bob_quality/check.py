@@ -10,6 +10,7 @@ from bob_quality.churn import ChurnSection, measure_churn
 from bob_quality.cognitive_gate import run_cognitive_gate
 from bob_quality.config import Config, ConfigError, load_config
 from bob_quality.core import files_by_risk, informational_debt, top_changed_crap
+from bob_quality.coverage_gate import run_coverage_gate
 from bob_quality.crap_gate import run_crap_gate
 from bob_quality.dead_code import WarningOnly, run_dead_code_gate
 from bob_quality.deps_gate import run_deps_gate
@@ -23,6 +24,7 @@ from bob_quality.models import (
     CognitiveFunction,
     DeadSection,
     DepViolation,
+    DiffCoverage,
     FunctionMetric,
     GateResult,
     Report,
@@ -36,6 +38,7 @@ from bob_quality.mutate_gate import run_mutate_gate
 from bob_quality.report import metric_row, violation_rows, write_report
 from bob_quality.secrets_gate import run_secrets_gate
 from bob_quality.security_gate import run_security_gate
+from bob_quality.suite_memo import SuiteMemo
 from bob_quality.supply import run_supply_gate
 from bob_quality.test_smells import run_test_smells_gate
 from bob_quality.waivers import WaiverError, load_waivers
@@ -146,12 +149,14 @@ class _Measured:
     secrets: SecretLedger | None = None
     loaded_waivers: list[dict[str, object]] = field(default_factory=list)
     baseline: int | None = None
+    diff_coverage: DiffCoverage | None = None
     test_smells: tuple[TestSmell, ...] | None = None
     cognitive: list[CognitiveFunction] = field(default_factory=list)
     supply: SupplyReport | None = None
     security: SecurityReport | None = None
     typing: dict[str, object] | None = None
     dead_code: DeadSection | None = None
+    memo: SuiteMemo = field(default_factory=lambda: SuiteMemo(False))
 
 
 def _measure(
@@ -168,21 +173,26 @@ def _measure(
     max_new_clones: int | None,
 ) -> _Measured:
     state = _Measured()
-    for gate in gates:
-        _absorb(
-            state,
-            gate,
-            cwd,
-            config,
-            base,
-            diff_lines,
-            max_crap,
-            coverage_file,
-            out_dir,
-            max_workers,
-            dry_fail,
-            max_new_clones,
-        )
+    memo = SuiteMemo(want_lcov="coverage" in gates, want_json="crap" in gates)
+    state.memo = memo
+    try:
+        for gate in gates:
+            _absorb(
+                state,
+                gate,
+                cwd,
+                config,
+                base,
+                diff_lines,
+                max_crap,
+                coverage_file,
+                out_dir,
+                max_workers,
+                dry_fail,
+                max_new_clones,
+            )
+    finally:
+        memo.close()
     return state
 
 
@@ -207,6 +217,7 @@ def _absorb(
             diff_lines=diff_lines,
             max_crap=max_crap,
             coverage_file=coverage_file,
+            memo=state.memo,
         )
         state.metrics = metrics
         state.baseline = baseline
@@ -242,6 +253,11 @@ def _absorb(
         )
         state.mutation = mutation
         _record(state, mutation.result, mutation.exit_code, mutation.versions)
+        return
+    if gate == "coverage":
+        outcome = run_coverage_gate(cwd, config, base, coverage_file, state.memo)
+        state.diff_coverage = outcome.diff_coverage
+        _record(state, outcome.result, outcome.exit_code, outcome.versions)
         return
     _absorb_rest(state, gate, cwd, config, base, diff_lines)
 
@@ -364,6 +380,7 @@ def _assemble(
         waivers=waivers,
         survivors=survivors,
         mutation=summary,
+        diff_coverage=measured.diff_coverage,
         test_smells=measured.test_smells,
         cognitive=measured.cognitive,
         churn=churn,

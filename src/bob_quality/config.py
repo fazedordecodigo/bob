@@ -180,6 +180,24 @@ _SCHEMA = _Node(
             ),
         ),
         _Node(
+            "coverage",
+            "",
+            (),
+            children=(
+                _Node(
+                    "min_percent",
+                    "coverage_min_percent",
+                    (
+                        _Check("number"),
+                        _Check("finite"),
+                        _Bound("at_least", 0),
+                        _Bound("at_most", 100),
+                    ),
+                    null_is_default=False,
+                ),
+            ),
+        ),
+        _Node(
             "dependencies",
             "",
             (),
@@ -270,6 +288,7 @@ class Config:
     max_new_clones: int = 0
     min_similarity: float = 0.0
     min_lines: int = 0
+    coverage_min_percent: float = 80.0
     test_smells: bool = True
     dead_code_min_confidence: int | None = None
     language: Language | None = None

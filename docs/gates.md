@@ -2,7 +2,9 @@
 
 [Índice](README.md) · [Visão geral](visao-geral.md) · [CLI](cli.md) · [Configuração](configuracao.md) · [Exit codes](exit-codes.md) · [Relatórios](relatorios.md) · [SPEC](SPEC.md)
 
-Onze gates. `test_smells`, `cognitive`, `supply`, `security`, `typing`, `secrets` e `dead_code` só rodam quando `--gates` os pede. Cada um devolve um status `passed`, `warn`, `failed` ou `not_run`. O Markdown traduz para passou, aviso, falhou e não executado, com ✅ ⚠️ ❌ ⏭️ (`GATE_MARK` em `src/bob_quality/report.py`). Um gate que não rodou fica ⏭️ com motivo. Ele não aparece como ✅.
+Doze gates. Cada um devolve um status `passed`, `warn`, `failed` ou `not_run`. O Markdown traduz para passou, aviso, falhou e não executado, com ✅ ⚠️ ❌ ⏭️ (`GATE_MARK` em `src/bob_quality/report.py`). Um gate que não rodou fica ⏭️ com motivo. Ele não aparece como ✅.
+
+`coverage`, `test_smells`, `cognitive`, `supply`, `security`, `typing`, `dead_code` e `secrets` são opt-in. Eles só rodam quando `--gates` os pede. O `bob check` sem `--gates` continua `crap,dry,deps`. O hook `pre-push` e a Action também não incluem esses gates.
 
 O exit code do `bob check` é o maior entre os gates que rodaram. Aviso não aumenta o código. Ver [Exit codes](exit-codes.md).
 
@@ -13,6 +15,7 @@ O exit code do `bob check` é o maior entre os gates que rodaram. Aviso não aum
 | [Complexidade cognitiva](#complexidade-cognitiva) | complexipy ou eslint com eslint-plugin-sonarjs | nada; função alterada no limite é aviso | `0` |
 | [Mutação](#mutação) | mutmut (Python), StrykerJS (TypeScript) | sobrevivente sem waiver | `3` |
 | [Dependências](#dependências) | import-linter, dependency-cruiser, mais a regra de ciclo | violação cuja origem, destino ou outro módulo do ciclo está no diff | `1` |
+| [Cobertura do diff](#cobertura-do-diff) | diff-cover 10.6.0 sobre `coverage.xml` ou lcov do c8 | percentual de uma linguagem abaixo do piso | `1` |
 | [Testes do diff](#testes-do-diff) | ast do Python e o eslint do repositório | nada; cheiro no diff é aviso | `0` |
 | [Dependências novas](#dependências-novas) | deptry, knip, PyPI, npm e OSV | pacote novo com 404, import não declarado, ou advisory `HIGH`/`CRITICAL` numa linha nova | `1` |
 | [Segurança](#segurança) | Bandit no Python, Semgrep no TypeScript | achado novo cuja severidade está em `security.fail_severities`, sem waiver | `1` |
@@ -20,9 +23,9 @@ O exit code do `bob check` é o maior entre os gates que rodaram. Aviso não aum
 | [Segredos](#segredos) | gitleaks | segredo novo no diff | `1` |
 | [Código morto](#código-morto) | vulture e knip | nada; símbolo morto cuja definição está no diff é aviso | `0` |
 
-`test_smells`, `cognitive` e `supply` não entram no `bob check` sem `--gates`, nem no hook, nem na Action. O comando é `bob check --gates test_smells`, `bob check --gates cognitive` ou `bob check --gates supply`. O mesmo vale para `typing`, `security`, `secrets` e `dead_code`.
+`coverage`, `test_smells`, `cognitive` e `supply` não entram no `bob check` sem `--gates`, nem no hook, nem na Action. O comando é `bob check --gates coverage`, `bob check --gates test_smells`, `bob check --gates cognitive` ou `bob check --gates supply`. O mesmo vale para `typing`, `security`, `secrets` e `dead_code`.
 
-Versões pinadas: lizard 1.24.1, deptry 0.25.1, coverage 7.16.2, c8 12.0.0, vitest 5.0.3, jscpd 5.4.1, mutmut 3.8.0, complexipy 8.0.1, `@stryker-mutator/core` 10.0.0, `@stryker-mutator/vitest-runner` 10.0.0, import-linter 2.15, grimp 3.17, dependency-cruiser 18.5.0, eslint 9.39.5, eslint-plugin-sonarjs 2.0.4, bandit 1.9.4, gitleaks 8.30.1, vulture 2.16, knip 6.41.0. Node `>=22.14.0 <23`. Fonte: `pyproject.toml`, `package.json` e `doctor.py`. O doctor lê os pinos pip do Requires-Dist instalado. mypy, pyright e tsc ficam de fora dessa lista. O gate de tipos usa o executável que o `PATH` do repositório resolver, e o doctor não confere a versão. O Semgrep 1.180.0 também fica de fora do doctor. O gate de security chama `uvx --from semgrep==1.180.0`.
+Versões pinadas: lizard 1.24.1, deptry 0.25.1, coverage 7.16.2, diff-cover 10.6.0, c8 12.0.0, vitest 5.0.3, jscpd 5.4.1, mutmut 3.8.0, complexipy 8.0.1, `@stryker-mutator/core` 10.0.0, `@stryker-mutator/vitest-runner` 10.0.0, import-linter 2.15, grimp 3.17, dependency-cruiser 18.5.0, eslint 9.39.5, eslint-plugin-sonarjs 2.0.4, bandit 1.9.4, gitleaks 8.30.1, vulture 2.16, knip 6.41.0. Node `>=22.14.0 <23`. Fonte: `pyproject.toml`, `package.json` e `doctor.py`. O doctor lê os pinos pip do Requires-Dist instalado. mypy, pyright e tsc ficam de fora dessa lista. O gate de tipos usa o executável que o `PATH` do repositório resolver, e o doctor não confere a versão. O Semgrep 1.180.0 também fica de fora do doctor. O gate de security chama `uvx --from semgrep==1.180.0`.
 
 ## CRAP
 
@@ -134,6 +137,24 @@ Uma violação bloqueia quando a origem, o destino, ou outro módulo do mesmo co
 
 Ferramenta ausente que impede a medição pedida deixa o gate `not_run` e o exit `4` (`ToolError` em `run_deps_gate`). O mesmo exit `4` vale para um JSON do dependency-cruiser que não é objeto ou não traz a lista `violations`, e para o import-linter com exit 0 cuja última linha `Contracts:` não é `N kept, 0 broken.`
 
+## Cobertura do diff
+
+O nome em `--gates` é `coverage`. Sem ele, o check não mede cobertura do diff.
+
+O piso é `coverage.min_percent`, padrão 80. Percentual abaixo do piso falha. Percentual igual ao piso passa. Esse corte é o inverso do CRAP, que falha quando o número é igual ao limite. A comparação mora em `below_floor`, ao lado de `crap_verdict` em `core.py`.
+
+Cada linguagem de `languages` tem o próprio percentual. Uma abaixo do piso falha o gate. Linguagem sem linha nova cobrível fica em 100 e passa.
+
+Python lê o XML do Cobertura. O `coverage xml` grava esse XML a partir do mesmo arquivo de dados do `coverage json`. TypeScript lê o lcov do c8, gravado na mesma execução do vitest. Cada linguagem chama o diff-cover 10.6.0 num processo separado. XML e lcov não entram no mesmo processo.
+
+O gate grava o próprio `git diff --unified=0 <base>...HEAD` e passa esse arquivo ao diff-cover. Esse comando não altera o diff que o CRAP já usa.
+
+O waiver de linha é `coverage:<arquivo>:<linha>`. Ele tira a linha do numerador e do denominador. O waiver de arquivo é `coverage:<arquivo>` e tira o arquivo inteiro. O gate só lê ids com o prefixo `coverage:`. O trecho depois do último `:` é uma linha quando contém só dígitos. Qualquer outro texto depois do prefixo é um arquivo. O casamento dos mutantes continua exato e ignora esse prefixo.
+
+Suíte que quebra antes de existir artefato sai com `2`. O JSON não traz `diff_coverage`. Suíte boa com artefato ausente, e nenhuma outra linguagem medida, sai com `4`. diff-cover ausente sai com `4` antes de o gate de cobertura pedir a suíte. Um `crap` na mesma lista ainda mede.
+
+Se uma linguagem mede e a outra não tem a ferramenta, o veredito é o percentual medido. O exit segue esse percentual. O motivo cita a linguagem que ficou de fora. O status continua `passed` ou `failed`.
+
 ## Dependências novas
 
 O gate só roda com `bob check --gates supply`. Ele olha o que o diff acrescenta.
@@ -228,7 +249,7 @@ Exit 0 ou 1 do knip com JSON válido é medição, inclusive quando o knip sai 1
 
 Se uma linguagem mediu e a outra não, o status segue o ledger medido. Ledger limpo é `passed`. Símbolo no diff sem waiver é `warn`. O motivo da linguagem que faltou continua na linha do gate. Isso não força `warn` e não usa exit `4`. Sem nenhuma medição, o status é `not_run` e o exit continua `0`. O relatório é gravado nos dois casos.
 
-A seção `## Código morto` sai só quando o gate foi pedido, depois de `## Tipos`, de `## Segredos` e de `## Complexidade cognitiva` quando essas seções existem, e antes de `## Segurança` e de `## Rotatividade`. A seção `## Segurança` sai só quando o gate foi pedido, antes de `## Rotatividade` e de `## Como reproduzir`. O JSON segue a ordem do Markdown. Depois de `mutation` vêm `test_smells` quando o gate rodou, `supply` quando o gate mediu, `typing` quando o gate de tipos foi pedido, `secrets` quando o gate de segredos mediu, `cognitive` quando o gate cognitivo foi pedido, `dead_code` quando esse gate foi pedido e `security` quando esse gate foi pedido. `churn` sai sempre, antes de `reproduce`. Sem o gate, a chave não existe. `schema_version` continua 1. O `reason` do JSON fica em inglês.
+A seção `## Código morto` sai só quando o gate foi pedido, depois de `## Tipos`, de `## Segredos` e de `## Complexidade cognitiva` quando essas seções existem, e antes de `## Segurança` e de `## Rotatividade`. A seção `## Segurança` sai só quando o gate foi pedido, antes de `## Rotatividade` e de `## Como reproduzir`. O JSON segue a ordem do render. Depois de `mutation` vêm `test_smells` quando o gate rodou, `supply` quando o gate mediu, `diff_coverage` quando ao menos uma linguagem mediu, `typing` quando o gate de tipos foi pedido, `secrets` quando o gate de segredos mediu, `cognitive` quando o gate cognitivo foi pedido, `dead_code` quando esse gate foi pedido e `security` quando esse gate foi pedido. `churn` sai sempre, antes de `reproduce`. Sem o gate, a chave não existe. `schema_version` continua 1. O `reason` do JSON fica em inglês.
 
 ## Monorepo e Node ausente
 
