@@ -226,10 +226,14 @@ _ROOT_OPEN = {
 }
 
 
+def _tool_version(row: Scanner) -> str:
+    return row.pinned_version or distribution_version(row.distribution) or ""
+
+
 def _scan_at(root: Path, config: Config, row: Scanner, baseline: str) -> Measured | Unmeasured:
     if row.rules_dir is not None and not _rules_ready(root / row.rules_dir):
         return Unmeasured(row.tool, msg("security.rules_missing"))
-    version = row.pinned_version or distribution_version(row.distribution) or ""
+    version = _tool_version(row)
     targets = _targets(root, config.include)
     if not targets:
         return Measured(row.tool, version, ())

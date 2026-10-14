@@ -335,6 +335,10 @@ def test_missing_rules_and_a_missing_tool_stay_unmeasured(tmp_path: Path) -> Non
     missed = _scan_row(repo, Config(), hidden, None, None)
     assert missed == Unmeasured("bandit", msg("tool.missing", tool="bandit"))
 
+    hidden_runner = replace(scanners_for(("typescript",))[0], installed=lambda: False)
+    missed = _scan_row(repo, Config(), hidden_runner, "abc123", None)
+    assert missed == Unmeasured("semgrep", msg("security.runner_missing", runner="uvx"))
+
     semgrep = scanners_for(("typescript",))[0]
     missed = _scan_row(repo, Config(languages=("typescript",)), semgrep, None, None)
     assert missed == Unmeasured("semgrep", msg("security.worktree_failed", detail=""))

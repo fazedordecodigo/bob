@@ -5,6 +5,7 @@ from __future__ import annotations
 import shutil
 import subprocess
 import tempfile
+from dataclasses import replace
 from pathlib import Path
 
 import pytest
@@ -278,6 +279,15 @@ def test_scan_at_pins_the_context_the_crash_and_the_parse_root(
     assert isinstance(measured, Measured)
     assert measured.version == ""
     assert parsed == [tmp_path]
+
+    pinned = _scan_at(
+        tmp_path,
+        Config(include=("src",)),
+        replace(row, pinned_version="1.180.0"),
+        "abc123",
+    )
+    assert isinstance(pinned, Measured)
+    assert pinned.version == "1.180.0"
 
 
 def test_rules_ready_accepts_yml_and_yaml_only(tmp_path: Path) -> None:
