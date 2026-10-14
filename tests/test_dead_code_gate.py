@@ -270,7 +270,7 @@ def test_vulture_exit_zero_with_stdout_is_not_a_measurement(
     real_run = subprocess.run
 
     def fake_run(args: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
-        if args[:1] == ["git"]:
+        if list(args[:1]) == ["git"]:
             return real_run(args, **kwargs)
         assert args[1:3] == ["-m", "vulture"]
         assert "--min-confidence" not in args
@@ -301,7 +301,7 @@ def test_vulture_exit_3_with_a_parsed_line_does_not_become_bob_exit(
     real_run = subprocess.run
 
     def fake_run(args: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
-        if args[:1] == ["git"]:
+        if list(args[:1]) == ["git"]:
             return real_run(args, **kwargs)
         return subprocess.CompletedProcess(
             args,
@@ -335,7 +335,7 @@ def test_knip_exit_1_with_json_is_a_measurement(
     real_run = subprocess.run
 
     def fake_run(args: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
-        if args[:1] == ["git"]:
+        if list(args[:1]) == ["git"]:
             return real_run(args, **kwargs)
         prefix = str(npm_prefix())
         assert args == [
@@ -384,7 +384,7 @@ def test_knip_exit_2_with_json_is_not_a_measurement(
     real_run = subprocess.run
 
     def fake_run(args: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
-        if args[:1] == ["git"]:
+        if list(args[:1]) == ["git"]:
             return real_run(args, **kwargs)
         return subprocess.CompletedProcess(
             args, 2, stdout='{"issues":[]}\n', stderr="config"

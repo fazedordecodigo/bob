@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Literal, NewType
 
+from bob_quality.churn import ChurnSection, ChurnUnavailable
 from bob_quality.messages import Text
 
 GateStatus = Literal["passed", "warn", "failed", "not_run"]
@@ -236,6 +237,7 @@ class Report:
     waivers: list[dict[str, object]] = field(default_factory=list)
     survivors: list[dict[str, object]] = field(default_factory=list)
     mutation: dict[str, object] | None = None
+    churn: ChurnSection = field(default_factory=ChurnUnavailable)
     supply: SupplyReport | None = None
     security: SecurityReport | None = None
     typing: dict[str, object] | None = None

@@ -160,57 +160,6 @@
         }
       }
     },
-    "security": {
-      "type": "object",
-      "required": ["findings", "unmeasured"],
-      "properties": {
-        "findings": {
-          "type": "array",
-          "items": {
-            "type": "object",
-            "required": [
-              "tool",
-              "rule",
-              "file",
-              "line",
-              "end_line",
-              "severity",
-              "disposition",
-              "waiver"
-            ],
-            "properties": {
-              "tool": { "type": "string" },
-              "rule": { "type": "string" },
-              "file": { "type": "string" },
-              "line": { "type": "integer" },
-              "end_line": { "type": "integer" },
-              "severity": { "type": "string" },
-              "disposition": { "enum": ["fail", "warn", "waived", "off_diff"] },
-              "waiver": { "type": ["string", "null"] }
-            }
-          }
-        },
-        "unmeasured": {
-          "type": "array",
-          "items": { "type": "string" }
-        }
-      }
-    },
-    "secrets": {
-      "type": "array",
-      "items": {
-        "type": "object",
-        "additionalProperties": false,
-        "required": ["file", "line", "rule_id"],
-        "properties": {
-          "file": { "type": "string" },
-          "line": { "type": "integer", "minimum": 1 },
-          "rule_id": { "type": "string" }
-        }
-      }
-    },
-    "reproduce": { "type": "string" },
-    "exit_code": { "type": "integer" },
     "typing": {
       "type": "object",
       "additionalProperties": false,
@@ -293,6 +242,19 @@
         }
       }
     },
+    "secrets": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["file", "line", "rule_id"],
+        "properties": {
+          "file": { "type": "string" },
+          "line": { "type": "integer", "minimum": 1 },
+          "rule_id": { "type": "string" }
+        }
+      }
+    },
     "dead_code": {
       "type": "object",
       "required": ["symbols"],
@@ -314,6 +276,104 @@
           }
         }
       }
-    }
+    },
+    "security": {
+      "type": "object",
+      "required": ["findings", "unmeasured"],
+      "properties": {
+        "findings": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "tool",
+              "rule",
+              "file",
+              "line",
+              "end_line",
+              "severity",
+              "disposition",
+              "waiver"
+            ],
+            "properties": {
+              "tool": { "type": "string" },
+              "rule": { "type": "string" },
+              "file": { "type": "string" },
+              "line": { "type": "integer" },
+              "end_line": { "type": "integer" },
+              "severity": { "type": "string" },
+              "disposition": { "enum": ["fail", "warn", "waived", "off_diff"] },
+              "waiver": { "type": ["string", "null"] }
+            }
+          }
+        },
+        "unmeasured": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      }
+    },
+    "churn": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind"],
+          "properties": {
+            "kind": { "const": "unavailable" }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "window_days", "ends_on", "files", "hotspots", "diffusion"],
+          "properties": {
+            "kind": { "const": "measured" },
+            "window_days": { "type": "integer", "minimum": 1 },
+            "ends_on": { "type": "string", "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$" },
+            "files": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["path", "commits", "relative"],
+                "properties": {
+                  "path": { "type": "string" },
+                  "commits": { "type": "integer", "minimum": 0 },
+                  "relative": { "type": ["number", "null"] }
+                }
+              }
+            },
+            "hotspots": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["file", "function", "start_line", "cc", "commits", "hotspot"],
+                "properties": {
+                  "file": { "type": "string" },
+                  "function": { "type": "string" },
+                  "start_line": { "type": "integer" },
+                  "cc": { "type": "integer" },
+                  "commits": { "type": "integer", "minimum": 0 },
+                  "hotspot": { "type": "integer" }
+                }
+              }
+            },
+            "diffusion": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["files", "modules"],
+              "properties": {
+                "files": { "type": "integer", "minimum": 0 },
+                "modules": { "type": "integer", "minimum": 0 }
+              }
+            }
+          }
+        }
+      ]
+    },
+    "reproduce": { "type": "string" },
+    "exit_code": { "type": "integer" }
   }
 }

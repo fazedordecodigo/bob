@@ -9,6 +9,7 @@ import pytest
 
 import bob_quality.check as check
 from bob_quality.check import _Measured, _absorb, _assemble
+from bob_quality.churn import ChurnUnavailable
 from bob_quality.config import Config
 from bob_quality.dead_code import WarningOnly
 from bob_quality.messages import msg, render
@@ -251,7 +252,7 @@ def test_assemble_without_mutation_keeps_idle_waivers_and_empty_survivors(
         loaded_waivers=[{"id": "idle"}],
     )
 
-    report = _assemble(measured, "abc", "main", DIFF, 10.0, "bob check")
+    report = _assemble(measured, "abc", "main", DIFF, 10.0, "bob check", ChurnUnavailable())
 
     assert report.schema_version == 1
     assert report.commit == "abc"
@@ -274,6 +275,7 @@ def test_assemble_without_mutation_keeps_idle_waivers_and_empty_survivors(
     assert report.security is None
     assert report.secrets is None
     assert report.dead_code is None
+    assert report.churn == ChurnUnavailable()
 
 
 def test_assemble_with_mutation_replaces_waivers_and_keeps_typing(
@@ -309,7 +311,9 @@ def test_assemble_with_mutation_replaces_waivers_and_keeps_typing(
         typing=found,
     )
 
-    report = _assemble(measured, "def", "origin/main", DIFF, 10.0, "bob check --gates mutate")
+    report = _assemble(
+        measured, "def", "origin/main", DIFF, 10.0, "bob check --gates mutate", ChurnUnavailable()
+    )
 
     assert report.generated_at.endswith("+00:00")
     assert report.focus == [{"file": "src/a.py", "risk": 9, "survivors": 1}]
@@ -317,6 +321,7 @@ def test_assemble_with_mutation_replaces_waivers_and_keeps_typing(
     assert report.survivors == [{"id": "survivor"}]
     assert report.mutation == {"remutated": ["fn"]}
     assert report.typing == found
+    assert report.churn == ChurnUnavailable()
     assert report.exit_code == 3
     assert report.reproduce == "bob check --gates mutate"
 
@@ -500,7 +505,15 @@ def test_assemble_copies_measurement_and_keeps_secrets() -> None:
         baseline=0,
     )
 
-    report = _assemble(measured, "abc123", "origin/main", {"src/app.py": {1}}, 10.0, "bob check")
+    report = _assemble(
+        measured,
+        "abc123",
+        "origin/main",
+        {"src/app.py": {1}},
+        10.0,
+        "bob check",
+        ChurnUnavailable(),
+    )
 
     assert report.schema_version == 1
     assert report.commit == "abc123"
@@ -522,6 +535,7 @@ def test_assemble_copies_measurement_and_keeps_secrets() -> None:
     assert report.survivors == [survivor]
     assert report.mutation == summary
     assert report.secrets == ledger
+    assert report.churn == ChurnUnavailable()
     assert report.security is None
 
 

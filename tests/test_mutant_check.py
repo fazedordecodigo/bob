@@ -8,6 +8,7 @@ from pathlib import Path
 
 import pytest
 
+from bob_quality.churn import ChurnUnavailable
 from bob_quality.check import _assemble, _measure, run_check
 from bob_quality.config import Config
 from bob_quality.models import (
@@ -113,7 +114,9 @@ def test_assemble_keeps_every_report_field() -> None:
         supply=_SUPPLY,
     )
 
-    report = _assemble(measured, "abc123", "origin/main", {"src/fresh.py": {1}}, 15.0, "bob check")
+    report = _assemble(
+        measured, "abc123", "origin/main", {"src/fresh.py": {1}}, 15.0, "bob check", ChurnUnavailable()
+    )
 
     assert report.schema_version == 1
     assert report.commit == "abc123"
@@ -129,6 +132,7 @@ def test_assemble_keeps_every_report_field() -> None:
     assert report.waivers == [_WAIVER]
     assert report.survivors == [survivor]
     assert report.mutation == {"remutated": ["src/fresh.py::fresh"], "reused": []}
+    assert report.churn == ChurnUnavailable()
     assert report.supply is _SUPPLY
     assert report.focus[0]["file"] == "src/fresh.py"
     assert report.focus[0]["risk"] == 108.0
@@ -142,7 +146,9 @@ def test_assemble_without_mutation_keeps_empty_survivors_and_loaded_waivers() ->
         loaded_waivers=[_WAIVER],
     )
 
-    report = _assemble(measured, "abc123", "origin/main", {}, 10.0, "bob check")
+    report = _assemble(
+        measured, "abc123", "origin/main", {}, 10.0, "bob check", ChurnUnavailable()
+    )
 
     assert report.survivors == []
     assert report.mutation is None
