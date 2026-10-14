@@ -750,6 +750,75 @@ def test_report_renders_saved_supply(tmp_path: Path) -> None:
     ) in markdown
 
 
+def test_saved_supply_keeps_the_index(tmp_path: Path) -> None:
+    payload = dict(_MINIMAL)
+    payload["supply"] = {
+        "measured": ["python"],
+        "skipped": [],
+        "findings": [
+            _supply_item(),
+            {
+                "kind": "advisory",
+                "advisory": "GHSA-1111",
+                "index": "npm",
+                "name": "left-pad",
+                "severity": "HIGH",
+                "file": "package.json",
+                "line": 8,
+                "effect": "block",
+                "waiver": None,
+            },
+            {
+                "kind": "unverified",
+                "question": "existence",
+                "index": "pypi",
+                "name": "left",
+                "file": "pyproject.toml",
+                "line": 6,
+                "cause": "dns",
+                "effect": "warn",
+                "waiver": None,
+            },
+            {
+                "kind": "unverified",
+                "question": "advisory",
+                "advisory": "GHSA-9",
+                "index": "npm",
+                "name": "left-pad",
+                "file": "package.json",
+                "line": 9,
+                "cause": "dns",
+                "effect": "warn",
+                "waiver": None,
+            },
+            {
+                "kind": "unverified",
+                "question": "advisory",
+                "advisory": None,
+                "index": "npm",
+                "name": "orphan",
+                "file": "package.json",
+                "line": 2,
+                "cause": "timeout",
+                "effect": "warn",
+                "waiver": None,
+            },
+        ],
+    }
+    _save(tmp_path, payload)
+
+    report = load_saved_report(tmp_path / ".bob")
+
+    assert report.supply is not None
+    assert [row.finding.index for row in report.supply.rows] == [
+        "pypi",
+        "npm",
+        "pypi",
+        "npm",
+        "npm",
+    ]
+
+
 def test_report_renders_an_unmeasured_supply_section(tmp_path: Path) -> None:
     payload = dict(_MINIMAL)
     payload["supply"] = {"measured": [], "skipped": [], "findings": []}
@@ -842,6 +911,7 @@ def test_report_renders_an_empty_secrets_list(tmp_path: Path) -> None:
         {**_MINIMAL, "supply": {"measured": "python", "skipped": [], "findings": []}},
         {**_MINIMAL, "supply": {"measured": [1], "skipped": [], "findings": []}},
         {**_MINIMAL, "supply": {"measured": ["nope"], "skipped": [], "findings": []}},
+        {**_MINIMAL, "supply": {"measured": ["python"], "skipped": [1], "findings": []}},
         {**_MINIMAL, "supply": {"measured": [], "skipped": ["nope"], "findings": []}},
         {**_MINIMAL, "supply": {"measured": ["python"], "skipped": [], "findings": {}}},
         {**_MINIMAL, "supply": {"measured": ["python"], "skipped": [], "findings": [_supply_item(kind="nope")]}},
@@ -851,13 +921,32 @@ def test_report_renders_an_empty_secrets_list(tmp_path: Path) -> None:
         {**_MINIMAL, "supply": {"measured": ["python"], "skipped": [], "findings": [_supply_item(waiver="because")]}},
         {**_MINIMAL, "supply": {"measured": ["python"], "skipped": [], "findings": [_supply_item(name=1)]}},
         {**_MINIMAL, "supply": {"measured": ["python"], "skipped": [], "findings": [_supply_item(index="crates")]}},
+        {**_MINIMAL, "supply": {"measured": ["python"], "skipped": [], "findings": [_supply_item(index=1)]}},
         {**_MINIMAL, "supply": {"measured": ["python"], "skipped": [], "findings": [_supply_item(file=1)]}},
         {**_MINIMAL, "supply": {"measured": ["python"], "skipped": [], "findings": [_supply_item(line="14")]}},
+        {**_MINIMAL, "supply": {"measured": ["python"], "skipped": [], "findings": [{"kind": "undeclared", "file": 1, "module": "requests", "line": 3, "effect": "block", "waiver": None}]}},
         {**_MINIMAL, "supply": {"measured": ["python"], "skipped": [], "findings": [{"kind": "undeclared", "file": "src/app.py", "module": 1, "line": 3, "effect": "block", "waiver": None}]}},
+        {**_MINIMAL, "supply": {"measured": ["python"], "skipped": [], "findings": [{"kind": "undeclared", "file": "src/app.py", "module": "requests", "line": "3", "effect": "block", "waiver": None}]}},
         {**_MINIMAL, "supply": {"measured": ["python"], "skipped": [], "findings": [{"kind": "advisory", "advisory": 1, "index": "npm", "name": "left", "severity": "HIGH", "file": "package.json", "line": 8, "effect": "block", "waiver": None}]}},
+        {**_MINIMAL, "supply": {"measured": ["python"], "skipped": [], "findings": [{"kind": "advisory", "advisory": "GHSA-1", "index": 1, "name": "left", "severity": "HIGH", "file": "package.json", "line": 8, "effect": "block", "waiver": None}]}},
+        {**_MINIMAL, "supply": {"measured": ["python"], "skipped": [], "findings": [{"kind": "advisory", "advisory": "GHSA-1", "index": "crates", "name": "left", "severity": "HIGH", "file": "package.json", "line": 8, "effect": "block", "waiver": None}]}},
+        {**_MINIMAL, "supply": {"measured": ["python"], "skipped": [], "findings": [{"kind": "advisory", "advisory": "GHSA-1", "index": "npm", "name": 1, "severity": "HIGH", "file": "package.json", "line": 8, "effect": "block", "waiver": None}]}},
+        {**_MINIMAL, "supply": {"measured": ["python"], "skipped": [], "findings": [{"kind": "advisory", "advisory": "GHSA-1", "index": "npm", "name": "left", "severity": 1, "file": "package.json", "line": 8, "effect": "block", "waiver": None}]}},
         {**_MINIMAL, "supply": {"measured": ["python"], "skipped": [], "findings": [{"kind": "advisory", "advisory": "GHSA-1", "index": "npm", "name": "left", "severity": "EXTREME", "file": "package.json", "line": 8, "effect": "block", "waiver": None}]}},
+        {**_MINIMAL, "supply": {"measured": ["python"], "skipped": [], "findings": [{"kind": "advisory", "advisory": "GHSA-1", "index": "npm", "name": "left", "severity": "HIGH", "file": 1, "line": 8, "effect": "block", "waiver": None}]}},
+        {**_MINIMAL, "supply": {"measured": ["python"], "skipped": [], "findings": [{"kind": "advisory", "advisory": "GHSA-1", "index": "npm", "name": "left", "severity": "HIGH", "file": "package.json", "line": "8", "effect": "block", "waiver": None}]}},
         {**_MINIMAL, "supply": {"measured": ["python"], "skipped": [], "findings": [{"kind": "unverified", "question": "nope", "index": "pypi", "name": "left", "file": "pyproject.toml", "line": 6, "cause": "dns", "effect": "warn", "waiver": None}]}},
+        {**_MINIMAL, "supply": {"measured": ["python"], "skipped": [], "findings": [{"kind": "unverified", "question": "existence", "index": 1, "name": "left", "file": "pyproject.toml", "line": 6, "cause": "dns", "effect": "warn", "waiver": None}]}},
+        {**_MINIMAL, "supply": {"measured": ["python"], "skipped": [], "findings": [{"kind": "unverified", "question": "existence", "index": "crates", "name": "left", "file": "pyproject.toml", "line": 6, "cause": "dns", "effect": "warn", "waiver": None}]}},
+        {**_MINIMAL, "supply": {"measured": ["python"], "skipped": [], "findings": [{"kind": "unverified", "question": "existence", "index": "pypi", "name": 1, "file": "pyproject.toml", "line": 6, "cause": "dns", "effect": "warn", "waiver": None}]}},
+        {**_MINIMAL, "supply": {"measured": ["python"], "skipped": [], "findings": [{"kind": "unverified", "question": "existence", "index": "pypi", "name": "left", "file": 1, "line": 6, "cause": "dns", "effect": "warn", "waiver": None}]}},
+        {**_MINIMAL, "supply": {"measured": ["python"], "skipped": [], "findings": [{"kind": "unverified", "question": "existence", "index": "pypi", "name": "left", "file": "pyproject.toml", "line": "6", "cause": "dns", "effect": "warn", "waiver": None}]}},
+        {**_MINIMAL, "supply": {"measured": ["python"], "skipped": [], "findings": [{"kind": "unverified", "question": "existence", "index": "pypi", "name": "left", "file": "pyproject.toml", "line": 6, "cause": 1, "effect": "warn", "waiver": None}]}},
+        {**_MINIMAL, "supply": {"measured": ["python"], "skipped": [], "findings": [{"kind": "unverified", "question": "existence", "index": "pypi", "name": "left", "file": "pyproject.toml", "line": 6, "cause": "nope", "effect": "warn", "waiver": None}]}},
         {**_MINIMAL, "supply": {"measured": ["python"], "skipped": [], "findings": [{"kind": "unverified", "question": "existence", "index": "pypi", "name": "left", "file": "pyproject.toml", "line": 6, "cause": "no_severity", "effect": "warn", "waiver": None}]}},
+        {**_MINIMAL, "supply": {"measured": ["python"], "skipped": [], "findings": [{"kind": "unverified", "question": "advisory", "advisory": 1, "index": "npm", "name": "left", "file": "package.json", "line": 9, "cause": "dns", "effect": "warn", "waiver": None}]}},
+        {**_MINIMAL, "supply": {"measured": ["python"], "skipped": [], "findings": [{"kind": "unverified", "question": "advisory", "advisory": "GHSA-9", "index": "npm", "name": "left", "file": "package.json", "line": 9, "cause": 1, "effect": "warn", "waiver": None}]}},
+        {**_MINIMAL, "supply": {"measured": ["python"], "skipped": [], "findings": [{"kind": "unverified", "question": "advisory", "advisory": "GHSA-9", "index": "npm", "name": "left", "file": "package.json", "line": 9, "cause": "nope", "effect": "warn", "waiver": None}]}},
         {**_MINIMAL, "supply": {"measured": ["python"], "skipped": [], "findings": [{"kind": "unverified", "question": "advisory", "advisory": None, "index": "pypi", "name": "left", "file": "pyproject.toml", "line": 6, "cause": "no_severity", "effect": "warn", "waiver": None}]}},
         {**_MINIMAL, "supply": {"measured": ["python"], "skipped": [], "findings": [{"kind": "unverified", "question": "existence", "index": "pypi", "name": "left", "file": "pyproject.toml", "line": 6, "cause": "dns", "effect": "block", "waiver": None}]}},
         {**_MINIMAL, "typing": "nope"},
