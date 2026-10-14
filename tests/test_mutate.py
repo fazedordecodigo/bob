@@ -169,7 +169,7 @@ def test_a_lone_change_to_a_nested_class_method_still_exits_4(tmp_path: Path) ->
     assert mutate == {"name": "mutate", "status": "not_run", "reason": "nothing matches"}
 
 
-def test_uncovered_mutants_warn_without_changing_the_exit_code(tmp_path: Path) -> None:
+def test_uncovered_mutants_in_the_diff_fail_with_exit_3(tmp_path: Path) -> None:
     repo = init_python_repo(tmp_path / "repo")
     commit_on_branch(repo, "orphan", "src/app/orphan.py", ORPHAN, "add orphan")
 
@@ -178,10 +178,10 @@ def test_uncovered_mutants_warn_without_changing_the_exit_code(tmp_path: Path) -
     markdown = (repo / ".bob" / "report.md").read_text()
     mutate = next(gate for gate in payload["gates"] if gate["name"] == "mutate")
 
-    assert result.returncode == 0
+    assert result.returncode == 3
     assert mutate == {
         "name": "mutate",
-        "status": "warn",
+        "status": "failed",
         "reason": "2 mutants without a test",
     }
     assert payload["mutation"]["no_coverage"] == {
@@ -189,7 +189,7 @@ def test_uncovered_mutants_warn_without_changing_the_exit_code(tmp_path: Path) -
         "functions": [{"file": "src/app/orphan.py", "function": "orphan", "count": 2}],
     }
     assert "## Mutants without tests" in markdown
-    assert "⚠️ Total: 2. Does not block." in markdown
+    assert "❌ Total: 2. Blocks." in markdown
     assert "| orphan | src/app/orphan.py | 2 |" in markdown
     Draft202012Validator(SCHEMA).validate(payload)
 

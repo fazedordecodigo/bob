@@ -2,11 +2,10 @@ from __future__ import annotations
 
 import io
 import json
-import os
 import re
 import subprocess
 import sys
-from contextlib import redirect_stderr, redirect_stdout
+from contextlib import redirect_stdout
 from pathlib import Path
 
 import pytest
@@ -28,24 +27,7 @@ def _usage_4(result: subprocess.CompletedProcess[str], repo: Path) -> None:
 def _invoke(
     repo: Path, *args: str, bob_lang: str | None = None
 ) -> subprocess.CompletedProcess[str]:
-    previous_cwd = Path.cwd()
-    previous_env = os.environ.copy()
-    stdout = io.StringIO()
-    stderr = io.StringIO()
-    try:
-        os.environ.pop("BOB_LANG", None)
-        if bob_lang is not None:
-            os.environ["BOB_LANG"] = bob_lang
-        os.chdir(repo)
-        with redirect_stdout(stdout), redirect_stderr(stderr):
-            code = main(list(args))
-    finally:
-        os.chdir(previous_cwd)
-        os.environ.clear()
-        os.environ.update(previous_env)
-    return subprocess.CompletedProcess(
-        ["bob", *args], code, stdout.getvalue(), stderr.getvalue()
-    )
+    return run_bob(repo, *args, bob_lang=bob_lang)
 
 
 def _flat(text: str) -> str:
@@ -519,6 +501,83 @@ def test_waive_records_a_reported_target_and_refuses_an_unknown_one(tmp_path: Pa
     assert saved.returncode == 0, saved.stderr
     text = (bob / "waivers.yaml").read_text()
     assert "- id: src/app/weak.py::classify\n  reason: because\n" in text
+
+
+def test_waive_of_a_file_label_is_not_a_test_when_the_row_has_no_file(tmp_path: Path) -> None:
+    bob = tmp_path / ".bob"
+    bob.mkdir()
+    (bob / "mutation-cache.json").write_text(
+        json.dumps(
+            {
+                "functions": {
+                    "src/app/calc.py::lonely": {
+                        "mutants": [
+                            {
+                                "id": "app.calc.x_lonely__mutmut_1",
+                                "function": "lonely",
+                                "status": "no_coverage",
+                            }
+                        ]
+                    },
+                    "src/app/calc.py::lonely::part": {
+                        "mutants": [
+                            {
+                                "id": "app.calc.x_lonely_part__mutmut_1",
+                                "status": "no_coverage",
+                            }
+                        ]
+                    },
+                    "src/app/calc.py::kept": {
+                        "mutants": [
+                            {
+                                "id": "app.calc.x_kept__mutmut_1",
+                                "function": "kept",
+                                "file": "src/other.py",
+                                "status": "no_coverage",
+                            }
+                        ]
+                    },
+                    "notes": {
+                        "mutants": [
+                            {"id": "app.calc.x_notes__mutmut_1", "status": "no_coverage"}
+                        ]
+                    },
+                    "src/app/calc.py::gone": {
+                        "mutants": [
+                            {
+                                "id": "app.calc.x_gone__mutmut_1",
+                                "function": "gone",
+                                "file": "src/app/calc.py",
+                                "status": "killed",
+                            }
+                        ]
+                    },
+                }
+            }
+        )
+    )
+
+    lonely = _invoke(tmp_path, "waive", "src/app/calc.py::lonely", "--reason", "because")
+    nested = _invoke(tmp_path, "waive", "src/app/calc.py::lonely::part", "--reason", "because")
+    kept = _invoke(tmp_path, "waive", "src/other.py::kept", "--reason", "because")
+    gone = _invoke(tmp_path, "waive", "src/app/calc.py::gone", "--reason", "because")
+    bare = _invoke(tmp_path, "waive", "lonely", "--reason", "because")
+
+    assert lonely.returncode == 4
+    assert lonely.stderr == (
+        "waiver does not cover a mutant without a test: src/app/calc.py::lonely\n"
+    )
+    assert nested.returncode == 4
+    assert nested.stderr == (
+        "waiver does not cover a mutant without a test: src/app/calc.py::lonely::part\n"
+    )
+    assert kept.returncode == 4
+    assert kept.stderr == "waiver does not cover a mutant without a test: src/other.py::kept\n"
+    assert gone.returncode == 4
+    assert gone.stderr.startswith("no survivor matches src/app/calc.py::gone:")
+    assert bare.returncode == 4
+    assert bare.stderr.startswith("no survivor matches lonely:")
+    assert not (bob / "waivers.yaml").exists()
 
 
 def test_stop_code_names_an_unexpected_result() -> None:

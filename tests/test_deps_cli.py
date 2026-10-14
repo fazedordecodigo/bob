@@ -8,8 +8,6 @@ import json
 import os
 import re
 import shutil
-import subprocess
-import sys
 from pathlib import Path
 
 from helpers import (
@@ -418,12 +416,8 @@ def _deps_without_node(repo: Path) -> tuple[int, dict[str, object], str]:
     bindir = repo.parent / "bin"
     bindir.mkdir()
     os.symlink(shutil.which("git"), bindir / "git")
-    result = subprocess.run(
-        [sys.executable, "-m", "bob_quality", "deps", "--base", "main"],
-        cwd=repo,
-        capture_output=True,
-        text=True,
-        env={**os.environ, "PATH": str(bindir)},
+    result = run_bob(
+        repo, "deps", "--base", "main", env={**os.environ, "PATH": str(bindir)}
     )
     code = result.returncode
     payload = json.loads((repo / ".bob" / "report.json").read_text())

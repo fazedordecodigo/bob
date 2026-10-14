@@ -153,15 +153,23 @@ def _item_field(index: int, key: str | None = None) -> str:
     return f"{field}.{key}"
 
 
-def add_waiver(cwd: Path, target: str, reason: str | None, known: frozenset[str]) -> Waiver:
+def add_waiver(
+    cwd: Path,
+    target: str,
+    reason: str | None,
+    known: frozenset[str],
+    untested: frozenset[str] = frozenset(),
+) -> Waiver:
     """`known` são os alvos dos sobreviventes do último relatório de mutação.
 
-    Cada recusa acontece antes de abrir o `.bob/waivers.yaml` para escrita.
+    `untested` são os `arquivo::função` sem teste.
     """
     text = normalize_reason(reason)
     wanted = target.strip()
     if not wanted:
         raise WaiverError(msg("waiver.no_target"))
+    if wanted not in known and wanted in untested:
+        raise WaiverError(msg("waiver.not_a_test", target=wanted))
     if wanted not in known:
         raise WaiverError(msg("waiver.unknown_target", target=wanted))
     waiver = Waiver(
@@ -210,7 +218,6 @@ def survivor_targets(mutants: list[Mutant]) -> dict[str, SurvivorTargets]:
     então `mutants` traz todos os sobreviventes de cada função que toca.
     """
     survivors = [item for item in mutants if item.status == "survived" and item.file]
-    # O load_waivers tira os espaços do id, e a descrição de uma linha apagada termina em espaço.
     text = {item.id: item.operator.strip() for item in survivors}
     count = Counter((item.file, item.function, text[item.id]) for item in survivors)
     targets: dict[str, SurvivorTargets] = {}
