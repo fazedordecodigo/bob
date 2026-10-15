@@ -118,6 +118,7 @@ def test_incremental_argv_deletes_a_stale_report_and_ignores_exit_1(
         assert kwargs["capture_output"] is True
         assert kwargs["text"] is True
         assert kwargs["stdin"] is subprocess.DEVNULL
+        assert f"--import {PLUGIN.resolve()}" in kwargs["env"]["NODE_OPTIONS"]
         return subprocess.CompletedProcess(args, 1, stdout="", stderr="")
 
     _only_stryker(monkeypatch, fake_run)

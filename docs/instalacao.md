@@ -7,10 +7,10 @@ Há dois artefatos. O pacote pip `bob-quality` entrega o comando `bob`. O plugin
 ## Requisitos
 
 - Python 3.10 ou superior. O CI (`.github/workflows/ci.yml`) roda 3.10 e 3.12. `requires-python` em `pyproject.toml` é `>=3.10`.
-- Node `>=22.14.0 <23`. O `bob doctor` aceita essa faixa (`src/bob_quality/doctor.py`). Node 20, Node 24 e um sufixo `-rc` fazem o doctor sair com `4`.
+- Node `>=22.18.0 <23`. O `bob doctor` aceita essa faixa (`src/bob_quality/doctor.py`). Node 20, Node 24 e um sufixo `-rc` fazem o doctor sair com `4`.
 - Para as ferramentas npm, `npm ci` na raiz do clone, ou `bob doctor --install` depois de instalar o pacote.
 
-Num Ubuntu atual o Python do sistema recusa `pip install` pela PEP 668. Use um venv. Para o Node, `fnm install 22.14.0`, `nvm install 22.14.0`, ou o `.tar.gz` em <https://nodejs.org/dist/v22.14.0/>. O [AGENTS.md](../AGENTS.md) prefere o `.tar.gz` ao `.tar.xz` quando a imagem não tem `xz`.
+Num Ubuntu atual o Python do sistema recusa `pip install` pela PEP 668. Use um venv. Para o Node, `fnm install 22.18.0`, `nvm install 22.18.0`, ou o `.tar.gz` em <https://nodejs.org/dist/v22.18.0/>. O [AGENTS.md](../AGENTS.md) prefere o `.tar.gz` ao `.tar.xz` quando a imagem não tem `xz`.
 
 ## Pacote pip `bob-quality`
 

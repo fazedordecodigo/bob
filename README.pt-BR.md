@@ -59,7 +59,7 @@ flowchart TD
 
 ## Instalação (desenvolvimento)
 
-Você precisa de Python 3.10 ou superior e do Node 22.14.0, as versões que o CI usa. O Python do sistema de um Ubuntu atual recusa o `pip install` pela PEP 668, então instale dentro de um venv. Para ter o Node 22.14.0, rode `fnm install 22.14.0` ou `nvm install 22.14.0`, ou baixe o `.tar.gz` de <https://nodejs.org/dist/v22.14.0/>. Prefira o `.tar.gz` ao `.tar.xz`, porque a imagem pode não ter o `xz`.
+Você precisa de Python 3.10 ou superior e do Node 22.18.0, as versões que o CI usa. O Python do sistema de um Ubuntu atual recusa o `pip install` pela PEP 668, então instale dentro de um venv. Para ter o Node 22.18.0, rode `fnm install 22.18.0` ou `nvm install 22.18.0`, ou baixe o `.tar.gz` de <https://nodejs.org/dist/v22.18.0/>. Prefira o `.tar.gz` ao `.tar.xz`, porque a imagem pode não ter o `xz`.
 
 ```bash
 python3 -m venv .venv && . .venv/bin/activate
@@ -227,7 +227,7 @@ No CI, defina `language: pt-BR` no `bob.yaml`, ou `BOB_LANG: pt-BR` no `env` do 
 
 ### `bob doctor` e `--install`
 
-`bob doctor` lista cada ferramenta com a versão pinada e a encontrada. Sai com `0` quando todas coincidem, e com `4` quando alguma falta ou diverge, junto com o comando de instalação. As ferramentas Python e npm precisam bater exatamente. O Node precisa estar em `>=22.14.0 <23`, então o Node 20, o Node 24 ou `22.14.0-rc.1` dá `4`. Se o diretório do pacote não for gravável, a mensagem pede `bob doctor --install`.
+`bob doctor` lista cada ferramenta com a versão pinada e a encontrada. Sai com `0` quando todas coincidem, e com `4` quando alguma falta ou diverge, junto com o comando de instalação. As ferramentas Python e npm precisam bater exatamente. O Node precisa estar em `>=22.18.0 <23`, então o Node 20, o Node 24 ou `22.18.0-rc.1` dá `4`. Se o diretório do pacote não for gravável, a mensagem pede `bob doctor --install`.
 
 `bob doctor --install` roda `npm ci` no pacote instalado. Quando o npm falha ali com `EACCES`, `EPERM` ou `EROFS`, instala num cache do usuário (`$XDG_CACHE_HOME/bob-quality`, ou `~/.cache/bob-quality`). Outros erros do npm saem com `4` e o comando exato. Depois imprime o mesmo relatório.
 
@@ -331,7 +331,7 @@ pytest
 
 Os repositórios-fixture estão em `tests/fixtures`: `python_app` (um caso que passa e um caso que falha por CRAP ≥ 10), `ts_app` e `mixed_app`. `tests/fixtures/raw` tem saídas gravadas das ferramentas pinadas.
 
-O CI (`.github/workflows/ci.yml`) roda essa suíte em Python 3.10 e 3.12 com Node 22.14.0, em pull requests e em pushes para `main`.
+O CI (`.github/workflows/ci.yml`) roda essa suíte em Python 3.10 e 3.12 com Node 22.18.0, em pull requests e em pushes para `main`.
 
 ## GitHub Action
 

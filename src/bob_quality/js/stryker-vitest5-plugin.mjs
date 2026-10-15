@@ -1,5 +1,5 @@
 import fs from "node:fs";
-import { register } from "node:module";
+import * as nodeModule from "node:module";
 import { isMainThread } from "node:worker_threads";
 
 const SPACE = "join(' ')";
@@ -40,12 +40,21 @@ export function installPatch() {
   };
 }
 
-export async function load(url, context, nextLoad) {
-  const loaded = await nextLoad(url, context);
+function rewriteLoaded(url, loaded) {
   if (!runnerSource(url) || loaded.source == null) {
     return loaded;
   }
-  return { ...loaded, source: rewriteSetup(loaded.source) };
+  const source = loaded.source;
+  const text = typeof source === "string" ? source : Buffer.from(source).toString("utf8");
+  return { ...loaded, source: rewriteSetup(text) };
+}
+
+export async function load(url, context, nextLoad) {
+  return rewriteLoaded(url, await nextLoad(url, context));
+}
+
+function loadSync(url, context, nextLoad) {
+  return rewriteLoaded(url, nextLoad(url, context));
 }
 
 if (isMainThread) {
@@ -53,7 +62,14 @@ if (isMainThread) {
   // is readFile'd into the sandbox as the coverage id. Vitest 5 matches the
   // two names only when both joins use ' > '.
   installPatch();
-  await register(import.meta.url, { parentURL: import.meta.url });
+  // Node 22.18 loads test-helpers.js on the synchronous loader while Stryker
+  // is still importing plugins, so a hook registered from that import never
+  // sees the file. --import installs this hook before that import.
+  if (typeof nodeModule.registerHooks === "function") {
+    nodeModule.registerHooks({ load: loadSync });
+  } else {
+    await nodeModule.register(import.meta.url, { parentURL: import.meta.url });
+  }
 }
 
 export const strykerPlugins = [];

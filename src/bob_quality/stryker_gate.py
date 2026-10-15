@@ -293,6 +293,7 @@ def _invoke(
 ) -> subprocess.CompletedProcess[str]:
     report_path.unlink(missing_ok=True)
     env = {key: value for key, value in os.environ.items() if not key.startswith("PYTEST_")}
+    _preload_vitest_hook(env)
     return subprocess.run(
         argv,
         cwd=cwd,
@@ -301,6 +302,14 @@ def _invoke(
         stdin=subprocess.DEVNULL,
         env=env,
     )
+
+
+def _preload_vitest_hook(env: dict[str, str]) -> None:
+    plugin = str(_PLUGIN)
+    current = env.get("NODE_OPTIONS", "")
+    if plugin in current.split():
+        return
+    env["NODE_OPTIONS"] = f"{current} --import {plugin}".strip()
 
 
 def _dry_run_failed(completed: subprocess.CompletedProcess[str]) -> bool:

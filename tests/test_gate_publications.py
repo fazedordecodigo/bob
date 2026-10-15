@@ -100,7 +100,7 @@ _NODE_DOCS = (
 
 def test_docs_publish_the_node_range_the_doctor_accepts() -> None:
     printed = node_range(NODE)
-    assert printed == ">=22.14.0 <23"
+    assert printed == ">=22.18.0 <23"
     for relative in _NODE_DOCS:
         assert printed in _text(relative), relative
     assert "essa versão exata" not in _text("AGENTS.md")

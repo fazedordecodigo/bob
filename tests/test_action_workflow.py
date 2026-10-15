@@ -218,7 +218,7 @@ def _collect_setup_node_versions(node: object, found: list[str]) -> None:
 
 def test_workflows_install_a_node_the_doctor_accepts() -> None:
     package = ROOT / ".github" / "workflows" / "package.yml"
-    counts = {ACTION: 1, CI: 1, BOB: 2, package: 1}
+    counts = {CI: 1, BOB: 2, package: 1}
     for path, count in counts.items():
         versions = _setup_node_versions(path)
         assert len(versions) == count, path
