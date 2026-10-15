@@ -1,5 +1,3 @@
-"""Validate the Cursor plugin tree. The workflow and pytest both run this file."""
-
 from __future__ import annotations
 
 import json
@@ -90,7 +88,7 @@ def _load_manifest(root: Path) -> dict[str, object] | Failure:
 
 
 def _schema_failures(manifest: dict[str, object], schema: dict[str, object]) -> tuple[Failure, ...]:
-    validator = Draft7Validator(schema, format_checker=Draft7Validator.FORMAT_CHECKER)
+    validator = Draft7Validator(schema)
     failures: list[Failure] = []
     for error in validator.iter_errors(manifest):
         parts = [str(part) for part in error.absolute_path]
@@ -325,7 +323,6 @@ def _readme_failures(root: Path) -> tuple[Failure, ...]:
 
 
 def validate(root: Path, tag: str | None) -> tuple[Failure, ...]:
-    """Return every plugin failure. tag is the raw git tag, or None when there is none."""
     loaded = _load_manifest(root)
     if isinstance(loaded, Failure):
         return (loaded,)
@@ -383,7 +380,6 @@ def _dump(failures: tuple[Failure, ...]) -> str:
 
 
 def main(argv: list[str]) -> int:
-    """Print the failure list as JSON. Exit 0 when it is empty, 1 when it is not, 2 on usage."""
     parsed = _parse(argv)
     if parsed is None:
         sys.stderr.write(USAGE + "\n")

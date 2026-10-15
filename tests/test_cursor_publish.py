@@ -1,5 +1,3 @@
-"""The Cursor publish job and pytest run scripts/validate_cursor_plugin.py."""
-
 from __future__ import annotations
 
 import hashlib
