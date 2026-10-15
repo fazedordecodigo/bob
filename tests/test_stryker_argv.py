@@ -100,6 +100,27 @@ def test_mutate_extensions_match_the_dependency_gate() -> None:
     assert MUTATE_EXTENSIONS == _TS_EXTENSIONS
 
 
+def test_preload_keeps_node_options_and_adds_the_import_once() -> None:
+    from bob_quality.stryker_gate import _preload_vitest_hook
+
+    plugin = str(PLUGIN.resolve())
+    fresh: dict[str, str] = {}
+    _preload_vitest_hook(fresh)
+    assert fresh == {"NODE_OPTIONS": f"--import {plugin}"}
+
+    existing = {"NODE_OPTIONS": "--no-warnings"}
+    _preload_vitest_hook(existing)
+    assert existing == {"NODE_OPTIONS": f"--no-warnings --import {plugin}"}
+
+    present = {"NODE_OPTIONS": f"--no-warnings --import {plugin}"}
+    _preload_vitest_hook(present)
+    assert present == {"NODE_OPTIONS": f"--no-warnings --import {plugin}"}
+
+    prefix = {"NODE_OPTIONS": f"--import {plugin}-extra"}
+    _preload_vitest_hook(prefix)
+    assert prefix == {"NODE_OPTIONS": f"--import {plugin}-extra --import {plugin}"}
+
+
 def test_incremental_argv_deletes_a_stale_report_and_ignores_exit_1(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
