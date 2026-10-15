@@ -12,5 +12,12 @@
     "vitest": "5.0.3",
     "@stryker-mutator/core": "10.0.0",
     "@stryker-mutator/vitest-runner": "10.0.0"
+  },
+  "overrides": {
+    "eslint-plugin-sonarjs": {
+      "@babel/core": ">=7.29.6 <8"
+    },
+    "minimatch@10": ">=10.2.3",
+    "qs": ">=6.16.0"
   }
 }
