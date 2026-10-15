@@ -30,6 +30,8 @@ _ALSO_COPY = (
     "LICENSE",
     ".claude-plugin",
     ".cursor-plugin",
+    "scripts",
+    "assets",
 )
 
 
