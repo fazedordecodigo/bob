@@ -16,6 +16,7 @@ O pacote pip se chama `bob-quality`. O comando é `bob`. Os marketplaces usam o 
 | [Exit codes](exit-codes.md) | Códigos `0` a `4` |
 | [Relatórios](relatorios.md) | `.bob/report.md`, `.bob/report.json` e o comentário no pull request |
 | [Contribuição](contribuicao.md) | Ambiente, testes e o que o CI exige |
+| [Publicação](publishing.md) | Workflow do plugin Cursor, o formulário manual e a ausência de segredos |
 
 ## Por onde começar
 

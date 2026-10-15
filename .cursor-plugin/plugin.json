@@ -7,6 +7,7 @@
   "homepage": "https://github.com/fazedordecodigo/bob",
   "repository": "https://github.com/fazedordecodigo/bob",
   "license": "MIT",
+  "logo": "assets/logo.svg",
   "keywords": ["quality", "crap", "mutation-testing", "code-review", "skills"],
   "skills": [
     "./skills/bob-check",

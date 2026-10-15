@@ -67,4 +67,6 @@ also_copy = [
     "LICENSE",
     ".claude-plugin",
     ".cursor-plugin",
+    "scripts",
+    "assets",
 ]

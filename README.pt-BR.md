@@ -339,6 +339,10 @@ A action composta em `.github/actions/bob` instala o `bob` e roda `bob check` co
 
 A action aceita os inputs `base`, `gates`, `pip-spec` e `token`. Este repositório a usa em `.github/workflows/bob.yml`. O `bob-quality` ainda não está no PyPI, então no checkout deste repositório a action roda `pip install -e ".[dev]"`, e em outro repositório instala o código-fonte git da action. Publicação no GitHub Marketplace não faz parte desta fatia.
 
+## Publicação
+
+[`.github/workflows/publish-plugins.yml`](.github/workflows/publish-plugins.yml) confere o plugin do Cursor numa tag `v*`, num release `published` e num `workflow_dispatch`. O job não envia o plugin. O formulário manual, a checagem de versão e a ausência de segredos estão em [docs/publishing.md](docs/publishing.md).
+
 ## Skills
 
 - `skills/bob-check/` diz quando e como rodar `bob check`.

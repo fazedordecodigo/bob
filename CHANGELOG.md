@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+The Cursor plugin manifest sets `logo` to `assets/logo.svg`. `scripts/validate_cursor_plugin.py` checks `.cursor-plugin/plugin.json` against the vendored Cursor schema and the submission checklist, including the tag when one is passed. `.github/workflows/publish-plugins.yml` runs that script on a `v*` tag, a published release, and `workflow_dispatch`. The job does not upload the plugin. There is no new dependency and no secret.
+
+O manifesto do plugin Cursor aponta `logo` para `assets/logo.svg`. `scripts/validate_cursor_plugin.py` confere `.cursor-plugin/plugin.json` contra o schema vendored do Cursor e o checklist de submissão, incluindo a tag quando ela é passada. `.github/workflows/publish-plugins.yml` roda esse script numa tag `v*`, num release publicado e num `workflow_dispatch`. O job não envia o plugin. Não há dependência nova nem segredo.
+
 A Stryker report that is not UTF-8 exits `4` with the mutate gate `not_run`, and the run writes the report instead of a traceback. The `bob-mutation-cache` artifact uploads and restores `.bob/stryker-incremental.json` next to `.bob/mutation-cache.json`.
 
 Um relatório do Stryker que não é UTF-8 sai com `4`, com o gate mutate em `not_run`, e a execução grava o relatório em vez de um traceback. O artefato `bob-mutation-cache` sobe e restaura `.bob/stryker-incremental.json` junto de `.bob/mutation-cache.json`.
