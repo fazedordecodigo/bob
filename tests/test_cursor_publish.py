@@ -162,6 +162,12 @@ def test_a_missing_root_is_exit_2(tmp_path: Path) -> None:
     )
 
 
+def test_a_non_uri_homepage_stays_out_of_the_schema_errors(tmp_path: Path) -> None:
+    root = _tree(tmp_path, _manifest(homepage="not a url"))
+    result = _run("--root", str(root))
+    assert (result.returncode, result.stdout, result.stderr) == (0, "[]\n", "")
+
+
 def test_an_extra_manifest_key_is_the_schema_message(tmp_path: Path) -> None:
     root = _tree(tmp_path, _manifest(extra=True))
     result = _run("--root", str(root))

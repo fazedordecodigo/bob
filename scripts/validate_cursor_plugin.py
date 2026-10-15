@@ -90,7 +90,6 @@ def _load_manifest(root: Path) -> dict[str, object] | Failure:
 
 
 def _schema_failures(manifest: dict[str, object], schema: dict[str, object]) -> tuple[Failure, ...]:
-    # jsonschema 4.26.0 draft-07 FORMAT_CHECKER has no uri format. Do not add a checker package.
     validator = Draft7Validator(schema, format_checker=Draft7Validator.FORMAT_CHECKER)
     failures: list[Failure] = []
     for error in validator.iter_errors(manifest):
