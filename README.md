@@ -339,6 +339,10 @@ The composite action in `.github/actions/bob` installs `bob` and runs `bob check
 
 The action accepts the inputs `base`, `gates`, `pip-spec`, and `token`. This repository uses it in `.github/workflows/bob.yml`. `bob-quality` is not on PyPI yet, so in a checkout of this repository the action runs `pip install -e ".[dev]"`, and in another repository it installs the action's git source. Publication on the GitHub Marketplace is not part of this slice.
 
+## Publishing
+
+[`.github/workflows/publish-plugins.yml`](.github/workflows/publish-plugins.yml) validates the Cursor plugin on a `v*` tag, on a published release, and on `workflow_dispatch`. The job does not submit the plugin. The manual form, the version check, and the lack of secrets are in [docs/publishing.md](docs/publishing.md).
+
 ## Skills
 
 - `skills/bob-check/` says when and how to run `bob check`.
