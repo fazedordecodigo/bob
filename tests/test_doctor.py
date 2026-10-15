@@ -47,7 +47,7 @@ PINS = (
         "coverage",
         "Coverage.py, version 7.16.2 with C extension",
     ),
-    ("node", "22.14.0", "node", "v22.14.0"),
+    ("node", "22.18.0", "node", "v22.18.0"),
     ("c8", "12.0.0", "c8", "12.0.0"),
     ("vitest", "5.0.3", "vitest", "5.0.3"),
     ("jscpd", "5.4.1", "jscpd", "jscpd 5.4.1"),
@@ -70,7 +70,7 @@ PINS = (
 INSTALL = {
     "lizard": "pip install 'lizard==1.24.1'",
     "coverage.py": "pip install 'coverage==7.16.2'",
-    "node": "Install Node.js >=22.14.0 <23 (https://nodejs.org/dist/v22.14.0/)",
+    "node": "Install Node.js >=22.18.0 <23 (https://nodejs.org/dist/v22.18.0/)",
     "c8": "npm install c8@12.0.0",
     "vitest": "npm install vitest@5.0.3",
     "jscpd": "npm install jscpd@5.4.1",
@@ -161,7 +161,7 @@ def test_doctor_exits_0_and_lists_pinned_versions_when_tools_match(tmp_path: Pat
     result = _run_doctor(repo, bin_dir)
 
     assert result.returncode == 0, result.stderr
-    assert "node expected >=22.14.0 <23 found 22.14.0" in result.stdout
+    assert "node expected >=22.18.0 <23 found 22.18.0" in result.stdout
     for name, expected, _executable, _banner in PINS:
         if name == "node":
             continue
@@ -184,7 +184,7 @@ def test_doctor_exits_4_and_prints_install_when_a_tool_is_missing(tmp_path: Path
     result = _run_doctor(repo, bin_dir)
 
     assert result.returncode == 4, result.stderr
-    assert "node expected >=22.14.0 <23 found missing" in result.stdout
+    assert "node expected >=22.18.0 <23 found missing" in result.stdout
     assert INSTALL["node"] in result.stdout
     assert INSTALL["lizard"] not in result.stdout
 
@@ -223,8 +223,8 @@ def test_doctor_speaks_portuguese_with_lang_pt_br(tmp_path: Path) -> None:
 
     assert result.returncode == 4, result.stderr
     assert "lizard esperada 1.24.1 encontrada 1.24.1" in result.stdout
-    assert "node esperada >=22.14.0 <23 encontrada ausente" in result.stdout
-    assert "Instale Node.js >=22.14.0 <23 (https://nodejs.org/dist/v22.14.0/)" in result.stdout
+    assert "node esperada >=22.18.0 <23 encontrada ausente" in result.stdout
+    assert "Instale Node.js >=22.18.0 <23 (https://nodejs.org/dist/v22.18.0/)" in result.stdout
 
 
 def test_doctor_exits_4_and_prints_install_when_version_differs(tmp_path: Path) -> None:
@@ -242,7 +242,7 @@ def test_doctor_exits_4_and_prints_install_when_version_differs(tmp_path: Path) 
     result = _run_doctor(repo, bin_dir)
 
     assert result.returncode == 4, result.stderr
-    assert "node expected >=22.14.0 <23 found 1.2.3" in result.stdout
+    assert "node expected >=22.18.0 <23 found 1.2.3" in result.stdout
     assert INSTALL["node"] in result.stdout
     assert INSTALL["lizard"] not in result.stdout
 
@@ -648,17 +648,19 @@ def test_found_version_reads_the_cli_of_the_named_executable(
 
 
 _NODE_PRERELEASES = (
-    "v22.14.0-rc.1",
-    "v22.14.0-beta.1",
-    "v22.14.0-nightly20260101a1b2c3d4e5",
-    "v22.14.0-pre",
-    "v22.14.0-RC.1",
+    "v22.18.0-rc.1",
+    "v22.18.0-beta.1",
+    "v22.18.0-nightly20260101a1b2c3d4e5",
+    "v22.18.0-pre",
+    "v22.18.0-RC.1",
 )
 
 _NODE_BANNERS = (
     ("v20.19.0", 4),
-    ("v22.14.0", 0),
-    ("v22.15.0", 0),
+    ("v22.18.0", 0),
+    ("v22.14.0", 4),
+    ("v22.15.0", 4),
+    ("v22.17.9", 4),
     ("v22.22.2", 0),
     ("v24.0.0", 4),
     *((banner, 4) for banner in _NODE_PRERELEASES),
@@ -666,12 +668,12 @@ _NODE_BANNERS = (
 
 _NODE_TEXT = {
     "en": (
-        "node expected >=22.14.0 <23 found {found}",
-        "Install Node.js >=22.14.0 <23 (https://nodejs.org/dist/v22.14.0/)",
+        "node expected >=22.18.0 <23 found {found}",
+        "Install Node.js >=22.18.0 <23 (https://nodejs.org/dist/v22.18.0/)",
     ),
     "pt-BR": (
-        "node esperada >=22.14.0 <23 encontrada {found}",
-        "Instale Node.js >=22.14.0 <23 (https://nodejs.org/dist/v22.14.0/)",
+        "node esperada >=22.18.0 <23 encontrada {found}",
+        "Instale Node.js >=22.18.0 <23 (https://nodejs.org/dist/v22.18.0/)",
     ),
 }
 
@@ -681,8 +683,10 @@ _NODE_TEXT = {
     [
         ("20.19.0", False),
         ("22.13.1", False),
-        ("22.14.0", True),
-        ("22.15.0", True),
+        ("22.14.0", False),
+        ("22.15.0", False),
+        ("22.17.9", False),
+        ("22.18.0", True),
         ("22.22.2", True),
         ("23.0.0", False),
         ("24.0.0", False),
@@ -690,12 +694,12 @@ _NODE_TEXT = {
         *((banner.removeprefix("v"), False) for banner in _NODE_PRERELEASES),
     ],
 )
-def test_node_admits_the_22_line_from_22_14_0(found: str | None, admitted: bool) -> None:
+def test_node_admits_the_22_line_from_22_18_0(found: str | None, admitted: bool) -> None:
     assert node_admits(NODE, found) is admitted
 
 
 def test_node_range_prints_the_floor_and_the_next_major() -> None:
-    assert node_range(NODE) == ">=22.14.0 <23"
+    assert node_range(NODE) == ">=22.18.0 <23"
 
 
 @pytest.mark.parametrize("banner", _NODE_PRERELEASES)
@@ -711,14 +715,14 @@ def test_assess_node_rejects_a_prerelease_suffix(
         msg(
             "doctor.version",
             name="node",
-            expected=">=22.14.0 <23",
+            expected=">=22.18.0 <23",
             found=banner.removeprefix("v"),
         ),
         False,
         msg(
             "doctor.install_node",
-            version=">=22.14.0 <23",
-            url="https://nodejs.org/dist/v22.14.0/",
+            version=">=22.18.0 <23",
+            url="https://nodejs.org/dist/v22.18.0/",
         ),
         False,
     )
@@ -730,7 +734,7 @@ def test_assess_node_admits_22_22_2(monkeypatch: pytest.MonkeyPatch) -> None:
         lambda executable: {"node": "22.22.2"}.get(executable),
     )
     assert _assess_node(NODE) == _PinRow(
-        msg("doctor.version", name="node", expected=">=22.14.0 <23", found="22.22.2"),
+        msg("doctor.version", name="node", expected=">=22.18.0 <23", found="22.22.2"),
         True,
         None,
         False,
@@ -743,12 +747,12 @@ def test_assess_node_rejects_24_with_the_install_line(monkeypatch: pytest.Monkey
         lambda executable: {"node": "24.0.0"}.get(executable),
     )
     assert _assess_node(NODE) == _PinRow(
-        msg("doctor.version", name="node", expected=">=22.14.0 <23", found="24.0.0"),
+        msg("doctor.version", name="node", expected=">=22.18.0 <23", found="24.0.0"),
         False,
         msg(
             "doctor.install_node",
-            version=">=22.14.0 <23",
-            url="https://nodejs.org/dist/v22.14.0/",
+            version=">=22.18.0 <23",
+            url="https://nodejs.org/dist/v22.18.0/",
         ),
         False,
     )
@@ -756,7 +760,7 @@ def test_assess_node_rejects_24_with_the_install_line(monkeypatch: pytest.Monkey
 
 @pytest.mark.parametrize("lang", ("en", "pt-BR"))
 @pytest.mark.parametrize(("banner", "code"), _NODE_BANNERS)
-def test_doctor_accepts_node_22_from_22_14_0(
+def test_doctor_accepts_node_22_from_22_18_0(
     tmp_path: Path, lang: str, banner: str, code: int
 ) -> None:
     bin_dir = tmp_path / "bin"

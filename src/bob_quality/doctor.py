@@ -59,7 +59,7 @@ class BinaryPin:
 
 Pin = RequiresDist | NpmPin | NodePin | BinaryPin
 
-NODE = NodePin(floor=NodeVersion(22, 14, 0))
+NODE = NodePin(floor=NodeVersion(22, 18, 0))
 
 PINS: tuple[Pin, ...] = (
     RequiresDist("lizard", "lizard"),

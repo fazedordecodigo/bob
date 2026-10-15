@@ -13,7 +13,7 @@ Plugin de qualidade: os gates do `bob check` e as skills que dizem ao agente qua
 Os workflows `.github/workflows/ci.yml` e `.github/workflows/bob.yml` são a fonte destes passos.
 
 1. Use Python 3.10 ou superior. O CI roda 3.10 e 3.12. A imagem precisa do `python3-venv`.
-2. Use o Node 22.14.0, o mesmo do CI. O `bob doctor` aceita `>=22.14.0 <23` e sai com `4` fora dessa faixa, o Node 20, o Node 24 e um sufixo `-rc` inclusive. Instale com `fnm install 22.14.0` ou `nvm install 22.14.0`, ou baixe o `.tar.gz` de <https://nodejs.org/dist/v22.14.0/>. Prefira o `.tar.gz` ao `.tar.xz`, porque a imagem pode não ter o `xz`.
+2. Use o Node 22.18.0, o mesmo do CI. O `bob doctor` aceita `>=22.18.0 <23` e sai com `4` fora dessa faixa, o Node 20, o Node 24 e um sufixo `-rc` inclusive. Instale com `fnm install 22.18.0` ou `nvm install 22.18.0`, ou baixe o `.tar.gz` de <https://nodejs.org/dist/v22.18.0/>. Prefira o `.tar.gz` ao `.tar.xz`, porque a imagem pode não ter o `xz`.
 3. Crie e ative um venv com `python3 -m venv .venv && . .venv/bin/activate`. O Python do sistema recusa o `pip install` pela PEP 668.
 4. Instale o pacote com `python -m pip install -e '.[dev]'`.
 5. Instale as ferramentas npm fixadas com `npm ci` na raiz.
