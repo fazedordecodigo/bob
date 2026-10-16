@@ -16,7 +16,7 @@ PINNED = {
     "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
     "actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97",
     "actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9",
-    "actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020",
+    "actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1",
 }
 SHA = re.compile(r"@[0-9a-f]{40}$")
 
@@ -170,7 +170,7 @@ def test_composite_action_comments_uploads_cache_and_keeps_bob_status() -> None:
     node_with = node["with"]
     assert isinstance(node_with, dict)
     assert node_with["node-version"] == "22.18.0"
-    assert "49933ea5288caeca8642d1e84afbd3f7d6820020" in str(node["uses"])
+    assert "949feb2413d6458794dcd2491c4babbbce0c15c1" in str(node["uses"])
     jscpd = next(step for step in steps if "install_jscpd.sh" in str(step.get("run", "")))
     assert jscpd.get("env", {}).get("JSCPD_VERSION") == "5.4.1"
     assert text.index("setup-node") < text.index("install.sh")
@@ -240,7 +240,11 @@ def test_dependabot_ignores_sonarjs_majors_and_scans_the_action() -> None:
         {
             "dependency-name": "eslint-plugin-sonarjs",
             "update-types": ["version-update:semver-major"],
-        }
+        },
+        {
+            "dependency-name": "eslint",
+            "update-types": ["version-update:semver-major"],
+        },
     ]
     actions = next(
         item
@@ -250,3 +254,94 @@ def test_dependabot_ignores_sonarjs_majors_and_scans_the_action() -> None:
     assert actions["directories"] == ["/", "/.github/actions/bob"]
     text = path.read_text(encoding="utf-8")
     assert "The lockfile must not be regenerated from scratch." in text
+    npm_directories = [
+        item.get("directory")
+        for item in updates
+        if isinstance(item, dict) and item.get("package-ecosystem") == "npm"
+    ]
+    assert npm_directories == ["/", "/website"]
+    website = next(
+        item
+        for item in updates
+        if isinstance(item, dict) and item.get("directory") == "/website"
+    )
+    assert website["package-ecosystem"] == "npm"
+    assert website["schedule"] == {"interval": "weekly"}
+    assert website["groups"] == {"website": {"patterns": ["*"]}}
+    assert "ignore" not in website
+
+
+def test_pull_request_still_builds_the_docs_site() -> None:
+    path = ROOT / ".github" / "workflows" / "website.yml"
+    doc = _load(path)
+    trigger = _on(doc)
+    pull_request = trigger["pull_request"]
+    assert isinstance(pull_request, dict)
+    assert pull_request["paths"] == [
+        "website/**",
+        "docs/**",
+        ".github/workflows/website.yml",
+    ]
+    assert doc["permissions"] == {"contents": "read"}
+    text = path.read_text(encoding="utf-8")
+    assert "npm ci" in text
+    assert "npm run build" in text
+    assert "npm test" in text
+    assert "node-version: \"22.18.0\"" in text
+
+
+def test_pages_deploys_with_the_official_actions() -> None:
+    path = ROOT / ".github" / "workflows" / "pages.yml"
+    doc = _load(path)
+    trigger = _on(doc)
+    push = trigger["push"]
+    assert isinstance(push, dict)
+    assert push["branches"] == ["main"]
+    assert push["paths"] == ["website/**", "docs/**"]
+    assert "pull_request" not in trigger
+    dispatch = trigger["workflow_dispatch"]
+    assert isinstance(dispatch, dict)
+    inputs = dispatch["inputs"]
+    assert isinstance(inputs, dict)
+    assert inputs["ref"]["required"] is False
+    assert doc["permissions"] == {"contents": "read"}
+    concurrency = doc["concurrency"]
+    assert isinstance(concurrency, dict)
+    assert concurrency["group"] == "pages"
+    assert concurrency["cancel-in-progress"] is False
+    jobs = doc["jobs"]
+    assert isinstance(jobs, dict)
+    build = jobs["build"]
+    deploy = jobs["deploy"]
+    assert isinstance(build, dict)
+    assert isinstance(deploy, dict)
+    assert build["permissions"] == {"contents": "read"}
+    assert deploy["needs"] == "build"
+    assert deploy["permissions"] == {"pages": "write", "id-token": "write"}
+    environment = deploy["environment"]
+    assert isinstance(environment, dict)
+    assert environment["name"] == "github-pages"
+    checkout = build["steps"][0]
+    assert str(checkout["uses"]).startswith("actions/checkout@")
+    assert checkout["with"]["persist-credentials"] is False
+    assert "inputs.ref || github.sha" in checkout["with"]["ref"]
+    uses = [item.split(" ", 1)[0] for item in _uses(doc)]
+    official = {
+        "actions/checkout",
+        "actions/setup-node",
+        "actions/configure-pages",
+        "actions/upload-pages-artifact",
+        "actions/deploy-pages",
+    }
+    assert {item.split("@", 1)[0] for item in uses} == official
+    for item in uses:
+        pin = item.split("@", 1)[1]
+        assert SHA.fullmatch("@" + pin)
+    text = path.read_text(encoding="utf-8")
+    assert "enablement: false" in text
+    assert "path: website/build" in text
+    assert "https://fazedordecodigo.github.io/bob/" in text
+    assert "https://fazedordecodigo.github.io/bob/pt-BR/" in text
+    assert "CNAME" not in text
+    assert "secrets." not in text
+    assert 'node-version: "22.18.0"' in text

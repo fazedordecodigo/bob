@@ -9,8 +9,20 @@ updates:
       - dependency-name: eslint-plugin-sonarjs
         update-types:
           - "version-update:semver-major"
+      - dependency-name: eslint
+        update-types:
+          - "version-update:semver-major"
     groups:
       npm:
+        patterns:
+          - "*"
+
+  - package-ecosystem: npm
+    directory: "/website"
+    schedule:
+      interval: weekly
+    groups:
+      website:
         patterns:
           - "*"
 
