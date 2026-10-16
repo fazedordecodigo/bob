@@ -154,6 +154,43 @@ test('the site targets GitHub Pages and offers both configured locales', () => {
   assert.match(readBuild('pt-BR/index.html'), /English/);
 });
 
+function builtStylesheets() {
+  return walk(buildDir).filter((filePath) => filePath.endsWith('.css'));
+}
+
+function rulesThatUnderline(selectorPattern, css) {
+  const matched = [];
+  for (const block of css.split('}')) {
+    const splitAt = block.lastIndexOf('{');
+    if (splitAt === -1) {
+      continue;
+    }
+    const selector = block.slice(0, splitAt).trim();
+    const body = block.slice(splitAt + 1);
+    const hits = selector.split(',').some((part) => selectorPattern.test(part.trim()));
+    if (hits && /text-decoration(?:-line)?\s*:\s*underline/.test(body)) {
+      matched.push(selector);
+    }
+  }
+  return matched;
+}
+
+test('the built stylesheet underlines docs and home prose links', () => {
+  const css = builtStylesheets()
+    .map((filePath) => fs.readFileSync(filePath, 'utf8'))
+    .join('\n');
+  assert.ok(css.length > 0, 'the production build has no stylesheet');
+  const prose = rulesThatUnderline(/^(?:\.markdown a|\.home p a|\.home-lead a)(?:[:.\[]|$)/, css);
+  assert.ok(
+    prose.some((selector) => selector.includes('.markdown a')),
+    'built CSS does not underline .markdown a',
+  );
+  assert.ok(
+    prose.some((selector) => selector.includes('.home p a') || selector.includes('.home-lead a')),
+    'built CSS does not underline home prose links',
+  );
+});
+
 test('docs pages expose the six approved sidebar sections', () => {
   const page = readBuild('docs/index.html');
   for (const label of sidebarLabels) {

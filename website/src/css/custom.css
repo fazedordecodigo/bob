@@ -41,6 +41,18 @@
   outline-offset: 3px;
 }
 
+/* Prose links stay underlined in both themes. Navigation, TOC, breadcrumbs and cards do not. */
+.markdown a:not(.hash-link),
+.markdown a:not(.hash-link):hover,
+.home p a,
+.home p a:hover,
+.home-lead a,
+.home-lead a:hover {
+  text-decoration-line: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 0.15em;
+}
+
 .navbar__logo {
   height: 2rem;
 }
