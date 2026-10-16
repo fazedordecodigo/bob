@@ -7,6 +7,7 @@ import sys
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal
+from urllib.parse import urlparse
 
 import yaml
 from jsonschema import Draft7Validator
@@ -30,7 +31,9 @@ FailureCode = Literal[
     "frontmatter",
     "logo",
     "readme",
+    "uri",
 ]
+URI_FIELDS = ("homepage", "repository")
 
 
 @dataclass(frozen=True)
@@ -48,6 +51,18 @@ class ResolvedSkill:
 
 def _schema_error(message: str) -> str:
     return f"{message}: {SCHEMA_PATH}"
+
+
+def _schema_mapping(value: object, detail: str) -> dict[str, object]:
+    if isinstance(value, dict):
+        return value
+    raise RuntimeError(_schema_error(detail))
+
+
+def _schema_text(value: object, detail: str) -> str:
+    if isinstance(value, str):
+        return value
+    raise RuntimeError(_schema_error(detail))
 
 
 def _load_tool_schema() -> dict[str, object] | str:
@@ -152,12 +167,7 @@ def _version_failures(
                 f"manifest {manifest_version}, pyproject {project_version}",
             ),
         )
-    defs = schema["$defs"]
-    assert isinstance(defs, dict)
-    semver = defs["semver"]
-    assert isinstance(semver, dict)
-    pattern = semver["pattern"]
-    assert isinstance(pattern, str)
+    pattern = _semver_pattern(schema)
     if re.fullmatch("v" + pattern[1:-1], tag) and manifest_version == project_version == tag[1:]:
         return ()
     if re.fullmatch("v" + pattern[1:-1], tag):
@@ -168,6 +178,46 @@ def _version_failures(
             f"tag {tag} is not v plus a semantic version"
         )
     return (Failure("version", "version", message),)
+
+
+def _semver_pattern(schema: dict[str, object]) -> str:
+    detail = "schema semver pattern is not anchored"
+    defs = _schema_mapping(schema.get("$defs"), detail)
+    semver = _schema_mapping(defs.get("semver"), detail)
+    pattern = _schema_text(semver.get("pattern"), detail)
+    if pattern.startswith("^") and pattern.endswith("$"):
+        return pattern
+    raise RuntimeError(_schema_error(detail))
+
+
+def _name_pattern(schema: dict[str, object]) -> str:
+    detail = "schema file has no name pattern"
+    properties = _schema_mapping(schema.get("properties"), detail)
+    name_schema = _schema_mapping(properties.get("name"), detail)
+    return _schema_text(name_schema.get("pattern"), detail)
+
+
+def _http_uri(value: str) -> bool:
+    try:
+        parsed = urlparse(value)
+        host = parsed.hostname
+    except ValueError:
+        return False
+    return parsed.scheme.lower() in {"http", "https"} and bool(host)
+
+
+def _uri_failures(manifest: dict[str, object]) -> tuple[Failure, ...]:
+    failures: list[Failure] = []
+    for field in URI_FIELDS:
+        if field not in manifest:
+            continue
+        value = manifest[field]
+        if not isinstance(value, str) or _http_uri(value):
+            continue
+        failures.append(
+            Failure("uri", field, f"{field} must be an http or https URI with a host")
+        )
+    return tuple(failures)
 
 
 def _relative_path(raw: str) -> bool:
@@ -329,20 +379,15 @@ def validate(root: Path, tag: str | None) -> tuple[Failure, ...]:
     schema = _load_tool_schema()
     if isinstance(schema, str):
         raise RuntimeError(schema)
-    properties = schema["properties"]
-    assert isinstance(properties, dict)
-    name_schema = properties["name"]
-    assert isinstance(name_schema, dict)
-    name_pattern = name_schema["pattern"]
-    assert isinstance(name_pattern, str)
     path_failures, skills = _paths(root, loaded)
     return (
         _schema_failures(loaded, schema)
         + _name_failures(loaded)
         + _description_failures(loaded)
+        + _uri_failures(loaded)
         + _version_failures(root, loaded, tag, schema)
         + path_failures
-        + _frontmatter_failures(skills, re.compile(name_pattern))
+        + _frontmatter_failures(skills, re.compile(_name_pattern(schema)))
         + _logo_failures(root, loaded)
         + _readme_failures(root)
     )

@@ -1,9 +1,14 @@
 version: 2
 updates:
+  # The lockfile must not be regenerated from scratch.
   - package-ecosystem: npm
     directory: "/"
     schedule:
       interval: weekly
+    ignore:
+      - dependency-name: eslint-plugin-sonarjs
+        update-types:
+          - "version-update:semver-major"
     groups:
       npm:
         patterns:
@@ -19,7 +24,9 @@ updates:
           - "*"
 
   - package-ecosystem: github-actions
-    directory: "/"
+    directories:
+      - "/"
+      - "/.github/actions/bob"
     schedule:
       interval: weekly
     groups:

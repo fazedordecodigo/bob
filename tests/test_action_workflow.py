@@ -169,7 +169,7 @@ def test_composite_action_comments_uploads_cache_and_keeps_bob_status() -> None:
     node = next(step for step in steps if "setup-node" in str(step.get("uses", "")))
     node_with = node["with"]
     assert isinstance(node_with, dict)
-    assert node_with["node-version"] == "22.14.0"
+    assert node_with["node-version"] == "22.18.0"
     assert "49933ea5288caeca8642d1e84afbd3f7d6820020" in str(node["uses"])
     jscpd = next(step for step in steps if "install_jscpd.sh" in str(step.get("run", "")))
     assert jscpd.get("env", {}).get("JSCPD_VERSION") == "5.4.1"
@@ -218,9 +218,35 @@ def _collect_setup_node_versions(node: object, found: list[str]) -> None:
 
 def test_workflows_install_a_node_the_doctor_accepts() -> None:
     package = ROOT / ".github" / "workflows" / "package.yml"
-    counts = {CI: 1, BOB: 2, package: 1}
+    counts = {ACTION: 1, CI: 1, BOB: 2, package: 1}
     for path, count in counts.items():
         versions = _setup_node_versions(path)
         assert len(versions) == count, path
         for version in versions:
             assert node_admits(NODE, version) is True, (path, version)
+
+
+def test_dependabot_ignores_sonarjs_majors_and_scans_the_action() -> None:
+    path = ROOT / ".github" / "dependabot.yml"
+    loaded = _load(path)
+    updates = loaded["updates"]
+    assert isinstance(updates, list)
+    npm = next(
+        item
+        for item in updates
+        if isinstance(item, dict) and item.get("package-ecosystem") == "npm"
+    )
+    assert npm["ignore"] == [
+        {
+            "dependency-name": "eslint-plugin-sonarjs",
+            "update-types": ["version-update:semver-major"],
+        }
+    ]
+    actions = next(
+        item
+        for item in updates
+        if isinstance(item, dict) and item.get("package-ecosystem") == "github-actions"
+    )
+    assert actions["directories"] == ["/", "/.github/actions/bob"]
+    text = path.read_text(encoding="utf-8")
+    assert "The lockfile must not be regenerated from scratch." in text

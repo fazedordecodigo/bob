@@ -6,6 +6,13 @@ import subprocess
 import sys
 from pathlib import Path
 
+import yaml
+
+if sys.version_info >= (3, 11):
+    import tomllib
+else:
+    import tomli as tomllib
+
 ROOT = Path(__file__).resolve().parents[1]
 SCRIPT = ROOT / "scripts" / "validate_cursor_plugin.py"
 SCHEMA = ROOT / "scripts" / "cursor_plugin.schema.json"
@@ -44,6 +51,15 @@ EMPTY_MANIFEST_STDOUT = """[
   }
 ]
 """
+
+
+def _pyproject_version(root: Path = ROOT) -> str:
+    loaded = tomllib.loads((root / "pyproject.toml").read_text(encoding="utf-8"))
+    project = loaded["project"]
+    version = project["version"]
+    if not isinstance(version, str) or not version:
+        raise AssertionError("pyproject version is missing")
+    return version
 
 
 def _run(*args: str) -> subprocess.CompletedProcess[str]:
@@ -92,7 +108,8 @@ def test_schema_bytes_match_the_pinned_cursor_plugins_commit() -> None:
 
 
 def test_real_tree_with_the_current_tag_prints_an_empty_list() -> None:
-    result = _run("--root", str(ROOT), "--tag", "v0.1.0")
+    tag = "v" + _pyproject_version()
+    result = _run("--root", str(ROOT), "--tag", tag)
     assert (result.returncode, result.stdout, result.stderr) == (0, "[]\n", "")
 
 
@@ -160,9 +177,72 @@ def test_a_missing_root_is_exit_2(tmp_path: Path) -> None:
     )
 
 
-def test_a_non_uri_homepage_stays_out_of_the_schema_errors(tmp_path: Path) -> None:
-    root = _tree(tmp_path, _manifest(homepage="not a url"))
+def test_an_http_uri_with_a_host_is_accepted(tmp_path: Path) -> None:
+    root = _tree(
+        tmp_path,
+        _manifest(
+            homepage="http://example.com/bob",
+            repository="HTTPS://user:secret@github.com/fazedordecodigo/bob",
+        ),
+    )
     result = _run("--root", str(root))
+    assert (result.returncode, result.stdout, result.stderr) == (0, "[]\n", "")
+
+
+def test_a_uri_needs_http_or_https_and_a_host(tmp_path: Path) -> None:
+    cases = (
+        ("homepage", "not a url"),
+        ("homepage", "ftp://example.com/plugin"),
+        ("homepage", "https://"),
+        ("homepage", "https://[::1"),
+        ("repository", "javascript:alert(1)"),
+        ("repository", "https:///missing-host"),
+        ("repository", "http://"),
+    )
+    for index, (field, value) in enumerate(cases):
+        root = _tree(tmp_path / str(index), _manifest(**{field: value}))
+        result = _run("--root", str(root))
+        assert result.returncode == 1, value
+        assert result.stderr == "", value
+        assert json.loads(result.stdout) == [
+            {
+                "code": "uri",
+                "subject": field,
+                "message": f"{field} must be an http or https URI with a host",
+            }
+        ]
+
+
+def test_homepage_and_repository_uris_fail_independently(tmp_path: Path) -> None:
+    root = _tree(
+        tmp_path,
+        _manifest(homepage="not a url", repository="ftp://example.com"),
+    )
+    result = _run("--root", str(root))
+    assert result.returncode == 1
+    assert result.stderr == ""
+    assert json.loads(result.stdout) == [
+        {
+            "code": "uri",
+            "subject": "homepage",
+            "message": "homepage must be an http or https URI with a host",
+        },
+        {
+            "code": "uri",
+            "subject": "repository",
+            "message": "repository must be an http or https URI with a host",
+        },
+    ]
+
+
+def test_optimized_python_accepts_the_real_tree() -> None:
+    tag = "v" + _pyproject_version()
+    result = subprocess.run(
+        [sys.executable, "-O", str(SCRIPT), "--root", str(ROOT), "--tag", tag],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
     assert (result.returncode, result.stdout, result.stderr) == (0, "[]\n", "")
 
 
@@ -259,3 +339,8 @@ def test_publish_workflow_validates_and_does_not_upload() -> None:
     assert "secrets." not in text
     assert "marketplace/publish" not in text
     assert "jq " not in text
+    assert "persist-credentials: false" in text
+    loaded = yaml.safe_load(text)
+    checkout = loaded["jobs"]["cursor"]["steps"][0]
+    assert str(checkout["uses"]).startswith("actions/checkout@")
+    assert checkout["with"]["persist-credentials"] is False
