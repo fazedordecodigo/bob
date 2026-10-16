@@ -16,7 +16,7 @@ PINNED = {
     "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
     "actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97",
     "actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9",
-    "actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020",
+    "actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1",
 }
 SHA = re.compile(r"@[0-9a-f]{40}$")
 
@@ -170,7 +170,7 @@ def test_composite_action_comments_uploads_cache_and_keeps_bob_status() -> None:
     node_with = node["with"]
     assert isinstance(node_with, dict)
     assert node_with["node-version"] == "22.18.0"
-    assert "49933ea5288caeca8642d1e84afbd3f7d6820020" in str(node["uses"])
+    assert "949feb2413d6458794dcd2491c4babbbce0c15c1" in str(node["uses"])
     jscpd = next(step for step in steps if "install_jscpd.sh" in str(step.get("run", "")))
     assert jscpd.get("env", {}).get("JSCPD_VERSION") == "5.4.1"
     assert text.index("setup-node") < text.index("install.sh")
@@ -240,7 +240,11 @@ def test_dependabot_ignores_sonarjs_majors_and_scans_the_action() -> None:
         {
             "dependency-name": "eslint-plugin-sonarjs",
             "update-types": ["version-update:semver-major"],
-        }
+        },
+        {
+            "dependency-name": "eslint",
+            "update-types": ["version-update:semver-major"],
+        },
     ]
     actions = next(
         item
