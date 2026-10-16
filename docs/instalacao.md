@@ -32,7 +32,7 @@ npm ci
 bob doctor
 ```
 
-`pip install -e '.[dev]'` instala o comando `bob` e as ferramentas Python. `npm ci` instala, a partir do `package.json` da raiz (`name`: `bob-quality-tools`), `c8@12.0.0`, `vitest@5.0.3`, `jscpd@5.4.1` e `dependency-cruiser@18.5.0`. `bob doctor` lista cada ferramenta com a versão esperada e a encontrada e sai com `0` só quando todas coincidem.
+`pip install -e '.[dev]'` instala o comando `bob` e as ferramentas Python. `npm ci` instala, a partir do `package.json` da raiz (`name`: `bob-quality-tools`), `c8@12.0.0`, `vitest@5.0.4`, `jscpd@5.4.1` e `dependency-cruiser@18.6.0`. `bob doctor` lista cada ferramenta com a versão esperada e a encontrada e sai com `0` só quando todas coincidem.
 
 O pacote instalado por pip carrega `package.json`, `package-lock.json` e `js/` (`tool.setuptools.package-data` em `pyproject.toml`). `bob doctor --install` roda `npm ci` nesse pacote. Se o npm falha com `EACCES`, `EPERM` ou `EROFS`, a instalação vai para `$XDG_CACHE_HOME/bob-quality` ou `~/.cache/bob-quality` (`src/bob_quality/npm_tools.py`). Outro erro do npm sai com `4` e o comando. Se o diretório do pacote não for gravável, a mensagem do doctor pede `bob doctor --install`.
 

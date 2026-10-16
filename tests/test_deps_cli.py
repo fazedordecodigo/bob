@@ -282,7 +282,7 @@ def test_typescript_cycle_fails_without_cruiser_config(tmp_path: Path) -> None:
     assert deps["status"] == "failed"
     assert "`src/left.ts → src/right.ts`" in markdown
     assert "`src/right.ts → src/left.ts`" in markdown
-    assert payload["tool_versions"]["dependency-cruiser"] == "18.5.0"
+    assert payload["tool_versions"]["dependency-cruiser"] == "18.6.0"
 
 
 A_TS = 'import { b } from "./b";\nexport const a = b;\n'
