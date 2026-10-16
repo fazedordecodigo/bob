@@ -34,7 +34,7 @@ jobs:
           python -m pip install --disable-pip-version-check -e '.[dev]'
           bob check --base "origin/$BASE_REF" --gates dry --format json --out "$RUNNER_TEMP/dry-before"
           python -c 'import json, os; report = json.load(open(os.environ["RUNNER_TEMP"] + "/dry-before/report.json")); dry = next(gate for gate in report["gates"] if gate["name"] == "dry"); print("dry-before", dry["status"], dry.get("reason")); raise SystemExit(0 if dry["status"] == "not_run" else 1)'
-      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: "22.18.0"
       - name: Ferramentas npm
@@ -68,7 +68,7 @@ jobs:
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: "3.12"
-      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: "22.18.0"
       - name: jscpd a frio
