@@ -1,0 +1,196 @@
+{
+  "sha": "1f33ab07a0f323d40c6bd687d2d4a393cc37c31e",
+  "shortSha": "1f33ab0",
+  "lighthouseVersion": "13.5.0",
+  "nodeVersion": "v22.18.0",
+  "chrome": "Google Chrome 154.0.8037.92",
+  "category": "accessibility",
+  "origin": "http://127.0.0.1:4173",
+  "runs": [
+    {
+      "page": "/bob/",
+      "slug": "en-home",
+      "theme": "light",
+      "forced": "prefers-color-scheme: light",
+      "blinkSettings": "preferredColorScheme=1",
+      "dataTheme": "light",
+      "prefersColorSchemeDark": false,
+      "htmlBackground": "rgb(255, 255, 255)",
+      "storedTheme": null,
+      "score": 1,
+      "auditsScoreBelow1": [],
+      "finalUrl": "http://127.0.0.1:4173/bob/",
+      "lighthouseVersion": "13.5.0"
+    },
+    {
+      "page": "/bob/pt-BR/",
+      "slug": "pt-home",
+      "theme": "light",
+      "forced": "prefers-color-scheme: light",
+      "blinkSettings": "preferredColorScheme=1",
+      "dataTheme": "light",
+      "prefersColorSchemeDark": false,
+      "htmlBackground": "rgb(255, 255, 255)",
+      "storedTheme": null,
+      "score": 1,
+      "auditsScoreBelow1": [],
+      "finalUrl": "http://127.0.0.1:4173/bob/pt-BR/",
+      "lighthouseVersion": "13.5.0"
+    },
+    {
+      "page": "/bob/docs/why-bob",
+      "slug": "en-why-bob",
+      "theme": "light",
+      "forced": "prefers-color-scheme: light",
+      "blinkSettings": "preferredColorScheme=1",
+      "dataTheme": "light",
+      "prefersColorSchemeDark": false,
+      "htmlBackground": "rgb(255, 255, 255)",
+      "storedTheme": null,
+      "score": 1,
+      "auditsScoreBelow1": [],
+      "finalUrl": "http://127.0.0.1:4173/bob/docs/why-bob",
+      "lighthouseVersion": "13.5.0"
+    },
+    {
+      "page": "/bob/docs/reference/cli",
+      "slug": "en-reference-cli",
+      "theme": "light",
+      "forced": "prefers-color-scheme: light",
+      "blinkSettings": "preferredColorScheme=1",
+      "dataTheme": "light",
+      "prefersColorSchemeDark": false,
+      "htmlBackground": "rgb(255, 255, 255)",
+      "storedTheme": null,
+      "score": 1,
+      "auditsScoreBelow1": [],
+      "finalUrl": "http://127.0.0.1:4173/bob/docs/reference/cli",
+      "lighthouseVersion": "13.5.0"
+    },
+    {
+      "page": "/bob/",
+      "slug": "en-home",
+      "theme": "dark",
+      "forced": "prefers-color-scheme: dark",
+      "blinkSettings": "preferredColorScheme=0",
+      "dataTheme": "dark",
+      "prefersColorSchemeDark": true,
+      "htmlBackground": "rgb(27, 27, 29)",
+      "storedTheme": null,
+      "score": 1,
+      "auditsScoreBelow1": [],
+      "finalUrl": "http://127.0.0.1:4173/bob/",
+      "lighthouseVersion": "13.5.0"
+    },
+    {
+      "page": "/bob/pt-BR/",
+      "slug": "pt-home",
+      "theme": "dark",
+      "forced": "prefers-color-scheme: dark",
+      "blinkSettings": "preferredColorScheme=0",
+      "dataTheme": "dark",
+      "prefersColorSchemeDark": true,
+      "htmlBackground": "rgb(27, 27, 29)",
+      "storedTheme": null,
+      "score": 1,
+      "auditsScoreBelow1": [],
+      "finalUrl": "http://127.0.0.1:4173/bob/pt-BR/",
+      "lighthouseVersion": "13.5.0"
+    },
+    {
+      "page": "/bob/docs/why-bob",
+      "slug": "en-why-bob",
+      "theme": "dark",
+      "forced": "prefers-color-scheme: dark",
+      "blinkSettings": "preferredColorScheme=0",
+      "dataTheme": "dark",
+      "prefersColorSchemeDark": true,
+      "htmlBackground": "rgb(27, 27, 29)",
+      "storedTheme": null,
+      "score": 1,
+      "auditsScoreBelow1": [],
+      "finalUrl": "http://127.0.0.1:4173/bob/docs/why-bob",
+      "lighthouseVersion": "13.5.0"
+    },
+    {
+      "page": "/bob/docs/reference/cli",
+      "slug": "en-reference-cli",
+      "theme": "dark",
+      "forced": "prefers-color-scheme: dark",
+      "blinkSettings": "preferredColorScheme=0",
+      "dataTheme": "dark",
+      "prefersColorSchemeDark": true,
+      "htmlBackground": "rgb(27, 27, 29)",
+      "storedTheme": null,
+      "score": 1,
+      "auditsScoreBelow1": [],
+      "finalUrl": "http://127.0.0.1:4173/bob/docs/reference/cli",
+      "lighthouseVersion": "13.5.0"
+    }
+  ],
+  "screenshot": {
+    "file": "docs-mobile-375-menu-dark-1f33ab0.png",
+    "page": "/bob/docs/getting-started/installation",
+    "url": "http://127.0.0.1:4173/bob/docs/getting-started/installation",
+    "viewportWidth": 375,
+    "viewportHeight": 812,
+    "theme": "dark",
+    "forced": "prefers-color-scheme: dark",
+    "blinkSettings": "preferredColorScheme=0",
+    "dataTheme": "dark",
+    "prefersColorSchemeDark": true,
+    "htmlBackground": "rgb(27, 27, 29)",
+    "storedTheme": null,
+    "menuOpen": true,
+    "englishNavVisible": [
+      {
+        "text": "Why bob",
+        "top": 146,
+        "left": 8,
+        "width": 295
+      },
+      {
+        "text": "Getting started",
+        "top": 182,
+        "left": 8,
+        "width": 295
+      },
+      {
+        "text": "Installation",
+        "top": 218,
+        "left": 20,
+        "width": 283
+      },
+      {
+        "text": "First check",
+        "top": 254,
+        "left": 20,
+        "width": 283
+      },
+      {
+        "text": "Agents",
+        "top": 290,
+        "left": 20,
+        "width": 283
+      },
+      {
+        "text": "Guides",
+        "top": 326,
+        "left": 8,
+        "width": 295
+      },
+      {
+        "text": "Reference",
+        "top": 362,
+        "left": 8,
+        "width": 295
+      },
+      {
+        "text": "Architecture",
+        "top": 398,
+        "left": 8,
+        "width": 295
+      }
+    ]
+  }
+}
