@@ -9,6 +9,10 @@ updates:
       - dependency-name: eslint-plugin-sonarjs
         update-types:
           - "version-update:semver-major"
+      # eslint-plugin-sonarjs 2.x peers only eslint ^8||^9.
+      - dependency-name: eslint
+        update-types:
+          - "version-update:semver-major"
     groups:
       npm:
         patterns:

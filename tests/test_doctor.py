@@ -49,7 +49,7 @@ PINS = (
     ),
     ("node", "22.18.0", "node", "v22.18.0"),
     ("c8", "12.0.0", "c8", "12.0.0"),
-    ("vitest", "5.0.3", "vitest", "5.0.3"),
+    ("vitest", "5.0.4", "vitest", "5.0.4"),
     ("jscpd", "5.4.1", "jscpd", "jscpd 5.4.1"),
     ("eslint", "9.39.5", "eslint", "v9.39.5"),
     ("eslint-plugin-sonarjs", "2.0.4", None, None),
@@ -59,7 +59,7 @@ PINS = (
     ("grimp", "3.17", None, None),
     ("diff-cover", "10.6.0", None, None),
     ("bandit", "1.9.4", None, None),
-    ("dependency-cruiser", "18.5.0", "dependency-cruiser", "18.5.0"),
+    ("dependency-cruiser", "18.6.0", "dependency-cruiser", "18.6.0"),
     ("gitleaks", "8.30.1", "gitleaks", "8.30.1"),
     ("vulture", "2.16", "vulture", "vulture 2.16"),
     ("knip", "6.41.0", "knip", "knip 6.41.0"),
@@ -72,7 +72,7 @@ INSTALL = {
     "coverage.py": "pip install 'coverage==7.16.2'",
     "node": "Install Node.js >=22.18.0 <23 (https://nodejs.org/dist/v22.18.0/)",
     "c8": "npm install c8@12.0.0",
-    "vitest": "npm install vitest@5.0.3",
+    "vitest": "npm install vitest@5.0.4",
     "jscpd": "npm install jscpd@5.4.1",
     "eslint": "npm install eslint@9.39.5",
     "eslint-plugin-sonarjs": "npm install eslint-plugin-sonarjs@2.0.4",
@@ -82,7 +82,7 @@ INSTALL = {
     "diff-cover": "pip install 'diff-cover==10.6.0'",
     "complexipy": "pip install 'complexipy==8.0.1'",
     "bandit": "pip install 'bandit==1.9.4'",
-    "dependency-cruiser": "npm install dependency-cruiser@18.5.0",
+    "dependency-cruiser": "npm install dependency-cruiser@18.6.0",
     "knip": "npm install knip@6.41.0",
     "stryker": "npm install @stryker-mutator/core@10.0.0",
     "stryker-vitest-runner": "npm install @stryker-mutator/vitest-runner@10.0.0",
@@ -145,7 +145,7 @@ def test_doctor_lists_import_linter_and_dependency_cruiser(tmp_path: Path) -> No
 
     assert result.returncode == 0, result.stdout + result.stderr
     assert "import-linter expected 2.15 found 2.15" in result.stdout
-    assert "dependency-cruiser expected 18.5.0 found 18.5.0" in result.stdout
+    assert "dependency-cruiser expected 18.6.0 found 18.6.0" in result.stdout
 
 
 def test_doctor_exits_0_and_lists_pinned_versions_when_tools_match(tmp_path: Path) -> None:

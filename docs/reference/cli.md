@@ -71,7 +71,7 @@ The spec says the local hook runs `crap,dry,deps` and that in CI the check runs 
 
 Lists each pin in `src/bob_quality/doctor.py` with the expected version and the found version. It exits `0` when every pin is satisfied and `4` when one is missing or outside the pin, and it prints the install command. It does not write `.bob/report.md`. A `-rc` suffix on the found version is outside the pin, and doctor exits `4`.
 
-Pins, in code order: lizard 1.24.1, deptry 0.25.1, coverage.py 7.16.2, node `>=22.18.0 <23`, c8 12.0.0, vitest 5.0.3, jscpd 5.4.1, eslint 9.39.5, eslint-plugin-sonarjs 2.0.4, mutmut 3.8.0, complexipy 8.0.1, import-linter 2.15, grimp 3.17, diff-cover 10.6.0, bandit 1.9.4, dependency-cruiser 18.5.0, gitleaks 8.30.1, vulture 2.16, knip 6.41.0, stryker 10.0.0, stryker-vitest-runner 10.0.0. The expected version of a Python tool comes from the installed `Requires-Dist` of `bob-quality`. Semgrep 1.180.0 is not in that list. The security gate calls `uvx --from semgrep==1.180.0`.
+Pins, in code order: lizard 1.24.1, deptry 0.25.1, coverage.py 7.16.2, node `>=22.18.0 <23`, c8 12.0.0, vitest 5.0.4, jscpd 5.4.1, eslint 9.39.5, eslint-plugin-sonarjs 2.0.4, mutmut 3.8.0, complexipy 8.0.1, import-linter 2.15, grimp 3.17, diff-cover 10.6.0, bandit 1.9.4, dependency-cruiser 18.6.0, gitleaks 8.30.1, vulture 2.16, knip 6.41.0, stryker 10.0.0, stryker-vitest-runner 10.0.0. The expected version of a Python tool comes from the installed `Requires-Dist` of `bob-quality`. Semgrep 1.180.0 is not in that list. The security gate calls `uvx --from semgrep==1.180.0`.
 
 `bob doctor --install` runs `npm ci` in the installed package and then prints the same report. See [Installation](../getting-started/installation.md).
 
