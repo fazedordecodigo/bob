@@ -61,17 +61,27 @@ def test_skill_hook_and_ci_bullets_quote_the_commands() -> None:
 
 
 def test_cli_guide_names_the_hook_gates() -> None:
-    body = _text("docs/cli.md")
+    body = _text("docs/reference/cli.md")
     assert f"| Hook `pre-push` | `{FAST_GATES}` |" in body
     assert "O script do hook passa `crap,deps`" not in body
     assert "ainda grava o relatório de erro" not in body
-    for relative in ("docs/cli.md", "docs/instalacao.md", "docs/README.md", "docs/visao-geral.md"):
+    for relative in (
+        "docs/reference/cli.md",
+        "docs/getting-started/installation.md",
+        "docs/README.md",
+        "docs/why-bob.md",
+    ):
         assert "bob check --gates crap,deps" not in _text(relative), relative
 
 
 def test_guides_do_not_say_invalid_duplication_writes_a_report() -> None:
     stale = "o relatório de erro é gravado no idioma"
-    for relative in ("docs/cli.md", "docs/exit-codes.md", "docs/configuracao.md", "docs/relatorios.md"):
+    for relative in (
+        "docs/reference/cli.md",
+        "docs/exit-codes.md",
+        "docs/reference/configuration.md",
+        "docs/guides/reports.md",
+    ):
         assert stale not in _text(relative), relative
 
 
@@ -91,10 +101,10 @@ _NODE_DOCS = (
     "AGENTS.md",
     "README.md",
     "README.pt-BR.md",
-    "docs/instalacao.md",
-    "docs/contribuicao.md",
-    "docs/cli.md",
-    "docs/gates.md",
+    "docs/getting-started/installation.md",
+    "docs/contributing.md",
+    "docs/reference/cli.md",
+    "docs/guides/gates-and-waivers.md",
 )
 
 

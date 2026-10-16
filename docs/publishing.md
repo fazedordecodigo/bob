@@ -1,65 +1,67 @@
-# Publicar o plugin bob no Cursor
+# Publishing the Cursor plugin
 
-O job `cursor` em [`.github/workflows/publish-plugins.yml`](../.github/workflows/publish-plugins.yml) confere a árvore do plugin. A listagem no marketplace continua manual. O Emerson envia o repositório em [cursor.com/marketplace/publish](https://cursor.com/marketplace/publish).
+[Index](README.md) · [Agents](getting-started/agents.md) · [SPEC](SPEC.md)
 
-A história 19, o critério 12 e a linha de fora de escopo em [SPEC.md](SPEC.md) deixam a publicação no marketplace para o OK dele.
+The `cursor` job in [`.github/workflows/publish-plugins.yml`](../.github/workflows/publish-plugins.yml) checks the plugin tree. The marketplace listing stays manual. Emerson submits the repository at [cursor.com/marketplace/publish](https://cursor.com/marketplace/publish).
 
-## Conferir a árvore
+Story 19, acceptance criterion 12, and the out-of-scope line in [SPEC.md](SPEC.md) leave marketplace publication for his approval.
 
-Na raiz do clone, com o extra `dev` instalado:
+## Check the tree
+
+At the clone root, with the `dev` extra installed:
 
 ```bash
 python scripts/validate_cursor_plugin.py --root . --tag v0.1.0
 ```
 
-Uma lista vazia e o exit `0` significam que o manifesto, a versão e o checklist batem com a tag. Uma lista JSON e o exit `1` nomeiam cada falha. O exit `2` é uso inválido, e a mensagem fica no stderr.
+An empty list and exit `0` mean the manifest, the version, and the checklist match the tag. A JSON list and exit `1` name each failure. Exit `2` is invalid usage, and the message is on stderr.
 
-O script lê `scripts/cursor_plugin.schema.json`. Esse arquivo é a cópia byte a byte de [`schemas/plugin.schema.json`](https://github.com/cursor/plugins/blob/5229aad76c37451561c5b81a9b5072ae1c549a5b/schemas/plugin.schema.json) no commit `5229aad76c37451561c5b81a9b5072ae1c549a5b` do repositório `cursor/plugins`. O teste `test_schema_bytes_match_the_pinned_cursor_plugins_commit` trava o SHA-256.
+The script reads `scripts/cursor_plugin.schema.json`. That file is a byte-for-byte copy of [`schemas/plugin.schema.json`](https://github.com/cursor/plugins/blob/5229aad76c37451561c5b81a9b5072ae1c549a5b/schemas/plugin.schema.json) at commit `5229aad76c37451561c5b81a9b5072ae1c549a5b` of `cursor/plugins`. The test `test_schema_bytes_match_the_pinned_cursor_plugins_commit` locks the SHA-256.
 
-## O que a tag dispara
+## What a tag triggers
 
-O workflow dispara em três casos.
+The workflow runs in three cases.
 
-- Push de uma tag `v*`.
-- Release do tipo `published`.
-- `workflow_dispatch`, com o input booleano `dry_run`. O padrão é `true`.
+- A push of a `v*` tag.
+- A release of type `published`.
+- `workflow_dispatch`, with the boolean input `dry_run`. The default is `true`.
 
-O job instala o extra `dev` e roda o mesmo script. Em tag ou release, ele passa `--tag` com o nome da tag. Num dispatch a partir de um branch, ele omite `--tag` e compara só `.cursor-plugin/plugin.json` com `[project].version` no `pyproject.toml`.
+The job installs the `dev` extra and runs the same script. On a tag or a release it passes `--tag` with the tag name. On a dispatch from a branch it omits `--tag` and compares only `.cursor-plugin/plugin.json` with `[project].version` in `pyproject.toml`.
 
-O log imprime `dry_run=`. Os dois valores percorrem os mesmos passos. O job não envia o plugin a lugar nenhum.
+The log prints `dry_run=`. Both values walk the same steps. The job does not submit the plugin anywhere.
 
-`permissions` é `contents: read`. O arquivo não referencia `secrets`. Não há segredo para criar nesta fase.
+`permissions` is `contents: read`. The file does not reference `secrets`. There is no secret to create for this phase.
 
-Um job de outra plataforma entra como irmão de `cursor`, no mesmo `jobs`.
+A job for another platform is a sibling of `cursor`, in the same `jobs`.
 
-## Enviar a primeira listagem
+## Send the first listing
 
-Abra [cursor.com/marketplace/publish](https://cursor.com/marketplace/publish) com a conta do Emerson. O envio pede o repositório público `https://github.com/fazedordecodigo/bob`.
+Open [cursor.com/marketplace/publish](https://cursor.com/marketplace/publish) with Emerson's account. The submission asks for the public repository `https://github.com/fazedordecodigo/bob`.
 
-A página [Plugins reference](https://cursor.com/docs/reference/plugins) lista o que a revisão confere. Neste repositório cada item aponta para um arquivo.
+The page [Plugins reference](https://cursor.com/docs/reference/plugins) lists what review checks. In this repository each item points at a file.
 
-- Manifesto `.cursor-plugin/plugin.json`, nome `bob`.
-- `description` no mesmo arquivo.
-- Skills `./skills/bob-check`, `./skills/harden` e `./skills/review-report`, cada uma com `name` e `description` no frontmatter.
-- Logo commitado em `assets/logo.svg`, campo `logo` com esse caminho relativo.
-- `README.md`, seção `Usage`, com `bob check` e `bob.yaml`.
-- Caminhos do manifesto relativos, sem `..`.
+- Manifest `.cursor-plugin/plugin.json`, name `bob`.
+- `description` in the same file.
+- Skills `./skills/bob-check`, `./skills/harden`, and `./skills/review-report`, each with `name` and `description` in the frontmatter.
+- The committed logo `assets/logo.svg`, field `logo` with that relative path.
+- `README.md`, section `Usage`, with `bob check` and `bob.yaml`.
+- Manifest paths that are relative, with no `..`.
 
-O formulário em si não devolveu os rótulos dos campos nesta sessão. O que a página pública pede é o link do repositório. Confira na tela logada se ela pede mais algum texto.
+The form itself did not return the field labels in the session that wrote this page. What the public page asks for is the repository link. Check the signed-in screen for any further text it asks for.
 
-## Depois da listagem
+## After the listing
 
-A página [Marketplace security](https://cursor.com/help/security-and-privacy/marketplace-security) responde "Are plugin updates reviewed?" com esta frase: "Plugins in the marketplace are not automatically updated from source code." Cada atualização passa por revisão manual.
+The page [Marketplace security](https://cursor.com/help/security-and-privacy/marketplace-security) answers "Are plugin updates reviewed?" with this sentence: "Plugins in the marketplace are not automatically updated from source code." Each update goes through manual review.
 
-Uma tag `v*` deixa o manifesto, o `pyproject.toml` e a tag na mesma versão. O marketplace público só recebe essa versão depois da revisão do Cursor. A tag não substitui o formulário nem uma nova rodada de revisão.
+A `v*` tag puts the manifest, `pyproject.toml`, and the tag on the same version. The public marketplace receives that version only after Cursor's review. The tag does not replace the form or a new review round.
 
-A decisão que fica com o Emerson é aceitar essa revisão manual a cada versão. A documentação usada acima não descreve uma API de publicação.
+The decision that stays with Emerson is to accept that manual review for every version. The documentation used above does not describe a publish API.
 
-O nome do plugin continua `bob`. A issue #145 já registra que esse nome pode colidir na revisão.
+The plugin name stays `bob`. Issue #145 already records that this name can collide in review.
 
-## Carregar no Cursor local
+## Load it in local Cursor
 
-A cópia em `~/.cursor/plugins/local/bob` tem de ser um diretório real. O Cursor ignora um symlink cujo alvo está fora dessa pasta. Fonte: [Test plugins locally](https://cursor.com/docs/plugins).
+The copy at `~/.cursor/plugins/local/bob` has to be a real directory. Cursor ignores a symlink whose target is outside that folder. Source: [Test plugins locally](https://cursor.com/docs/plugins).
 
 ```bash
 rm -rf ~/.cursor/plugins/local/bob
@@ -71,4 +73,4 @@ test -f ~/.cursor/plugins/local/bob/assets/logo.svg
 test -f ~/.cursor/plugins/local/bob/skills/bob-check/SKILL.md
 ```
 
-Depois, rode **Developer: Reload Window** e abra Customize. Este checkout não abre o IDE, então esse reload fica para uma pessoa com o Cursor aberto.
+Then run **Developer: Reload Window** and open Customize. This checkout does not open the IDE, so that reload is for a person with Cursor open.

@@ -1,36 +1,60 @@
-# Documentação do bob
+# bob documentation
 
-Guias do [bob](../README.pt-BR.md) em português. A spec aprovada permanece em [SPEC.md](SPEC.md); estes guias descrevem o que o código faz hoje e apontam, em nota, onde a spec ou o README ainda dizem outra coisa.
+English guides for [bob](../README.md). They describe what the code on `main` does. The approved spec stays in [SPEC.md](SPEC.md). Where the spec and the code disagree, the page documents the code and says so.
 
-O pacote pip se chama `bob-quality`. O comando é `bob`. Os marketplaces usam o nome `bob`. A licença é MIT (`LICENSE`).
+The pip package is `bob-quality`. The command is `bob`. Marketplace listings use the name `bob`. The license is MIT (`LICENSE`).
 
-## Índice
+The pt-BR pages of the public site are a separate change. These files are the English source.
 
-| Guia | O que responde |
+## Why bob
+
+[Why bob](why-bob.md) states the problem the gates solve and what one command adds to running each tool on its own.
+
+## Getting started
+
+| Page | What it answers |
 |---|---|
-| [Visão geral](visao-geral.md) | Para que serve, o que já roda e o fluxo do diff até o relatório |
-| [Instalação](instalacao.md) | Pacote `bob-quality` e plugin no Cursor, Claude Code, Copilot e Devin |
-| [CLI](cli.md) | `check`, `doctor`, `waive`, `--lang` e os outros comandos |
-| [Configuração](configuracao.md) | `bob.yaml` e `.bob/waivers.yaml` |
-| [Gates](gates.md) | CRAP, DRY, mutação e dependências |
-| [Exit codes](exit-codes.md) | Códigos `0` a `4` |
-| [Relatórios](relatorios.md) | `.bob/report.md`, `.bob/report.json` e o comentário no pull request |
-| [Contribuição](contribuicao.md) | Ambiente, testes e o que o CI exige |
-| [Publicação](publishing.md) | Workflow do plugin Cursor, o formulário manual e a ausência de segredos |
+| [Installation](getting-started/installation.md) | Python, Node, the `bob-quality` package, and `bob doctor` |
+| [First check](getting-started/first-check.md) | The first `bob check` and how to read the exit code |
+| [Agents](getting-started/agents.md) | Cursor, Claude Code, Codex, Devin, and GitHub Copilot |
 
-## Por onde começar
+## Guides
 
-- Instalar e ver as versões: [Instalação](instalacao.md) e [`bob doctor`](cli.md#bob-doctor).
-- Medir um diff: [`bob check`](cli.md#bob-check) e [Exit codes](exit-codes.md).
-- Ajustar limite ou idioma: [Configuração](configuracao.md).
-- Ler o resultado: [Relatórios](relatorios.md).
-- Entender um veredito: [Gates](gates.md).
+| Page | What it answers |
+|---|---|
+| [Configuration](guides/configuration.md) | `bob.yaml`, output language, and `.bob/waivers.yaml` |
+| [Gates and waivers](guides/gates-and-waivers.md) | What each gate measures, when it blocks, and the waiver id |
+| [Pre-push hook](guides/pre-push.md) | The local hook and the gates it runs |
+| [CI](guides/ci.md) | The GitHub Action, its inputs, and the pull request comment |
+| [Reports](guides/reports.md) | How to read `.bob/report.md` |
 
-## Fontes
+## Reference
 
-O texto destes guias foi conferido nestas fontes, nesta ordem quando elas discordam: o código em `src/bob_quality/`, [SPEC.md](SPEC.md), [README.pt-BR.md](../README.pt-BR.md), [README.md](../README.md) e [CHANGELOG.md](../CHANGELOG.md). Onde a spec descreve uma chave ou um comando que o código ainda não lê, o guia diz isso na seção.
+| Page | What it answers |
+|---|---|
+| [CLI](reference/cli.md) | Commands, flags, and output language |
+| [Configuration schema](reference/configuration.md) | Every key the loader accepts, and the keys it rejects |
+| [Exit codes](exit-codes.md) | Codes `0` through `4` |
+| [report.json](reference/report-json.md) | Schema v1 fields |
 
-## Notas que atravessam os guias
+## Architecture
 
-- A CLI ainda não tem o comando `bob report` que a [SPEC](SPEC.md) lista. Ver [CLI](cli.md#comandos-que-a-spec-lista-e-a-cli-ainda-não-tem).
-- Mutação em TypeScript (StrykerJS) não aparece no código. Ver [Gates](gates.md#mutação).
+| Page | What it answers |
+|---|---|
+| [Technical overview](architecture/overview.md) | How a run moves from the CLI to the report |
+| [ADRs](architecture/adrs.md) | The decision records, including [ADR 0007](adr/0007-gerador-do-site.md) |
+| [SPEC](architecture/spec.md) | Where to read the spec, and where the code differs |
+
+## Contributing and changelog
+
+- [Contributing](contributing.md)
+- [Changelog](changelog.md)
+- [Publishing the Cursor plugin](publishing.md)
+
+## Where to start
+
+- Install and compare versions: [Installation](getting-started/installation.md) and [`bob doctor`](reference/cli.md#bob-doctor).
+- Measure a diff: [First check](getting-started/first-check.md) and [Exit codes](exit-codes.md).
+- Change a limit or the output language: [Configuration](guides/configuration.md).
+- Read the result: [Reports](guides/reports.md).
+- Understand a verdict: [Gates and waivers](guides/gates-and-waivers.md).

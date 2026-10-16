@@ -10,7 +10,7 @@ O bob dá aos agentes de código (Cursor, Claude Code, GitHub Copilot, Devin) ga
 - Configuração: `bob.yaml`
 - Relatórios: `.bob/report.md` e `.bob/report.json` (schema v1)
 - Idioma da saída: inglês (`en`, o padrão) ou português do Brasil (`pt-BR`)
-- Documentação: [docs/README.md](docs/README.md) (guias em português; a spec continua em [docs/SPEC.md](docs/SPEC.md))
+- Documentação: [docs/README.md](docs/README.md) (guias em inglês; a spec continua em [docs/SPEC.md](docs/SPEC.md))
 
 Licença: MIT.
 
