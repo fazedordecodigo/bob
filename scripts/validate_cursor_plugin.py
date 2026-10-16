@@ -7,7 +7,7 @@ import sys
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal
-from urllib.parse import urlparse
+from urllib.parse import unquote, urlparse
 
 import yaml
 from jsonschema import Draft7Validator
@@ -198,12 +198,22 @@ def _name_pattern(schema: dict[str, object]) -> str:
 
 
 def _http_uri(value: str) -> bool:
+    if value != value.strip():
+        return False
     try:
         parsed = urlparse(value)
         host = parsed.hostname
+        port = parsed.port
     except ValueError:
         return False
-    return parsed.scheme.lower() in {"http", "https"} and bool(host)
+    allowed_port = port is None or 0 <= port <= 65535
+    return (
+        parsed.scheme.lower() in {"http", "https"}
+        and parsed.username is None
+        and parsed.password is None
+        and allowed_port
+        and bool(host and unquote(host).strip())
+    )
 
 
 def _uri_failures(manifest: dict[str, object]) -> tuple[Failure, ...]:

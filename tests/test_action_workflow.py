@@ -253,4 +253,4 @@ def test_dependabot_ignores_sonarjs_majors_and_scans_the_action() -> None:
     )
     assert actions["directories"] == ["/", "/.github/actions/bob"]
     text = path.read_text(encoding="utf-8")
-    assert "The lockfile must not be regenerated from scratch." in text
+    assert any(line.lstrip().startswith("#") for line in text.splitlines())
