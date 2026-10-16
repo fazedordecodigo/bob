@@ -9,7 +9,7 @@
     "test": "node --test --test-concurrency=1 tests/*.test.mjs"
   },
   "engines": {
-    "node": ">=22.14.0 <23"
+    "node": ">=22.18.0 <23"
   },
   "dependencies": {
     "@docusaurus/core": "3.10.2",
