@@ -587,7 +587,7 @@ def test_measure_typescript_records_the_pinned_tool_versions(
         ("vitest",),
         ("lizard", r"(\d+\.\d+\.\d+)"),
     ]
-    assert result.versions == {"c8": "12.0.0", "vitest": "5.0.3", "lizard": "1.24.1"}
+    assert result.versions == {"c8": "12.0.0", "vitest": "5.0.4", "lizard": "1.24.1"}
     assert result.gate is None
     assert result.metrics == []
     assert lizard == [(tmp_path, ("pkg",), ("dist",), "typescript")]
@@ -607,7 +607,7 @@ def test_measure_typescript_names_a_version_failure_and_a_missing_report(
     missing = measure_typescript(tmp_path, _config("typescript"), {}, memo)
 
     assert failed.exit_code == CONFIG_OR_TOOL
-    assert failed.versions == {"c8": "12.0.0", "vitest": "5.0.3"}
+    assert failed.versions == {"c8": "12.0.0", "vitest": "5.0.4"}
     assert failed.gate is not None
     assert in_both(failed.gate.reason) == ("no lizard", "no lizard")
     assert missing.exit_code == CONFIG_OR_TOOL
@@ -629,7 +629,7 @@ def test_measure_typescript_names_an_unavailable_c8_hold(
     result = measure_typescript(tmp_path, _config("typescript"), {}, memo)
 
     assert result.exit_code == CONFIG_OR_TOOL
-    assert result.versions == {"c8": "12.0.0", "vitest": "5.0.3", "lizard": "1.24.1"}
+    assert result.versions == {"c8": "12.0.0", "vitest": "5.0.4", "lizard": "1.24.1"}
     assert result.gate is not None
     assert in_both(result.gate.reason) == (
         "c8: baseline tests failed before measuring",
@@ -772,7 +772,7 @@ def _patch_typescript_versions(
 
     def versions(prefix: Path, package: str) -> str:
         seen["calls"].append((package,))
-        return {"c8": "12.0.0", "vitest": "5.0.3"}[package]
+        return {"c8": "12.0.0", "vitest": "5.0.4"}[package]
 
     def lizard_version(module: str, pattern: str) -> str:
         seen["calls"].append((module, pattern))
