@@ -4,12 +4,34 @@ import Layout from '@theme/Layout';
 import Heading from '@theme/Heading';
 
 const sections = [
-  ['/docs/visao-geral', 'Why bob', 'What bob measures, and why the gates exist.'],
-  ['/docs/instalacao', 'Getting started', 'Install the package and use it from the coding agents.'],
-  ['/docs/configuracao', 'Guides', 'Configuration, gates, waivers, and how to read a report.'],
-  ['/docs/cli', 'Reference', 'CLI commands and exit codes.'],
-  ['/docs/adr/0000-architecture-review', 'Architecture', 'Technical overview, ADRs, and the SPEC.'],
-  ['/docs/contribuicao', 'Contributing and changelog', 'How to change bob. The changelog lives in the repository.'],
+  ['/docs/why-bob', 'Why bob', 'What the gates add to running each tool on its own.'],
+  [
+    '/docs/getting-started/installation',
+    'Getting started',
+    'Install bob, run the first check, and use it from the coding agents.',
+  ],
+  [
+    '/docs/guides/configuration',
+    'Guides',
+    'Configuration, gates and waivers, the pre-push hook, CI, and reports.',
+  ],
+  [
+    '/docs/reference/cli',
+    'Reference',
+    'CLI, configuration schema, exit codes, and report.json.',
+  ],
+  ['/docs/architecture/overview', 'Architecture', 'Technical overview, ADRs, and the SPEC.'],
+  ['/docs/contributing', 'Contributing and changelog', 'How to change bob.'],
+];
+
+const portugueseGuides = [
+  ['/docs/visao-geral', 'Visão geral'],
+  ['/docs/instalacao', 'Instalação'],
+  ['/docs/cli', 'CLI'],
+  ['/docs/configuracao', 'Configuração'],
+  ['/docs/gates', 'Gates'],
+  ['/docs/relatorios', 'Relatórios'],
+  ['/docs/contribuicao', 'Contribuição'],
 ];
 
 export default function Home() {
@@ -30,6 +52,17 @@ export default function Home() {
               </li>
             ))}
           </ul>
+          <p>
+            The <Link to="/docs/changelog">changelog</Link> records behavior changes. Portuguese
+            guides stay available until the translation:{' '}
+            {portugueseGuides.map(([to, title], index) => (
+              <span key={to}>
+                {index > 0 ? ', ' : null}
+                <Link to={to}>{title}</Link>
+              </span>
+            ))}
+            .
+          </p>
         </div>
       </main>
     </Layout>

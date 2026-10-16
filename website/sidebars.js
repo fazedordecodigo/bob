@@ -1,8 +1,8 @@
 // @ts-check
 
 /**
- * Six sections approved in issue #156. Items are the current files in `docs/`.
- * Pages that do not exist yet are not invented here; issue #159 writes them.
+ * Six sections approved in issue #156. Items are the English pages from #165.
+ * Temporary pt-BR guides stay linked from the home and the footer until #160.
  *
  * @type {import('@docusaurus/plugin-content-docs').SidebarsConfig}
  */
@@ -11,64 +11,56 @@ const sidebars = {
     {
       type: 'category',
       label: 'Why bob',
+      collapsed: false,
       items: [
-        { type: 'doc', id: 'visao-geral', label: 'Why bob' },
         { type: 'doc', id: 'README', label: 'Documentation index' },
+        'why-bob',
       ],
     },
     {
       type: 'category',
       label: 'Getting started',
-      items: [{ type: 'doc', id: 'instalacao', label: 'Installation and agents' }],
+      collapsed: false,
+      items: [
+        'getting-started/installation',
+        'getting-started/first-check',
+        'getting-started/agents',
+      ],
     },
     {
       type: 'category',
       label: 'Guides',
+      collapsed: false,
       items: [
-        { type: 'doc', id: 'configuracao', label: 'Configuration and waivers' },
-        { type: 'doc', id: 'gates', label: 'Gates' },
-        { type: 'doc', id: 'relatorios', label: 'Reading reports' },
+        'guides/configuration',
+        'guides/gates-and-waivers',
+        'guides/pre-push',
+        'guides/ci',
+        'guides/reports',
       ],
     },
     {
       type: 'category',
       label: 'Reference',
+      collapsed: false,
       items: [
-        { type: 'doc', id: 'cli', label: 'CLI' },
-        { type: 'doc', id: 'exit-codes', label: 'Exit codes' },
+        'reference/cli',
+        'reference/configuration',
+        'exit-codes',
+        'reference/report-json',
       ],
     },
     {
       type: 'category',
       label: 'Architecture',
-      items: [
-        { type: 'doc', id: 'adr/0000-architecture-review', label: 'Technical overview' },
-        { type: 'doc', id: 'SPEC', label: 'SPEC' },
-        {
-          type: 'category',
-          label: 'ADRs',
-          items: [
-            'adr/0001-adaptadores-sobre-ferramentas-de-mercado',
-            'adr/0002-o-diff-filtra-o-veredito',
-            'adr/0003-exit-codes',
-            'adr/0004-empacotamento-quatro-agentes',
-            'adr/0005-modelo-de-gate-das-analises-novas',
-            'adr/0006-chave-estavel-do-waiver',
-          ],
-        },
-      ],
+      collapsed: false,
+      items: ['architecture/overview', 'architecture/adrs', 'architecture/spec'],
     },
     {
       type: 'category',
       label: 'Contributing and changelog',
-      items: [
-        { type: 'doc', id: 'contribuicao', label: 'Contributing' },
-        {
-          type: 'link',
-          label: 'Changelog',
-          href: 'https://github.com/fazedordecodigo/bob/blob/main/CHANGELOG.md',
-        },
-      ],
+      collapsed: false,
+      items: ['contributing', 'changelog', 'publishing'],
     },
   ],
 };

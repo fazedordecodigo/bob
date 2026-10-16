@@ -20,6 +20,82 @@ const sidebarLabels = [
   'Contributing and changelog',
 ];
 
+const englishSections = [
+  {
+    label: 'Why bob',
+    ids: ['README', 'why-bob'],
+  },
+  {
+    label: 'Getting started',
+    ids: [
+      'getting-started/installation',
+      'getting-started/first-check',
+      'getting-started/agents',
+    ],
+  },
+  {
+    label: 'Guides',
+    ids: [
+      'guides/configuration',
+      'guides/gates-and-waivers',
+      'guides/pre-push',
+      'guides/ci',
+      'guides/reports',
+    ],
+  },
+  {
+    label: 'Reference',
+    ids: [
+      'reference/cli',
+      'reference/configuration',
+      'exit-codes',
+      'reference/report-json',
+    ],
+  },
+  {
+    label: 'Architecture',
+    ids: ['architecture/overview', 'architecture/adrs', 'architecture/spec'],
+  },
+  {
+    label: 'Contributing and changelog',
+    ids: ['contributing', 'changelog', 'publishing'],
+  },
+];
+
+const englishPaths = [
+  '/docs/why-bob',
+  '/docs/getting-started/installation',
+  '/docs/guides/configuration',
+  '/docs/reference/cli',
+  '/docs/architecture/overview',
+  '/docs/contributing',
+  '/docs/changelog',
+];
+
+const portuguesePaths = [
+  '/docs/visao-geral',
+  '/docs/instalacao',
+  '/docs/cli',
+  '/docs/configuracao',
+  '/docs/gates',
+  '/docs/relatorios',
+  '/docs/contribuicao',
+];
+
+function docIdsIn(items) {
+  const ids = [];
+  for (const item of items) {
+    if (typeof item === 'string') {
+      ids.push(item);
+    } else if (item.type === 'doc') {
+      ids.push(item.id);
+    } else if (item.type === 'category') {
+      ids.push(...docIdsIn(item.items));
+    }
+  }
+  return ids;
+}
+
 const allowedDependencies = new Set([
   '@docusaurus/core',
   '@docusaurus/preset-classic',
@@ -195,6 +271,71 @@ test('docs pages expose the six approved sidebar sections', () => {
   const page = readBuild('docs/index.html');
   for (const label of sidebarLabels) {
     assert.ok(page.includes(label), `sidebar is missing ${label}`);
+  }
+});
+
+test('the sidebar lists the six English sections and only real doc ids', async () => {
+  const sidebars = (await import('../sidebars.js')).default;
+  const categories = sidebars.docs;
+  assert.deepEqual(
+    categories.map((category) => category.label),
+    englishSections.map((section) => section.label),
+  );
+  categories.forEach((category, index) => {
+    assert.equal(category.type, 'category');
+    assert.deepEqual(docIdsIn(category.items), englishSections[index].ids);
+  });
+  for (const id of docIdsIn(categories)) {
+    assert.ok(sourceForDoc(id), `sidebar id ${id} has no file under docs/`);
+  }
+});
+
+test('the home and the footer link to the English pages and the temporary Portuguese guides', async () => {
+  const config = (await import('../docusaurus.config.js')).default;
+  const footerTargets = config.themeConfig.footer.links.flatMap((column) =>
+    column.items.map((item) => item.to),
+  );
+  const home = fs.readFileSync(path.join(websiteDir, 'src/pages/index.js'), 'utf8');
+  for (const target of [...englishPaths, ...portuguesePaths]) {
+    assert.ok(footerTargets.includes(target), `footer is missing ${target}`);
+    assert.ok(
+      home.includes(`'${target}'`) || home.includes(`"${target}"`),
+      `home is missing ${target}`,
+    );
+  }
+});
+
+test('the built home and footer expose those same pages', () => {
+  const home = readBuild('index.html');
+  const portugueseHome = readBuild('pt-BR/index.html');
+  for (const target of [...englishPaths, ...portuguesePaths]) {
+    const href = `/bob${target}`;
+    const portugueseHref = `/bob/pt-BR${target}`;
+    assert.ok(home.includes(href), `built home is missing ${href}`);
+    assert.ok(
+      portugueseHome.includes(portugueseHref),
+      `built pt-BR home is missing ${portugueseHref}`,
+    );
+  }
+});
+
+test('a broken anchor fails the production build', async () => {
+  const config = (await import('../docusaurus.config.js')).default;
+  assert.equal(config.onBrokenAnchors, 'throw');
+  const probe = path.join(docsDir, 'zz-broken-anchor.md');
+  fs.writeFileSync(
+    probe,
+    '# Probe\n\n[missing](./why-bob.md#this-heading-does-not-exist)\n',
+    'utf8',
+  );
+  try {
+    const outDir = fs.mkdtempSync(path.join(os.tmpdir(), 'bob-site-anchor-'));
+    const result = runBuild({}, outDir);
+    const output = `${result.stdout}\n${result.stderr}`;
+    assert.notEqual(result.status, 0, output);
+    assert.match(output, /broken anchor|this-heading-does-not-exist/i);
+  } finally {
+    fs.rmSync(probe, { force: true });
   }
 });
 
