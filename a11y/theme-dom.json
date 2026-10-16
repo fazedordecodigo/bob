@@ -1,0 +1,19 @@
+{
+  "note": "Medido no DOM servido em http://127.0.0.1:4173/bob/docs/why-bob antes das corridas de axe. data-theme foi conferido de novo em cada página, imediatamente antes do axe.run.",
+  "light": {
+    "dataTheme": "light",
+    "htmlBackground": "rgb(255, 255, 255)",
+    "navbarBackground": "rgb(255, 255, 255)",
+    "proseLinkColor": "rgb(12, 74, 110)",
+    "proseLinkDecoration": "underline",
+    "forced": "prefers-color-scheme: light"
+  },
+  "dark": {
+    "dataTheme": "dark",
+    "htmlBackground": "rgb(27, 27, 29)",
+    "navbarBackground": "rgb(18, 24, 22)",
+    "proseLinkColor": "rgb(183, 221, 244)",
+    "proseLinkDecoration": "underline",
+    "forced": "prefers-color-scheme: dark"
+  }
+}
