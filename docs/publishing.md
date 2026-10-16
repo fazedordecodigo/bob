@@ -16,6 +16,8 @@ python scripts/validate_cursor_plugin.py --root . --tag v0.1.0
 
 An empty list and exit `0` mean the manifest, the version, and the checklist match the tag. A JSON list and exit `1` name each failure. Exit `2` is invalid usage, and the message is on stderr.
 
+Each object in that list has `code`, `subject`, and `message`. The code `uri` is for `homepage` and `repository` when the field is present. The value has to be an `http` or `https` URI with a host. The script rejects leading or trailing whitespace, a blank or whitespace host (`http:// /x`, `https://%20/`), a port outside 0–65535 (for example `99999`, which does not crash the process), and credentials in the URL (`user:secret@`). The message says the field must be an http or https URI with a host. The two fields fail independently.
+
 The script reads `scripts/cursor_plugin.schema.json`. That file is a byte-for-byte copy of [`schemas/plugin.schema.json`](https://github.com/cursor/plugins/blob/5229aad76c37451561c5b81a9b5072ae1c549a5b/schemas/plugin.schema.json) at commit `5229aad76c37451561c5b81a9b5072ae1c549a5b` of `cursor/plugins`. The test `test_schema_bytes_match_the_pinned_cursor_plugins_commit` locks the SHA-256.
 
 ## What a tag triggers
@@ -31,6 +33,8 @@ The job installs the `dev` extra and runs the same script. On a tag or a release
 The log prints `dry_run=`. Both values walk the same steps. The job does not submit the plugin anywhere.
 
 `permissions` is `contents: read`. The file does not reference `secrets`. There is no secret to create for this phase.
+
+The checkout step sets `persist-credentials: false`. The token used to clone is not stored in the job's git credentials after that step.
 
 A job for another platform is a sibling of `cursor`, in the same `jobs`.
 
