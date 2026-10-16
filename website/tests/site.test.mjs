@@ -20,6 +20,61 @@ const sidebarLabels = [
   'Contributing and changelog',
 ];
 
+const englishHomeRoutes = [
+  '/docs/why-bob',
+  '/docs/getting-started/installation',
+  '/docs/guides/configuration',
+  '/docs/reference/cli',
+  '/docs/architecture/overview',
+  '/docs/contributing',
+];
+
+const temporaryPortugueseRoutes = [
+  '/docs/visao-geral',
+  '/docs/instalacao',
+  '/docs/cli',
+  '/docs/configuracao',
+  '/docs/gates',
+  '/docs/relatorios',
+  '/docs/contribuicao',
+];
+
+const englishSidebar = {
+  'Why bob': ['why-bob', 'README'],
+  'Getting started': [
+    'getting-started/installation',
+    'getting-started/first-check',
+    'getting-started/agents',
+  ],
+  Guides: [
+    'guides/configuration',
+    'guides/gates-and-waivers',
+    'guides/pre-push',
+    'guides/ci',
+    'guides/reports',
+  ],
+  Reference: [
+    'reference/cli',
+    'reference/configuration',
+    'exit-codes',
+    'reference/report-json',
+  ],
+  Architecture: [
+    'architecture/overview',
+    'architecture/adrs',
+    'architecture/spec',
+    'adr/0000-architecture-review',
+    'adr/0001-adaptadores-sobre-ferramentas-de-mercado',
+    'adr/0002-o-diff-filtra-o-veredito',
+    'adr/0003-exit-codes',
+    'adr/0004-empacotamento-quatro-agentes',
+    'adr/0005-modelo-de-gate-das-analises-novas',
+    'adr/0006-chave-estavel-do-waiver',
+    'adr/0007-gerador-do-site',
+  ],
+  'Contributing and changelog': ['contributing', 'changelog', 'publishing'],
+};
+
 const allowedDependencies = new Set([
   '@docusaurus/core',
   '@docusaurus/preset-classic',
@@ -88,6 +143,20 @@ function sidebarDocIds() {
   return ids;
 }
 
+function docIds(items) {
+  const ids = [];
+  for (const item of items) {
+    if (typeof item === 'string') {
+      ids.push(item);
+    } else if (item.type === 'doc') {
+      ids.push(item.id);
+    } else if (item.type === 'category') {
+      ids.push(...docIds(item.items));
+    }
+  }
+  return ids;
+}
+
 function sourceForDoc(id) {
   const candidates = [
     path.join(docsDir, `${id}.md`),
@@ -97,6 +166,78 @@ function sourceForDoc(id) {
   ];
   return candidates.find((candidate) => fs.existsSync(candidate));
 }
+
+test('sidebar doc ids match the English docs files', async () => {
+  const sidebars = (await import('../sidebars.js')).default;
+  assert.deepEqual(
+    sidebars.docs.map((category) => category.label),
+    sidebarLabels,
+  );
+  for (const category of sidebars.docs) {
+    assert.equal(category.type, 'category');
+    const expected = englishSidebar[category.label];
+    assert.deepEqual(docIds(category.items), expected, category.label);
+    for (const id of expected) {
+      assert.ok(sourceForDoc(id), `sidebar id ${id} has no file under docs/`);
+    }
+  }
+});
+
+test('footer links to the English pages and the temporary pt-BR guides stay reachable', async () => {
+  const config = (await import('../docusaurus.config.js')).default;
+  assert.equal(config.onBrokenAnchors, 'throw');
+  const columns = config.themeConfig.footer.links;
+  assert.deepEqual(
+    columns[0].items.map((item) => item.to),
+    englishHomeRoutes,
+  );
+  const temporary = columns.flatMap((column) => column.items.map((item) => item.to));
+  for (const route of temporaryPortugueseRoutes) {
+    assert.ok(temporary.includes(route), `footer is missing ${route}`);
+    assert.ok(sourceForDoc(route.slice('/docs/'.length)), `missing docs file for ${route}`);
+  }
+});
+
+function pageLinksTo(html, route) {
+  return html.includes(`/bob${route}`) || html.includes(`/bob${route}/`);
+}
+
+function menuLinks(html) {
+  return [...html.matchAll(/class="[^"]*menu__link[^"]*"[^>]*href="([^"]+)"/g)].map(
+    (match) => match[1],
+  );
+}
+
+test('the built home, footer, and sidebar link to the English pages', () => {
+  const home = readBuild('index.html');
+  const portugueseHome = readBuild('pt-BR/index.html');
+  const docs = readBuild('docs/index.html');
+  const sidebar = menuLinks(docs);
+  for (const route of englishHomeRoutes) {
+    assert.ok(pageLinksTo(home, route), `English home is missing ${route}`);
+    assert.ok(pageLinksTo(portugueseHome, `/pt-BR${route}`), `pt-BR home is missing ${route}`);
+    assert.ok(
+      sidebar.some((href) => href === `/bob${route}` || href === `/bob${route}/`),
+      `docs sidebar is missing ${route}`,
+    );
+  }
+  assert.equal(
+    sidebar.some((href) => href.includes('/docs/visao-geral')),
+    false,
+    'docs sidebar still points at the temporary pt-BR overview',
+  );
+  for (const route of temporaryPortugueseRoutes) {
+    assert.ok(pageLinksTo(home, route), `footer is missing the temporary guide ${route}`);
+    assert.ok(
+      fs.existsSync(path.join(buildDir, `${route.slice(1)}/index.html`)),
+      `temporary guide was not published: ${route}`,
+    );
+    assert.ok(
+      fs.existsSync(path.join(buildDir, `pt-BR${route}/index.html`)),
+      `temporary guide was not published for pt-BR: ${route}`,
+    );
+  }
+});
 
 test('website dependencies stay inside the Docusaurus set', () => {
   const manifest = JSON.parse(fs.readFileSync(path.join(websiteDir, 'package.json'), 'utf8'));
@@ -250,6 +391,20 @@ test('Algolia is emitted only when app id, api key, and index name are all set',
   );
   assert.equal(outputContains(partialDir, 'bob-app-id-partial'), false);
   assert.equal(htmlContains(partialDir, 'DocSearch-Button'), false);
+});
+
+test('a broken anchor fails the production build', () => {
+  const probe = path.join(docsDir, 'zz-broken-anchor.md');
+  fs.writeFileSync(probe, '# Probe\n\n[missing](#this-anchor-does-not-exist)\n', 'utf8');
+  try {
+    const outDir = fs.mkdtempSync(path.join(os.tmpdir(), 'bob-site-anchor-'));
+    const result = runBuild({}, outDir);
+    const output = `${result.stdout}\n${result.stderr}`;
+    assert.notEqual(result.status, 0, output);
+    assert.match(output, /broken anchor|this-anchor-does-not-exist/i);
+  } finally {
+    fs.rmSync(probe, { force: true });
+  }
 });
 
 test('a broken markdown link fails the production build', () => {

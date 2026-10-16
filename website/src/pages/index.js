@@ -4,12 +4,32 @@ import Layout from '@theme/Layout';
 import Heading from '@theme/Heading';
 
 const sections = [
-  ['/docs/visao-geral', 'Why bob', 'What bob measures, and why the gates exist.'],
-  ['/docs/instalacao', 'Getting started', 'Install the package and use it from the coding agents.'],
-  ['/docs/configuracao', 'Guides', 'Configuration, gates, waivers, and how to read a report.'],
-  ['/docs/cli', 'Reference', 'CLI commands and exit codes.'],
-  ['/docs/adr/0000-architecture-review', 'Architecture', 'Technical overview, ADRs, and the SPEC.'],
-  ['/docs/contribuicao', 'Contributing and changelog', 'How to change bob. The changelog lives in the repository.'],
+  ['/docs/why-bob', 'Why bob', 'What bob measures, and why the gates exist.'],
+  [
+    '/docs/getting-started/installation',
+    'Getting started',
+    'Install the package, run the first check, and use it from the coding agents.',
+  ],
+  [
+    '/docs/guides/configuration',
+    'Guides',
+    'Configuration, gates, waivers, the pre-push hook, CI, and how to read a report.',
+  ],
+  [
+    '/docs/reference/cli',
+    'Reference',
+    'CLI, configuration schema, exit codes, and report.json.',
+  ],
+  [
+    '/docs/architecture/overview',
+    'Architecture',
+    'Technical overview, ADRs, and the SPEC.',
+  ],
+  [
+    '/docs/contributing',
+    'Contributing and changelog',
+    'How to change bob, and the changelog.',
+  ],
 ];
 
 export default function Home() {
