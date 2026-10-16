@@ -25,3 +25,5 @@ MkDocs fica de fora: sem release estável desde agosto de 2024. Starlight fica d
 ## Consequências
 
 O esqueleto em `website/`, o deploy no GitHub Pages e as chaves do Algolia são issues próprias. Esta ADR não acrescenta tema de terceiro nem dependência além do Docusaurus e dos plugins oficiais. O conteúdo em inglês fica em `docs/`. A tradução pt-BR e o snapshot da versão `v0.1.0` são issues seguintes. A troca para o domínio customizado é a [#163](https://github.com/fazedordecodigo/bob/issues/163).
+
+Se a busca do Algolia ([#161](https://github.com/fazedordecodigo/bob/issues/161)) ficar pronta antes do domínio customizado ([#163](https://github.com/fazedordecodigo/bob/issues/163)), o crawler indexa `https://fazedordecodigo.github.io/bob/`. Quando o domínio entrar, o `url` do Docusaurus muda para `https://bob.fazedordecodigo.com`, o `baseUrl` muda para `/`, e o crawler do Algolia é reapontado. Esses passos já estão nos critérios de aceite da [#163](https://github.com/fazedordecodigo/bob/issues/163).
