@@ -240,11 +240,7 @@ def test_dependabot_ignores_sonarjs_majors_and_scans_the_action() -> None:
         {
             "dependency-name": "eslint-plugin-sonarjs",
             "update-types": ["version-update:semver-major"],
-        },
-        {
-            "dependency-name": "eslint",
-            "update-types": ["version-update:semver-major"],
-        },
+        }
     ]
     actions = next(
         item
