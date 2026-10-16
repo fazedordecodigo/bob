@@ -218,8 +218,13 @@ def _collect_setup_node_versions(node: object, found: list[str]) -> None:
 
 def test_every_setup_node_step_uses_the_sha_on_main() -> None:
     setup_node = "actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1"
-    paths = sorted((ROOT / ".github" / "workflows").glob("*.yml"))
-    paths.append(ACTION)
+    roots = (ROOT / ".github" / "workflows", ROOT / ".github" / "actions")
+    paths = [
+        path
+        for root in roots
+        for pattern in ("*.yml", "*.yaml")
+        for path in sorted(root.rglob(pattern))
+    ]
     found: dict[str, list[str]] = {}
     for path in paths:
         pins = [
