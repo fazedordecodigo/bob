@@ -21,7 +21,7 @@ Running lizard, jscpd, import-linter, and mutmut yourself still produces their r
 
 ## Who it is for
 
-The skills `bob-check`, `harden`, and `review-report` tell Cursor, Claude Code, GitHub Copilot, and Devin when to run the CLI, how to treat a surviving mutant, and how to carry the report into the pull request. Codex reads the same project skills folder as the `agents` installer target. See [Agents](getting-started/agents.md). The repository index for agents is [AGENTS.md](../AGENTS.md).
+The skills `bob-check`, `harden`, and `review-report` tell Cursor, Claude Code, GitHub Copilot, and Devin when to run the CLI, how to treat a surviving mutant, and how to carry the report into the pull request. Codex reads the same project skills folder as the `agents` installer target. See [Agents](getting-started/agents.md). The repository index for agents is [AGENTS.md](https://github.com/fazedordecodigo/bob/blob/main/AGENTS.md).
 
 ## Words
 

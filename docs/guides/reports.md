@@ -26,7 +26,7 @@ The schema is `src/bob_quality/schemas/report_v1.json`. `schema_version` is `1`.
 12. `## Diff coverage`, only when the `coverage` gate is in the verdict. It lists each measured language percent and each uncovered line as `` `file:line` ``. If the gate ran and no language measured, the section shows the reason and no table.
 13. `## Diff tests`, only when `test_smells` ran. The id is `tests:<file>:<line>:<rule>`.
 14. `## New dependencies`, only when the supply gate measured.
-15. `## Types`, only when the typing gate measured.
+15. `## Types`, only when the typing gate was requested.
 16. `## Secrets`, only when the secrets gate measured. The target is `secret:<rule>:<file>:<line>`. The line `Outside the diff; does not block.` introduces findings that do not change the exit.
 17. `## Cognitive complexity`, only when `cognitive` was requested, including `not_run`.
 18. `## Dead code`, only when `dead_code` was requested, including `not_run`.

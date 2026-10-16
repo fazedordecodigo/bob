@@ -10,7 +10,7 @@ There are two artifacts. The pip package `bob-quality` provides the `bob` comman
 - Node `>=22.18.0 <23`. `bob doctor` accepts that range (`NODE` in `src/bob_quality/doctor.py`). Node 20, Node 24, and a `-rc` suffix make `doctor` exit `4`. A prerelease does not match the `X.Y.Z` pattern `_node_version` requires.
 - For the npm tools, `npm ci` at the clone root, or `bob doctor --install` after the package is installed.
 
-On a current Ubuntu the system Python refuses `pip install` under PEP 668. Use a venv. For Node, run `fnm install 22.18.0` or `nvm install 22.18.0`, or download the `.tar.gz` from <https://nodejs.org/dist/v22.18.0/>. [AGENTS.md](../../AGENTS.md) prefers the `.tar.gz` over the `.tar.xz` when the image has no `xz`.
+On a current Ubuntu the system Python refuses `pip install` under PEP 668. Use a venv. For Node, run `fnm install 22.18.0` or `nvm install 22.18.0`, or download the `.tar.gz` from <https://nodejs.org/dist/v22.18.0/>. [AGENTS.md](https://github.com/fazedordecodigo/bob/blob/main/AGENTS.md) prefers the `.tar.gz` over the `.tar.xz` when the image has no `xz`.
 
 The composite GitHub Action still installs Node `22.14.0` (`.github/actions/bob/action.yml`). That pin is the Action's setup step. It is not the range `bob doctor` accepts. See [CI](../guides/ci.md).
 

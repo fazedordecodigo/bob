@@ -52,7 +52,7 @@ The `mutate` gate also requires the baseline. If `crap` ran earlier in the same 
 
 The `coverage` gate exits `2` when the suite breaks before the coverage artifact exists.
 
-[AGENTS.md](../AGENTS.md) records that exit `2` also comes from the default `bob check`, because the default includes `crap`.
+[AGENTS.md](https://github.com/fazedordecodigo/bob/blob/main/AGENTS.md) records that exit `2` also comes from the default `bob check`, because the default includes `crap`.
 
 ## Exit 3
 

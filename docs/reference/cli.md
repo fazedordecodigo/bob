@@ -103,7 +103,7 @@ bob report  [--in .bob/] [--out .bob/report.md]
 
 If the file is missing, the text is not JSON, or the shape is invalid, the command exits `4`. Stderr stays English. The command does not write `--out` and does not truncate a file that was already there. Invalid command-line usage also exits `4` and writes no report. The `bob.yaml` and `.bob/waivers.yaml` preflight is the same as the other commands.
 
-`report.json` stays English. `--lang pt-BR` translates the headings the catalog knows. A gate reason, or a rule name, stays English when the JSON already stored it that way. To write both files during measurement, use `bob check --format md` or `--format both`.
+`report.json` stays English. `--lang pt-BR` translates the headings the catalog knows. A gate reason, or a rule name, stays English when the JSON already stored it that way. During measurement, `--format md` writes only `report.md`. `--format json` writes only `report.json`. `--format both` writes both. `write_report` in `src/bob_quality/report.py` is that split.
 
 ## Output language
 

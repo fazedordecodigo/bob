@@ -2,7 +2,7 @@
 
 [Index](../README.md) · [ADRs](adrs.md) · [SPEC](spec.md) · [Exit codes](../exit-codes.md)
 
-bob is the CLI of the PyPI package `bob-quality` and the marketplace plugin `bob`. A run measures a diff and returns one report plus one exit code. The skills `bob-check`, `harden`, and `review-report` are what Cursor, Claude Code, GitHub Copilot, and Devin load. Codex is named only as a reader of `.agents/skills`.
+bob is the CLI of the pip package `bob-quality` and the marketplace plugin `bob`. Nothing has been published to PyPI or to a marketplace. A run measures a diff and returns one report plus one exit code. The skills `bob-check`, `harden`, and `review-report` are what Cursor, Claude Code, GitHub Copilot, and Devin load. Codex is named only as a reader of `.agents/skills`.
 
 This page describes the code on `main`. [ADR 0000](../adr/0000-architecture-review.md) is the reading from 12/10/2026 at commit `246d2eb`. Later gates and the Stryker adapter are in the tree now. The ADR is unchanged.
 

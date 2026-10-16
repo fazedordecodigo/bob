@@ -2,13 +2,13 @@
 
 [Index](README.md) · [Installation](getting-started/installation.md) · [SPEC](architecture/spec.md) · [Changelog](changelog.md)
 
-There is no `CONTRIBUTING.md` in this repository. What follows is what [AGENTS.md](../AGENTS.md), the workflows, and [SPEC.md](SPEC.md) already ask of someone changing the code. The license is MIT (`LICENSE`, copyright 2026 Emerson Delatorre).
+There is no `CONTRIBUTING.md` in this repository. What follows is what [AGENTS.md](https://github.com/fazedordecodigo/bob/blob/main/AGENTS.md), the workflows, and [SPEC.md](SPEC.md) already ask of someone changing the code. The license is MIT (`LICENSE`, copyright 2026 Emerson Delatorre).
 
 The spec says merge and marketplace publication depend on Emerson's approval. Publication to PyPI and to the marketplaces is outside what `main` does today. The `package` workflow builds an sdist and a wheel, runs `twine check --strict dist/*`, and runs `bob doctor`. It does not publish.
 
 ## Environment
 
-The steps in [AGENTS.md](../AGENTS.md), aligned with `.github/workflows/ci.yml` and `.github/workflows/bob.yml`:
+The steps in [AGENTS.md](https://github.com/fazedordecodigo/bob/blob/main/AGENTS.md), aligned with `.github/workflows/ci.yml` and `.github/workflows/bob.yml`:
 
 1. Python 3.10 or newer. CI runs 3.10 and 3.12. The image needs `python3-venv`.
 2. Node `>=22.18.0 <23`, the range `bob doctor` accepts. Node 20, Node 24, and a `-rc` suffix exit `4`. CI installs 22.18.0.
@@ -35,7 +35,7 @@ The spec says the plugin implementation is done with TDD. A parity test on `mess
 
 ## Skills the repository asks the agent to follow
 
-[AGENTS.md](../AGENTS.md) points at three skills:
+[AGENTS.md](https://github.com/fazedordecodigo/bob/blob/main/AGENTS.md) points at three skills:
 
 - `skills/bob-check/SKILL.md`: run `bob check`, read the JSON, iterate until exit `0`.
 - `skills/harden/SKILL.md`: kill a surviving mutant or record a waiver. Do not weaken production code to kill a mutant.
@@ -60,4 +60,4 @@ The spec asks that a new language enter through an adapter, without changing the
 
 ## Documentation
 
-The guides in this directory describe behavior checked against the code. [SPEC.md](SPEC.md) remains the approved spec. When behavior changes, update the matching guide and, when the change is product behavior, both READMEs and [CHANGELOG.md](../CHANGELOG.md). Each changelog note is in English and in Portuguese. Do not change the decision text of an existing ADR, and do not edit `SPEC.md`, without Emerson's approval.
+The guides in this directory describe behavior checked against the code. [SPEC.md](SPEC.md) remains the approved spec. When behavior changes, update the matching guide and, when the change is product behavior, both READMEs and [CHANGELOG.md](https://github.com/fazedordecodigo/bob/blob/main/CHANGELOG.md). Each changelog note is in English and in Portuguese. Do not change the decision text of an existing ADR, and do not edit `SPEC.md`, without Emerson's approval.

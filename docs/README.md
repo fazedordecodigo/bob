@@ -1,6 +1,6 @@
 # bob documentation
 
-English guides for [bob](../README.md). They describe what the code on `main` does. The approved spec stays in [SPEC.md](SPEC.md). Where the spec and the code disagree, the page documents the code and says so.
+English guides for [bob](https://github.com/fazedordecodigo/bob/blob/main/README.md). They describe what the code on `main` does. The approved spec stays in [SPEC.md](SPEC.md). Where the spec and the code disagree, the page documents the code and says so.
 
 The pip package is `bob-quality`. The command is `bob`. Marketplace listings use the name `bob`. The license is MIT (`LICENSE`).
 

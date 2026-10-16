@@ -10,7 +10,7 @@ bob gives coding agents (Cursor, Claude Code, GitHub Copilot, Devin) determinist
 - Configuration: `bob.yaml`
 - Reports: `.bob/report.md` and `.bob/report.json` (schema v1)
 - Output language: English (`en`, the default) or Brazilian Portuguese (`pt-BR`)
-- Docs: [docs/README.md](docs/README.md) (English guides; the spec stays in [docs/SPEC.md](docs/SPEC.md))
+- Docs: [docs/README.md](docs/README.md) (guides in Portuguese; the spec stays in [docs/SPEC.md](docs/SPEC.md))
 
 License: MIT.
 

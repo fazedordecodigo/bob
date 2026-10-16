@@ -2,7 +2,7 @@
 
 [Index](README.md) · [Agents](getting-started/agents.md) · [SPEC](SPEC.md)
 
-The `cursor` job in [`.github/workflows/publish-plugins.yml`](../.github/workflows/publish-plugins.yml) checks the plugin tree. The marketplace listing stays manual. Emerson submits the repository at [cursor.com/marketplace/publish](https://cursor.com/marketplace/publish).
+The `cursor` job in [`.github/workflows/publish-plugins.yml`](https://github.com/fazedordecodigo/bob/blob/main/.github/workflows/publish-plugins.yml) checks the plugin tree. The marketplace listing stays manual. Emerson submits the repository at [cursor.com/marketplace/publish](https://cursor.com/marketplace/publish).
 
 Story 19, acceptance criterion 12, and the out-of-scope line in [SPEC.md](SPEC.md) leave marketplace publication for his approval.
 

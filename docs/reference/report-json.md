@@ -27,7 +27,7 @@ Optional fields, omitted when that gate did not produce them:
 | `test_smells` | the gate ran | list of `file`, `line`, `rule`, `waiver` |
 | `supply` | the gate measured | `measured`, `skipped`, `findings` |
 | `diff_coverage` | at least one language measured | per-language percents and `uncovered` rows of `file` and `line` |
-| `typing` | the gate measured | `absent`, `checkers`, `findings` |
+| `typing` | the gate was requested | `absent`, `checkers`, `findings` |
 | `secrets` | the gate measured | blocking findings, each with `file`, `line`, and `rule_id` |
 | `cognitive` | the gate was requested | `file`, `name`, `start_line`, `end_line`, `score`, `language`, `waiver_id` |
 | `dead_code` | the gate was requested | `symbols`, each with `file`, `line`, `name`, `kind`, `language`, `confidence`, `waiver`. `kind` stays English |
