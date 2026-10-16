@@ -1,88 +1,102 @@
 # Exit codes
 
-[Índice](README.md) · [CLI](cli.md) · [Gates](gates.md) · [Relatórios](relatorios.md) · [SPEC](SPEC.md)
+[Index](README.md) · [CLI](reference/cli.md) · [Gates and waivers](guides/gates-and-waivers.md) · [Reports](guides/reports.md) · [SPEC](SPEC.md)
 
-Os códigos estão em `src/bob_quality/exit_codes.py`. A [SPEC](SPEC.md) os inspira no mutator. `bob check` fica com o maior código entre os gates (`_worse`).
+The codes are in `src/bob_quality/exit_codes.py`. The spec takes them from mutator. `bob check` keeps the highest code among the gates (`_worse` in `src/bob_quality/check.py`).
 
-| Código | Nome no código | Quando sai |
+| Code | Name in code | When it exits |
 |---|---|---|
-| `0` | `PASSED` | Todo gate que rodou passou, ou só avisou |
-| `1` | `GATE_FAILED` | CRAP de uma função no escopo ≥ limite, violação de dependência no diff, ou, no modo fail do DRY, mais clones novos que `duplication.max_new_clones` |
-| `2` | `BASELINE_BROKEN` | A suíte quebra antes da medição |
-| `3` | `UNWAIVED_SURVIVOR` | Mutante `survived` sem waiver numa linha do diff, ou `no_coverage` nas funções do diff |
-| `4` | `CONFIG_OR_TOOL` | Configuração inválida ou ferramenta que impede a medição |
+| `0` | `PASSED` | Every gate that ran passed, or only warned |
+| `1` | `GATE_FAILED` | A blocking finding in the diff: CRAP at or above the limit, a dependency violation, DRY fail mode over the ceiling, or, when that gate was requested, diff coverage under the floor, a blocking supply finding, a blocking security finding, a new type diagnostic or escape, or a new secret |
+| `2` | `BASELINE_BROKEN` | The suite breaks before measurement |
+| `3` | `UNWAIVED_SURVIVOR` | A `survived` mutant with no waiver on a changed line, or `no_coverage` on a changed function |
+| `4` | `CONFIG_OR_TOOL` | Invalid configuration, invalid command-line usage, or a tool that blocks the requested measurement |
 
 ## Exit 0
 
-Todos os gates pedidos que de fato rodaram passaram. Aviso também termina em `0`: clone novo no modo warn ou até o teto no modo fail, TypeScript pulado num monorepo quando o que foi medido cabe no limite, achado de segurança no diff fora de `security.fail_severities`, e símbolo morto no diff. O mesmo `0` vale quando o gate `security` mediu uma linguagem e a outra ficou de fora: o passe vira `warn`. O veredito do gate fica ⚠️. O exit continua `0`. `no_coverage` nas funções do diff não é aviso: sai `3`.
+Every requested gate that actually ran passed. A warning also ends at `0`: a new clone in warn mode or at the ceiling in fail mode, TypeScript skipped in a mixed repository when what was measured is within the limit, a security finding on the diff outside `security.fail_severities`, and a dead symbol in the diff. The same `0` applies when the `security` gate measured one language and the other was left out: the pass becomes `warn`. The gate verdict shows ⚠️. The exit stays `0`. `no_coverage` on a changed function is not a warning. It exits `3`.
 
-Um nome de gate desconhecido é `not_run` e contribui `0`.
+An unknown gate name is `not_run` and contributes `0`.
 
-`bob waive` com motivo válido e alvo de um sobrevivente do último relatório de mutação sai com `0` e só escreve `.bob/waivers.yaml`.
+`bob waive` with a valid reason and a target of a survivor from the last mutation report exits `0` and only writes `.bob/waivers.yaml`.
 
-`bob doctor` sai com `0` quando cada pino coincide com a versão encontrada.
+`bob doctor` exits `0` when every pin matches the found version.
+
+`bob report` exits with the integer stored in the saved JSON, which can be `0`.
 
 ## Exit 1
 
-`crap_verdict` devolve `1` quando alguma função considerada tem CRAP maior ou igual a `crap.max_per_function` (ou a `--threshold`). O motivo traz os nomes no formato `função@arquivo:linha`.
+`crap_verdict` returns `1` when a considered function has CRAP greater than or equal to `crap.max_per_function` (or `--threshold`). The reason lists names as `function@file:line`.
 
-`deps_verdict` devolve `1` quando alguma violação está marcada `in_diff`. O motivo traz `origem → destino`.
+`deps_verdict` returns `1` when a violation is marked in the diff. The reason lists `origin → destination`.
 
-`security_verdict` devolve `1` quando algum achado no diff tem severidade em `security.fail_severities` e não tem waiver. Achado fora do diff, achado com waiver e severidade fora da lista não devolvem `1`. Se a outra linguagem do gate não mediu, a falha continua `1`.
+DRY returns `1` only in fail mode (`duplication.new_clones: fail` or `--dry-fail`), when the counted new clones exceed `duplication.max_new_clones` or `--max-new-clones`. The reason names the key and the ceiling, as in `1 new clone exceeds duplication.max_new_clones 0`. In warn mode, the default, DRY does not return `1`.
 
-DRY devolve `1` só no modo fail (`duplication.new_clones: fail` ou `--dry-fail`), quando a conta de clones novos passa de `duplication.max_new_clones` ou de `--max-new-clones`. O motivo traz a chave e o teto, como `1 new clone exceeds duplication.max_new_clones 0`. No modo warn, o padrão, DRY não devolve `1`. Mutação não devolve `1`: sobrevivente sem waiver é `3`.
+When the gate was requested:
 
-Se o CRAP falha (`1`) e a mutação também (`3`), o `check` sai com `3`.
+- `coverage` returns `1` when a measured language is below `coverage.min_percent`. A percent equal to the floor passes.
+- `supply` returns `1` when a new package 404s, an import is undeclared, or an advisory severity is in `supply.osv_fail_severities`.
+- `security` returns `1` when a finding in the diff has a severity in `security.fail_severities` and has no waiver. A finding off the diff, a waived finding, and a severity outside the list do not return `1`. If the other language did not measure, the failure stays `1`.
+- `typing` returns `1` for a new diagnostic or a new escape on a diff line with no waiver.
+- `secrets` returns `1` for a new secret on a diff line with no waiver.
+
+Mutation does not return `1`. An unwaived survivor is `3`. `cognitive`, `test_smells`, and `dead_code` do not return `1`.
+
+If CRAP fails (`1`) and mutation also fails (`3`), `check` exits `3`.
 
 ## Exit 2
 
-O gate `crap` roda pytest (Python) ou vitest (TypeScript) para medir cobertura. No Python, código de pytest fora de `0` e de `5` é baseline quebrada (`pytest_passed` em `exit_codes.py`). O comentário nesse módulo diz que o `5` é “nenhum teste coletado” e também passa. No TypeScript, `vitest_code != 0` em `typescript_probe.py` é exit `2`. Ausência de `coverage-final.json` depois de um vitest com código `0` é exit `4` (`probe.c8_no_report`).
+The `crap` gate runs pytest (Python) or vitest (TypeScript) to measure coverage. In Python, a pytest code other than `0` and `5` is a broken baseline (`pytest_passed` in `exit_codes.py`). The comment in that module says `5` is "no tests collected" and also passes. In TypeScript, `vitest_code != 0` is exit `2`. A missing `coverage-final.json` after vitest exits `0` is exit `4`.
 
-O gate `mutate` também exige a baseline. Se o `crap` rodou antes na mesma execução, o código do pytest é reaproveitado. Sozinho, `bob mutate` chama `pytest_exit_code`. Falha: status `not_run` e exit `2`.
+The `mutate` gate also requires the baseline. If `crap` ran earlier in the same run, the pytest code is reused. On its own, `bob mutate` calls the pytest exit. On failure the status is `not_run` and the exit is `2`.
 
-O [AGENTS.md](../AGENTS.md) registra que o exit `2` também sai do `bob check` padrão, porque o padrão inclui `crap`.
+The `coverage` gate exits `2` when the suite breaks before the coverage artifact exists.
+
+[AGENTS.md](https://github.com/fazedordecodigo/bob/blob/main/AGENTS.md) records that exit `2` also comes from the default `bob check`, because the default includes `crap`.
 
 ## Exit 3
 
-Só o gate `mutate`. Em `_finish`, a lista que bloqueia são os mutantes com status `survived`, waiver vazio e linha no lado novo do diff. Sem arquivo, ou com linha menor ou igual a zero, esse sobrevivente também bloqueia. Um ou mais: exit `3` e status `failed`. O motivo lista só esses, no formato `função@arquivo:linha`. Sobrevivente sem waiver fora do diff fica na tabela e não muda o exit.
+Only the `mutate` gate. The blocking list is mutants with status `survived`, an empty waiver, and a line on the new side of the diff. With no file, or with a line at or below zero, that survivor also blocks. One or more: exit `3` and status `failed`. The reason lists only those, as `function@file:line`. An unwaived survivor outside the diff stays in the table and does not change the exit.
 
-Waiver casado por `arquivo::função` ou `arquivo::função::<descrição>` tira o sobrevivente dessa lista. O id do mutante e o nome nu da função não casam. Um id que não casa com nada deixa o sobrevivente na lista. No TypeScript, uma linha inserida acima do mutante muda a descrição, e o waiver antigo deixa de casar. Ver a [ADR 0006](adr/0006-chave-estavel-do-waiver.md). `killed` e `timeout` não entram nela. `no_coverage` nas funções do diff também sai `3`, e o waiver não o tira. Se já existe sobrevivente que bloqueia, o motivo do exit continua o do sobrevivente, e a contagem de `no_coverage` vai no relatório.
+A waiver matched by `file::function` or `file::function::<description>` removes the survivor from that list. The mutant id and a bare function name do not match. An id that matches nothing leaves the survivor on the list. In TypeScript, a line inserted above the mutant changes the description, and the old waiver stops matching. See [ADR 0006](adr/0006-chave-estavel-do-waiver.md). `killed` and `timeout` are not on the list. `no_coverage` on a changed function also exits `3`, and a waiver does not remove it. If a blocking survivor already exists, the exit reason stays the survivor's, and the `no_coverage` count goes in the report.
 
 ## Exit 4
 
-Há dois jeitos de chegar no `4`.
+There are two ways to reach `4`.
 
-### Antes de medir, sem gravar relatório
+### Before measurement, nothing is written
 
-`cli.main` devolve `4` sem escrever `report.md`, `report.json` nem alterar `waivers.yaml` em dois casos distintos.
+`cli.main` returns `4` without writing `report.md` or `report.json`, and without changing `waivers.yaml`, in two different cases.
 
-Um uso inválido da linha de comando (comando ausente, comando desconhecido, flag ilegal, valor fora das escolhas, valor fora da regra de `--threshold` ou de `--max-workers`) imprime o texto de uso do argparse no stderr. Esse texto não menciona baseline. A ajuda (`-h`, `--help`) sai com `0`. Isso não é o exit `2`. A regra de `--threshold` e de `--max-workers` está em [Outros comandos de medição](cli.md#outros-comandos-de-medição). Um `--max-new-clones` negativo em `bob dry` ou `bob check` também sai com `4`, com `--max-new-clones must be at least 0` em inglês no stderr.
+Invalid command-line usage (missing command, unknown command, illegal flag, a value outside the choices, a value outside the rule for `--threshold` or `--max-workers`) prints argparse usage on stderr. That text does not mention baseline. Help (`-h`, `--help`) exits `0`. This is not exit `2`. The rule for `--threshold` and `--max-workers` is in [Other measurement commands](reference/cli.md#other-measurement-commands). A negative `--max-new-clones` on `bob dry` or `bob check` also exits `4`, with `--max-new-clones must be at least 0` in English on stderr.
 
-`--config` antes do comando é uso inválido. A última linha do stderr fica em inglês, mesmo com `--lang pt-BR`, como `bob: error: --config goes after the command: bob check --config ci.yaml`. `doctor` não aceita a flag. A última linha é `bob: error: doctor does not accept --config`. `waive` também não aceita. A última linha é `bob: error: waive does not accept --config`.
+`--config` before the command is invalid usage. The last stderr line stays English even with `--lang pt-BR`, as in `bob: error: --config goes after the command: bob check --config ci.yaml`. `doctor` does not accept the flag. The last line is `bob: error: doctor does not accept --config`. `waive` does not accept it. The last line is `bob: error: waive does not accept --config`. `report` does not accept it either.
 
-A configuração inválida imprime inglês no stderr quando:
+Invalid configuration prints English on stderr when:
 
-- `--lang` ou `BOB_LANG` é vazio ou não é `en` nem `pt-BR`;
-- `language` no YAML não é string ou não é um desses dois valores;
-- o YAML do `bob.yaml` tem erro de sintaxe, repete uma chave no mesmo mapeamento, ou não é um mapeamento. A chave repetida cita a chave e a linha, como `invalid YAML in bob.yaml: found duplicate key 'base' on line 2`;
-- uma chave lida por `_parsed` tem o tipo errado (`base`, `languages`, `paths`, `include`, `exclude`, `crap`, `max_per_function`, `scope`, `dependencies`, `python`, `typescript`, `security`, `fail_severities`);
-- `security.fail_severities` tem palavra fora do vocabulário, item repetido ou lista vazia;
-- `.bob/waivers.yaml` existe e o YAML é inválido, repete uma chave, ou o formato não é o da [Configuração](configuracao.md#arquivo-inválido). A mensagem cita o caminho e o campo. A chave repetida cita a chave e a linha, como `invalid YAML in .bob/waivers.yaml: found duplicate key 'id' on line 3`;
+- `--lang` or `BOB_LANG` is empty or is not `en` or `pt-BR`;
+- `language` in the YAML is not a string or is not one of those two values;
+- `bob.yaml` has a syntax error, repeats a key in the same mapping, or is not a mapping. A repeated key names the key and the line, as in `invalid YAML in bob.yaml: found duplicate key 'base' on line 2`;
+- a key has the wrong type, including `base`, `languages`, `paths`, `include`, `exclude`, `crap`, `cognitive`, `duplication`, `coverage`, `dependencies`, `security`, and `dead_code`;
+- `security.fail_severities` has a word outside the vocabulary, a repeated item, or an empty list;
+- `.bob/waivers.yaml` exists and the YAML is invalid, repeats a key, or the shape is not the one in [Configuration](guides/configuration.md#bobwaiversyaml). The message names the path and the field. A repeated key names the key and the line, as in `invalid YAML in .bob/waivers.yaml: found duplicate key 'id' on line 3`.
 
-`--config` apontando para um arquivo que não existe entra nessa barreira. `reject_config_types` chama `load_config`. O arquivo ausente levanta `ConfigError`, e `_blocked_config` imprime inglês no stderr (`config file not found: <caminho>`) e devolve `4` sem gravar relatório. A flag existe em `check`, `crap`, `dry`, `deps` e `mutate`. `doctor` e `waive` não a aceitam. Um `bob.yaml` ausente, sem `--config`, continua nos padrões.
+A `--config` path that is not a file is in this barrier. The missing file raises `ConfigError`, and the preflight prints English on stderr (`config file not found: <path>`) and returns `4` without writing a report. The flag exists on `check`, `crap`, `dry`, `deps`, and `mutate`. `doctor` and `waive` do not accept it. A missing `bob.yaml`, with no `--config`, stays on the defaults.
 
-Erro de sintaxe, chave repetida, tipo errado e waiver inválido são barrados em `_language` ou `_blocked_config`, que imprimem no stderr e retornam `4` sem chamar `write_report`.
+An invalid `duplication` is in the same barrier as the other keys. English stderr, no report. The refusal covers a value that is not a mapping, a `min_tokens` that is not an integer greater than 0, and `new_clones`, `max_new_clones`, `min_similarity`, or `min_lines` with the wrong type or value. An unknown key, including `mutation`, `duplication.tool`, and `dependencies.violation`, takes the same path.
 
-`duplication` inválida entra na mesma barreira que as outras chaves: `reject_config_types` chama `_config_from_file`, o stderr fica em inglês e nenhum relatório é gravado. A recusa cobre um valor que não é mapeamento, um `min_tokens` que não é um inteiro maior que 0, e `new_clones`, `max_new_clones`, `min_similarity` ou `min_lines` com tipo ou valor inválido. Uma chave desconhecida, inclusive `mutation`, `duplication.tool` e `dependencies.violation`, sai do mesmo jeito. O [CHANGELOG.md](../CHANGELOG.md) descreve esses casos.
+A `paths.include` entry that is not on disk is in the same barrier. English stderr names the file and each missing entry, as in `bob.yaml: paths.include does not exist: missing-root`. Nothing is written. An omitted or empty `paths.include` stays `src` and is not checked. `run_check` called directly, without the CLI, writes the early report with that reason and the same exit `4`.
 
-Uma entrada de `paths.include` que não existe no disco entra na mesma barreira. O stderr fica em inglês e cita o arquivo e cada entrada ausente, como `bob.yaml: paths.include does not exist: missing-root`. Nada é gravado. Um `paths.include` omitido ou vazio continua `src` e não é verificado. `run_check` chamado direto, sem a CLI, grava o relatório precoce com esse motivo e o mesmo exit `4`.
+A missing `--reason` on `bob waive` is also `4`, and that sentence follows the CLI language, because it happens inside the waive command after the file barrier. A target that no survivor in `.bob/mutation-cache.json` or `.bob/stryker-mutants.json` has also exits `4`, in the CLI language, and `waivers.yaml` does not change.
 
-Um `--reason` ausente no `bob waive` também é `4`, e essa frase segue o idioma da CLI, porque acontece dentro de `_waive_command` depois da barreira do arquivo. Um alvo que nenhum sobrevivente de `.bob/mutation-cache.json` ou `.bob/stryker-mutants.json` tem também sai com `4`, no idioma da CLI, e `waivers.yaml` não muda.
+### During measurement, with a report
 
-### Durante a medição, com relatório
+If the tool is missing in the middle of a gate that can exit `1` or `3` (lizard, mutmut, import-linter, dependency-cruiser, Node in a TypeScript-only repository, Bandit or Semgrep when no language of the `security` gate measured, git failing to compute the diff), the gate is `not_run` and the exit is `4`. The report is written. `write_report` writes `.bob/report.md` and `report.json` with that code. `GitError` in the open step uses the same early report.
 
-Se a ferramenta falta no meio do gate (lizard, mutmut, import-linter, dependency-cruiser, Node num repo só TypeScript, Bandit ou Semgrep quando nenhuma linguagem do gate `security` mediu, git que falha ao calcular o diff), o gate fica `not_run` e o exit é `4`. O relatório é gravado, inclusive com a chave `security` quando esse gate foi pedido. O mesmo exit `4` vale quando o JSON do dependency-cruiser não é um objeto ou não traz a lista `violations`, e quando a última linha `Contracts:` do import-linter com exit 0 não é `N kept, 0 broken.` `write_report` grava `.bob/report.md` e `report.json` com esse código. `GitError` em `_open` segue o mesmo relatório precoce.
+`bob doctor` with a missing pin or a different version exits `4` on the doctor's own stdout, with no report under `.bob/`.
 
-`bob doctor` com pino ausente ou versão diferente sai com `4` no stdout do próprio doctor, sem relatório em `.bob/`.
+A warning-only gate (`cognitive`, `test_smells`, `dead_code`) treats a missing or broken tool as `not_run` and contributes `0`. jscpd does the same: DRY without Node is `not_run` with `0`, in fail mode too.
 
-Num monorepo com Python e TypeScript, Node ausente não usa este código para o CRAP e para deps: Python segue, TypeScript entra como aviso, e o exit é o do que foi medido (`0` ou `1`). DRY sem Node é `not_run` com `0`, também no modo fail. Ver [Monorepo e Node ausente](gates.md#monorepo-e-node-ausente).
+In a repository with Python and TypeScript, a missing Node does not use this code for CRAP or for deps. Python continues, TypeScript is attached as a warning, and the exit is whatever was measured (`0` or `1`). See [Python and TypeScript together](guides/gates-and-waivers.md#python-and-typescript-together).
+
+The README summary that says exit `4` writes nothing describes the preflight path. It does not describe this measurement path. This page documents both.
