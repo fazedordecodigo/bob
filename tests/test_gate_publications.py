@@ -5,6 +5,7 @@ from pathlib import Path
 from bob_quality.doctor import NODE, node_range
 
 ROOT = Path(__file__).resolve().parents[1]
+PT_DOCS = "website/i18n/pt-BR/docusaurus-plugin-content-docs/current"
 
 FAST_GATES = "crap,dry,deps"
 CI_GATES = FAST_GATES + ",mutate"
@@ -61,11 +62,16 @@ def test_skill_hook_and_ci_bullets_quote_the_commands() -> None:
 
 
 def test_cli_guide_names_the_hook_gates() -> None:
-    body = _text("docs/cli.md")
+    body = _text(f"{PT_DOCS}/reference/cli.md")
     assert f"| Hook `pre-push` | `{FAST_GATES}` |" in body
     assert "O script do hook passa `crap,deps`" not in body
     assert "ainda grava o relatório de erro" not in body
-    for relative in ("docs/cli.md", "docs/instalacao.md", "docs/README.md", "docs/visao-geral.md"):
+    for relative in (
+        f"{PT_DOCS}/reference/cli.md",
+        f"{PT_DOCS}/getting-started/installation.md",
+        "docs/README.md",
+        f"{PT_DOCS}/why-bob.md",
+    ):
         assert "bob check --gates crap,deps" not in _text(relative), relative
     english = _text("docs/reference/cli.md")
     assert f"| Hook `pre-push` | `{FAST_GATES}` |" in english
@@ -82,7 +88,13 @@ def test_cli_guide_names_the_hook_gates() -> None:
 
 def test_guides_do_not_say_invalid_duplication_writes_a_report() -> None:
     stale = "o relatório de erro é gravado no idioma"
-    for relative in ("docs/cli.md", "docs/exit-codes.md", "docs/configuracao.md", "docs/relatorios.md"):
+    for relative in (
+        f"{PT_DOCS}/reference/cli.md",
+        "docs/exit-codes.md",
+        f"{PT_DOCS}/exit-codes.md",
+        f"{PT_DOCS}/guides/configuration.md",
+        f"{PT_DOCS}/guides/reports.md",
+    ):
         assert stale not in _text(relative), relative
     english_stale = "the error report is written in the language"
     for relative in (
@@ -110,10 +122,10 @@ _NODE_DOCS = (
     "AGENTS.md",
     "README.md",
     "README.pt-BR.md",
-    "docs/instalacao.md",
-    "docs/contribuicao.md",
-    "docs/cli.md",
-    "docs/gates.md",
+    f"{PT_DOCS}/getting-started/installation.md",
+    f"{PT_DOCS}/contributing.md",
+    f"{PT_DOCS}/reference/cli.md",
+    f"{PT_DOCS}/guides/gates-and-waivers.md",
     "docs/getting-started/installation.md",
     "docs/contributing.md",
     "docs/reference/cli.md",
