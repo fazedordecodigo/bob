@@ -717,12 +717,15 @@ def test_numeric_flag_errors_stay_english_under_pt_br(tmp_path: Path) -> None:
 def test_cli_doc_states_the_worker_ceiling(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    doc = (Path(__file__).resolve().parents[1] / "docs" / "reference" / "cli.md").read_text(
-        encoding="utf-8"
-    )
-    match = re.search(r"`--max-workers` accepts an integer from 1 to (\d+)", doc)
-    assert match is not None, "docs/reference/cli.md must state the --max-workers ceiling"
+    root = Path(__file__).resolve().parents[1]
+    doc = (root / "docs" / "cli.md").read_text(encoding="utf-8")
+    match = re.search(r"`--max-workers` aceita um inteiro de 1 a (\d+)", doc)
+    assert match is not None, "docs/cli.md must state the --max-workers ceiling"
     ceiling = int(match.group(1))
+    english = (root / "docs" / "reference" / "cli.md").read_text(encoding="utf-8")
+    english_match = re.search(r"`--max-workers` accepts an integer from 1 to (\d+)", english)
+    assert english_match is not None, "docs/reference/cli.md must state the --max-workers ceiling"
+    assert int(english_match.group(1)) == ceiling
 
     _usage_4(_invoke(tmp_path, "mutate", f"--max-workers={ceiling + 1}"), tmp_path)
     seen = _dispatched(tmp_path, monkeypatch, "mutate", "--max-workers", str(ceiling))
