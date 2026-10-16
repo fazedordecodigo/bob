@@ -22,7 +22,6 @@ const sidebarLabels = [
 const allowedDependencies = new Set([
   '@docusaurus/core',
   '@docusaurus/preset-classic',
-  '@mdx-js/react',
   'react',
   'react-dom',
 ]);
