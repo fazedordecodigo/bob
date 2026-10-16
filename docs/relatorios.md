@@ -1,0 +1,67 @@
+# Relatórios
+
+[Índice](README.md) · [CLI](cli.md) · [Gates](gates.md) · [Exit codes](exit-codes.md) · [SPEC](SPEC.md)
+
+`bob check` e os comandos de um gate só gravam, por padrão, `.bob/report.md` e `.bob/report.json`. `--out` muda a pasta. `--format md`, `json` ou `both` (padrão `both`) escolhe o arquivo. `crap`, `dry`, `deps` e `mutate` gravam os dois, porque o `cli.py` chama `run_check` com `fmt="both"`.
+
+O schema está em `src/bob_quality/schemas/report_v1.json`. `schema_version` é a constante `1`.
+
+## Ordem do Markdown
+
+`to_markdown` em `src/bob_quality/report.py` emite, no idioma da saída:
+
+1. Título: `# Relatório bob` em `pt-BR`, `# bob report` em `en`.
+2. `## Waivers`, só quando já há waivers ou a mutação rodou. Sem entradas, o texto é `Nenhum waiver.` A tabela tem alvo, motivo, autor e data. O título `## Waivers` é fixo nos dois idiomas (string literal em `_waiver_section`).
+3. Cabeçalho: commit, base, data e versões das ferramentas. As linhas `Commit:` e `Base:` ficam em inglês no código (`_header`).
+4. `## Veredito`: uma linha por gate, ✅ passou, ⚠️ aviso, ❌ falhou ou ⏭️ não executado. Com motivo, ele vai entre parênteses.
+5. `## Onde focar o review`: arquivos alterados ordenados pelo maior CRAP, com clones e, se a mutação rodou, um acréscimo de risco para cada sobrevivente que bloqueia (`focus_with_survivors` soma 100 quando `blocking` é verdadeiro). Sobrevivente com waiver, ou fora do diff, não soma e não coloca arquivo novo no foco. Arquivo com clone ganha o sufixo `, clone`.
+6. `## Top 5 funções por CRAP (diff)`: função, arquivo:linha, CC, cobertura em percentual inteiro, CRAP e delta. Delta ausente vira `—`.
+7. `## Informação (dívida antiga)`, só se existir função fora do diff no limite ou acima. O item termina com `fora do diff; não bloqueia`.
+8. `## Violações e ciclos de dependência`, e em seguida `## Informação (dependências fora do diff)` quando há violações fora do diff.
+9. `## Clones novos`. Cada par traz arquivos, linhas, tokens e similaridade.
+10. `## Mutantes sobreviventes`, só se a mutação rodou. Colunas: alvo, função, local, operador, waiver. O alvo é `arquivo::função::<descrição>`, o valor que `bob waive` aceita para dispensar esse sobrevivente. Ele vira `—` quando outro sobrevivente da mesma função tem a mesma descrição. Nesse caso só `arquivo::função` dispensa. O `report.json` traz o mesmo valor em `survivors[].target`, ou `null`. Sobrevivente sem waiver que não bloqueia leva, no local, `fora do diff; não bloqueia`. O JSON guarda `blocking` em cada linha. O cache de mutação não guarda esse campo.
+11. `## Mutantes sem teste`, só se o resumo de mutação traz `no_coverage`. Total, e tabela por função e arquivo. A linha do total diz que bloqueia.
+12. `## Cobertura do diff` (`## Diff coverage` em `en`), só quando o gate `coverage` está no veredito. Lista o percentual medido de cada linguagem e cada linha descoberta, no formato `` `arquivo:linha` ``. Se o gate rodou e nenhuma linguagem mediu, a seção mostra o motivo e não mostra a tabela.
+13. `## Testes do diff` em `pt-BR`, `## Diff tests` em `en`, só quando o gate `test_smells` rodou. Sem linhas e com status `passed`, o texto é `Nenhum cheiro nos testes alterados.` Com linhas, a tabela traz o id `tests:<arquivo>:<linha>:<regra>` e o motivo do waiver. Motivo vazio vira `—`.
+14. `## Dependências novas` (`## New dependencies` em `en`), só quando o gate supply mediu. A tabela traz nome, lugar, o que aconteceu e o efeito. Sem medição, a seção não aparece.
+15. `## Tipos` (`## Types` em `en`), só quando o gate `typing` mediu. A tabela traz arquivo, linha, código, disposição e waiver. Sem achado, o texto é `Nenhum achado de tipo.` Sem medição, a seção não aparece.
+16. `## Segredos` (`## Secrets` em `en`), só quando o gate de segredos mediu. A tabela traz o alvo `secret:<regra>:<arquivo>:<linha>`, o arquivo, a linha e a regra. Sem segredo novo, o texto é `Nenhum segredo novo no diff.` A linha `Fora do diff; não bloqueia.` introduz os achados que não mudam o exit. Sem medição, a seção não aparece.
+17. `## Complexidade cognitiva` (`## Cognitive complexity` em `en`), só quando o gate `cognitive` foi pedido, inclusive `not_run`. A tabela traz função, arquivo, score, idioma e waiver. Sem função no limite, o texto diz que nenhuma função alterada está no limite ou acima. Sem o gate, a seção não aparece. Aviso, sem mudar o exit code.
+18. `## Código morto` (`## Dead code` em `en`), só quando o gate `dead_code` foi pedido, inclusive `not_run`. Um símbolo por linha. Sem símbolo no diff, o texto é `Nenhum símbolo morto no diff.` / `No unused symbol in the diff.` Com símbolos, cada linha traz arquivo, linha, espécie, nome, confiança do vulture e o waiver, quando há. O tipo no Markdown traduz. O JSON guarda `kind` em inglês. Sem medição, a seção não aparece. Aviso, sem mudar o exit code.
+19. `## Segurança` (`## Security` em `en`), só quando o gate `security` rodou, inclusive `not_run`. Sem achados e sem linguagem de fora, o texto é `Nenhum achado.` / `No findings.` Linguagem sem medição e tabela vazia mostra o motivo do gate, sem essa frase. A tabela tem ferramenta, regra, local (`arquivo:linha` ou `arquivo:linha-fim`), severidade, disposição e waiver. A disposição no Markdown traduz (`falha`, `aviso`, `dispensado`, `fora do diff`). O JSON guarda `fail`, `warn`, `waived` e `off_diff`.
+20. `## Rotatividade` (`## Churn` em `en`), sempre, inclusive na falha precoce e quando a contagem não existe. Com números: a janela de `churn.window_days` dias terminando na data do commit, a difusão (arquivos e módulos), os módulos quando há arquivo, a tabela de commits e de churn relativo (linhas alteradas divididas pelo número de linhas do arquivo; nulo se o arquivo não tem linhas ou não pode ser lido) e o hotspot das funções alteradas (commits vezes o CC). Sem números: uma frase, sem difusão zero. A seção não muda o exit code.
+21. `## Como reproduzir`: o comando, dentro de uma cerca, com `--lang` do idioma que gerou o arquivo.
+
+Seções vazias de dívida e de mutação somem. Foco, top 5, clones, veredito e rotatividade aparecem mesmo vazios. A rotatividade vazia de verdade diz que não há arquivo incluído. A rotatividade indisponível não mostra zero.
+
+A [SPEC](SPEC.md) descreve a ordem começando pelo cabeçalho e pelo veredito, e coloca waivers junto dos mutantes. O código coloca `## Waivers` antes do cabeçalho quando a seção existe. O README em português lista essa ordem do código.
+
+## report.json
+
+Campos obrigatórios no schema: `schema_version`, `commit`, `base`, `generated_at`, `tool_versions`, `gates`, `focus`, `top_crap`, `reproduce`, `exit_code`. `schema_version` continua `1`. O render também escreve `old_debt`, `dependencies`, `old_dependencies`, `clones`, `waivers`, `survivors` e `mutation`. `test_smells`, `diff_coverage`, `supply`, `security`, `typing`, `secrets`, `cognitive`, `dead_code` e `churn` ficam fora de `required`. `churn` sai sempre e não é obrigatório no schema. Indisponível é `{"kind": "unavailable"}`. Medido traz `kind`, `window_days`, `ends_on`, `files`, `hotspots` e `diffusion`. Cada item de `files` traz `path`, `commits` e `relative`. `relative` é a taxa, ou `null`.
+
+Depois de `mutation`, `test_smells` aparece quando o gate rodou, como lista de objetos com `file`, `line`, `rule` e `waiver`. `supply` entra só quando o gate mediu, logo depois de `test_smells` quando essa chave existe e logo depois de `mutation` quando não existe. O objeto traz `measured`, `skipped` e `findings`. `diff_coverage` entra só quando ao menos uma linguagem mediu, depois de `supply` quando essa chave existe. Um check que não rodou o gate omite a chave. O objeto traz o percentual de cada linguagem medida e a lista `uncovered`, com `file` e `line`. `typing` entra só quando o gate mediu, com `absent`, `checkers` e `findings`. `secrets` entra só quando o gate mediu. O array traz os achados que bloqueiam. Cada objeto tem `file`, `line` e `rule_id`. `cognitive` entra só quando o gate foi pedido. O array traz `file`, `name`, `start_line`, `end_line`, `score`, `language` e `waiver_id`. `dead_code` entra só quando o gate foi pedido. O objeto tem `symbols`. Cada símbolo traz `file`, `line`, `name`, `kind`, `language`, `confidence` e `waiver`. O JSON guarda `kind` em inglês. `security` entra só quando esse gate foi pedido, imediatamente antes de `churn`. Sem ele, a chave não existe. O objeto tem `findings` e `unmeasured`. `findings` traz `tool`, `rule`, `file`, `line`, `end_line`, `severity`, `disposition` e `waiver` (`null` quando não há). `unmeasured` lista o nome da ferramenta que não mediu. `churn` sai sempre, antes de `reproduce` e `exit_code`. Sem medição, a chave opcional não vai no JSON.
+
+`gates[].status` é `passed`, `warn`, `failed` ou `not_run`. O `reason` no JSON é renderizado em inglês (`JSON_LANGUAGE`).
+
+### O que não muda com o idioma
+
+O arquivo JSON é o mesmo em `en` e `pt-BR`:
+
+- todo `reason` de gate;
+- o nome da regra de ciclo (`Forbidden dependency cycle`);
+- `reproduce`, que não leva `--lang`.
+
+O `report.md` e o comentário do pull request traduzem a regra de ciclo e o fallback sem nome do dependency-cruiser, e a linha de reprodução inclui `--lang`. Fonte: `report.py` e a decisão 12 da [SPEC](SPEC.md), repetida no [CHANGELOG.md](../CHANGELOG.md).
+
+## Comentário no pull request
+
+A Action (`.github/actions/bob/upsert_comment.py`) cria ou atualiza um único comentário com o Markdown, em pull request. O limite do corpo é `GITHUB_BODY_LIMIT = 65536`. Acima disso, o comentário é truncado e a nota usa o idioma do input `language` (ou `BOB_LANG` / `bob.yaml` / `en`). Os erros do comentário usam esse mesmo idioma. São repo, pr ou token ausente, relatório ausente e lista de comentários inválida. O exit code do job é o do bob (`propagate_exit.sh`).
+
+O artefato `bob-mutation-cache` sobe com `.bob/mutation-cache.json` e `.bob/stryker-incremental.json` mesmo quando o check falha (`if: always()` na action). O GitHub guarda esse artefato por 7 dias (`retention-days: 7`). Um dos dois pode faltar; o upload segue com o que existir.
+
+## Onde o relatório não aparece
+
+- `bob doctor` imprime no stdout.
+- `bob waive` só mexe em `.bob/waivers.yaml`.
+- Configuração inválida barrada em `cli.main` antes do `run_check` não grava relatório. Isso inclui `duplication` inválida e chave desconhecida. Um uso inválido da linha de comando também não grava relatório. Um `--config` inexistente em `check`, `crap`, `dry`, `deps` ou `mutate` também não grava. O stderr fica em inglês e cita o caminho. Ver [Exit 4](exit-codes.md#exit-4).
