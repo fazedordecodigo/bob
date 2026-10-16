@@ -1,0 +1,34 @@
+{
+  "link.title.Docs": {
+    "message": "Documentação",
+    "description": "The title of the footer links column with title=Docs in the footer"
+  },
+  "link.item.label.Why bob": {
+    "message": "Por que usar o bob",
+    "description": "The label of footer link with label=Why bob linking to /docs/visao-geral"
+  },
+  "link.item.label.Getting started": {
+    "message": "Primeiros passos",
+    "description": "The label of footer link with label=Getting started linking to /docs/instalacao"
+  },
+  "link.item.label.Guides": {
+    "message": "Guias",
+    "description": "The label of footer link with label=Guides linking to /docs/configuracao"
+  },
+  "link.item.label.Reference": {
+    "message": "Referência",
+    "description": "The label of footer link with label=Reference linking to /docs/cli"
+  },
+  "link.item.label.Architecture": {
+    "message": "Arquitetura",
+    "description": "The label of footer link with label=Architecture linking to /docs/adr/0000-architecture-review"
+  },
+  "link.item.label.Contributing and changelog": {
+    "message": "Contribuição e changelog",
+    "description": "The label of footer link with label=Contributing and changelog linking to /docs/contribuicao"
+  },
+  "copyright": {
+    "message": "MIT License © 2026 Emerson Delatorre",
+    "description": "The footer copyright"
+  }
+}

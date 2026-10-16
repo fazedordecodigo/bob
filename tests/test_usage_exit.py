@@ -718,7 +718,10 @@ def test_cli_doc_states_the_worker_ceiling(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     root = Path(__file__).resolve().parents[1]
-    doc = (root / "docs" / "cli.md").read_text(encoding="utf-8")
+    doc = (
+        root
+        / "website/i18n/pt-BR/docusaurus-plugin-content-docs/current/reference/cli.md"
+    ).read_text(encoding="utf-8")
     match = re.search(r"`--max-workers` aceita um inteiro de 1 a (\d+)", doc)
     assert match is not None, "docs/cli.md must state the --max-workers ceiling"
     ceiling = int(match.group(1))

@@ -6,16 +6,6 @@ The pip package is `bob-quality`. The command is `bob`. Marketplace listings use
 
 The pt-BR pages of the public site are a separate change. These files are the English source.
 
-## Português (temporário, até #160)
-
-- [Visão geral](visao-geral.md)
-- [Instalação](instalacao.md)
-- [CLI](cli.md)
-- [Configuração](configuracao.md)
-- [Gates](gates.md)
-- [Relatórios](relatorios.md)
-- [Contribuição](contribuicao.md)
-
 ## Why bob
 
 [Why bob](why-bob.md) states the problem the gates solve and what one command adds to running each tool on its own.
