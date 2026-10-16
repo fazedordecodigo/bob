@@ -1,0 +1,97 @@
+:root {
+  --ifm-color-primary: #0f4c3a;
+  --ifm-color-primary-dark: #0c3d2e;
+  --ifm-color-primary-darker: #0b392b;
+  --ifm-color-primary-darkest: #092f23;
+  --ifm-color-primary-light: #125b46;
+  --ifm-color-primary-lighter: #13614a;
+  --ifm-color-primary-lightest: #166e54;
+  --ifm-font-color-base: #1a1a1a;
+  --ifm-heading-color: #14221c;
+  --ifm-background-color: #ffffff;
+  --ifm-navbar-background-color: #ffffff;
+  --ifm-link-color: #0c4a6e;
+  --ifm-link-hover-color: #08344e;
+  --ifm-code-font-size: 95%;
+  --ifm-footer-background-color: #14221c;
+  --ifm-footer-color: #f3f6f4;
+  --ifm-footer-link-color: #f3f6f4;
+  --ifm-footer-link-hover-color: #ffffff;
+  --ifm-footer-title-color: #ffffff;
+}
+
+[data-theme='dark'] {
+  --ifm-color-primary: #9fe0c4;
+  --ifm-color-primary-dark: #82d6b4;
+  --ifm-color-primary-darker: #73d1ac;
+  --ifm-color-primary-darkest: #4cbf8e;
+  --ifm-color-primary-light: #bcead4;
+  --ifm-color-primary-lighter: #cbeedc;
+  --ifm-color-primary-lightest: #f3fbf7;
+  --ifm-font-color-base: #f3f6f4;
+  --ifm-heading-color: #f7fbf8;
+  --ifm-background-color: #121816;
+  --ifm-navbar-background-color: #121816;
+  --ifm-link-color: #b7ddf4;
+  --ifm-link-hover-color: #e3f4fc;
+}
+
+:focus-visible {
+  outline: 3px solid var(--ifm-link-color);
+  outline-offset: 3px;
+}
+
+/* Prose links stay underlined in both themes. Navigation, TOC, breadcrumbs and cards do not. */
+.markdown a:not(.hash-link),
+.markdown a:not(.hash-link):hover,
+.home p a,
+.home p a:hover,
+.home-lead a,
+.home-lead a:hover {
+  text-decoration-line: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 0.15em;
+}
+
+.navbar__logo {
+  height: 2rem;
+}
+
+.home {
+  padding: 2.5rem 0 4rem;
+}
+
+.home-lead {
+  font-size: 1.2rem;
+  max-width: 40rem;
+}
+
+.home-sections {
+  list-style: none;
+  margin: 2rem 0 0;
+  padding: 0;
+  display: grid;
+  gap: 1rem;
+}
+
+@media (min-width: 996px) {
+  .home-sections {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+.home-sections li {
+  margin: 0;
+  padding: 1rem 1.1rem;
+  border: 1px solid var(--ifm-color-emphasis-300);
+  border-radius: 8px;
+}
+
+.home-sections h2 {
+  font-size: 1.25rem;
+  margin-bottom: 0.35rem;
+}
+
+.home-sections p {
+  margin: 0;
+}

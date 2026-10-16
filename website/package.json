@@ -1,0 +1,26 @@
+{
+  "name": "bob-website",
+  "private": true,
+  "description": "Public docs site for bob. Reads the repository docs/ directory in place.",
+  "scripts": {
+    "build": "docusaurus build",
+    "start": "docusaurus start",
+    "serve": "docusaurus serve",
+    "test": "node --test --test-concurrency=1 tests/*.test.mjs"
+  },
+  "engines": {
+    "node": ">=22.18.0 <23"
+  },
+  "dependencies": {
+    "@docusaurus/core": "3.10.2",
+    "@docusaurus/preset-classic": "3.10.2",
+    "react": "19.3.1",
+    "react-dom": "19.3.1"
+  },
+  "overrides": {
+    "tinypool": "2.1.2",
+    "serialize-javascript": "7.0.5",
+    "postcss-selector-parser": "7.1.6",
+    "uuid": "11.1.1"
+  }
+}
