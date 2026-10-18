@@ -67,7 +67,7 @@ PINS: tuple[Pin, ...] = (
     RequiresDist("coverage.py", "coverage"),
     NODE,
     NpmPin("c8", "12.0.0", "c8", npm_package="c8"),
-    NpmPin("vitest", "5.0.3", "vitest", npm_package="vitest"),
+    NpmPin("vitest", "5.0.4", "vitest", npm_package="vitest"),
     NpmPin("jscpd", "5.4.1", "jscpd", npm_package="jscpd"),
     NpmPin("eslint", "9.39.5", "eslint", npm_package="eslint"),
     NpmPin(
@@ -84,7 +84,7 @@ PINS: tuple[Pin, ...] = (
     RequiresDist("bandit", "bandit"),
     NpmPin(
         "dependency-cruiser",
-        "18.5.0",
+        "18.6.0",
         "dependency-cruiser",
         npm_package="dependency-cruiser",
     ),

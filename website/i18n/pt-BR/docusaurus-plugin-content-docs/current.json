@@ -3,10 +3,6 @@
     "message": "Próxima",
     "description": "The label for version current"
   },
-  "sidebar.docs.category.Why bob": {
-    "message": "Por que usar o bob",
-    "description": "The label for category 'Why bob' in sidebar 'docs'"
-  },
   "sidebar.docs.category.Getting started": {
     "message": "Primeiros passos",
     "description": "The label for category 'Getting started' in sidebar 'docs'"
@@ -31,52 +27,12 @@
     "message": "Contribuição e changelog",
     "description": "The label for category 'Contributing and changelog' in sidebar 'docs'"
   },
-  "sidebar.docs.link.Changelog": {
-    "message": "Changelog",
-    "description": "The label for link 'Changelog' in sidebar 'docs', linking to 'https://github.com/fazedordecodigo/bob/blob/main/CHANGELOG.md'"
-  },
   "sidebar.docs.doc.Why bob": {
     "message": "Por que usar o bob",
-    "description": "The label for the doc item 'Why bob' in sidebar 'docs', linking to the doc visao-geral"
+    "description": "The label for the doc item 'Why bob' in sidebar 'docs', linking to the doc why-bob"
   },
   "sidebar.docs.doc.Documentation index": {
     "message": "Índice da documentação",
     "description": "The label for the doc item 'Documentation index' in sidebar 'docs', linking to the doc README"
-  },
-  "sidebar.docs.doc.Installation and agents": {
-    "message": "Instalação e agentes",
-    "description": "The label for the doc item 'Installation and agents' in sidebar 'docs', linking to the doc instalacao"
-  },
-  "sidebar.docs.doc.Configuration and waivers": {
-    "message": "Configuração e waivers",
-    "description": "The label for the doc item 'Configuration and waivers' in sidebar 'docs', linking to the doc configuracao"
-  },
-  "sidebar.docs.doc.Gates": {
-    "message": "Gates",
-    "description": "The label for the doc item 'Gates' in sidebar 'docs', linking to the doc gates"
-  },
-  "sidebar.docs.doc.Reading reports": {
-    "message": "Leitura dos relatórios",
-    "description": "The label for the doc item 'Reading reports' in sidebar 'docs', linking to the doc relatorios"
-  },
-  "sidebar.docs.doc.CLI": {
-    "message": "CLI",
-    "description": "The label for the doc item 'CLI' in sidebar 'docs', linking to the doc cli"
-  },
-  "sidebar.docs.doc.Exit codes": {
-    "message": "Códigos de saída",
-    "description": "The label for the doc item 'Exit codes' in sidebar 'docs', linking to the doc exit-codes"
-  },
-  "sidebar.docs.doc.Technical overview": {
-    "message": "Visão técnica",
-    "description": "The label for the doc item 'Technical overview' in sidebar 'docs', linking to the doc adr/0000-architecture-review"
-  },
-  "sidebar.docs.doc.SPEC": {
-    "message": "SPEC",
-    "description": "The label for the doc item 'SPEC' in sidebar 'docs', linking to the doc SPEC"
-  },
-  "sidebar.docs.doc.Contributing": {
-    "message": "Contribuição",
-    "description": "The label for the doc item 'Contributing' in sidebar 'docs', linking to the doc contribuicao"
   }
 }

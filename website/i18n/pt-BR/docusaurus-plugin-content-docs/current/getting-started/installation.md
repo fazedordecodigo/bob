@@ -12,7 +12,7 @@ Há dois artefatos. O pacote pip `bob-quality` fornece o comando `bob`. O plugin
 
 Num Ubuntu atual o Python do sistema recusa o `pip install` pela PEP 668. Use um venv. Para o Node, rode `fnm install 22.18.0` ou `nvm install 22.18.0`, ou baixe o `.tar.gz` de <https://nodejs.org/dist/v22.18.0/>. O [AGENTS.md](https://github.com/fazedordecodigo/bob/blob/main/AGENTS.md) prefere o `.tar.gz` ao `.tar.xz` quando a imagem não tem `xz`.
 
-A GitHub Action composta ainda instala o Node `22.14.0` (`.github/actions/bob/action.yml`). Esse pin é o passo de setup da Action. Não é a faixa que o `bob doctor` aceita. Ver [CI](../guides/ci.md).
+A GitHub Action composta instala o Node `22.18.0` (`.github/actions/bob/action.yml`). Esse pin é o passo de setup da Action. Está dentro da faixa que o `bob doctor` aceita. Ver [CI](../guides/ci.md).
 
 ## O pacote pip
 
@@ -34,7 +34,7 @@ npm ci
 bob doctor
 ```
 
-`pip install -e '.[dev]'` instala o comando `bob` e as ferramentas Python. `npm ci` instala, a partir do `package.json` da raiz (`name`: `bob-quality-tools`), `c8@12.0.0`, `vitest@5.0.3`, `jscpd@5.4.1`, `dependency-cruiser@18.5.0`, `eslint@9.39.5`, `eslint-plugin-sonarjs@2.0.4`, `knip@6.41.0`, `@stryker-mutator/core@10.0.0` e `@stryker-mutator/vitest-runner@10.0.0`. O `bob doctor` lista cada ferramenta com a versão esperada e a versão encontrada e sai com `0` só quando todos os pins batem.
+`pip install -e '.[dev]'` instala o comando `bob` e as ferramentas Python. `npm ci` instala, a partir do `package.json` da raiz (`name`: `bob-quality-tools`), `c8@12.0.0`, `vitest@5.0.4`, `jscpd@5.4.1`, `dependency-cruiser@18.6.0`, `eslint@9.39.5`, `eslint-plugin-sonarjs@2.0.4`, `knip@6.41.0`, `@stryker-mutator/core@10.0.0` e `@stryker-mutator/vitest-runner@10.0.0`. O `bob doctor` lista cada ferramenta com a versão esperada e a versão encontrada e sai com `0` só quando todos os pins batem.
 
 O pacote instalado pelo pip carrega `package.json`, `package-lock.json` e `js/` (`tool.setuptools.package-data` em `pyproject.toml`). `bob doctor --install` roda `npm ci` nesse pacote. Se o npm falha ali com `EACCES`, `EPERM` ou `EROFS`, a instalação vai para `$XDG_CACHE_HOME/bob-quality` ou `~/.cache/bob-quality` (`src/bob_quality/npm_tools.py`). Qualquer outro erro do npm sai com `4` e imprime o comando. Se o diretório do pacote não for gravável, a mensagem do doctor pede `bob doctor --install`.
 

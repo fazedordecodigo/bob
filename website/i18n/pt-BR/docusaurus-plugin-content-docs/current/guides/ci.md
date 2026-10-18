@@ -20,9 +20,9 @@ De `.github/actions/bob/action.yml`:
 
 ## O que o job instala
 
-A action configura Python 3.12 e Node `22.14.0` (`actions/setup-node` pinado por SHA em `action.yml`). Em seguida instala o jscpd `5.4.1` para que o gate `dry` possa rodar quando quem chama não instalou Node e jscpd. Sem essa instalação, `dry` fica `not_run`.
+A action configura Python 3.12 e Node `22.18.0` (`actions/setup-node` pinado por SHA em `action.yml`). Em seguida instala o jscpd `5.4.1` para que o gate `dry` possa rodar quando quem chama não instalou Node e jscpd. Sem essa instalação, `dry` fica `not_run`.
 
-O `bob doctor` aceita Node `>=22.18.0 <23`. Os workflows de CI `.github/workflows/ci.yml` e `.github/workflows/bob.yml` usam Node `22.18.0`. O próprio passo de setup da Action ainda é `22.14.0`. São dois pins na árvore. Esta página registra os dois.
+O `bob doctor` aceita Node `>=22.18.0 <23`. Os workflows de CI `.github/workflows/ci.yml` e `.github/workflows/bob.yml` usam Node `22.18.0`. O passo de setup da Action usa esse mesmo `22.18.0`.
 
 ## Cache e comentário
 

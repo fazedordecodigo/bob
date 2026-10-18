@@ -5,27 +5,31 @@
   },
   "link.item.label.Why bob": {
     "message": "Por que usar o bob",
-    "description": "The label of footer link with label=Why bob linking to /docs/visao-geral"
+    "description": "The label of footer link with label=Why bob linking to /docs/why-bob"
   },
   "link.item.label.Getting started": {
     "message": "Primeiros passos",
-    "description": "The label of footer link with label=Getting started linking to /docs/instalacao"
+    "description": "The label of footer link with label=Getting started linking to /docs/getting-started/installation"
   },
   "link.item.label.Guides": {
     "message": "Guias",
-    "description": "The label of footer link with label=Guides linking to /docs/configuracao"
+    "description": "The label of footer link with label=Guides linking to /docs/guides/configuration"
   },
   "link.item.label.Reference": {
     "message": "Referência",
-    "description": "The label of footer link with label=Reference linking to /docs/cli"
+    "description": "The label of footer link with label=Reference linking to /docs/reference/cli"
   },
   "link.item.label.Architecture": {
     "message": "Arquitetura",
-    "description": "The label of footer link with label=Architecture linking to /docs/adr/0000-architecture-review"
+    "description": "The label of footer link with label=Architecture linking to /docs/architecture/overview"
   },
-  "link.item.label.Contributing and changelog": {
-    "message": "Contribuição e changelog",
-    "description": "The label of footer link with label=Contributing and changelog linking to /docs/contribuicao"
+  "link.item.label.Contributing": {
+    "message": "Contribuição",
+    "description": "The label of footer link with label=Contributing linking to /docs/contributing"
+  },
+  "link.item.label.Changelog": {
+    "message": "Changelog",
+    "description": "The label of footer link with label=Changelog linking to /docs/changelog"
   },
   "copyright": {
     "message": "MIT License © 2026 Emerson Delatorre",

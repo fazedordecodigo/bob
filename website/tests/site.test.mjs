@@ -252,6 +252,174 @@ test('Algolia is emitted only when app id, api key, and index name are all set',
   assert.equal(htmlContains(partialDir, 'DocSearch-Button'), false);
 });
 
+function docsSidebarHrefs(relativePage) {
+  const html = readBuild(relativePage);
+  const markers = ['aria-label="Docs sidebar"', 'aria-label="Painel lateral de documentos"'];
+  const start = markers.map((marker) => html.indexOf(marker)).find((index) => index !== -1);
+  assert.ok(start !== undefined, `${relativePage} has no docs sidebar`);
+  const end = html.indexOf('</nav>', start);
+  const sidebar = html.slice(start, end);
+  return [...sidebar.matchAll(/href="([^"]+)"/g)].map((match) => match[1]);
+}
+
+function assertSidebarHas(relativePage, hrefs) {
+  const found = docsSidebarHrefs(relativePage);
+  for (const href of hrefs) {
+    assert.ok(found.includes(href), `${relativePage} sidebar is missing ${href}`);
+  }
+}
+
+test('the English sidebar links to the pages from the English docs', () => {
+  assertSidebarHas('docs/index.html', [
+    '/bob/docs/why-bob',
+    '/bob/docs/getting-started/installation',
+    '/bob/docs/guides/configuration',
+    '/bob/docs/reference/cli',
+    '/bob/docs/architecture/overview',
+    '/bob/docs/contributing',
+  ]);
+  assertSidebarHas('docs/getting-started/installation/index.html', [
+    '/bob/docs/getting-started/installation',
+    '/bob/docs/getting-started/first-check',
+    '/bob/docs/getting-started/agents',
+  ]);
+  assertSidebarHas('docs/guides/configuration/index.html', [
+    '/bob/docs/guides/configuration',
+    '/bob/docs/guides/gates-and-waivers',
+    '/bob/docs/guides/pre-push',
+    '/bob/docs/guides/ci',
+    '/bob/docs/guides/reports',
+  ]);
+  assertSidebarHas('docs/reference/cli/index.html', [
+    '/bob/docs/reference/cli',
+    '/bob/docs/reference/configuration',
+    '/bob/docs/exit-codes',
+    '/bob/docs/reference/report-json',
+  ]);
+  assertSidebarHas('docs/architecture/overview/index.html', [
+    '/bob/docs/architecture/overview',
+    '/bob/docs/architecture/adrs',
+    '/bob/docs/architecture/spec',
+    '/bob/docs/SPEC',
+  ]);
+  assertSidebarHas('docs/adr/0007-gerador-do-site/index.html', [
+    '/bob/docs/adr/0000-architecture-review',
+    '/bob/docs/adr/0001-adaptadores-sobre-ferramentas-de-mercado',
+    '/bob/docs/adr/0002-o-diff-filtra-o-veredito',
+    '/bob/docs/adr/0003-exit-codes',
+    '/bob/docs/adr/0004-empacotamento-quatro-agentes',
+    '/bob/docs/adr/0005-modelo-de-gate-das-analises-novas',
+    '/bob/docs/adr/0006-chave-estavel-do-waiver',
+    '/bob/docs/adr/0007-gerador-do-site',
+  ]);
+  assertSidebarHas('docs/contributing/index.html', [
+    '/bob/docs/contributing',
+    '/bob/docs/changelog',
+    '/bob/docs/publishing',
+  ]);
+});
+
+const removedGuideHrefs = [
+  '/bob/docs/visao-geral',
+  '/bob/docs/instalacao',
+  '/bob/docs/cli',
+  '/bob/docs/configuracao',
+  '/bob/docs/gates',
+  '/bob/docs/relatorios',
+  '/bob/docs/contribuicao',
+];
+
+test('the temporary pt-BR guides are absent from the sidebar and the build', () => {
+  const englishSidebar = docsSidebarHrefs('docs/index.html');
+  const portugueseSidebar = docsSidebarHrefs('pt-BR/docs/index.html');
+  for (const href of removedGuideHrefs) {
+    assert.equal(englishSidebar.includes(href), false, `English sidebar still has ${href}`);
+    const localized = href.replace('/bob/', '/bob/pt-BR/');
+    assert.equal(
+      portugueseSidebar.includes(localized),
+      false,
+      `pt-BR sidebar still has ${localized}`,
+    );
+    const relative = href.replace('/bob/', '');
+    const slug = relative.slice('docs/'.length);
+    assert.equal(fs.existsSync(path.join(docsDir, `${slug}.md`)), false, `${slug}.md`);
+    assert.equal(
+      fs.existsSync(path.join(buildDir, relative, 'index.html')),
+      false,
+      relative,
+    );
+    assert.equal(
+      fs.existsSync(path.join(buildDir, 'pt-BR', relative, 'index.html')),
+      false,
+      `pt-BR ${relative}`,
+    );
+  }
+  assert.equal(readBuild('docs/index.html').includes('Português (temporário'), false);
+  assert.equal(readBuild('pt-BR/docs/index.html').includes('Português (temporário'), false);
+});
+
+const englishSectionHrefs = [
+  '/docs/why-bob',
+  '/docs/getting-started/installation',
+  '/docs/guides/configuration',
+  '/docs/reference/cli',
+  '/docs/architecture/overview',
+  '/docs/contributing',
+  '/docs/changelog',
+];
+
+function localizedHref(locale, href) {
+  const prefix = locale === 'pt-BR' ? '/bob/pt-BR' : '/bob';
+  return `${prefix}${href}`;
+}
+
+test('the home and the footer link to the English pages in both locales', () => {
+  for (const locale of ['en', 'pt-BR']) {
+    const relative = locale === 'pt-BR' ? 'pt-BR/index.html' : 'index.html';
+    const home = readBuild(relative);
+    const footerStart = home.indexOf('<footer');
+    assert.ok(footerStart !== -1, `${relative} has no footer`);
+    const main = home.slice(0, footerStart);
+    const footer = home.slice(footerStart);
+    for (const href of englishSectionHrefs) {
+      const absolute = localizedHref(locale, href);
+      assert.ok(main.includes(`href="${absolute}"`), `${relative} main is missing ${absolute}`);
+      assert.ok(
+        footer.includes(`href="${absolute}"`),
+        `${relative} footer is missing ${absolute}`,
+      );
+    }
+    for (const href of removedGuideHrefs) {
+      const absolute = localizedHref(locale, href.slice('/bob'.length));
+      assert.equal(
+        main.includes(`href="${absolute}"`),
+        false,
+        `${relative} home still links to removed guide ${absolute}`,
+      );
+      assert.equal(
+        footer.includes(`href="${absolute}"`),
+        false,
+        `${relative} footer still links to removed guide ${absolute}`,
+      );
+    }
+    assert.equal(home.includes('Português (temporário'), false);
+  }
+});
+
+test('a broken anchor fails the production build', () => {
+  const probe = path.join(docsDir, 'zz-broken-anchor.md');
+  fs.writeFileSync(probe, '# Probe\n\n[missing](#does-not-exist)\n', 'utf8');
+  try {
+    const outDir = fs.mkdtempSync(path.join(os.tmpdir(), 'bob-site-anchor-'));
+    const result = runBuild({}, outDir);
+    const output = `${result.stdout}\n${result.stderr}`;
+    assert.notEqual(result.status, 0, output);
+    assert.match(output, /does-not-exist/);
+  } finally {
+    fs.rmSync(probe, { force: true });
+  }
+});
+
 test('a broken markdown link fails the production build', () => {
   const probe = path.join(docsDir, 'zz-broken-link.md');
   fs.writeFileSync(probe, '# Probe\n\n[missing](./does-not-exist.md)\n', 'utf8');

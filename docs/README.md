@@ -50,6 +50,7 @@ The pt-BR pages of the public site are a separate change. These files are the En
 - [Contributing](contributing.md)
 - [Changelog](changelog.md)
 - [Publishing the Cursor plugin](publishing.md)
+- [Deploy the docs site](site-deploy.md)
 
 ## Where to start
 

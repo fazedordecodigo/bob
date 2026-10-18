@@ -50,6 +50,7 @@ As páginas pt-BR do site público são uma mudança separada. Estes arquivos s�
 - [Contribuição](contributing.md)
 - [Changelog](changelog.md)
 - [Publicação do plugin do Cursor](publishing.md)
+- [Publicar o site de documentação](site-deploy.md)
 
 ## Por onde começar
 

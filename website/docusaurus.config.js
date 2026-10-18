@@ -77,6 +77,7 @@ const config = {
   baseUrl: '/bob/',
   favicon: 'assets/logo.svg',
   onBrokenLinks: 'throw',
+  onBrokenAnchors: 'throw',
   i18n: {
     defaultLocale: 'en',
     locales: ['en', 'pt-BR'],
@@ -147,12 +148,13 @@ const config = {
         {
           title: 'Docs',
           items: [
-            { label: 'Why bob', to: '/docs/visao-geral' },
-            { label: 'Getting started', to: '/docs/instalacao' },
-            { label: 'Guides', to: '/docs/configuracao' },
-            { label: 'Reference', to: '/docs/cli' },
-            { label: 'Architecture', to: '/docs/adr/0000-architecture-review' },
-            { label: 'Contributing and changelog', to: '/docs/contribuicao' },
+            { label: 'Why bob', to: '/docs/why-bob' },
+            { label: 'Getting started', to: '/docs/getting-started/installation' },
+            { label: 'Guides', to: '/docs/guides/configuration' },
+            { label: 'Reference', to: '/docs/reference/cli' },
+            { label: 'Architecture', to: '/docs/architecture/overview' },
+            { label: 'Contributing', to: '/docs/contributing' },
+            { label: 'Changelog', to: '/docs/changelog' },
           ],
         },
       ],
