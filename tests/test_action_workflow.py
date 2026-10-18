@@ -216,6 +216,31 @@ def _collect_setup_node_versions(node: object, found: list[str]) -> None:
             _collect_setup_node_versions(item, found)
 
 
+def test_every_setup_node_step_uses_the_sha_on_main() -> None:
+    setup_node = "actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1"
+    roots = (ROOT / ".github" / "workflows", ROOT / ".github" / "actions")
+    paths = [
+        path
+        for root in roots
+        for pattern in ("*.yml", "*.yaml")
+        for path in sorted(root.rglob(pattern))
+    ]
+    found: dict[str, list[str]] = {}
+    for path in paths:
+        pins = [
+            item.split(" ", 1)[0]
+            for item in _uses(_load(path))
+            if item.split("@", 1)[0] == "actions/setup-node"
+        ]
+        if pins:
+            found[str(path.relative_to(ROOT))] = pins
+    assert ".github/workflows/website.yml" in found
+    assert ".github/workflows/pages.yml" in found
+    assert ".github/actions/bob/action.yml" in found
+    for path, pins in found.items():
+        assert set(pins) == {setup_node}, (path, pins)
+
+
 def test_workflows_install_a_node_the_doctor_accepts() -> None:
     package = ROOT / ".github" / "workflows" / "package.yml"
     counts = {ACTION: 1, CI: 1, BOB: 2, package: 1}

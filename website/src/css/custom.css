@@ -87,7 +87,8 @@
   border-radius: 8px;
 }
 
-.home-sections h2 {
+.home-sections h2,
+.home-sections h3 {
   font-size: 1.25rem;
   margin-bottom: 0.35rem;
 }
