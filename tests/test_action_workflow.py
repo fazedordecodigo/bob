@@ -216,6 +216,31 @@ def _collect_setup_node_versions(node: object, found: list[str]) -> None:
             _collect_setup_node_versions(item, found)
 
 
+def test_every_setup_node_step_uses_the_sha_on_main() -> None:
+    setup_node = "actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1"
+    roots = (ROOT / ".github" / "workflows", ROOT / ".github" / "actions")
+    paths = [
+        path
+        for root in roots
+        for pattern in ("*.yml", "*.yaml")
+        for path in sorted(root.rglob(pattern))
+    ]
+    found: dict[str, list[str]] = {}
+    for path in paths:
+        pins = [
+            item.split(" ", 1)[0]
+            for item in _uses(_load(path))
+            if item.split("@", 1)[0] == "actions/setup-node"
+        ]
+        if pins:
+            found[str(path.relative_to(ROOT))] = pins
+    assert ".github/workflows/website.yml" in found
+    assert ".github/workflows/pages.yml" in found
+    assert ".github/actions/bob/action.yml" in found
+    for path, pins in found.items():
+        assert set(pins) == {setup_node}, (path, pins)
+
+
 def test_workflows_install_a_node_the_doctor_accepts() -> None:
     package = ROOT / ".github" / "workflows" / "package.yml"
     counts = {ACTION: 1, CI: 1, BOB: 2, package: 1}
@@ -254,3 +279,94 @@ def test_dependabot_ignores_sonarjs_majors_and_scans_the_action() -> None:
     assert actions["directories"] == ["/", "/.github/actions/bob"]
     text = path.read_text(encoding="utf-8")
     assert "The lockfile must not be regenerated from scratch." in text
+    npm_directories = [
+        item.get("directory")
+        for item in updates
+        if isinstance(item, dict) and item.get("package-ecosystem") == "npm"
+    ]
+    assert npm_directories == ["/", "/website"]
+    website = next(
+        item
+        for item in updates
+        if isinstance(item, dict) and item.get("directory") == "/website"
+    )
+    assert website["package-ecosystem"] == "npm"
+    assert website["schedule"] == {"interval": "weekly"}
+    assert website["groups"] == {"website": {"patterns": ["*"]}}
+    assert "ignore" not in website
+
+
+def test_pull_request_still_builds_the_docs_site() -> None:
+    path = ROOT / ".github" / "workflows" / "website.yml"
+    doc = _load(path)
+    trigger = _on(doc)
+    pull_request = trigger["pull_request"]
+    assert isinstance(pull_request, dict)
+    assert pull_request["paths"] == [
+        "website/**",
+        "docs/**",
+        ".github/workflows/website.yml",
+    ]
+    assert doc["permissions"] == {"contents": "read"}
+    text = path.read_text(encoding="utf-8")
+    assert "npm ci" in text
+    assert "npm run build" in text
+    assert "npm test" in text
+    assert "node-version: \"22.18.0\"" in text
+
+
+def test_pages_deploys_with_the_official_actions() -> None:
+    path = ROOT / ".github" / "workflows" / "pages.yml"
+    doc = _load(path)
+    trigger = _on(doc)
+    push = trigger["push"]
+    assert isinstance(push, dict)
+    assert push["branches"] == ["main"]
+    assert push["paths"] == ["website/**", "docs/**"]
+    assert "pull_request" not in trigger
+    dispatch = trigger["workflow_dispatch"]
+    assert isinstance(dispatch, dict)
+    inputs = dispatch["inputs"]
+    assert isinstance(inputs, dict)
+    assert inputs["ref"]["required"] is False
+    assert doc["permissions"] == {"contents": "read"}
+    concurrency = doc["concurrency"]
+    assert isinstance(concurrency, dict)
+    assert concurrency["group"] == "pages"
+    assert concurrency["cancel-in-progress"] is False
+    jobs = doc["jobs"]
+    assert isinstance(jobs, dict)
+    build = jobs["build"]
+    deploy = jobs["deploy"]
+    assert isinstance(build, dict)
+    assert isinstance(deploy, dict)
+    assert build["permissions"] == {"contents": "read"}
+    assert deploy["needs"] == "build"
+    assert deploy["permissions"] == {"pages": "write", "id-token": "write"}
+    environment = deploy["environment"]
+    assert isinstance(environment, dict)
+    assert environment["name"] == "github-pages"
+    checkout = build["steps"][0]
+    assert str(checkout["uses"]).startswith("actions/checkout@")
+    assert checkout["with"]["persist-credentials"] is False
+    assert "inputs.ref || github.sha" in checkout["with"]["ref"]
+    uses = [item.split(" ", 1)[0] for item in _uses(doc)]
+    official = {
+        "actions/checkout",
+        "actions/setup-node",
+        "actions/configure-pages",
+        "actions/upload-pages-artifact",
+        "actions/deploy-pages",
+    }
+    assert {item.split("@", 1)[0] for item in uses} == official
+    for item in uses:
+        pin = item.split("@", 1)[1]
+        assert SHA.fullmatch("@" + pin)
+    text = path.read_text(encoding="utf-8")
+    assert "enablement: false" in text
+    assert "path: website/build" in text
+    assert "https://fazedordecodigo.github.io/bob/" in text
+    assert "https://fazedordecodigo.github.io/bob/pt-BR/" in text
+    assert "CNAME" not in text
+    assert "secrets." not in text
+    assert 'node-version: "22.18.0"' in text
