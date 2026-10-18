@@ -18,6 +18,7 @@ ROOT = Path(__file__).resolve().parents[1]
 
 _ALSO_COPY = (
     "docs",
+    "website/i18n",
     "skills",
     "js",
     "tests/fixtures",
