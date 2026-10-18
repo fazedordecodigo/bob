@@ -325,5 +325,65 @@
   "theme.tags.tagsPageTitle": {
     "message": "Etiquetas",
     "description": "The title of the tag list page"
+  },
+  "home.tagline": {
+    "message": "Gates de qualidade determinísticos para o código que um agente de código altera.",
+    "description": "The tagline on the home page"
+  },
+  "home.section.whyBob.title": {
+    "message": "Por que usar o bob",
+    "description": "Home section title linking to why-bob"
+  },
+  "home.section.whyBob.description": {
+    "message": "O que o bob mede, e por que os gates existem.",
+    "description": "Home section description linking to why-bob"
+  },
+  "home.section.gettingStarted.title": {
+    "message": "Primeiros passos",
+    "description": "Home section title linking to installation"
+  },
+  "home.section.gettingStarted.description": {
+    "message": "Instale o pacote, rode um primeiro check e use a partir dos agentes de código.",
+    "description": "Home section description linking to installation"
+  },
+  "home.section.guides.title": {
+    "message": "Guias",
+    "description": "Home section title linking to configuration"
+  },
+  "home.section.guides.description": {
+    "message": "Configuração, gates, waivers, o hook de pre-push, o CI e os relatórios.",
+    "description": "Home section description linking to configuration"
+  },
+  "home.section.reference.title": {
+    "message": "Referência",
+    "description": "Home section title linking to the CLI reference"
+  },
+  "home.section.reference.description": {
+    "message": "CLI, schema de configuração, códigos de saída e report.json.",
+    "description": "Home section description linking to the CLI reference"
+  },
+  "home.section.architecture.title": {
+    "message": "Arquitetura",
+    "description": "Home section title linking to the architecture overview"
+  },
+  "home.section.architecture.description": {
+    "message": "Visão técnica, ADRs e a SPEC.",
+    "description": "Home section description linking to the architecture overview"
+  },
+  "home.section.contributing.title": {
+    "message": "Contribuição",
+    "description": "Home section title linking to contributing"
+  },
+  "home.section.contributing.description": {
+    "message": "Como alterar o bob.",
+    "description": "Home section description linking to contributing"
+  },
+  "home.section.changelog.title": {
+    "message": "Changelog",
+    "description": "Home section title linking to the changelog"
+  },
+  "home.section.changelog.description": {
+    "message": "O registro das mudanças de comportamento.",
+    "description": "Home section description linking to the changelog"
   }
 }
