@@ -53,7 +53,7 @@ def test_check_passes_when_changed_typescript_function_stays_under_crap_10(
     assert add["coverage"] == 1.0
     assert add["crap"] == 1.0
     assert payload["tool_versions"]["c8"] == "12.0.0"
-    assert payload["tool_versions"]["vitest"] == "5.0.4"
+    assert payload["tool_versions"]["vitest"] == "5.0.5"
     assert "src/safe.ts" in markdown
 
 

@@ -167,7 +167,7 @@ O bob encapsula cada ferramenta num adaptador próprio e não copia código dela
 
 | Gate | Python | TypeScript |
 |---|---|---|
-| CRAP | `lizard` 1.24.1 para complexidade, `coverage` 7.16.2 rodando o pytest | `lizard` 1.24.1 para complexidade, `c8` 12.0.0 rodando o `vitest` 5.0.4 |
+| CRAP | `lizard` 1.24.1 para complexidade, `coverage` 7.16.2 rodando o pytest | `lizard` 1.24.1 para complexidade, `c8` 12.0.0 rodando o `vitest` 5.0.5 |
 | Duplicação | `jscpd` 5.4.1 | `jscpd` 5.4.1 |
 | Mutação | `mutmut` 3.8.0 | `@stryker-mutator/core` 10.0.0 e `@stryker-mutator/vitest-runner` 10.0.0 |
 | Dependências | `import-linter` 2.15, `grimp` 3.17 | `dependency-cruiser` 18.6.0 |

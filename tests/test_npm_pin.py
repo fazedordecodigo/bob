@@ -27,7 +27,7 @@ def test_npm_tools_are_pinned_in_package_json_and_lock() -> None:
         "eslint-plugin-sonarjs": "2.0.4",
         "jscpd": "5.4.1",
         "knip": "6.41.0",
-        "vitest": "5.0.4",
+        "vitest": "5.0.5",
     }
     root = json.loads((ROOT / "package.json").read_text())
     plugin = json.loads((ROOT / "src" / "bob_quality" / "package.json").read_text())
