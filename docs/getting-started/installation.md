@@ -34,7 +34,7 @@ npm ci
 bob doctor
 ```
 
-`pip install -e '.[dev]'` installs the `bob` command and the Python tools. `npm ci` installs, from the root `package.json` (`name`: `bob-quality-tools`), `c8@12.0.0`, `vitest@5.0.3`, `jscpd@5.4.1`, `dependency-cruiser@18.5.0`, `eslint@9.39.5`, `eslint-plugin-sonarjs@2.0.4`, `knip@6.41.0`, `@stryker-mutator/core@10.0.0`, and `@stryker-mutator/vitest-runner@10.0.0`. `bob doctor` lists each tool with the expected version and the found version and exits `0` only when every pin matches.
+`pip install -e '.[dev]'` installs the `bob` command and the Python tools. `npm ci` installs, from the root `package.json` (`name`: `bob-quality-tools`), `c8@12.0.0`, `vitest@5.0.4`, `jscpd@5.4.1`, `dependency-cruiser@18.6.0`, `eslint@9.39.5`, `eslint-plugin-sonarjs@2.0.4`, `knip@6.41.0`, `@stryker-mutator/core@10.0.0`, and `@stryker-mutator/vitest-runner@10.0.0`. `bob doctor` lists each tool with the expected version and the found version and exits `0` only when every pin matches.
 
 The pip-installed package carries `package.json`, `package-lock.json`, and `js/` (`tool.setuptools.package-data` in `pyproject.toml`). `bob doctor --install` runs `npm ci` in that package. If npm fails there with `EACCES`, `EPERM`, or `EROFS`, the install goes to `$XDG_CACHE_HOME/bob-quality` or `~/.cache/bob-quality` (`src/bob_quality/npm_tools.py`). Any other npm error exits `4` and prints the command. If the package directory is not writable, the doctor message asks for `bob doctor --install`.
 

@@ -167,10 +167,10 @@ bob wraps each tool in its own adapter and copies no code from them. The version
 
 | Gate | Python | TypeScript |
 |---|---|---|
-| CRAP | `lizard` 1.24.1 for complexity, `coverage` 7.16.2 running pytest | `lizard` 1.24.1 for complexity, `c8` 12.0.0 running `vitest` 5.0.3 |
+| CRAP | `lizard` 1.24.1 for complexity, `coverage` 7.16.2 running pytest | `lizard` 1.24.1 for complexity, `c8` 12.0.0 running `vitest` 5.0.4 |
 | Duplication | `jscpd` 5.4.1 | `jscpd` 5.4.1 |
 | Mutation | `mutmut` 3.8.0 | `@stryker-mutator/core` 10.0.0 and `@stryker-mutator/vitest-runner` 10.0.0 |
-| Dependencies | `import-linter` 2.15, `grimp` 3.17 | `dependency-cruiser` 18.5.0 |
+| Dependencies | `import-linter` 2.15, `grimp` 3.17 | `dependency-cruiser` 18.6.0 |
 | Diff coverage | `diff-cover` 10.6.0 on `coverage.xml` | `diff-cover` 10.6.0 on c8 lcov |
 
 The npm tools need Node, and jscpd needs it in a Python-only repository too. In a repository with Python and TypeScript, a missing Node is not exit `4`. bob still measures Python and reports TypeScript as skipped, with a warning. Exit `4` stays when the missing tool blocks the requested measurement, as in a TypeScript-only repository without Node.
