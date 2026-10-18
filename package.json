@@ -12,7 +12,7 @@
     "eslint-plugin-sonarjs": "2.0.4",
     "jscpd": "5.4.1",
     "knip": "6.41.0",
-    "vitest": "5.0.4",
+    "vitest": "5.0.5",
     "@stryker-mutator/core": "10.0.0",
     "@stryker-mutator/vitest-runner": "10.0.0"
   },
