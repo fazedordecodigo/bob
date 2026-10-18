@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+`homepage` and `repository` in the Cursor manifest must be an `http` or `https` URI with a host and no credentials. Leading or trailing whitespace, a blank or whitespace host (`http:// /x`, `https://%20/`), and an out-of-range port such as `99999` fail with code `uri` and do not crash the validator. The publish workflow checks out with `persist-credentials: false`.
+
+`homepage` e `repository` no manifesto do Cursor têm de ser um URI `http` ou `https` com host e sem credencial. Espaço no começo ou no fim, host em branco ou só com espaço (`http:// /x`, `https://%20/`) e porta fora da faixa, como `99999`, falham com o código `uri` e não derrubam o validador. O workflow de publicação faz o checkout com `persist-credentials: false`.
+
 The Cursor plugin manifest sets `logo` to `assets/logo.svg`. `scripts/validate_cursor_plugin.py` checks `.cursor-plugin/plugin.json` against the vendored Cursor schema and the submission checklist, including the tag when one is passed. `.github/workflows/publish-plugins.yml` runs that script on a `v*` tag, a published release, and `workflow_dispatch`. The job does not upload the plugin. There is no new dependency and no secret.
 
 O manifesto do plugin Cursor aponta `logo` para `assets/logo.svg`. `scripts/validate_cursor_plugin.py` confere `.cursor-plugin/plugin.json` contra o schema vendored do Cursor e o checklist de submissão, incluindo a tag quando ela é passada. `.github/workflows/publish-plugins.yml` roda esse script numa tag `v*`, num release publicado e num `workflow_dispatch`. O job não envia o plugin. Não há dependência nova nem segredo.
