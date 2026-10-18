@@ -391,7 +391,7 @@ def _cruiser_gate(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path, raw: str
 ) -> tuple[GateResult, int, dict[str, str], list[DepViolation]]:
     def measure(cwd: Path, config: Config, versions: dict[str, str]) -> list[DepViolation]:
-        versions["dependency-cruiser"] = "18.5.0"
+        versions["dependency-cruiser"] = "18.6.0"
         return _cruise_violations(_linted(0, raw))
 
     monkeypatch.setattr("bob_quality.deps_gate._typescript_violations", measure)
@@ -532,7 +532,7 @@ def test_typescript_only_measurement_stays_in_the_repo_and_skips_python_cycles(
     def measure(cwd: Path, measured: Config, versions: dict[str, str]) -> list[DepViolation]:
         seen["cwd"] = cwd
         seen["config"] = measured
-        versions["dependency-cruiser"] = "18.5.0"
+        versions["dependency-cruiser"] = "18.6.0"
         return []
 
     monkeypatch.setattr("bob_quality.deps_gate._cycle_components", forbid_python_graph)
@@ -548,7 +548,7 @@ def test_typescript_only_measurement_stays_in_the_repo_and_skips_python_cycles(
     )
     assert seen["cwd"] == tmp_path
     assert seen["config"] is config
-    assert versions["dependency-cruiser"] == "18.5.0"
+    assert versions["dependency-cruiser"] == "18.6.0"
 
 
 def test_python_cycle_contract_is_named_from_the_catalog(

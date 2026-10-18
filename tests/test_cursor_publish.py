@@ -1,10 +1,14 @@
 from __future__ import annotations
 
 import hashlib
+import importlib.util
 import json
+import os
 import subprocess
 import sys
+from collections.abc import Callable
 from pathlib import Path
+from types import ModuleType
 
 import yaml
 
@@ -178,15 +182,20 @@ def test_a_missing_root_is_exit_2(tmp_path: Path) -> None:
 
 
 def test_an_http_uri_with_a_host_is_accepted(tmp_path: Path) -> None:
-    root = _tree(
-        tmp_path,
-        _manifest(
-            homepage="http://example.com/bob",
-            repository="HTTPS://user:secret@github.com/fazedordecodigo/bob",
-        ),
+    cases = (
+        {
+            "homepage": "http://example.com/bob",
+            "repository": "HTTPS://github.com/fazedordecodigo/bob",
+        },
+        {
+            "homepage": "https://[::1]/bob",
+            "repository": "http://example.com:443/bob",
+        },
     )
-    result = _run("--root", str(root))
-    assert (result.returncode, result.stdout, result.stderr) == (0, "[]\n", "")
+    for index, fields in enumerate(cases):
+        root = _tree(tmp_path / str(index), _manifest(**fields))
+        result = _run("--root", str(root))
+        assert (result.returncode, result.stdout, result.stderr) == (0, "[]\n", ""), fields
 
 
 def test_a_uri_needs_http_or_https_and_a_host(tmp_path: Path) -> None:
@@ -198,6 +207,16 @@ def test_a_uri_needs_http_or_https_and_a_host(tmp_path: Path) -> None:
         ("repository", "javascript:alert(1)"),
         ("repository", "https:///missing-host"),
         ("repository", "http://"),
+        ("homepage", "http:// /x"),
+        ("homepage", "https://%20/"),
+        ("homepage", " http://example.com/bob"),
+        ("homepage", "http://example.com/bob "),
+        ("homepage", "\thttps://example.com/bob"),
+        ("homepage", "https://example.com/bob\t"),
+        ("repository", "http://example.com:99999/bob"),
+        ("repository", "HTTPS://user:secret@github.com/fazedordecodigo/bob"),
+        ("repository", "https://user@github.com/fazedordecodigo/bob"),
+        ("repository", "https://:secret@github.com/fazedordecodigo/bob"),
     )
     for index, (field, value) in enumerate(cases):
         root = _tree(tmp_path / str(index), _manifest(**{field: value}))
@@ -244,6 +263,174 @@ def test_optimized_python_accepts_the_real_tree() -> None:
         text=True,
     )
     assert (result.returncode, result.stdout, result.stderr) == (0, "[]\n", "")
+
+
+def _validator() -> ModuleType:
+    spec = importlib.util.spec_from_file_location("validate_cursor_plugin", SCRIPT)
+    if spec is None or spec.loader is None:
+        raise RuntimeError(f"cannot load {SCRIPT}")
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = module
+    spec.loader.exec_module(module)
+    return module
+
+
+def _expect_runtime(
+    problems: list[str],
+    label: str,
+    call: Callable[[], object],
+    expected: str,
+) -> None:
+    try:
+        call()
+    except RuntimeError as exc:
+        if str(exc) != expected:
+            problems.append(f"{label}: {exc!r} != {expected!r}")
+        return
+    except Exception as exc:
+        problems.append(f"{label}: {type(exc).__name__}: {exc}")
+        return
+    problems.append(f"{label}: no RuntimeError")
+
+
+def _runtime_error_problems(root: Path) -> list[str]:
+    module = _validator()
+    problems: list[str] = []
+    schema_path = module.SCHEMA_PATH
+    invalid_json = f"schema file is not valid JSON: {schema_path}"
+    no_name = f"schema file has no name pattern: {schema_path}"
+    unanchored = f"schema semver pattern is not anchored: {schema_path}"
+    _expect_runtime(
+        problems,
+        "schema mapping",
+        lambda: module._schema_mapping([], "schema file is not valid JSON"),
+        invalid_json,
+    )
+    _expect_runtime(
+        problems,
+        "schema text",
+        lambda: module._schema_text(None, "schema file has no name pattern"),
+        no_name,
+    )
+    semver_schemas: dict[str, dict[str, object]] = {
+        "semver bare": {"$defs": {"semver": {"pattern": "1.2.3"}}},
+        "semver caret": {"$defs": {"semver": {"pattern": "^1.2.3"}}},
+        "semver dollar": {"$defs": {"semver": {"pattern": "1.2.3$"}}},
+        "semver defs missing": {},
+        "semver defs list": {"$defs": []},
+        "semver node": {"$defs": {"semver": "nope"}},
+        "semver pattern type": {"$defs": {"semver": {"pattern": 1}}},
+    }
+    for label, schema in semver_schemas.items():
+        _expect_runtime(
+            problems,
+            label,
+            lambda schema=schema: module._semver_pattern(schema),
+            unanchored,
+        )
+    name_schemas: dict[str, dict[str, object]] = {
+        "name properties missing": {},
+        "name properties list": {"properties": []},
+        "name node": {"properties": {"name": "bob"}},
+        "name pattern type": {"properties": {"name": {"pattern": 1}}},
+    }
+    for label, schema in name_schemas.items():
+        _expect_runtime(
+            problems,
+            label,
+            lambda schema=schema: module._name_pattern(schema),
+            no_name,
+        )
+    _expect_validate_schema_errors(problems, module, root)
+    return problems
+
+
+def _expect_validate_schema_errors(
+    problems: list[str], module: ModuleType, root: Path
+) -> None:
+    original = module.SCHEMA_PATH
+    named = {"properties": {"name": {"pattern": "^[a-z]+$"}}}
+    written = (
+        ("broken-schema.json", "{", "schema file is not valid JSON"),
+        ("array-schema.json", "[]\n", "schema file is not valid JSON"),
+        ("text-schema.json", '"schema"\n', "schema file is not valid JSON"),
+        ("empty-schema.json", "{}\n", "schema file has no name pattern"),
+        (
+            "name-type-schema.json",
+            json.dumps({"properties": {"name": {"pattern": 1}}}),
+            "schema file has no name pattern",
+        ),
+        (
+            "semver-missing-schema.json",
+            json.dumps(named),
+            "schema semver pattern is not anchored",
+        ),
+        (
+            "semver-caret-schema.json",
+            json.dumps({**named, "$defs": {"semver": {"pattern": "^1"}}}),
+            "schema semver pattern is not anchored",
+        ),
+        (
+            "semver-dollar-schema.json",
+            json.dumps({**named, "$defs": {"semver": {"pattern": "1$"}}}),
+            "schema semver pattern is not anchored",
+        ),
+        (
+            "semver-type-schema.json",
+            json.dumps({**named, "$defs": {"semver": {"pattern": 1}}}),
+            "schema semver pattern is not anchored",
+        ),
+    )
+    try:
+        missing = root / "missing-schema.json"
+        module.SCHEMA_PATH = missing
+        _expect_runtime(
+            problems,
+            "validate missing schema",
+            lambda: module.validate(root, None),
+            f"schema file not found: {missing}",
+        )
+        for filename, payload, detail in written:
+            path = root / filename
+            path.write_text(payload, encoding="utf-8")
+            module.SCHEMA_PATH = path
+            _expect_runtime(
+                problems,
+                f"validate {filename}",
+                lambda: module.validate(root, None),
+                f"{detail}: {path}",
+            )
+    finally:
+        module.SCHEMA_PATH = original
+
+
+def test_every_runtime_error_branch_holds_under_optimized_python(tmp_path: Path) -> None:
+    root = _tree(tmp_path)
+    assert _runtime_error_problems(root) == []
+    env = os.environ.copy()
+    tests = str(ROOT / "tests")
+    previous = env.get("PYTHONPATH", "")
+    env["PYTHONPATH"] = tests if not previous else tests + os.pathsep + previous
+    code = (
+        "import sys\n"
+        "from pathlib import Path\n"
+        "from test_cursor_publish import _runtime_error_problems\n"
+        "sys.stdout.write('debug=%s\\n' % __debug__)\n"
+        "problems = _runtime_error_problems(Path(sys.argv[1]))\n"
+        "if problems:\n"
+        "    sys.stderr.write('\\n'.join(problems) + '\\n')\n"
+        "    raise SystemExit(1)\n"
+    )
+    result = subprocess.run(
+        [sys.executable, "-O", "-c", code, str(root)],
+        check=False,
+        capture_output=True,
+        text=True,
+        env=env,
+    )
+    assert result.returncode == 0, result.stderr + result.stdout
+    assert result.stdout == "debug=False\n"
+    assert result.stderr == ""
 
 
 def test_an_extra_manifest_key_is_the_schema_message(tmp_path: Path) -> None:
