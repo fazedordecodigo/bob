@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+New scripts/install.sh: the one-line installer checks git, Python, Node and the tools without writing anything, verifies the wheel against SHA256SUMS, installs it in a per-version venv under BOB_HOME, links ~/.local/bin/bob and runs bob setup. No sudo.
+
+Novo scripts/install.sh: o instalador de um comando confere git, Python, Node e as ferramentas sem escrever nada, confere o wheel contra o SHA256SUMS, instala num venv por versão em BOB_HOME, liga ~/.local/bin/bob e roda o bob setup. Sem sudo.
+
 New bob setup: checks Python and Node, installs the npm tools when missing, writes the skills to .agents/skills, runs bob doctor and prints a summary; exits 0 only when everything passed.
 
 Novo bob setup: confere Python e Node, instala as ferramentas npm quando faltam, grava as skills em .agents/skills, roda o bob doctor e imprime um resumo; sai 0 só quando tudo passou.
