@@ -121,7 +121,9 @@ def test_second_install_writes_nothing(plugin: Path, project: Path) -> None:
 
     result = install_project_skills(project, "1.2.3", source=plugin)
 
-    assert result == SkillsResult(installed=(), unchanged=("alpha", "beta"), preserved=(), duplicates=())
+    assert result == SkillsResult(
+        installed=(), unchanged=("alpha", "beta"), preserved=(), duplicates=()
+    )
     assert _digest(project) == before
 
 
@@ -132,7 +134,9 @@ def test_changed_file_rewrites_the_skill(plugin: Path, project: Path) -> None:
 
     result = install_project_skills(project, "1.2.3", source=plugin)
 
-    assert result == SkillsResult(installed=("alpha",), unchanged=("beta",), preserved=(), duplicates=())
+    assert result == SkillsResult(
+        installed=("alpha",), unchanged=("beta",), preserved=(), duplicates=()
+    )
     assert skill.read_bytes() == b"# alpha\n"
 
 
@@ -143,7 +147,9 @@ def test_extra_file_in_an_owned_skill_is_removed(plugin: Path, project: Path) ->
 
     result = install_project_skills(project, "1.2.3", source=plugin)
 
-    assert result == SkillsResult(installed=("alpha",), unchanged=("beta",), preserved=(), duplicates=())
+    assert result == SkillsResult(
+        installed=("alpha",), unchanged=("beta",), preserved=(), duplicates=()
+    )
     assert not extra.exists()
 
 
