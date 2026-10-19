@@ -231,7 +231,7 @@ def _node_failure(key: str, found: str | None = None) -> StepResult:
 
 
 def _pass_doctor(code: int, text: str | None = None) -> Callable[..., int]:
-    def run(install: bool = False, lang: str = "en") -> int:
+    def run(install: bool, lang: str) -> int:
         run.seen.append((install, lang))
         if text is not None:
             print(text)
@@ -248,7 +248,11 @@ def _exercise_node_reader(monkeypatch: pytest.MonkeyPatch) -> None:
         calls.append({"args": args, **kwargs})
         return subprocess.CompletedProcess(args, 0, stdout="v22.18.0\n", stderr="")
 
-    monkeypatch.setattr(setup_cmd.shutil, "which", lambda name: "/usr/bin/node")
+    def which(name: str) -> str | None:
+        assert name == "node"
+        return "/usr/bin/node"
+
+    monkeypatch.setattr(setup_cmd.shutil, "which", which)
     monkeypatch.setattr(setup_cmd.subprocess, "run", run)
     assert setup_cmd._node_version_text() == "v22.18.0"
     assert calls[0]["args"] == ["/usr/bin/node", "--version"]
@@ -595,6 +599,13 @@ def test_runtimes_rejects_an_old_python(
     monkeypatch.setattr(setup_cmd, "_python_floor", lambda: sys.version_info[:2])
     monkeypatch.setattr(setup_cmd, "_node_version_text", lambda: _pinned_node_text())
     assert step_runtimes(ctx(project)).status == "unchanged"
+    monkeypatch.setattr(setup_cmd.sys, "version_info", (3, 8, 1))
+    monkeypatch.setattr(setup_cmd, "_python_floor", lambda: (3, 8))
+    assert step_runtimes(ctx(project)).status == "unchanged"
+    monkeypatch.setattr(setup_cmd, "_python_floor", lambda: (2, 0))
+    assert step_runtimes(ctx(project)).status == "unchanged"
+    monkeypatch.setattr(setup_cmd, "_python_floor", lambda: (8, 0))
+    assert step_runtimes(ctx(project)).status == "failed"
 
 
 def test_runtimes_reports_a_bad_requires_python(
@@ -638,9 +649,14 @@ def test_npm_step_skips_npm_ci_when_the_prefix_matches(
         seen.append(lang)
         return 0
 
+    def installed(prefix: Path, name: str) -> str:
+        assert prefix == tmp_path
+        assert name == "a"
+        return "1.0.0"
+
     monkeypatch.setattr(npm_tools, "pinned_npm_versions", lambda: {"a": "1.0.0"})
     monkeypatch.setattr(npm_tools, "npm_prefix", lambda: tmp_path)
-    monkeypatch.setattr(npm_tools, "installed_npm_version", lambda prefix, name: "1.0.0")
+    monkeypatch.setattr(npm_tools, "installed_npm_version", installed)
     monkeypatch.setattr(npm_tools, "install_npm_dependencies", install)
     assert step_npm(ctx(_folder(tmp_path))) == StepResult("unchanged")
     assert seen == []
@@ -754,12 +770,14 @@ def test_skills_step_reports_installed_preserved_and_warnings(
 
     monkeypatch.setattr(install_skills, "install_project_skills", crafted)
     classified = step_skills(ctx(git_project))
+    assert classified.status == "unchanged"
     assert classified.preserved == (
         msg("setup.preserved_symlink", path="link-file"),
         msg("setup.preserved_no_marker", path="notes.txt"),
         msg("setup.preserved_file", path="plain.txt"),
         msg("setup.preserved_foreign", path="other"),
     )
+    assert classified.warnings == (msg("setup.warn_no_marker", path="notes.txt"),)
 
 
 def test_skills_step_second_run_is_unchanged(
