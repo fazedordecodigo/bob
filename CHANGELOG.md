@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+New scripts/verify-install.sh: builds the wheel, serves a local mirror of a GitHub release and checks the one-line install end to end (steps 1, 2, 3, 4, 7, 8 and 9b of the verification command). VERIFY_REMOTE=1 uses GitHub instead.
+
+Novo scripts/verify-install.sh: faz o wheel, serve um espelho local de uma release do GitHub e confere a instalação de um comando de ponta a ponta (passos 1, 2, 3, 4, 7, 8 e 9b do comando de verificação). VERIFY_REMOTE=1 usa o GitHub.
+
 New scripts/install.sh: the one-line installer checks git, Python, Node and the tools without writing anything, verifies the wheel against SHA256SUMS, installs it in a per-version venv under BOB_HOME, links ~/.local/bin/bob and runs bob setup. No sudo.
 
 Novo scripts/install.sh: o instalador de um comando confere git, Python, Node e as ferramentas sem escrever nada, confere o wheel contra o SHA256SUMS, instala num venv por versão em BOB_HOME, liga ~/.local/bin/bob e roda o bob setup. Sem sudo.
