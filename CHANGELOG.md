@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+`bob doctor` reads the npm versions and the Node range from the `package.json` packaged with bob. A bump of `package.json` and `package-lock.json` is enough, with no code change. The doctor reads each npm tool from bob's own prefix only. A project's `node_modules` and `node_modules/.bin` do not change the result. If the packaged `package.json` cannot be read, the doctor prints one stderr line, as in `bob doctor: package.json: could not read <path> (<error>). Reinstall bob.`, and exits `4`.
+
+O `bob doctor` lê as versões npm e a faixa do Node do `package.json` empacotado com o bob. Um bump de `package.json` e `package-lock.json` basta, sem mudar código. O doctor lê cada ferramenta npm só do prefixo do próprio bob. O `node_modules` e o `node_modules/.bin` do projeto não mudam o resultado. Se o `package.json` empacotado não puder ser lido, o doctor imprime uma linha no stderr, como em `bob doctor: package.json: não consegui ler <caminho> (<erro>). Reinstale o bob.`, e sai com `4`.
+
 `homepage` and `repository` in the Cursor manifest must be an `http` or `https` URI with a host and no credentials. Leading or trailing whitespace, a blank or whitespace host (`http:// /x`, `https://%20/`), and an out-of-range port such as `99999` fail with code `uri` and do not crash the validator. The publish workflow checks out with `persist-credentials: false`.
 
 `homepage` e `repository` no manifesto do Cursor têm de ser um URI `http` ou `https` com host e sem credencial. Espaço no começo ou no fim, host em branco ou só com espaço (`http:// /x`, `https://%20/`) e porta fora da faixa, como `99999`, falham com o código `uri` e não derrubam o validador. O workflow de publicação faz o checkout com `persist-credentials: false`.
