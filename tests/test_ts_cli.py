@@ -5,6 +5,7 @@ import os
 import shutil
 from pathlib import Path
 
+from bob_quality.npm_tools import pinned_npm_versions
 from helpers import TS_RISKY_SOURCE, TS_SAFE_CHANGE, commit_on_branch, init_ts_repo, run_bob
 
 
@@ -52,8 +53,8 @@ def test_check_passes_when_changed_typescript_function_stays_under_crap_10(
     assert add["cc"] == 1
     assert add["coverage"] == 1.0
     assert add["crap"] == 1.0
-    assert payload["tool_versions"]["c8"] == "12.0.0"
-    assert payload["tool_versions"]["vitest"] == "5.0.5"
+    assert payload["tool_versions"]["c8"] == pinned_npm_versions()["c8"]
+    assert payload["tool_versions"]["vitest"] == pinned_npm_versions()["vitest"]
     assert "src/safe.ts" in markdown
 
 

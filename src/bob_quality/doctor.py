@@ -7,14 +7,22 @@ import json
 import re
 import shutil
 import subprocess
+import sys
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
 from pathlib import Path
 from typing import NamedTuple
 
 from bob_quality.exit_codes import CONFIG_OR_TOOL, PASSED
-from bob_quality.messages import DEFAULT_LANGUAGE, Language, Text, msg, reason, render
-from bob_quality.npm_tools import install_npm_dependencies, npm_prefix, npm_setup_hint
+from bob_quality.messages import DEFAULT_LANGUAGE, Language, Text, msg, reason, render, t
+from bob_quality.npm_tools import (
+    PinSourceError,
+    install_npm_dependencies,
+    npm_prefix,
+    npm_setup_hint,
+    pinned_npm_versions,
+)
+from bob_quality.npm_tools import node_range as packaged_node_range
 from bob_quality.tools import ToolError
 
 _PRERELEASE = r"[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*"
@@ -38,14 +46,17 @@ class RequiresDist:
 @dataclass(frozen=True)
 class NpmPin:
     name: str
-    expected: str
-    executable: str
     npm_package: str
 
 
 @dataclass(frozen=True)
 class NodePin:
     floor: NodeVersion
+
+
+@dataclass(frozen=True)
+class NodeSlot:
+    """Posição do Node em PINS. A faixa vem do package.json empacotado (node_pin)."""
 
 
 @dataclass(frozen=True)
@@ -57,37 +68,25 @@ class BinaryPin:
     sha256: str
 
 
-Pin = RequiresDist | NpmPin | NodePin | BinaryPin
-
-NODE = NodePin(floor=NodeVersion(22, 18, 0))
+Pin = RequiresDist | NpmPin | NodeSlot | BinaryPin
 
 PINS: tuple[Pin, ...] = (
     RequiresDist("lizard", "lizard"),
     RequiresDist("deptry", "deptry"),
     RequiresDist("coverage.py", "coverage"),
-    NODE,
-    NpmPin("c8", "12.0.0", "c8", npm_package="c8"),
-    NpmPin("vitest", "5.0.5", "vitest", npm_package="vitest"),
-    NpmPin("jscpd", "5.4.1", "jscpd", npm_package="jscpd"),
-    NpmPin("eslint", "9.39.5", "eslint", npm_package="eslint"),
-    NpmPin(
-        "eslint-plugin-sonarjs",
-        "2.0.4",
-        "eslint-plugin-sonarjs",
-        npm_package="eslint-plugin-sonarjs",
-    ),
+    NodeSlot(),
+    NpmPin("c8", "c8"),
+    NpmPin("vitest", "vitest"),
+    NpmPin("jscpd", "jscpd"),
+    NpmPin("eslint", "eslint"),
+    NpmPin("eslint-plugin-sonarjs", "eslint-plugin-sonarjs"),
     RequiresDist("mutmut", "mutmut"),
     RequiresDist("complexipy", "complexipy"),
     RequiresDist("import-linter", "import-linter"),
     RequiresDist("grimp", "grimp"),
     RequiresDist("diff-cover", "diff-cover"),
     RequiresDist("bandit", "bandit"),
-    NpmPin(
-        "dependency-cruiser",
-        "18.6.0",
-        "dependency-cruiser",
-        npm_package="dependency-cruiser",
-    ),
+    NpmPin("dependency-cruiser", "dependency-cruiser"),
     BinaryPin(
         "gitleaks",
         "8.30.1",
@@ -96,19 +95,9 @@ PINS: tuple[Pin, ...] = (
         "551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb",
     ),
     RequiresDist("vulture", "vulture"),
-    NpmPin("knip", "6.41.0", "knip", npm_package="knip"),
-    NpmPin(
-        "stryker",
-        "10.0.0",
-        "stryker",
-        npm_package="@stryker-mutator/core",
-    ),
-    NpmPin(
-        "stryker-vitest-runner",
-        "10.0.0",
-        "stryker-vitest-runner",
-        npm_package="@stryker-mutator/vitest-runner",
-    ),
+    NpmPin("knip", "knip"),
+    NpmPin("stryker", "@stryker-mutator/core"),
+    NpmPin("stryker-vitest-runner", "@stryker-mutator/vitest-runner"),
 )
 
 
@@ -118,6 +107,19 @@ class _PinRow:
     ok: bool
     install: Text | None
     npm_missing: bool
+
+
+@dataclass(frozen=True)
+class _Expected:
+    python: Mapping[str, str]
+    npm: Mapping[str, str]
+    node: NodePin
+
+
+def node_pin() -> NodePin:
+    """Piso do Node lido de engines.node do package.json empacotado (ADR 0008)."""
+    major, minor, patch = packaged_node_range().floor
+    return NodePin(floor=NodeVersion(major, minor, patch))
 
 
 def run_doctor(install: bool = False, lang: Language = DEFAULT_LANGUAGE) -> int:
@@ -134,16 +136,24 @@ def _install_then_report(lang: Language) -> int:
 
 
 def _report_pins(lang: Language) -> int:
-    rows = _rows()
+    try:
+        rows = _rows()
+    except PinSourceError as exc:
+        print(t(lang, "doctor.error", reason=reason(exc)), file=sys.stderr)
+        return CONFIG_OR_TOOL
     print("\n".join(render(line, lang) for line in _lines(rows)))
     return _verdict(rows)
 
 
 def _rows() -> list[_PinRow]:
-    declared = unconditional_exact_pins(_own_requirements())
+    expected = _Expected(
+        python=unconditional_exact_pins(_own_requirements()),
+        npm=pinned_npm_versions(),
+        node=node_pin(),
+    )
     rows: list[_PinRow] = []
     for pin in PINS:
-        rows.append(_assess(pin, declared))
+        rows.append(_assess(pin, expected))
     return rows
 
 
@@ -215,14 +225,14 @@ def _any_npm_missing(rows: list[_PinRow]) -> bool:
     return False
 
 
-def _assess(pin: Pin, declared: Mapping[str, str]) -> _PinRow:
+def _assess(pin: Pin, expected: _Expected) -> _PinRow:
     if isinstance(pin, RequiresDist):
-        return _assess_requires_dist(pin, declared.get(pin.distribution))
-    if isinstance(pin, NodePin):
-        return _assess_node(pin)
+        return _assess_requires_dist(pin, expected.python.get(pin.distribution))
+    if isinstance(pin, NodeSlot):
+        return _assess_node(expected.node)
     if isinstance(pin, BinaryPin):
         return _assess_binary(pin)
-    return _assess_npm(pin)
+    return _assess_npm(pin, expected.npm.get(pin.npm_package))
 
 
 def _assess_requires_dist(pin: RequiresDist, expected: str | None) -> _PinRow:
@@ -281,10 +291,12 @@ def _assess_node(pin: NodePin) -> _PinRow:
     return _PinRow(line, False, _node_install(pin), False)
 
 
-def _assess_npm(pin: NpmPin) -> _PinRow:
+def _assess_npm(pin: NpmPin, expected: str | None) -> _PinRow:
     found = _found_version(pin)
-    line = msg("doctor.version", name=pin.name, expected=pin.expected, found=_shown(found))
-    if found == pin.expected:
+    line = msg("doctor.version", name=pin.name, expected=_shown(expected), found=_shown(found))
+    if expected is None:
+        return _PinRow(line, False, None, False)
+    if found == expected:
         return _PinRow(line, True, None, False)
     return _PinRow(line, False, None, True)
 
@@ -320,10 +332,8 @@ def _npm_ci_hint() -> Text:
 
 
 def _found_version(pin: NpmPin) -> str | None:
-    packaged = _npm_package_version(pin.npm_package, pin.executable)
-    if packaged is not None:
-        return packaged
-    return _cli_version(pin.executable)
+    """Só o prefixo do bob (ADR 0019): sem node_modules do cwd e sem executável no PATH."""
+    return _prefix_npm_version(pin.npm_package)
 
 
 def _npm_root() -> Path | None:
@@ -340,47 +350,12 @@ def _distribution_version(distribution: str) -> str | None:
         return None
 
 
-def _npm_package_version(package_name: str, executable: str) -> str | None:
-    return _first_version(
-        _cwd_npm_version(package_name),
-        _prefix_npm_version(package_name),
-        _executable_npm_version(package_name, executable),
-    )
-
-
-def _first_version(*candidates: str | None) -> str | None:
-    for candidate in candidates:
-        if candidate is not None:
-            return candidate
-    return None
-
-
-def _cwd_npm_version(package_name: str) -> str | None:
-    path = Path.cwd() / "node_modules" / package_name / "package.json"
-    return _manifest_version(path, package_name)
-
-
 def _prefix_npm_version(package_name: str) -> str | None:
     prefix = _npm_root()
     if prefix is None:
         return None
     path = prefix / "node_modules" / package_name / "package.json"
     return _manifest_version(path, package_name)
-
-
-def _executable_npm_version(package_name: str, executable: str) -> str | None:
-    located = _locate(executable)
-    if located is None:
-        return None
-    return _version_near(Path(located).resolve(), package_name)
-
-
-def _version_near(path: Path, package_name: str) -> str | None:
-    for parent in path.parents:
-        version = _manifest_version(parent / "package.json", package_name)
-        if version is not None:
-            return version
-    return None
 
 
 def _manifest_version(manifest: Path, package_name: str) -> str | None:
@@ -435,7 +410,4 @@ def _cli_version(executable: str) -> str | None:
 
 
 def _locate(executable: str) -> str | None:
-    local = Path.cwd() / "node_modules" / ".bin" / executable
-    if local.exists():
-        return str(local)
     return shutil.which(executable)

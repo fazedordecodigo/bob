@@ -5,7 +5,7 @@ from pathlib import Path
 
 import yaml
 
-from bob_quality.doctor import NODE, node_admits
+from bob_quality.doctor import node_admits, node_pin
 
 ROOT = Path(__file__).resolve().parents[1]
 CI = ROOT / ".github" / "workflows" / "ci.yml"
@@ -248,7 +248,7 @@ def test_workflows_install_a_node_the_doctor_accepts() -> None:
         versions = _setup_node_versions(path)
         assert len(versions) == count, path
         for version in versions:
-            assert node_admits(NODE, version) is True, (path, version)
+            assert node_admits(node_pin(), version) is True, (path, version)
 
 
 def test_dependabot_ignores_sonarjs_majors_and_scans_the_action() -> None:

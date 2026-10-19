@@ -103,6 +103,11 @@ _EN: dict[str, str] = {
     "npm.cache_unavailable": "could not prepare the user cache {cache}: {detail}",
     "npm.unreadable_version": "unreadable {package} version",
     "npm.c8_failed": "c8/vitest failed",
+    "npm.pin_source": "package.json: could not read {path} ({detail}). Reinstall bob.",
+    "npm.pin_not_json": "invalid JSON: {detail}",
+    "npm.pin_not_object": "{field} is not an object",
+    "npm.pin_not_exact": "{field} = {value} is not X.Y.Z",
+    "npm.pin_bad_node_range": "engines.node = {value} is not >=A.B.C <N with N = A + 1",
     "dry.node_missing": "Node missing: install Node.js to run jscpd",
     "dry.deps_missing": (
         "plugin npm dependencies missing: bob doctor --install (#19; jscpd pinned in package.json)"
@@ -210,6 +215,7 @@ _EN: dict[str, str] = {
     "doctor.missing": "missing",
     "doctor.install_node": "Install Node.js {version} ({url})",
     "doctor.install_gitleaks": "install gitleaks {version} from {url} (sha256 {sha256})",
+    "doctor.error": "bob doctor: {reason}",
     "status.passed": "passed",
     "status.warn": "warning",
     "status.failed": "failed",
@@ -422,6 +428,11 @@ _PT_BR: dict[str, str] = {
     "npm.cache_unavailable": "não foi possível preparar o cache do usuário {cache}: {detail}",
     "npm.unreadable_version": "versão de {package} ilegível",
     "npm.c8_failed": "c8/vitest falhou",
+    "npm.pin_source": "package.json: não consegui ler {path} ({detail}). Reinstale o bob.",
+    "npm.pin_not_json": "JSON inválido: {detail}",
+    "npm.pin_not_object": "{field} não é um objeto",
+    "npm.pin_not_exact": "{field} = {value} não é X.Y.Z",
+    "npm.pin_bad_node_range": "engines.node = {value} não é >=A.B.C <N com N = A + 1",
     "dry.node_missing": "Node ausente: instale Node.js para rodar o jscpd",
     "dry.deps_missing": (
         "dependências npm do plugin ausentes: bob doctor --install "
@@ -532,6 +543,7 @@ _PT_BR: dict[str, str] = {
     "doctor.missing": "ausente",
     "doctor.install_node": "Instale Node.js {version} ({url})",
     "doctor.install_gitleaks": "instale o gitleaks {version} em {url} (sha256 {sha256})",
+    "doctor.error": "bob doctor: {reason}",
     "status.passed": "passou",
     "status.warn": "aviso",
     "status.failed": "falhou",
