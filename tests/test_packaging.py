@@ -864,7 +864,13 @@ def test_unreadable_retired_folder_stays_and_the_install_finishes(
 
 
 def test_plugin_folder_links_the_root_manifest_skills_and_license() -> None:
-    plugin = ROOT / "src" / "bob_quality" / "plugin"
+    root = ROOT
+    plugin = root / "src" / "bob_quality" / "plugin"
+    # O mutmut copia `src` sem os symlinks de diretório. O contrato é o do checkout.
+    copied = root.parent / "src" / "bob_quality" / "plugin"
+    if not (plugin / "skills").is_symlink() and (copied / "skills").is_symlink():
+        root = root.parent
+        plugin = copied
     names = sorted(path.name for path in plugin.iterdir())
     assert names == [".claude-plugin", "LICENSE", "skills"]
     links = {
@@ -876,7 +882,7 @@ def test_plugin_folder_links_the_root_manifest_skills_and_license() -> None:
         path = plugin / name
         assert path.is_symlink()
         assert os.readlink(path) == target
-        assert path.resolve() == (ROOT / name).resolve()
+        assert path.resolve() == (root / name).resolve()
 
 
 def test_default_source_is_the_clone_when_it_has_the_manifest() -> None:
