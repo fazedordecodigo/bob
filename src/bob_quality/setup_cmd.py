@@ -45,13 +45,66 @@ class StepResult:
 
 Step = Callable[[SetupContext], StepResult]
 
+_FAILED: Status = "failed"
+_INSTALLED: Status = "installed"
+_UNCHANGED: Status = "unchanged"
+_GIT = "git"
+_GIT_TOPLEVEL = ("git", "rev-parse", "--show-toplevel")
+_NODE = "node"
+_NODE_FLAG = "--version"
+_NODE_TIMEOUT = 30
+_DOCTOR_INSTALL = False
+_PKG = "bob-quality"
+_PY_REQUIRES = "Requires-Python"
+_PY_FLOOR_RE = r">=(\d+)\.(\d+)"
+_NODE_RE = r"v(\d+\.\d+\.\d+)"
+_SKILLS_FALLBACK = ".agents/skills"
+_COMMA = ", "
+_DOT = "."
+_RUNTIMES = "runtimes"
+_NPM = "npm"
+_RANGE = "range"
+_FLOOR = "floor"
+_MAJOR = "major"
+_FOUND = "found"
+_STEP_OK = "setup.step_ok"
+_WARNING_LINE = "setup.warning_line"
+_ERROR = "setup.error"
+_SUMMARY = "setup.summary"
+_INSTALLED_LINE = "setup.installed"
+_NOTHING = "setup.nothing"
+_PRESERVED_LINE = "setup.preserved"
+_WARNINGS_LINE = "setup.warnings"
+_DOCTOR_LINE = "setup.doctor"
+_DOCTOR_NOT_RUN = "setup.doctor_not_run"
+_INTERNAL = "setup.internal_error"
+_STEP_REASON = "setup.step_reason"
+_GIT_MISSING = "setup.git_missing"
+_NOT_GIT_ROOT = "setup.not_git_root"
+_BOB_HOME_RELATIVE = "setup.bob_home_relative"
+_PYTHON_FLOOR_BAD = "setup.python_floor_bad"
+_PYTHON_OLD = "setup.python_old"
+_NODE_MISSING = "setup.node_missing"
+_NODE_OUT = "setup.node_out"
+_NPM_FAILED = "setup.npm_failed"
+_SKILLS_SOURCE = "setup.skills_source"
+_SKILLS_WRITE = "setup.skills_write"
+_ITEM_NPM = "setup.item_npm"
+_ITEM_SKILLS = "setup.item_skills"
+_NO_MARKER = "setup.preserved_no_marker"
+_SYMLINK = "setup.preserved_symlink"
+_FILE = "setup.preserved_file"
+_FOREIGN = "setup.preserved_foreign"
+_WARN_NO_MARKER = "setup.warn_no_marker"
+_WARN_DUPLICATE = "setup.warn_duplicate"
+
 
 def step_projeto(ctx: SetupContext) -> StepResult:
-    if shutil.which("git") is None:
-        return StepResult("failed", error=msg("setup.git_missing"))
+    if shutil.which(_GIT) is None:
+        return StepResult(_FAILED, error=msg(_GIT_MISSING))
     try:
         completed = subprocess.run(
-            ["git", "rev-parse", "--show-toplevel"],
+            list(_GIT_TOPLEVEL),
             cwd=ctx.project,
             capture_output=True,
             text=True,
@@ -64,65 +117,57 @@ def step_projeto(ctx: SetupContext) -> StepResult:
     top = Path(completed.stdout.strip()).resolve()
     if top != ctx.project:
         return _not_git_root(ctx)
-    return StepResult("unchanged")
+    return StepResult(_UNCHANGED)
 
 
 def step_runtimes(ctx: SetupContext) -> StepResult:
     try:
         floor = _python_floor()
     except ValueError as exc:
-        return StepResult(
-            "failed",
-            error=msg("setup.python_floor_bad", value=str(exc)),
-        )
+        return StepResult(_FAILED, error=msg(_PYTHON_FLOOR_BAD, value=str(exc)))
     found_py = (sys.version_info[0], sys.version_info[1])
     if found_py < floor:
+        dotted = _DOT.join((str(floor[0]), str(floor[1])))
         return StepResult(
-            "failed",
+            _FAILED,
             error=msg(
-                "setup.python_old",
+                _PYTHON_OLD,
                 found=platform.python_version(),
-                floor=f"{floor[0]}.{floor[1]}",
+                floor=dotted,
             ),
         )
     try:
         node = npm_tools.node_range()
     except PinSourceError as exc:
-        return _failed_reason("runtimes", exc)
+        return _failed_reason(_RUNTIMES, exc)
     found = _node_version_text()
     if found is None:
-        return StepResult("failed", error=_node_message("setup.node_missing", node))
+        return StepResult(_FAILED, error=_node_message(_NODE_MISSING, node))
     if not _node_ok(found):
-        return StepResult(
-            "failed",
-            error=_node_message("setup.node_out", node, found),
-        )
-    return StepResult("unchanged")
+        return StepResult(_FAILED, error=_node_message(_NODE_OUT, node, found))
+    return StepResult(_UNCHANGED)
 
 
 def step_npm(ctx: SetupContext) -> StepResult:
     try:
         pins = npm_tools.pinned_npm_versions()
     except PinSourceError as exc:
-        return _failed_reason("npm", exc)
+        return _failed_reason(_NPM, exc)
     if _npm_ready(pins):
-        return StepResult("unchanged")
+        return StepResult(_UNCHANGED)
     code = npm_tools.install_npm_dependencies(ctx.lang)
     if code != 0:
-        return StepResult("failed", error=msg("setup.npm_failed"))
-    return StepResult("installed", installed=(msg("setup.item_npm"),))
+        return StepResult(_FAILED, error=msg(_NPM_FAILED))
+    return StepResult(_INSTALLED, installed=(msg(_ITEM_NPM),))
 
 
 def step_skills(ctx: SetupContext) -> StepResult:
     try:
         result = install_skills.install_project_skills(ctx.project, ctx.version)
     except SourceError as exc:
-        return StepResult(
-            "failed",
-            error=msg("setup.skills_source", detail=str(exc)),
-        )
+        return StepResult(_FAILED, error=msg(_SKILLS_SOURCE, detail=str(exc)))
     except OSError as exc:
-        return StepResult("failed", error=_skills_write_error(exc))
+        return StepResult(_FAILED, error=_skills_write_error(exc))
     return _skills_outcome(ctx, result)
 
 
@@ -141,24 +186,24 @@ def run_setup(project: Path, lang: Language) -> int:
             project=project.resolve(),
             home=user_dirs.bob_home(),
             lang=lang,
-            version=importlib.metadata.version("bob-quality"),
+            version=importlib.metadata.version(_PKG),
         )
     except ValueError as exc:
-        _fail(lang, msg("setup.bob_home_relative", value=str(exc)), (), (), ())
+        _fail(lang, msg(_BOB_HOME_RELATIVE, value=str(exc)), (), (), ())
         return 4
     return _run(ctx)
 
 
 def _node_version_text() -> str | None:
-    node = shutil.which("node")
+    node = shutil.which(_NODE)
     if node is None:
         return None
     try:
         completed = subprocess.run(
-            [node, "--version"],
+            [node, _NODE_FLAG],
             capture_output=True,
             text=True,
-            timeout=30,
+            timeout=_NODE_TIMEOUT,
             check=False,
         )
     except (OSError, subprocess.TimeoutExpired):
@@ -169,8 +214,8 @@ def _node_version_text() -> str | None:
 
 
 def _python_floor() -> tuple[int, int]:
-    value = importlib.metadata.metadata("bob-quality")["Requires-Python"]
-    match = re.fullmatch(r">=(\d+)\.(\d+)", value)
+    value = importlib.metadata.metadata(_PKG)[_PY_REQUIRES]
+    match = re.fullmatch(_PY_FLOOR_RE, value)
     if match is None:
         raise ValueError(value)
     return int(match.group(1)), int(match.group(2))
@@ -182,14 +227,14 @@ def _run(ctx: SetupContext) -> int:
     warnings: list[Text] = []
     for step_id, step in STEPS:
         result = _invoke(step_id, step, ctx)
-        if result.status == "failed":
+        if result.status == _FAILED:
             _fail(ctx.lang, result.error, installed, preserved, warnings)
             return 4
         _announce(ctx.lang, step_id, result.warnings)
         installed.extend(result.installed)
         preserved.extend(result.preserved)
         warnings.extend(result.warnings)
-    code = doctor.run_doctor(install=False, lang=ctx.lang)
+    code = doctor.run_doctor(install=_DOCTOR_INSTALL, lang=ctx.lang)
     _summary(ctx.lang, installed, preserved, warnings, str(code))
     if code == 0:
         return 0
@@ -201,22 +246,18 @@ def _invoke(step_id: str, step: Step, ctx: SetupContext) -> StepResult:
         return step(ctx)
     except Exception as exc:
         return StepResult(
-            "failed",
-            error=msg(
-                "setup.internal_error",
-                step=step_id,
-                kind=type(exc).__name__,
-            ),
+            _FAILED,
+            error=msg(_INTERNAL, step=step_id, kind=type(exc).__name__),
         )
 
 
 def _announce(lang: Language, step_id: str, warnings: Sequence[Text]) -> None:
-    print(t(lang, "setup.step_ok", step=step_id))
+    print(t(lang, _STEP_OK, step=step_id))
     for warning in warnings:
         print(
             t(
                 lang,
-                "setup.warning_line",
+                _WARNING_LINE,
                 step=step_id,
                 text=render(warning, lang),
             )
@@ -230,14 +271,8 @@ def _fail(
     preserved: Sequence[Text],
     warnings: Sequence[Text],
 ) -> None:
-    print(t(lang, "setup.error", reason=render(error, lang)), file=sys.stderr)
-    _summary(
-        lang,
-        installed,
-        preserved,
-        warnings,
-        t(lang, "setup.doctor_not_run"),
-    )
+    print(t(lang, _ERROR, reason=render(error, lang)), file=sys.stderr)
+    _summary(lang, installed, preserved, warnings, t(lang, _DOCTOR_NOT_RUN))
 
 
 def _summary(
@@ -247,35 +282,32 @@ def _summary(
     warnings: Sequence[Text],
     doctor_code: str,
 ) -> None:
-    print(t(lang, "setup.summary"))
-    print(t(lang, "setup.installed", items=_items(lang, installed)))
+    print(t(lang, _SUMMARY))
+    print(t(lang, _INSTALLED_LINE, items=_items(lang, installed)))
     for item in preserved:
-        print(t(lang, "setup.preserved", item=render(item, lang)))
+        print(t(lang, _PRESERVED_LINE, item=render(item, lang)))
     for warning in warnings:
-        print(t(lang, "setup.warnings", text=render(warning, lang)))
-    print(t(lang, "setup.doctor", code=doctor_code))
+        print(t(lang, _WARNINGS_LINE, text=render(warning, lang)))
+    print(t(lang, _DOCTOR_LINE, code=doctor_code))
 
 
 def _items(lang: Language, installed: Sequence[Text]) -> str:
     rendered = [render(item, lang) for item in installed]
     if not rendered:
-        return t(lang, "setup.nothing")
-    return ", ".join(rendered)
+        return t(lang, _NOTHING)
+    return _COMMA.join(rendered)
 
 
 def _not_git_root(ctx: SetupContext) -> StepResult:
-    return StepResult("failed", error=msg("setup.not_git_root", path=ctx.project))
+    return StepResult(_FAILED, error=msg(_NOT_GIT_ROOT, path=ctx.project))
 
 
 def _failed_reason(step: str, exc: BaseException) -> StepResult:
-    return StepResult(
-        "failed",
-        error=msg("setup.step_reason", step=step, reason=reason(exc)),
-    )
+    return StepResult(_FAILED, error=msg(_STEP_REASON, step=step, reason=reason(exc)))
 
 
 def _node_ok(found: str) -> bool:
-    match = re.fullmatch(r"v(\d+\.\d+\.\d+)", found)
+    match = re.fullmatch(_NODE_RE, found)
     if match is None:
         return False
     return doctor.node_admits(doctor.node_pin(), match.group(1))
@@ -284,12 +316,12 @@ def _node_ok(found: str) -> bool:
 def _node_message(key: str, node: NodeRange, found: str | None = None) -> Text:
     floor = node.floor
     params: dict[str, object] = {
-        "range": str(node),
-        "floor": ".".join(str(part) for part in floor),
-        "major": str(floor[0]),
+        _RANGE: str(node),
+        _FLOOR: _DOT.join(str(part) for part in floor),
+        _MAJOR: str(floor[0]),
     }
     if found is not None:
-        params["found"] = found
+        params[_FOUND] = found
     return msg(key, **params)
 
 
@@ -316,23 +348,19 @@ def _skills_write_error(exc: OSError) -> Text:
     if exc.filename:
         path = exc.filename
     else:
-        path = ".agents/skills"
-    return msg(
-        "setup.skills_write",
-        path=path,
-        detail=exc.strerror or type(exc).__name__,
-    )
+        path = _SKILLS_FALLBACK
+    return msg(_SKILLS_WRITE, path=path, detail=exc.strerror or type(exc).__name__)
 
 
 def _skills_outcome(ctx: SetupContext, result: SkillsResult) -> StepResult:
     preserved = tuple(_preserved_item(ctx, path, result) for path in result.preserved)
     warnings = _skill_warnings(ctx, result)
     if not result.installed:
-        return StepResult("unchanged", preserved=preserved, warnings=warnings)
-    names = ", ".join(result.installed)
+        return StepResult(_UNCHANGED, preserved=preserved, warnings=warnings)
+    names = _COMMA.join(result.installed)
     return StepResult(
-        "installed",
-        installed=(msg("setup.item_skills", names=names),),
+        _INSTALLED,
+        installed=(msg(_ITEM_SKILLS, names=names),),
         preserved=preserved,
         warnings=warnings,
     )
@@ -340,10 +368,10 @@ def _skills_outcome(ctx: SetupContext, result: SkillsResult) -> StepResult:
 
 def _skill_warnings(ctx: SetupContext, result: SkillsResult) -> tuple[Text, ...]:
     unmarked = tuple(
-        msg("setup.warn_no_marker", path=_relative(ctx, path)) for path in result.unmarked
+        msg(_WARN_NO_MARKER, path=_relative(ctx, path)) for path in result.unmarked
     )
     copies = tuple(
-        msg("setup.warn_duplicate", path=_relative(ctx, path)) for path in result.duplicates
+        msg(_WARN_DUPLICATE, path=_relative(ctx, path)) for path in result.duplicates
     )
     return unmarked + copies
 
@@ -351,12 +379,12 @@ def _skill_warnings(ctx: SetupContext, result: SkillsResult) -> tuple[Text, ...]
 def _preserved_item(ctx: SetupContext, path: Path, result: SkillsResult) -> Text:
     relative = _relative(ctx, path)
     if path in result.unmarked:
-        return msg("setup.preserved_no_marker", path=relative)
+        return msg(_NO_MARKER, path=relative)
     if path.is_symlink():
-        return msg("setup.preserved_symlink", path=relative)
+        return msg(_SYMLINK, path=relative)
     if path.is_file():
-        return msg("setup.preserved_file", path=relative)
-    return msg("setup.preserved_foreign", path=relative)
+        return msg(_FILE, path=relative)
+    return msg(_FOREIGN, path=relative)
 
 
 def _relative(ctx: SetupContext, path: Path) -> str:
