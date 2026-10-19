@@ -14,6 +14,7 @@ from bob_quality.exit_codes import CONFIG_OR_TOOL, PASSED
 from bob_quality.messages import DEFAULT_LANGUAGE, Language, reason, render, t
 from bob_quality.mutate import untested_targets, waivable_targets
 from bob_quality.report import write_saved_markdown
+from bob_quality.setup_cmd import run_setup
 from bob_quality.waivers import WaiverError, add_waiver, reject_waiver_syntax
 
 
@@ -120,6 +121,9 @@ def build_parser(lang: Language = DEFAULT_LANGUAGE) -> _Parser:
     )
     _add_lang(doctor, lang)
 
+    setup = sub.add_parser("setup", help=t(lang, "cli.setup"))
+    _add_lang(setup, lang)
+
     return parser
 
 
@@ -216,6 +220,8 @@ def main(argv: list[str] | None = None) -> int:
         return blocked
     if args.command == "doctor":
         return run_doctor(install=args.install, lang=lang)
+    if args.command == "setup":
+        return run_setup(Path.cwd(), lang)
     if args.command == "waive":
         return _waive_command(cwd, args, lang)
     if args.command == "report":

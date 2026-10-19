@@ -63,6 +63,7 @@ _EN: dict[str, str] = {
     "cli.doctor": "Check the pinned tools and the installed versions",
     "cli.report": "Render report.json from a directory as Markdown",
     "cli.install": "Install the npm tools with npm ci in the package (or in a user cache)",
+    "cli.setup": "Set up bob in this project (npm tools, skills) and run bob doctor",
     "config.not_found": "config file not found: {path}",
     "config.not_mapping": "bob.yaml must be a mapping",
     "config.invalid_language": "invalid language: {value} (use en or pt-BR)",
@@ -370,6 +371,54 @@ _EN: dict[str, str] = {
     "report.supply_effect_block": "blocks",
     "report.supply_effect_warn": "warns",
     "report.supply_effect_waived": "waived",
+    "setup.step_ok": "bob setup: {step}: ok",
+    "setup.warning_line": "bob setup: {step}: warning: {text}",
+    "setup.error": "bob setup: {reason}",
+    "setup.summary": "bob setup: summary",
+    "setup.installed": "  installed: {items}",
+    "setup.nothing": "nothing",
+    "setup.preserved": "  preserved: {item}",
+    "setup.warnings": "  warnings: {text}",
+    "setup.doctor": "  bob doctor: {code}",
+    "setup.doctor_not_run": "not run",
+    "setup.internal_error": "{step}: internal error ({kind}). Open an issue.",
+    "setup.step_reason": "{step}: {reason}",
+    "setup.git_missing": "projeto: git not found. Install git and run again.",
+    "setup.not_git_root": (
+        "projeto: {path} is not the root of a git repository. Run in the project root."
+    ),
+    "setup.bob_home_relative": (
+        "projeto: BOB_HOME={value} must be absolute. Use an absolute path."
+    ),
+    "setup.python_floor_bad": "runtimes: Requires-Python = {value} is not >=A.B. Reinstall bob.",
+    "setup.python_old": (
+        "runtimes: found Python {found}, required >={floor}. Install Python {floor} or newer."
+    ),
+    "setup.node_missing": (
+        "runtimes: node not found, required {range}. "
+        "Install Node {floor} or newer from the {major} line."
+    ),
+    "setup.node_out": (
+        "runtimes: found node {found}, required {range}. "
+        "Install Node {floor} or newer from the {major} line."
+    ),
+    "setup.npm_failed": "npm: npm ci failed. See the output above and run bob setup again.",
+    "setup.skills_source": "skills: {detail}. Reinstall bob.",
+    "setup.skills_write": "skills: could not write {path} ({detail}). Check the permissions.",
+    "setup.item_npm": "npm tools",
+    "setup.item_skills": "skills ({names}) in .agents/skills",
+    "setup.preserved_no_marker": "{path} (no .bob-version)",
+    "setup.preserved_symlink": "{path} (symlink)",
+    "setup.preserved_file": "{path} (file)",
+    "setup.preserved_foreign": "{path} (not from bob)",
+    "setup.warn_no_marker": (
+        "{path} has no .bob-version and was left as is. "
+        "If it is bob's, delete the folder and run bob setup again."
+    ),
+    "setup.warn_duplicate": (
+        "found a copy of bob in {path}. bob now uses only .agents/skills; "
+        "delete {path} if you do not need it."
+    ),
 }
 
 _PT_BR: dict[str, str] = {
@@ -388,6 +437,7 @@ _PT_BR: dict[str, str] = {
     "cli.doctor": "Verifica as ferramentas pinadas e as versões instaladas",
     "cli.report": "Renderiza o report.json de uma pasta como Markdown",
     "cli.install": "Instala as ferramentas npm com npm ci no pacote (ou num cache do usuário)",
+    "cli.setup": "Prepara o bob neste projeto (ferramentas npm, skills) e roda o bob doctor",
     "config.not_found": "arquivo de configuração não encontrado: {path}",
     "config.not_mapping": "bob.yaml deve ser um mapeamento",
     "config.invalid_language": "idioma inválido: {value} (use en ou pt-BR)",
@@ -698,6 +748,57 @@ _PT_BR: dict[str, str] = {
     "report.supply_effect_block": "bloqueia",
     "report.supply_effect_warn": "avisa",
     "report.supply_effect_waived": "dispensado",
+    "setup.step_ok": "bob setup: {step}: ok",
+    "setup.warning_line": "bob setup: {step}: aviso: {text}",
+    "setup.error": "bob setup: {reason}",
+    "setup.summary": "bob setup: resumo",
+    "setup.installed": "  instalado: {items}",
+    "setup.nothing": "nada",
+    "setup.preserved": "  preservado: {item}",
+    "setup.warnings": "  avisos: {text}",
+    "setup.doctor": "  bob doctor: {code}",
+    "setup.doctor_not_run": "não rodou",
+    "setup.internal_error": "{step}: erro interno ({kind}). Abra uma issue.",
+    "setup.step_reason": "{step}: {reason}",
+    "setup.git_missing": "projeto: git não encontrado. Instale o git e rode de novo.",
+    "setup.not_git_root": (
+        "projeto: {path} não é a raiz de um repositório git. Rode na raiz do projeto."
+    ),
+    "setup.bob_home_relative": (
+        "projeto: BOB_HOME={value} precisa ser absoluto. Use um caminho absoluto."
+    ),
+    "setup.python_floor_bad": "runtimes: Requires-Python = {value} não é >=A.B. Reinstale o bob.",
+    "setup.python_old": (
+        "runtimes: encontrado Python {found}, exigido >={floor}. "
+        "Instale um Python {floor} ou mais novo."
+    ),
+    "setup.node_missing": (
+        "runtimes: node não encontrado, exigido {range}. "
+        "Instale o Node {floor} ou mais novo da linha {major}."
+    ),
+    "setup.node_out": (
+        "runtimes: encontrado node {found}, exigido {range}. "
+        "Instale o Node {floor} ou mais novo da linha {major}."
+    ),
+    "setup.npm_failed": "npm: npm ci falhou. Veja a saída acima e rode bob setup de novo.",
+    "setup.skills_source": "skills: {detail}. Reinstale o bob.",
+    "setup.skills_write": (
+        "skills: não consegui gravar {path} ({detail}). Confira as permissões."
+    ),
+    "setup.item_npm": "ferramentas npm",
+    "setup.item_skills": "skills ({names}) em .agents/skills",
+    "setup.preserved_no_marker": "{path} (sem .bob-version)",
+    "setup.preserved_symlink": "{path} (link simbólico)",
+    "setup.preserved_file": "{path} (arquivo)",
+    "setup.preserved_foreign": "{path} (não é do bob)",
+    "setup.warn_no_marker": (
+        "{path} não tem .bob-version e ficou como está. "
+        "Se ela é do bob, apague a pasta e rode bob setup de novo."
+    ),
+    "setup.warn_duplicate": (
+        "achei uma cópia do bob em {path}. O bob agora usa só .agents/skills; "
+        "apague {path} se não precisar dela."
+    ),
 }
 
 CATALOG: dict[Language, dict[str, str]] = {"en": _EN, "pt-BR": _PT_BR}

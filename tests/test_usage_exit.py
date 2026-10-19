@@ -210,12 +210,12 @@ def test_invalid_lang_masks_a_later_usage_error(tmp_path: Path) -> None:
     assert not (tmp_path / ".bob").exists(), tmp_path
 
 
-_COMMANDS = ("check", "crap", "dry", "deps", "mutate", "report", "waive", "doctor")
+_COMMANDS = ("check", "crap", "dry", "deps", "mutate", "report", "waive", "doctor", "setup")
 
 _TOP_HELP = (
     "usage: bob",
     "Quality gates for agents.",
-    "{check,crap,dry,deps,mutate,report,waive,doctor}",
+    "{check,crap,dry,deps,mutate,report,waive,doctor,setup}",
     "Run the requested gates and write .bob/",
     "Measure CRAP of the changed functions",
     "Report new clones in the diff; blocks only in fail mode",
@@ -224,6 +224,7 @@ _TOP_HELP = (
     "Render report.json from a directory as Markdown",
     "Record a waiver with a one-line reason",
     "Check the pinned tools and the installed versions",
+    "Set up bob in this project (npm tools, skills) and run bob doctor",
     "Output language: en or pt-BR (default: en)",
 )
 
@@ -262,6 +263,7 @@ _SUB_HELP = {
         "--install]",
         "Install the npm tools with npm ci in the package (or in a user cache)",
     ),
+    "setup": ("usage: bob setup", "--lang LANG"),
 }
 
 
@@ -279,6 +281,9 @@ def _usage_argv() -> tuple[tuple[str, ...], ...]:
         ("doctor", "--config", "bob.yaml"),
         ("doctor", "--base"),
         ("doctor", "--base", "main"),
+        ("setup", "--config"),
+        ("setup", "--config", "bob.yaml"),
+        ("setup", "--install"),
         ("--lang",),
         ("--config",),
         ("check", "--lang"),
