@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+New bob setup: checks Python and Node, installs the npm tools when missing, writes the skills to .agents/skills, runs bob doctor and prints a summary; exits 0 only when everything passed.
+
+Novo bob setup: confere Python e Node, instala as ferramentas npm quando faltam, grava as skills em .agents/skills, roda o bob doctor e imprime um resumo; sai 0 só quando tudo passou.
+
 New install_project_skills: writes the bob skills only to .agents/skills with a .bob-version marker, keeps folders it does not own, removes retired ones and writes nothing when the copy is current.
 
 Nova install_project_skills: grava as skills do bob só em .agents/skills com o marcador .bob-version, mantém as pastas que não são dele, apaga as aposentadas e não escreve nada quando a cópia já está atual.
