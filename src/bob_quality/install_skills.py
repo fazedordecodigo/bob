@@ -80,10 +80,18 @@ class SourceError(Exception):
     """A raiz do plugin não tem um manifesto com pastas de skills válidas."""
 
 
+def default_source() -> Path:
+    """Raiz do plugin: a do clone, se tiver o manifesto; senão a cópia dentro do pacote (wheel)."""
+    if (PLUGIN_ROOT / MANIFEST).is_file():
+        return PLUGIN_ROOT
+    return Path(__file__).resolve().parent / "plugin"
+
+
 def main(argv: list[str] | None = None) -> int:
     args = _parser().parse_args(argv)
+    source = args.source if args.source is not None else default_source()
     try:
-        skills = _skills(args.source)
+        skills = _skills(source)
     except SourceError as exc:
         print(str(exc), file=sys.stderr)
         return CONFIG_ERROR
@@ -92,7 +100,7 @@ def main(argv: list[str] | None = None) -> int:
             continue
         print(
             f"aviso: a skill {skill.name} não tem LICENSE entre a pasta dela e a raiz do plugin "
-            f"{args.source}; instalada sem licença.",
+            f"{source}; instalada sem licença.",
             file=sys.stderr,
         )
     for dest in dict.fromkeys(TARGETS[name] for name in args.targets):
@@ -104,7 +112,7 @@ def main(argv: list[str] | None = None) -> int:
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser()
     parser.add_argument("--project", type=Path, default=Path("."))
-    parser.add_argument("--source", type=Path, default=PLUGIN_ROOT)
+    parser.add_argument("--source", type=Path, default=None)
     parser.add_argument("targets", nargs="+", choices=sorted(TARGETS))
     return parser
 

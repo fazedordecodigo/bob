@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+The wheel now ships the skills, the plugin manifest and the LICENSE under bob_quality/plugin/, and python -m bob_quality.install_skills works from an installed wheel without a clone.
+
+O wheel agora leva as skills, o manifesto do plugin e o LICENSE em bob_quality/plugin/, e python -m bob_quality.install_skills funciona a partir do wheel instalado, sem clone.
+
 `bob doctor` reads the npm versions and the Node range from the `package.json` packaged with bob. A bump of `package.json` and `package-lock.json` is enough, with no code change. The doctor reads each npm tool from bob's own prefix only. A project's `node_modules` and `node_modules/.bin` do not change the result. If the packaged `package.json` cannot be read, the doctor prints one stderr line, as in `bob doctor: package.json: could not read <path> (<error>). Reinstall bob.`, and exits `4`.
 
 O `bob doctor` lê as versões npm e a faixa do Node do `package.json` empacotado com o bob. Um bump de `package.json` e `package-lock.json` basta, sem mudar código. O doctor lê cada ferramenta npm só do prefixo do próprio bob. O `node_modules` e o `node_modules/.bin` do projeto não mudam o resultado. Se o `package.json` empacotado não puder ser lido, o doctor imprime uma linha no stderr, como em `bob doctor: package.json: não consegui ler <caminho> (<erro>). Reinstale o bob.`, e sai com `4`.
