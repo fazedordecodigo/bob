@@ -26,8 +26,8 @@ def bob_home(env: Mapping[str, str] = os.environ) -> BobHome:
             raise ValueError(chosen)
         root = Path(chosen)
     else:
-        data_home = env.get("XDG_DATA_HOME") or ""
-        if data_home.startswith("/"):
+        data_home = env.get("XDG_DATA_HOME")
+        if isinstance(data_home, str) and data_home.startswith("/"):
             root = Path(data_home) / "bob-quality"
         else:
             home = env.get("HOME") or Path.home()

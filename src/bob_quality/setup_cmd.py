@@ -75,7 +75,8 @@ def step_runtimes(ctx: SetupContext) -> StepResult:
             "failed",
             error=msg("setup.python_floor_bad", value=str(exc)),
         )
-    if sys.version_info[:2] < floor:
+    found_py = (sys.version_info[0], sys.version_info[1])
+    if found_py < floor:
         return StepResult(
             "failed",
             error=msg(
@@ -256,9 +257,10 @@ def _summary(
 
 
 def _items(lang: Language, installed: Sequence[Text]) -> str:
-    if not installed:
+    rendered = [render(item, lang) for item in installed]
+    if not rendered:
         return t(lang, "setup.nothing")
-    return ", ".join(render(item, lang) for item in installed)
+    return ", ".join(rendered)
 
 
 def _not_git_root(ctx: SetupContext) -> StepResult:
