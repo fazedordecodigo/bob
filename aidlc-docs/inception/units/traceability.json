@@ -1,0 +1,381 @@
+{
+  "units": [
+    {
+      "id": "U1",
+      "name": "u1-walking-skeleton",
+      "kind": "packaging",
+      "components": [
+        "C01",
+        "C02",
+        "C03",
+        "C04",
+        "C13"
+      ],
+      "stories": [
+        "US1.1",
+        "US1.2",
+        "US2.1",
+        "US6.1"
+      ],
+      "frs": [
+        "FR1.1",
+        "FR1.2",
+        "FR1.3",
+        "FR1.4",
+        "FR1.5",
+        "FR2.4",
+        "FR3.1",
+        "FR3.2",
+        "FR3.3",
+        "FR3.4",
+        "FR7.1",
+        "FR7.2",
+        "FR7.3"
+      ],
+      "nfrs": [
+        "NFR1",
+        "NFR2",
+        "NFR3",
+        "NFR4",
+        "NFR5",
+        "NFR6",
+        "NFR7",
+        "NFR9"
+      ],
+      "adrs": [
+        "0009",
+        "0010",
+        "0011",
+        "0012",
+        "0013",
+        "0017"
+      ],
+      "verification_steps": [
+        "1",
+        "2 (parcial)",
+        "3",
+        "4",
+        "7",
+        "8 (parcial)",
+        "9 (caso b)"
+      ],
+      "tasks": [],
+      "prs": [],
+      "tests": []
+    },
+    {
+      "id": "U2",
+      "name": "u2-doctor-fonte-unica",
+      "kind": "library",
+      "components": [
+        "C08",
+        "C09"
+      ],
+      "stories": [
+        "US1.4"
+      ],
+      "frs": [
+        "FR2.1",
+        "FR2.5"
+      ],
+      "nfrs": [
+        "NFR5"
+      ],
+      "adrs": [
+        "0008",
+        "0019"
+      ],
+      "verification_steps": [
+        "pytest",
+        "8 (parcial)"
+      ],
+      "tasks": [],
+      "prs": [],
+      "tests": []
+    },
+    {
+      "id": "U3",
+      "name": "u3-gitleaks",
+      "kind": "library",
+      "components": [
+        "C07"
+      ],
+      "stories": [
+        "US1.3"
+      ],
+      "frs": [
+        "FR2.2",
+        "FR2.3"
+      ],
+      "nfrs": [
+        "NFR1",
+        "NFR3",
+        "NFR6",
+        "NFR9"
+      ],
+      "adrs": [
+        "0014"
+      ],
+      "verification_steps": [
+        "2",
+        "7",
+        "9 (caso a)"
+      ],
+      "tasks": [],
+      "prs": [],
+      "tests": []
+    },
+    {
+      "id": "U4",
+      "name": "u4-bob-yaml",
+      "kind": "library",
+      "components": [
+        "C05"
+      ],
+      "stories": [
+        "US3.1",
+        "US3.2"
+      ],
+      "frs": [
+        "FR4.1",
+        "FR4.2",
+        "FR4.3",
+        "FR4.4",
+        "FR4.5",
+        "FR4.6"
+      ],
+      "nfrs": [
+        "NFR4",
+        "NFR5"
+      ],
+      "adrs": [
+        "0015",
+        "0017"
+      ],
+      "verification_steps": [
+        "5",
+        "7",
+        "8 (parcial)"
+      ],
+      "tasks": [],
+      "prs": [],
+      "tests": []
+    },
+    {
+      "id": "U5",
+      "name": "u5-hook-pre-push",
+      "kind": "library",
+      "components": [
+        "C06"
+      ],
+      "stories": [
+        "US4.1"
+      ],
+      "frs": [
+        "FR5.1",
+        "FR5.2",
+        "FR5.3"
+      ],
+      "nfrs": [
+        "NFR4",
+        "NFR5",
+        "NFR8"
+      ],
+      "adrs": [
+        "0016",
+        "0017"
+      ],
+      "verification_steps": [
+        "6",
+        "7",
+        "8 (parcial)",
+        "12"
+      ],
+      "tasks": [],
+      "prs": [],
+      "tests": []
+    },
+    {
+      "id": "U6",
+      "name": "u6-perfil-shell",
+      "kind": "packaging",
+      "components": [],
+      "stories": [],
+      "frs": [],
+      "nfrs": [
+        "NFR2",
+        "NFR4",
+        "NFR5",
+        "NFR7",
+        "NFR9"
+      ],
+      "adrs": [
+        "0013"
+      ],
+      "verification_steps": [
+        "13"
+      ],
+      "tasks": [],
+      "prs": [],
+      "tests": []
+    },
+    {
+      "id": "U7",
+      "name": "u7-update-versao",
+      "kind": "library",
+      "components": [
+        "C10"
+      ],
+      "stories": [
+        "US5.1",
+        "US5.2",
+        "US7.2"
+      ],
+      "frs": [
+        "FR6.1",
+        "FR6.2",
+        "FR6.3",
+        "FR6.4",
+        "FR6.5"
+      ],
+      "nfrs": [
+        "NFR2",
+        "NFR4",
+        "NFR5",
+        "NFR9"
+      ],
+      "adrs": [
+        "0011",
+        "0018"
+      ],
+      "verification_steps": [
+        "2 (parcial)",
+        "10",
+        "11"
+      ],
+      "tasks": [],
+      "prs": [],
+      "tests": []
+    },
+    {
+      "id": "U8",
+      "name": "u8-docs",
+      "kind": "spec",
+      "components": [
+        "C12"
+      ],
+      "stories": [
+        "US7.1",
+        "US1.5"
+      ],
+      "frs": [
+        "FR8.1",
+        "FR8.2",
+        "FR8.3",
+        "FR1.6",
+        "FR1.7",
+        "FR1.8",
+        "FR8.4",
+        "FR8.5"
+      ],
+      "nfrs": [
+        "NFR10",
+        "NFR11"
+      ],
+      "adrs": [
+        "0020"
+      ],
+      "verification_steps": [
+        "pytest",
+        "14"
+      ],
+      "tasks": [],
+      "prs": [],
+      "tests": []
+    },
+    {
+      "id": "U9",
+      "name": "u9-release-v0-1-0",
+      "kind": "packaging",
+      "components": [
+        "C11"
+      ],
+      "stories": [],
+      "frs": [],
+      "nfrs": [
+        "NFR1",
+        "NFR3",
+        "NFR10",
+        "NFR11"
+      ],
+      "adrs": [
+        "0011"
+      ],
+      "verification_steps": [
+        "1-14 (matriz)",
+        "manual por release",
+        "E1-E6 (fluxo da release, Q1 A)"
+      ],
+      "tasks": [],
+      "prs": [],
+      "tests": []
+    }
+  ],
+  "stories": {
+    "US1.1": "U1",
+    "US1.2": "U1",
+    "US2.1": "U1",
+    "US6.1": "U1",
+    "US1.4": "U2",
+    "US1.3": "U3",
+    "US3.1": "U4",
+    "US3.2": "U4",
+    "US4.1": "U5",
+    "US5.1": "U7",
+    "US5.2": "U7",
+    "US7.2": "U7",
+    "US7.1": "U8",
+    "US1.5": "U8"
+  },
+  "frs": {
+    "FR1.1": "U1",
+    "FR1.2": "U1",
+    "FR1.3": "U1",
+    "FR1.4": "U1",
+    "FR1.5": "U1",
+    "FR2.4": "U1",
+    "FR3.1": "U1",
+    "FR3.2": "U1",
+    "FR3.3": "U1",
+    "FR3.4": "U1",
+    "FR7.1": "U1",
+    "FR7.2": "U1",
+    "FR7.3": "U1",
+    "FR2.1": "U2",
+    "FR2.5": "U2",
+    "FR2.2": "U3",
+    "FR2.3": "U3",
+    "FR4.1": "U4",
+    "FR4.2": "U4",
+    "FR4.3": "U4",
+    "FR4.4": "U4",
+    "FR4.5": "U4",
+    "FR4.6": "U4",
+    "FR5.1": "U5",
+    "FR5.2": "U5",
+    "FR5.3": "U5",
+    "FR6.1": "U7",
+    "FR6.2": "U7",
+    "FR6.3": "U7",
+    "FR6.4": "U7",
+    "FR6.5": "U7",
+    "FR8.1": "U8",
+    "FR8.2": "U8",
+    "FR8.3": "U8",
+    "FR1.6": "U8",
+    "FR1.7": "U8",
+    "FR1.8": "U8",
+    "FR8.4": "U8",
+    "FR8.5": "U8"
+  }
+}
