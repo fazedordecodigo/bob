@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from bob_quality.doctor import NODE, node_range
+from bob_quality.doctor import node_pin, node_range
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -122,7 +122,7 @@ _NODE_DOCS = (
 
 
 def test_docs_publish_the_node_range_the_doctor_accepts() -> None:
-    printed = node_range(NODE)
+    printed = node_range(node_pin())
     assert printed == ">=22.18.0 <23"
     for relative in _NODE_DOCS:
         assert printed in _text(relative), relative

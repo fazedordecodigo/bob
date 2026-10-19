@@ -7,14 +7,16 @@ import os
 import re
 import shutil
 import subprocess
+from dataclasses import dataclass
 from pathlib import Path
 
-from bob_quality.messages import Language, Message, msg, render, t
+from bob_quality.messages import Language, Message, Text, msg, render, t
 from bob_quality.tools import ToolError
 
 _NPM_PACKAGE = "bob-quality-tools"
 _FILESYSTEM_DENIED = re.compile(r"\bcode (EACCES|EPERM|EROFS)\b")
 _EXACT_SPEC = re.compile(r"\d+\.\d+\.\d+")
+_NODE_RANGE = re.compile(r">=(\d+)\.(\d+)\.(\d+) <(\d+)")
 _VITEST_CONFIG_NAMES = (
     "vitest.config.mjs",
     "vitest.config.js",
@@ -47,6 +49,79 @@ if (setup && !setupFiles.includes(setup)) setupFiles.push(setup);
 test.setupFiles = setupFiles;
 export default { ...user, test };
 """
+
+
+class PinSourceError(ToolError):
+    """package.json empacotado ausente, ilegível ou fora do formato fixado (ADR 0008)."""
+
+
+@dataclass(frozen=True)
+class NodeRange:
+    floor: tuple[int, int, int]
+    below_major: int
+
+    def __str__(self) -> str:
+        major, minor, patch = self.floor
+        return f">={major}.{minor}.{patch} <{self.below_major}"
+
+
+def pinned_npm_versions() -> dict[str, str]:
+    """`dependencies` do package.json empacotado: {nome npm: "X.Y.Z"}."""
+    path = _packaged_manifest()
+    dependencies = _object_field(_packaged_data(path), "dependencies", path)
+    pinned: dict[str, str] = {}
+    for name, spec in dependencies.items():
+        pinned[name] = _exact_spec(path, name, spec)
+    return pinned
+
+
+def node_range() -> NodeRange:
+    """`engines.node` do package.json empacotado, só na forma ">=A.B.C <N" com N = A + 1."""
+    path = _packaged_manifest()
+    value = _object_field(_packaged_data(path), "engines", path).get("node")
+    match = _NODE_RANGE.fullmatch(value) if isinstance(value, str) else None
+    if match is None or int(match.group(4)) != int(match.group(1)) + 1:
+        raise _pin_error(path, msg("npm.pin_bad_node_range", value=value))
+    major, minor, patch, below = (int(group) for group in match.groups())
+    return NodeRange(floor=(major, minor, patch), below_major=below)
+
+
+def _packaged_manifest() -> Path:
+    """O package.json que vai no wheel; no checkout é o symlink para a raiz."""
+    return Path(os.path.abspath(__file__)).parent / "package.json"
+
+
+def _packaged_data(path: Path) -> dict[str, object]:
+    try:
+        raw = path.read_bytes()
+    except OSError as exc:
+        raise _pin_error(path, exc.strerror or str(exc)) from exc
+    try:
+        data = json.loads(raw)
+    except ValueError as exc:
+        raise _pin_error(path, msg("npm.pin_not_json", detail=str(exc))) from exc
+    if not isinstance(data, dict):
+        raise _pin_error(path, msg("npm.pin_not_object", field="package.json"))
+    return data
+
+
+def _object_field(data: dict[str, object], field: str, path: Path) -> dict[str, object]:
+    value = data.get(field)
+    if not isinstance(value, dict):
+        raise _pin_error(path, msg("npm.pin_not_object", field=field))
+    return value
+
+
+def _exact_spec(path: Path, name: str, spec: object) -> str:
+    if isinstance(spec, str) and _EXACT_SPEC.fullmatch(spec):
+        return spec
+    raise _pin_error(
+        path, msg("npm.pin_not_exact", field=f"dependencies.{name}", value=spec)
+    )
+
+
+def _pin_error(path: Path, detail: Text) -> PinSourceError:
+    return PinSourceError(msg("npm.pin_source", path=path, detail=detail))
 
 
 def npm_ci_command(prefix: Path) -> str:
