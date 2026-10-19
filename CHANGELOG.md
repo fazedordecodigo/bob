@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+New install_project_skills: writes the bob skills only to .agents/skills with a .bob-version marker, keeps folders it does not own, removes retired ones and writes nothing when the copy is current.
+
+Nova install_project_skills: grava as skills do bob só em .agents/skills com o marcador .bob-version, mantém as pastas que não são dele, apaga as aposentadas e não escreve nada quando a cópia já está atual.
+
 The wheel now ships the skills, the plugin manifest and the LICENSE under bob_quality/plugin/, and python -m bob_quality.install_skills works from an installed wheel without a clone.
 
 O wheel agora leva as skills, o manifesto do plugin e o LICENSE em bob_quality/plugin/, e python -m bob_quality.install_skills funciona a partir do wheel instalado, sem clone.
