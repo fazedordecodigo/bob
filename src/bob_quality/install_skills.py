@@ -112,7 +112,7 @@ def main(argv: list[str] | None = None) -> int:
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser()
     parser.add_argument("--project", type=Path, default=Path("."))
-    parser.add_argument("--source", type=Path, default=None)
+    parser.add_argument("--source", type=Path)
     parser.add_argument("targets", nargs="+", choices=sorted(TARGETS))
     return parser
 
