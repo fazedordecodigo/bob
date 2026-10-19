@@ -226,7 +226,12 @@ class SkillsResult:
     unmarked: tuple[Path, ...] = ()
 
 
-def install_project_skills(project: Path, version: str, *, source: Path | None = None) -> SkillsResult:
+def install_project_skills(
+    project: Path,
+    version: str,
+    *,
+    source: Path | None = None,
+) -> SkillsResult:
     """Grava as skills do bob em <project>/.agents/skills com .bob-version, respeitando a posse (CT4)."""
     _require_version(version)
     skills = _skills(default_source() if source is None else source)
