@@ -258,15 +258,23 @@ def test_copies_in_claude_and_github_skills_are_reported_as_duplicates(
     plugin: Path, project: Path
 ) -> None:
     claude = project / ".claude" / "skills" / "alpha"
+    claude_beta = project / ".claude" / "skills" / "beta"
     github_beta = project / ".github" / "skills" / "beta"
     github_other = project / ".github" / "skills" / "other"
     claude.mkdir(parents=True)
+    claude_beta.mkdir(parents=True)
     github_beta.mkdir(parents=True)
     github_other.mkdir(parents=True)
     (claude / "SKILL.md").write_bytes(b"# claude\n")
+    (claude_beta / "notes.md").write_bytes(b"no skill\n")
     (github_beta / "SKILL.md").write_bytes(b"# github\n")
     (github_other / "SKILL.md").write_bytes(b"# other\n")
-    before = (_files(claude), _files(github_beta), _files(github_other))
+    before = (
+        _files(claude),
+        _files(claude_beta),
+        _files(github_beta),
+        _files(github_other),
+    )
 
     result = install_project_skills(project, "1.2.3", source=plugin)
 
@@ -276,13 +284,21 @@ def test_copies_in_claude_and_github_skills_are_reported_as_duplicates(
         preserved=(),
         duplicates=(claude, github_beta),
     )
-    assert (_files(claude), _files(github_beta), _files(github_other)) == before
+    assert (
+        _files(claude),
+        _files(claude_beta),
+        _files(github_beta),
+        _files(github_other),
+    ) == before
 
 
 def test_write_error_propagates_as_oserror(
     monkeypatch: pytest.MonkeyPatch, plugin: Path, project: Path
 ) -> None:
-    def _deny(*_args: object, **_kwargs: object) -> None:
+    seen: list[Path] = []
+
+    def _deny(_src: object, dst: object, **_kwargs: object) -> None:
+        seen.append(Path(str(dst)))
         raise PermissionError(13, "Permission denied")
 
     monkeypatch.setattr(install_skills.shutil, "copy2", _deny)
@@ -290,6 +306,7 @@ def test_write_error_propagates_as_oserror(
     with pytest.raises(PermissionError):
         install_project_skills(project, "1.2.3", source=plugin)
     assert not (_dest(project) / "alpha").exists()
+    assert any(f".alpha.bob-tmp-{os.getpid()}" in path.parts for path in seen)
 
 
 @pytest.mark.parametrize("version", ["v1.2.3", "1.2", "1.2.3-rc1", ""])
