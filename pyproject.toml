@@ -64,6 +64,7 @@ patch = ["subprocess"]
 source_paths = ["src"]
 also_copy = [
     "docs",
+    "website/i18n",
     "skills",
     "js",
     "tests/fixtures",

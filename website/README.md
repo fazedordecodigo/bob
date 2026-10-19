@@ -8,7 +8,7 @@ npm ci
 npm run build
 ```
 
-The build uses `onBrokenLinks: 'throw'` and CommonMark (`markdown.format: 'md'`). The site is set up for GitHub Pages at `https://fazedordecodigo.github.io/bob/`. English is the default locale. Brazilian Portuguese is available at `/bob/pt-BR/`; the translated pages are a later change.
+The build uses `onBrokenLinks: 'throw'`, `onBrokenAnchors: 'throw'`, and CommonMark (`markdown.format: 'md'`). The site is set up for GitHub Pages at `https://fazedordecodigo.github.io/bob/`. English is the default locale. Brazilian Portuguese is at `/bob/pt-BR/`, from `i18n/pt-BR`.
 
 Publishing and rollback are in [`docs/site-deploy.md`](../docs/site-deploy.md). There is no CNAME and no custom domain.
 

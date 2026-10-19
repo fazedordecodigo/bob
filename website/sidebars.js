@@ -2,8 +2,8 @@
 
 /**
  * Six sections from issue #156. Each item is a file that exists under `docs/`.
- * The English pages are the ones added for the public site.
- * The pt-BR guides stay in the sidebar until issue #160 replaces them.
+ * The English pages are the source. pt-BR is the Docusaurus locale in
+ * `website/i18n/pt-BR`, not a second sidebar.
  *
  * @type {import('@docusaurus/plugin-content-docs').SidebarsConfig}
  */
@@ -69,19 +69,6 @@ const sidebars = {
       type: 'category',
       label: 'Contributing and changelog',
       items: ['contributing', 'changelog', 'publishing'],
-    },
-    {
-      type: 'category',
-      label: 'Português (temporário, até #160)',
-      items: [
-        'visao-geral',
-        'instalacao',
-        'cli',
-        'configuracao',
-        'gates',
-        'relatorios',
-        'contribuicao',
-      ],
     },
   ],
 };

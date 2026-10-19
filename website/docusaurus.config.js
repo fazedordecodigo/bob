@@ -157,18 +157,6 @@ const config = {
             { label: 'Changelog', to: '/docs/changelog' },
           ],
         },
-        {
-          title: 'Português (temporário)',
-          items: [
-            { label: 'Visão geral', to: '/docs/visao-geral' },
-            { label: 'Instalação', to: '/docs/instalacao' },
-            { label: 'CLI', to: '/docs/cli' },
-            { label: 'Configuração', to: '/docs/configuracao' },
-            { label: 'Gates', to: '/docs/gates' },
-            { label: 'Relatórios', to: '/docs/relatorios' },
-            { label: 'Contribuição', to: '/docs/contribuicao' },
-          ],
-        },
       ],
       copyright: 'MIT License © 2026 Emerson Delatorre',
     },

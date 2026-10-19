@@ -1,0 +1,38 @@
+{
+  "version.label": {
+    "message": "Próxima",
+    "description": "The label for version current"
+  },
+  "sidebar.docs.category.Getting started": {
+    "message": "Primeiros passos",
+    "description": "The label for category 'Getting started' in sidebar 'docs'"
+  },
+  "sidebar.docs.category.Guides": {
+    "message": "Guias",
+    "description": "The label for category 'Guides' in sidebar 'docs'"
+  },
+  "sidebar.docs.category.Reference": {
+    "message": "Referência",
+    "description": "The label for category 'Reference' in sidebar 'docs'"
+  },
+  "sidebar.docs.category.Architecture": {
+    "message": "Arquitetura",
+    "description": "The label for category 'Architecture' in sidebar 'docs'"
+  },
+  "sidebar.docs.category.ADRs": {
+    "message": "ADRs",
+    "description": "The label for category 'ADRs' in sidebar 'docs'"
+  },
+  "sidebar.docs.category.Contributing and changelog": {
+    "message": "Contribuição e changelog",
+    "description": "The label for category 'Contributing and changelog' in sidebar 'docs'"
+  },
+  "sidebar.docs.doc.Why bob": {
+    "message": "Por que usar o bob",
+    "description": "The label for the doc item 'Why bob' in sidebar 'docs', linking to the doc why-bob"
+  },
+  "sidebar.docs.doc.Documentation index": {
+    "message": "Índice da documentação",
+    "description": "The label for the doc item 'Documentation index' in sidebar 'docs', linking to the doc README"
+  }
+}

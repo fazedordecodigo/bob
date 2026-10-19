@@ -254,8 +254,9 @@ test('Algolia is emitted only when app id, api key, and index name are all set',
 
 function docsSidebarHrefs(relativePage) {
   const html = readBuild(relativePage);
-  const start = html.indexOf('aria-label="Docs sidebar"');
-  assert.ok(start !== -1, `${relativePage} has no docs sidebar`);
+  const markers = ['aria-label="Docs sidebar"', 'aria-label="Painel lateral de documentos"'];
+  const start = markers.map((marker) => html.indexOf(marker)).find((index) => index !== -1);
+  assert.ok(start !== undefined, `${relativePage} has no docs sidebar`);
   const end = html.indexOf('</nav>', start);
   const sidebar = html.slice(start, end);
   return [...sidebar.matchAll(/href="([^"]+)"/g)].map((match) => match[1]);
@@ -318,7 +319,7 @@ test('the English sidebar links to the pages from the English docs', () => {
   ]);
 });
 
-const temporaryGuideHrefs = [
+const removedGuideHrefs = [
   '/bob/docs/visao-geral',
   '/bob/docs/instalacao',
   '/bob/docs/cli',
@@ -328,19 +329,43 @@ const temporaryGuideHrefs = [
   '/bob/docs/contribuicao',
 ];
 
-test('temporary pt-BR guides stay generated and linked from the sidebar', () => {
-  assertSidebarHas('docs/visao-geral/index.html', temporaryGuideHrefs);
-  for (const href of temporaryGuideHrefs) {
-    const relative = href.replace('/bob/', '');
-    assert.ok(
-      fs.existsSync(path.join(buildDir, relative, 'index.html')),
-      `missing generated page ${relative}`,
+test('the temporary pt-BR guides are absent from the sidebar and the build', () => {
+  const englishSidebar = docsSidebarHrefs('docs/index.html');
+  const portugueseSidebar = docsSidebarHrefs('pt-BR/docs/index.html');
+  for (const href of [
+    '/bob/pt-BR/docs/why-bob',
+    '/bob/pt-BR/docs/getting-started/installation',
+    '/bob/pt-BR/docs/guides/configuration',
+    '/bob/pt-BR/docs/reference/cli',
+    '/bob/pt-BR/docs/architecture/overview',
+    '/bob/pt-BR/docs/contributing',
+  ]) {
+    assert.ok(portugueseSidebar.includes(href), `pt-BR sidebar is missing ${href}`);
+  }
+  for (const href of removedGuideHrefs) {
+    assert.equal(englishSidebar.includes(href), false, `English sidebar still has ${href}`);
+    const localized = href.replace('/bob/', '/bob/pt-BR/');
+    assert.equal(
+      portugueseSidebar.includes(localized),
+      false,
+      `pt-BR sidebar still has ${localized}`,
     );
-    assert.ok(
+    const relative = href.replace('/bob/', '');
+    const slug = relative.slice('docs/'.length);
+    assert.equal(fs.existsSync(path.join(docsDir, `${slug}.md`)), false, `${slug}.md`);
+    assert.equal(
+      fs.existsSync(path.join(buildDir, relative, 'index.html')),
+      false,
+      relative,
+    );
+    assert.equal(
       fs.existsSync(path.join(buildDir, 'pt-BR', relative, 'index.html')),
-      `missing pt-BR generated page ${relative}`,
+      false,
+      `pt-BR ${relative}`,
     );
   }
+  assert.equal(readBuild('docs/index.html').includes('Português (temporário'), false);
+  assert.equal(readBuild('pt-BR/docs/index.html').includes('Português (temporário'), false);
 });
 
 const englishSectionHrefs = [
@@ -374,13 +399,48 @@ test('the home and the footer link to the English pages in both locales', () => 
         `${relative} footer is missing ${absolute}`,
       );
     }
-    for (const href of temporaryGuideHrefs) {
+    for (const href of removedGuideHrefs) {
       const absolute = localizedHref(locale, href.slice('/bob'.length));
-      assert.ok(
+      assert.equal(
+        main.includes(`href="${absolute}"`),
+        false,
+        `${relative} home still links to removed guide ${absolute}`,
+      );
+      assert.equal(
         footer.includes(`href="${absolute}"`),
-        `${relative} footer is missing temporary guide ${absolute}`,
+        false,
+        `${relative} footer still links to removed guide ${absolute}`,
       );
     }
+    assert.equal(home.includes('Português (temporário'), false);
+  }
+});
+
+const portugueseHomeCopy = [
+  'Gates de qualidade determinísticos para o código que um agente de código altera.',
+  'Por que usar o bob',
+  'O que o bob mede, e por que os gates existem.',
+  'Primeiros passos',
+  'Instale o pacote, rode um primeiro check e use a partir dos agentes de código.',
+  'Guias',
+  'Configuração, gates, waivers, o hook de pre-push, o CI e os relatórios.',
+  'Referência',
+  'CLI, schema de configuração, códigos de saída e report.json.',
+  'Arquitetura',
+  'Visão técnica, ADRs e a SPEC.',
+  'Contribuição',
+  'Como alterar o bob.',
+  'O registro das mudanças de comportamento.',
+];
+
+test('the pt-BR home page is in Portuguese', () => {
+  const home = readBuild('pt-BR/index.html');
+  const mainStart = home.indexOf('<main class="home">');
+  const mainEnd = home.indexOf('</main>', mainStart);
+  assert.ok(mainStart !== -1 && mainEnd !== -1, 'pt-BR/index.html has no home main');
+  const main = home.slice(mainStart, mainEnd);
+  for (const text of portugueseHomeCopy) {
+    assert.ok(main.includes(text), `pt-BR home is missing ${text}`);
   }
 });
 
