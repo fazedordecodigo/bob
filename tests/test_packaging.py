@@ -861,3 +861,39 @@ def test_unreadable_retired_folder_stays_and_the_install_finishes(
     assert not gone.exists()
     for name in BOB_SKILLS:
         assert (dest / name / "SKILL.md").read_bytes() == (ROOT / "skills" / name / "SKILL.md").read_bytes()
+
+
+def test_plugin_folder_links_the_root_manifest_skills_and_license() -> None:
+    root = ROOT
+    plugin = root / "src" / "bob_quality" / "plugin"
+    # O mutmut copia `src` sem os symlinks de diretório. O contrato é o do checkout.
+    copied = root.parent / "src" / "bob_quality" / "plugin"
+    if not (plugin / "skills").is_symlink() and (copied / "skills").is_symlink():
+        root = root.parent
+        plugin = copied
+    names = sorted(path.name for path in plugin.iterdir())
+    assert names == [".claude-plugin", "LICENSE", "skills"]
+    links = {
+        ".claude-plugin": "../../../.claude-plugin",
+        "LICENSE": "../../../LICENSE",
+        "skills": "../../../skills",
+    }
+    for name, target in links.items():
+        path = plugin / name
+        assert path.is_symlink()
+        assert os.readlink(path) == target
+        assert path.resolve() == (root / name).resolve()
+
+
+def test_default_source_is_the_clone_when_it_has_the_manifest() -> None:
+    assert install_skills.default_source() == install_skills.PLUGIN_ROOT
+    found = install_skills.default_source() / install_skills.MANIFEST
+    assert found.is_file()
+
+
+def test_default_source_falls_back_to_the_packaged_plugin(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(install_skills, "PLUGIN_ROOT", tmp_path / "no-clone")
+    packaged = Path(install_skills.__file__).resolve().parent / "plugin"
+    assert install_skills.default_source() == packaged
