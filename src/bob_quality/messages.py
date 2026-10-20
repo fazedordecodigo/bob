@@ -371,6 +371,27 @@ _EN: dict[str, str] = {
     "report.supply_effect_block": "blocks",
     "report.supply_effect_warn": "warns",
     "report.supply_effect_waived": "waived",
+    "gitleaks.platform": (
+        "gitleaks: {system}/{machine} is not in the table. "
+        "Supported: linux x64/arm64, darwin x64/arm64."
+    ),
+    "gitleaks.url_not_allowed": (
+        "gitleaks: BOB_GITLEAKS_BASE_URL={value} is not allowed "
+        "(https, or http only on 127.0.0.1/localhost). Fix the variable."
+    ),
+    "gitleaks.download": (
+        "gitleaks: download of {url} failed ({status}). Check the network and try again."
+    ),
+    "gitleaks.integrity": (
+        "gitleaks: the sha256 of {asset} does not match. Nothing was installed. Try again."
+    ),
+    "gitleaks.extract": (
+        "gitleaks: {asset} does not have the expected gitleaks binary. "
+        "Nothing was installed. Open an issue."
+    ),
+    "gitleaks.write": (
+        "gitleaks: could not write {path} ({detail}). Check the permissions."
+    ),
     "setup.step_ok": "bob setup: {step}: ok",
     "setup.warning_line": "bob setup: {step}: warning: {text}",
     "setup.error": "bob setup: {reason}",
@@ -748,6 +769,27 @@ _PT_BR: dict[str, str] = {
     "report.supply_effect_block": "bloqueia",
     "report.supply_effect_warn": "avisa",
     "report.supply_effect_waived": "dispensado",
+    "gitleaks.platform": (
+        "gitleaks: {system}/{machine} não está na tabela. "
+        "Suportadas: linux x64/arm64, darwin x64/arm64."
+    ),
+    "gitleaks.url_not_allowed": (
+        "gitleaks: BOB_GITLEAKS_BASE_URL={value} não é permitida "
+        "(https, ou http só em 127.0.0.1/localhost). Corrija a variável."
+    ),
+    "gitleaks.download": (
+        "gitleaks: download de {url} falhou ({status}). Confira a rede e tente de novo."
+    ),
+    "gitleaks.integrity": (
+        "gitleaks: o sha256 de {asset} não confere. Nada foi instalado. Tente de novo."
+    ),
+    "gitleaks.extract": (
+        "gitleaks: {asset} não tem o binário gitleaks esperado. "
+        "Nada foi instalado. Abra uma issue."
+    ),
+    "gitleaks.write": (
+        "gitleaks: não consegui gravar {path} ({detail}). Confira as permissões."
+    ),
     "setup.step_ok": "bob setup: {step}: ok",
     "setup.warning_line": "bob setup: {step}: aviso: {text}",
     "setup.error": "bob setup: {reason}",
