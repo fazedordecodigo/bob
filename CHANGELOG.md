@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+`bob_quality.gitleaks` downloads gitleaks 8.30.1 for Linux and macOS (x64, arm64), checks the sha256 against the table in the code (ADR 0014) and installs it in `BOB_HOME` (U3).
+
+`bob_quality.gitleaks` baixa o gitleaks 8.30.1 para Linux e macOS (x64, arm64), confere o sha256 contra a tabela do código (ADR 0014) e instala em `BOB_HOME` (U3).
+
 CI now runs scripts/verify-install.sh on every pull request and on main.
 
 O CI agora roda scripts/verify-install.sh em todo pull request e na main.
