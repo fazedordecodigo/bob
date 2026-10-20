@@ -129,7 +129,7 @@ def _is_code(project: Path, name: str) -> bool:
 def _publish(project: Path, target: Path, include: tuple[str, ...]) -> None:
     tmp = project / f"bob.yaml.tmp-{os.getpid()}"
     try:
-        tmp.write_bytes(render_config(include).encode("utf-8"))
+        tmp.write_bytes(render_config(include).encode())
         load_config(tmp, project)
         os.replace(tmp, target)
     except Exception:

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import os
 import subprocess
 from pathlib import Path
@@ -366,3 +367,18 @@ def test_second_write_is_preserved_and_changes_nothing(repo: Path) -> None:
     assert write_default_config(repo) == ConfigResult("preserved", ())
     assert target.read_bytes() == data
     assert target.stat().st_mtime_ns == mtime
+
+
+def test_quote_passes_ensure_ascii_false(monkeypatch: pytest.MonkeyPatch) -> None:
+    seen: list[dict[str, object]] = []
+    real = json.dumps
+
+    def spy(item: object, **kwargs: object) -> str:
+        seen.append(kwargs)
+        return real(item, **kwargs)
+
+    monkeypatch.setattr(init_config.json, "dumps", spy)
+    text = render_config(("true",))
+    assert len(seen) == 1
+    assert seen[0]["ensure_ascii"] is False
+    assert text.splitlines()[3] == '  include: ["true"]'
