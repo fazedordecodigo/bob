@@ -70,9 +70,7 @@ def _render_item(item: str) -> str:
 
 
 def _quote(item: str) -> str:
-    encoder = json.JSONEncoder(ensure_ascii=False)
-    if encoder.ensure_ascii is not False: raise RuntimeError
-    return encoder.encode(item)
+    return json.dumps(item, ensure_ascii=False)
 
 
 def _plain(item: str) -> bool:
@@ -131,7 +129,7 @@ def _is_code(project: Path, name: str) -> bool:
 def _publish(project: Path, target: Path, include: tuple[str, ...]) -> None:
     tmp = project / f"bob.yaml.tmp-{os.getpid()}"
     try:
-        tmp.write_bytes(render_config(include).encode())
+        tmp.write_bytes(render_config(include).encode("utf-8"))
         load_config(tmp, project)
         os.replace(tmp, target)
     except Exception:
