@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+New `bob_quality.init_config.write_default_config`: creates `bob.yaml` with the README defaults and
+a `paths.include` derived from the code folders git lists, validates it before the rename and never
+changes an existing `bob.yaml` (U4).
+
+Novo `bob_quality.init_config.write_default_config`: cria o `bob.yaml` com os padrões do README e um
+`paths.include` derivado das pastas de código que o git lista, valida antes do rename e nunca altera
+um `bob.yaml` existente (U4).
+
 `bob check --gates secrets` finds the gitleaks that `bob setup` installs in
 `BOB_HOME/bin` before looking in `PATH` (U3).
 
