@@ -247,9 +247,11 @@ def _strict_rmtree(monkeypatch: pytest.MonkeyPatch) -> None:
     real = shutil.rmtree
 
     def wrapped(path: object, ignore_errors: bool = False, *args: object, **kwargs: object) -> None:
-        if ignore_errors is not True:
+        target = Path(str(path))
+        watched = target.name == "gitleaks" or target.parent.name == "gitleaks"
+        if watched and ignore_errors is not True:
             raise OSError("rmtree")
-        real(path, ignore_errors=True)
+        real(path, ignore_errors=ignore_errors, *args, **kwargs)
 
     monkeypatch.setattr(gitleaks.shutil, "rmtree", wrapped)
 
