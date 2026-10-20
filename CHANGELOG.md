@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+CI now runs scripts/verify-install.sh on every pull request and on main.
+
+O CI agora roda scripts/verify-install.sh em todo pull request e na main.
+
 New scripts/verify-install.sh: builds the wheel, serves a local mirror of a GitHub release and checks the one-line install end to end (steps 1, 2, 3, 4, 7, 8 and 9b of the verification command). VERIFY_REMOTE=1 uses GitHub instead.
 
 Novo scripts/verify-install.sh: faz o wheel, serve um espelho local de uma release do GitHub e confere a instalação de um comando de ponta a ponta (passos 1, 2, 3, 4, 7, 8 e 9b do comando de verificação). VERIFY_REMOTE=1 usa o GitHub.
