@@ -13,7 +13,10 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import NamedTuple
 
+from bob_quality import gitleaks
+from bob_quality import user_dirs
 from bob_quality.exit_codes import CONFIG_OR_TOOL, PASSED
+from bob_quality.gitleaks import GitleaksError
 from bob_quality.messages import DEFAULT_LANGUAGE, Language, Text, msg, reason, render, t
 from bob_quality.npm_tools import (
     PinSourceError,
@@ -25,6 +28,8 @@ from bob_quality.npm_tools import (
 from bob_quality.npm_tools import node_range as packaged_node_range
 from bob_quality.tools import ToolError
 
+# par que os workflows conferem (ci.yml, bob.yml, package.yml)
+_GITLEAKS_REFERENCE = ("linux", "x64")
 _PRERELEASE = r"[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*"
 _VERSION = re.compile(rf"\d+\.\d+(?:\.\d+)?(?:-{_PRERELEASE})?")
 _NODE_RELEASE = re.compile(r"(\d+)\.(\d+)\.(\d+)")
@@ -89,10 +94,10 @@ PINS: tuple[Pin, ...] = (
     NpmPin("dependency-cruiser", "dependency-cruiser"),
     BinaryPin(
         "gitleaks",
-        "8.30.1",
+        gitleaks.VERSION,
         "gitleaks",
-        "https://github.com/gitleaks/gitleaks/releases/download/v8.30.1/gitleaks_8.30.1_linux_x64.tar.gz",
-        "551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb",
+        gitleaks.asset_url(_GITLEAKS_REFERENCE),
+        gitleaks.ASSETS[_GITLEAKS_REFERENCE][1],
     ),
     RequiresDist("vulture", "vulture"),
     NpmPin("knip", "knip"),
@@ -132,6 +137,19 @@ def _install_then_report(lang: Language) -> int:
     code = install_npm_dependencies(lang)
     if code != 0:
         return code
+    try:
+        home = user_dirs.bob_home()
+    except ValueError as exc:
+        print(
+            t(lang, "doctor.error", reason=msg("doctor.bob_home_relative", value=str(exc))),
+            file=sys.stderr,
+        )
+        return CONFIG_OR_TOOL
+    try:
+        gitleaks.ensure_gitleaks(home)
+    except GitleaksError as exc:
+        print(t(lang, "doctor.error", reason=reason(exc)), file=sys.stderr)
+        return CONFIG_OR_TOOL
     return _report_pins(lang)
 
 
@@ -410,4 +428,4 @@ def _cli_version(executable: str) -> str | None:
 
 
 def _locate(executable: str) -> str | None:
-    return shutil.which(executable)
+    return user_dirs.locate_binary(executable)

@@ -36,8 +36,11 @@ from bob_quality.doctor import (
     node_range,
     run_doctor,
 )
+from bob_quality import doctor, gitleaks
 from bob_quality.doctor import PINS as DOCTOR_PINS
 from bob_quality.doctor import unconditional_exact_pins
+from bob_quality.gitleaks import GitleaksError
+from bob_quality.user_dirs import bob_home
 from bob_quality.doctor import (
     _Expected,
     _PinRow,
@@ -50,7 +53,7 @@ from bob_quality.doctor import (
     _own_requirements,
     _rows,
 )
-from bob_quality.messages import Language, msg
+from bob_quality.messages import Language, msg, t
 from bob_quality.npm_tools import pinned_npm_versions
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -153,6 +156,11 @@ def _run_doctor(
         capture_output=True,
         text=True,
     )
+
+
+@pytest.fixture(autouse=True)
+def _empty_bob_home(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    monkeypatch.setenv("BOB_HOME", str(tmp_path / "bob-home"))
 
 
 def test_doctor_lists_import_linter_and_dependency_cruiser(tmp_path: Path) -> None:
@@ -950,3 +958,143 @@ def _expected_versions(stdout: str) -> dict[str, str]:
         version, _shown = rest.split(" found ", 1)
         found[name] = version
     return found
+
+
+def _gitleaks_pin() -> BinaryPin:
+    return next(item for item in DOCTOR_PINS if isinstance(item, BinaryPin))
+
+
+def test_gitleaks_pin_comes_from_the_gitleaks_table() -> None:
+    pin = _gitleaks_pin()
+    assert pin.expected == gitleaks.VERSION
+    assert pin.url == gitleaks.asset_url(("linux", "x64"))
+    assert pin.sha256 == gitleaks.ASSETS[("linux", "x64")][1]
+
+
+def test_doctor_has_no_gitleaks_literals() -> None:
+    text = (ROOT / "src" / "bob_quality" / "doctor.py").read_text()
+    for _key, (_asset, digest) in gitleaks.ASSETS.items():
+        assert digest not in text
+    assert "releases/download/v" not in text
+
+
+def test_doctor_finds_gitleaks_in_bob_home_before_the_path(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    home = tmp_path / "bh"
+    (home / "bin").mkdir(parents=True)
+    _stub(home / "bin", "gitleaks", "gitleaks version 8.30.1")
+    path_dir = tmp_path / "path"
+    path_dir.mkdir()
+    _stub(path_dir, "gitleaks", "8.29.0")
+    monkeypatch.setenv("BOB_HOME", str(home))
+    monkeypatch.setenv("PATH", str(path_dir))
+    row = _assess_binary(_gitleaks_pin())
+    assert row.ok is True
+    assert row.line == msg(
+        "doctor.version",
+        name="gitleaks",
+        expected="8.30.1",
+        found="8.30.1",
+    )
+
+
+def test_doctor_cli_finds_gitleaks_in_bob_home(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    home = tmp_path / "bh"
+    (home / "bin").mkdir(parents=True)
+    _stub(home / "bin", "gitleaks", "8.30.1")
+    monkeypatch.setenv("BOB_HOME", str(home))
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    for name, _expected, executable, banner in PINS:
+        if name == "gitleaks" or executable is None or banner is None:
+            continue
+        _stub(bin_dir, executable, banner)
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    result = _run_doctor(repo, bin_dir)
+    assert "gitleaks expected 8.30.1 found 8.30.1" in result.stdout
+
+
+def test_doctor_install_runs_npm_then_gitleaks(monkeypatch: pytest.MonkeyPatch) -> None:
+    order: list[object] = []
+
+    def npm(lang: str) -> int:
+        order.append("npm")
+        assert lang == "en"
+        return 0
+
+    def install(home: object) -> None:
+        order.append(("gitleaks", home))
+
+    def report(lang: str) -> int:
+        order.append("report")
+        assert lang == "en"
+        return 0
+
+    monkeypatch.setattr(doctor, "install_npm_dependencies", npm)
+    monkeypatch.setattr(gitleaks, "ensure_gitleaks", install)
+    monkeypatch.setattr(doctor, "_report_pins", report)
+    assert run_doctor(install=True, lang="en") == 0
+    assert order == ["npm", ("gitleaks", bob_home()), "report"]
+
+
+def test_doctor_install_stops_when_npm_fails(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(doctor, "install_npm_dependencies", lambda lang: 4)
+
+    def forbid(*args: object, **kwargs: object) -> int:
+        raise AssertionError((args, kwargs))
+
+    monkeypatch.setattr(gitleaks, "ensure_gitleaks", forbid)
+    monkeypatch.setattr(doctor, "_report_pins", forbid)
+    assert run_doctor(install=True) == 4
+
+
+_INTEGRITY_ASSET = "gitleaks_8.30.1_linux_x64.tar.gz"
+
+
+@pytest.mark.parametrize("lang", ["en", "pt-BR"])
+def test_doctor_install_gitleaks_failure_exits_4(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    lang: Language,
+) -> None:
+    monkeypatch.setattr(doctor, "install_npm_dependencies", lambda chosen: 0)
+
+    def fail(home: object) -> None:
+        raise GitleaksError(msg("gitleaks.integrity", asset=_INTEGRITY_ASSET))
+
+    def report(chosen: str) -> int:
+        raise AssertionError(chosen)
+
+    monkeypatch.setattr(gitleaks, "ensure_gitleaks", fail)
+    monkeypatch.setattr(doctor, "_report_pins", report)
+    assert run_doctor(install=True, lang=lang) == 4
+    reason = msg("gitleaks.integrity", asset=_INTEGRITY_ASSET)
+    assert capsys.readouterr().err == t(lang, "doctor.error", reason=reason) + "\n"
+
+
+def test_doctor_install_with_relative_bob_home_exits_4(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    monkeypatch.setenv("BOB_HOME", "rel")
+    monkeypatch.setattr(doctor, "install_npm_dependencies", lambda lang: 0)
+
+    def forbid(home: object) -> None:
+        raise AssertionError(home)
+
+    monkeypatch.setattr(gitleaks, "ensure_gitleaks", forbid)
+    assert run_doctor(install=True) == 4
+    assert capsys.readouterr().err == (
+        "bob doctor: BOB_HOME=rel must be absolute. Use an absolute path.\n"
+    )
+
+
+def test_doctor_bob_home_relative_message_in_both_languages() -> None:
+    english = "BOB_HOME=V must be absolute. Use an absolute path."
+    portuguese = "BOB_HOME=V precisa ser absoluto. Use um caminho absoluto."
+    assert t("en", "doctor.bob_home_relative", value="V") == english
+    assert t("pt-BR", "doctor.bob_home_relative", value="V") == portuguese
