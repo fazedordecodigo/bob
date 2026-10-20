@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+`bob setup` installs gitleaks 8.30.1 in `BOB_HOME/bin` (new `gitleaks` step); `bob doctor` looks in `BOB_HOME/bin` before `PATH` and `bob doctor --install` also installs gitleaks (U3).
+
+`bob setup` instala o gitleaks 8.30.1 em `BOB_HOME/bin` (passo novo `gitleaks`); o `bob doctor` procura em `BOB_HOME/bin` antes do `PATH` e o `bob doctor --install` também instala o gitleaks (U3).
+
 `bob_quality.gitleaks` downloads gitleaks 8.30.1 for Linux and macOS (x64, arm64), checks the sha256 against the table in the code (ADR 0014) and installs it in `BOB_HOME` (U3).
 
 `bob_quality.gitleaks` baixa o gitleaks 8.30.1 para Linux e macOS (x64, arm64), confere o sha256 contra a tabela do código (ADR 0014) e instala em `BOB_HOME` (U3).

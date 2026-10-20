@@ -14,9 +14,11 @@ from pathlib import Path
 from typing import Literal
 
 from bob_quality import doctor
+from bob_quality import gitleaks
 from bob_quality import install_skills
 from bob_quality import npm_tools
 from bob_quality import user_dirs
+from bob_quality.gitleaks import GitleaksError
 from bob_quality.install_skills import SkillsResult, SourceError
 from bob_quality.messages import Language, Text, msg, reason, render, t
 from bob_quality.npm_tools import NodeRange, PinSourceError
@@ -90,6 +92,8 @@ _NPM_FAILED = "setup.npm_failed"
 _SKILLS_SOURCE = "setup.skills_source"
 _SKILLS_WRITE = "setup.skills_write"
 _ITEM_NPM = "setup.item_npm"
+_GITLEAKS = "gitleaks"
+_ITEM_GITLEAKS = "setup.item_gitleaks"
 _ITEM_SKILLS = "setup.item_skills"
 _NO_MARKER = "setup.preserved_no_marker"
 _SYMLINK = "setup.preserved_symlink"
@@ -161,6 +165,20 @@ def step_npm(ctx: SetupContext) -> StepResult:
     return StepResult(_INSTALLED, installed=(msg(_ITEM_NPM),))
 
 
+def step_gitleaks(ctx: SetupContext) -> StepResult:
+    """Passo 4 do CT3: gitleaks 8.30.1 em BOB_HOME (CT9)."""
+    if gitleaks.installed_version(ctx.home) == gitleaks.VERSION:
+        return StepResult(_UNCHANGED)
+    try:
+        gitleaks.ensure_gitleaks(ctx.home)
+    except GitleaksError as exc:
+        return StepResult(_FAILED, error=reason(exc))
+    return StepResult(
+        _INSTALLED,
+        installed=(msg(_ITEM_GITLEAKS, version=gitleaks.VERSION),),
+    )
+
+
 def step_skills(ctx: SetupContext) -> StepResult:
     try:
         result = install_skills.install_project_skills(ctx.project, ctx.version)
@@ -175,6 +193,7 @@ STEPS: tuple[tuple[str, Step], ...] = (
     ("projeto", step_projeto),
     ("runtimes", step_runtimes),
     ("npm", step_npm),
+    (_GITLEAKS, step_gitleaks),
     ("skills", step_skills),
 )
 

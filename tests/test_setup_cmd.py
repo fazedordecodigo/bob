@@ -17,15 +17,17 @@ try:
 except ModuleNotFoundError:
     import tomli as tomllib
 
-from bob_quality import cli, doctor, install_skills, npm_tools, setup_cmd
+from bob_quality import cli, doctor, gitleaks, install_skills, npm_tools, setup_cmd
 from bob_quality.install_skills import SkillsResult, SourceError
 from bob_quality.messages import Language, msg, reason, t
+from bob_quality.gitleaks import GitleaksError
 from bob_quality.npm_tools import PinSourceError
 from bob_quality.setup_cmd import (
     STEPS,
     SetupContext,
     StepResult,
     run_setup,
+    step_gitleaks,
     step_npm,
     step_projeto,
     step_runtimes,
@@ -50,6 +52,7 @@ _SAMPLES = {
     "major": "1",
     "detail": "detalhe",
     "names": "nomes",
+    "version": "versão",
 }
 
 _MESSAGES = (
@@ -135,6 +138,11 @@ _MESSAGES = (
         "skills: não consegui gravar {path} ({detail}). Confira as permissões.",
     ),
     ("setup.item_npm", "npm tools", "ferramentas npm"),
+    (
+        "setup.item_gitleaks",
+        "gitleaks {version} in BOB_HOME/bin",
+        "gitleaks {version} em BOB_HOME/bin",
+    ),
     (
         "setup.item_skills",
         "skills ({names}) in .agents/skills",
@@ -284,8 +292,15 @@ def _exercise_node_reader(monkeypatch: pytest.MonkeyPatch) -> None:
     assert setup_cmd._node_version_text() is None
 
 
-def test_steps_are_the_u1_steps_in_order() -> None:
-    assert [step_id for step_id, _step in STEPS] == ["projeto", "runtimes", "npm", "skills"]
+def test_steps_follow_the_ct3_order() -> None:
+    assert [step_id for step_id, _step in STEPS] == [
+        "projeto",
+        "runtimes",
+        "npm",
+        "gitleaks",
+        "skills",
+    ]
+    assert dict(STEPS)["gitleaks"] is step_gitleaks
 
 
 def test_all_steps_pass_and_doctor_0_exits_0(
@@ -909,6 +924,7 @@ def test_setup_does_not_touch_the_project_package_files(
         raise AssertionError(lang)
 
     monkeypatch.setattr(npm_tools, "install_npm_dependencies", forbid)
+    monkeypatch.setattr(gitleaks, "installed_version", lambda home: gitleaks.VERSION)
     monkeypatch.setattr(doctor, "run_doctor", _pass_doctor(0))
     assert run_setup(git_project, "en") == 0
     skills = git_project / ".agents" / "skills"
@@ -918,3 +934,97 @@ def test_setup_does_not_touch_the_project_package_files(
     assert _sha_tree(git_project / "node_modules") == before_modules
     assert _mtimes(skills) == stamped
     assert importlib.metadata.version("bob-quality")
+
+
+def test_gitleaks_step_is_unchanged_when_present(
+    monkeypatch: pytest.MonkeyPatch,
+    ctx: Callable[..., SetupContext],
+    tmp_path: Path,
+) -> None:
+    monkeypatch.setattr(gitleaks, "installed_version", lambda home: "8.30.1")
+
+    def forbid(home: object) -> None:
+        raise AssertionError(home)
+
+    monkeypatch.setattr(gitleaks, "ensure_gitleaks", forbid)
+    assert step_gitleaks(ctx(tmp_path)) == StepResult("unchanged")
+
+
+@pytest.mark.parametrize("found", [None, "8.29.0", "8.30.1-beta.1"])
+def test_gitleaks_step_installs_when_missing(
+    monkeypatch: pytest.MonkeyPatch,
+    ctx: Callable[..., SetupContext],
+    tmp_path: Path,
+    found: str | None,
+) -> None:
+    seen: list[object] = []
+
+    def install(home: object) -> None:
+        seen.append(home)
+
+    monkeypatch.setattr(gitleaks, "installed_version", lambda home: found)
+    monkeypatch.setattr(gitleaks, "ensure_gitleaks", install)
+    current = ctx(tmp_path)
+    assert step_gitleaks(current) == StepResult(
+        "installed",
+        installed=(msg("setup.item_gitleaks", version="8.30.1"),),
+    )
+    assert seen[0] is current.home
+
+
+@pytest.mark.parametrize("lang", ["en", "pt-BR"])
+def test_gitleaks_step_failure_stops_setup(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    tmp_path: Path,
+    lang: Language,
+) -> None:
+    asset = "gitleaks_8.30.1_linux_x64.tar.gz"
+
+    def later(current: SetupContext) -> StepResult:
+        raise AssertionError(current)
+
+    monkeypatch.setattr(
+        setup_cmd,
+        "STEPS",
+        (("gitleaks", step_gitleaks), ("b", later)),
+    )
+    monkeypatch.setattr(gitleaks, "installed_version", lambda home: None)
+
+    def fail(home: object) -> None:
+        raise GitleaksError(msg("gitleaks.integrity", asset=asset))
+
+    monkeypatch.setattr(gitleaks, "ensure_gitleaks", fail)
+
+    def doctor_run(install: bool = False, lang: str = "en") -> int:
+        raise AssertionError((install, lang))
+
+    monkeypatch.setattr(doctor, "run_doctor", doctor_run)
+    project = tmp_path / "p"
+    project.mkdir()
+    assert run_setup(project, lang) == 4
+    captured = capsys.readouterr()
+    line = t(lang, "setup.error", reason=msg("gitleaks.integrity", asset=asset))
+    assert line in captured.err.splitlines()
+    assert "gitleaks" in line
+    assert "sha256" in line
+    assert captured.out.splitlines()[-1] == t(
+        lang, "setup.doctor", code=t(lang, "setup.doctor_not_run")
+    )
+
+
+def test_gitleaks_step_reaches_the_summary(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    tmp_path: Path,
+) -> None:
+    monkeypatch.setattr(setup_cmd, "STEPS", (("gitleaks", step_gitleaks),))
+    monkeypatch.setattr(gitleaks, "installed_version", lambda home: None)
+    monkeypatch.setattr(gitleaks, "ensure_gitleaks", lambda home: home)
+    monkeypatch.setattr(doctor, "run_doctor", _pass_doctor(0))
+    project = tmp_path / "p"
+    project.mkdir()
+    assert run_setup(project, "en") == 0
+    stdout = capsys.readouterr().out
+    assert "bob setup: gitleaks: ok" in stdout
+    assert "  installed: gitleaks 8.30.1 in BOB_HOME/bin" in stdout
