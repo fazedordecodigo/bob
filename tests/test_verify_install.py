@@ -10,24 +10,18 @@ from pathlib import Path
 
 import pytest
 
-from bob_quality.doctor import BinaryPin, PINS
+from bob_quality import gitleaks
 
 ROOT = Path(__file__).resolve().parents[1]
 SCRIPT = ROOT / "scripts" / "verify-install.sh"
 _HELP = (
     "uso: sh scripts/verify-install.sh [--only <id>[,<id>...]]\n"
-    "passos: 1 2 3 4 7 8 9b\n"
+    "passos: 1 2 3 4 7 8 9a 9b\n"
     "VERIFY_REMOTE=1 usa o GitHub em vez do espelho local.\n"
 )
 _OUTSIDE = (
     "verify-install: uso: rode na raiz do checkout do bob "
     "(não achei scripts/install.sh).\n"
-)
-_SHA_NAMES = (
-    "GITLEAKS_SHA_LINUX_X64",
-    "GITLEAKS_SHA_LINUX_ARM64",
-    "GITLEAKS_SHA_DARWIN_X64",
-    "GITLEAKS_SHA_DARWIN_ARM64",
 )
 
 
@@ -53,13 +47,6 @@ def _verify_names(directory: Path) -> set[str]:
         for child in directory.iterdir()
         if child.name.startswith("bob-verify.")
     }
-
-
-def _gitleaks() -> BinaryPin:
-    for pin in PINS:
-        if isinstance(pin, BinaryPin) and pin.name == "gitleaks":
-            return pin
-    raise AssertionError("pin gitleaks ausente")
 
 
 def test_verify_install_is_posix() -> None:
@@ -96,16 +83,55 @@ def test_verify_install_shape() -> None:
     assert re.search(r"^\s*sudo\b", text, re.M) is None
 
 
-def test_step_ids_are_the_u1_steps() -> None:
-    assert _assign("STEP_IDS") == "1 2 3 4 7 8 9b"
+def test_step_ids_are_the_u1_and_u3_steps() -> None:
+    assert _assign("STEP_IDS") == "1 2 3 4 7 8 9a 9b"
 
 
-def test_gitleaks_constants_match_the_doctor_pin() -> None:
-    pin = _gitleaks()
-    assert _assign("GITLEAKS_VERSION") == pin.expected
-    assert _assign("GITLEAKS_SHA_LINUX_X64") == pin.sha256
-    for name in _SHA_NAMES:
-        assert re.fullmatch(r"[0-9a-f]{64}", _assign(name))
+def test_gitleaks_constants_match_the_gitleaks_table() -> None:
+    assert _assign("GITLEAKS_VERSION") == gitleaks.VERSION
+    pairs = (
+        ("GITLEAKS_SHA_LINUX_X64", ("linux", "x64")),
+        ("GITLEAKS_SHA_LINUX_ARM64", ("linux", "arm64")),
+        ("GITLEAKS_SHA_DARWIN_X64", ("darwin", "x64")),
+        ("GITLEAKS_SHA_DARWIN_ARM64", ("darwin", "arm64")),
+    )
+    for name, key in pairs:
+        assert _assign(name) == gitleaks.ASSETS[key][1]
+
+
+def test_harness_has_no_gitleaks_fixture() -> None:
+    text = _text()
+    assert "fixture-bin" not in text
+    assert "gl-src" not in text
+    match = re.search(r"^tool_path\(\) \{\n(.*?)^\}$", text, re.M | re.S)
+    assert match is not None
+    assert (
+        match.group(1)
+        == "  printf '%s' \"$T/fake-sudo:$NODE_DIR:$PY_DIR:/usr/bin:/bin\"\n"
+    )
+
+
+def test_harness_serves_gitleaks_from_the_mirror() -> None:
+    text = _text()
+    assert '"$T/mirror/gitleaks/$_asset"' in text
+    assert '"$T/mirror/gitleaks-bad/$_asset"' in text
+    assert "GL_URL=$BASE/gitleaks" in text
+    assert "GL_URL=$BASE/gitleaks-bad" in text
+
+
+def test_harness_passes_the_gitleaks_base_url() -> None:
+    text = _text()
+    assert "BOB_GITLEAKS_BASE_URL=$GL_URL" in text
+    assert "command -v gitleaks" in text
+
+
+def test_step_9a_is_wired() -> None:
+    text = _text()
+    lines = text.splitlines()
+    assert "step_9a() {" in lines
+    assert "      9a) step_9a ;;" in lines
+    message = "verify-install: passo 9a: não se aplica (VERIFY_REMOTE=1)"
+    assert text.count(message) == 1
 
 
 def test_help_exits_0() -> None:
@@ -129,7 +155,14 @@ def test_help_exits_0() -> None:
             ("--only", "5"),
             (
                 "verify-install: uso: passo desconhecido 5. "
-                "Passos: 1 2 3 4 7 8 9b."
+                "Passos: 1 2 3 4 7 8 9a 9b."
+            ),
+        ),
+        (
+            ("--only", "9c"),
+            (
+                "verify-install: uso: passo desconhecido 9c. "
+                "Passos: 1 2 3 4 7 8 9a 9b."
             ),
         ),
         (
