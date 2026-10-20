@@ -1,7 +1,7 @@
 #!/bin/sh
-# Harness do comando de verificação (CT15): passos 1, 2, 3, 4, 7, 8 e 9b.
+# Harness do comando de verificação (CT15): passos 1, 2, 3, 4, 7, 8, 9a e 9b.
 set -u
-STEP_IDS='1 2 3 4 7 8 9b'
+STEP_IDS='1 2 3 4 7 8 9a 9b'
 GITLEAKS_VERSION='8.30.1'
 GITLEAKS_SHA_LINUX_X64='551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb'
 GITLEAKS_SHA_LINUX_ARM64='e4a487ee7ccd7d3a7f7ec08657610aa3606637dab924210b3aee62570fb4b080'
@@ -21,6 +21,8 @@ PY_DIR=
 S2_HOME=
 S2_PROJ=
 selected=
+GL_ASSET=
+GL_URL=
 
 die_usage() {
   printf 'verify-install: uso: %s\n' "$1" >&2
@@ -343,9 +345,11 @@ release_pair() {
   if [ "$remote" -eq 1 ]; then
     REL_URL=https://github.com/fazedordecodigo/bob/releases
     REL_ENV=
+    GL_URL=
   else
     REL_URL=$BASE
     REL_ENV=$BASE
+    GL_URL=$BASE/gitleaks
   fi
 }
 
@@ -363,9 +367,16 @@ run_oneliner() {
   if [ -n "$_bob" ]; then
     die_passo "$_step" "bob já está no PATH ($_bob); a máquina não está limpa."
   fi
+  _gl=$(PATH="$_path" command -v gitleaks 2>/dev/null) || _gl=
+  if [ -n "$_gl" ]; then
+    die_passo "$_step" "gitleaks já está no PATH ($_gl); a máquina não está limpa."
+  fi
   set -- env -i "HOME=$_home" "TMPDIR=$_tmp" LANG=C.UTF-8 "PATH=$_path"
   if [ -n "$_releases" ]; then
     set -- "$@" "BOB_RELEASES_URL=$_releases"
+  fi
+  if [ -n "$GL_URL" ]; then
+    set -- "$@" "BOB_GITLEAKS_BASE_URL=$GL_URL"
   fi
   for _name in PIP_INDEX_URL PIP_EXTRA_INDEX_URL PIP_TRUSTED_HOST PIP_CERT \
     npm_config_registry npm_config_cache \
@@ -387,7 +398,7 @@ run_oneliner() {
 }
 
 tool_path() {
-  printf '%s' "$T/fake-sudo:$T/fixture-bin:$NODE_DIR:$PY_DIR:/usr/bin:/bin"
+  printf '%s' "$T/fake-sudo:$NODE_DIR:$PY_DIR:/usr/bin:/bin"
 }
 
 node_floor() {
@@ -598,16 +609,15 @@ prepare_gitleaks() {
     fi
     mv "$_partial" "$_cache" || die_preparo "gitleaks: download falhou"
   fi
-  mkdir -p "$T/fixture-bin" "$T/gl-src" || die_preparo "gitleaks: download falhou"
-  if ! tar -xzf "$_cache" -C "$T/gl-src" gitleaks; then
-    die_preparo "gitleaks: download falhou"
-  fi
-  if [ ! -f "$T/gl-src/gitleaks" ] || [ -L "$T/gl-src/gitleaks" ]; then
-    die_preparo "gitleaks: download falhou"
-  fi
-  cp "$T/gl-src/gitleaks" "$T/fixture-bin/gitleaks" \
-    || die_preparo "gitleaks: download falhou"
-  chmod 0755 "$T/fixture-bin/gitleaks" || die_preparo "gitleaks: download falhou"
+  mkdir -p "$T/mirror/gitleaks" "$T/mirror/gitleaks-bad" \
+    || die_preparo "não consegui montar o espelho"
+  cp "$_cache" "$T/mirror/gitleaks/$_asset" \
+    || die_preparo "não consegui montar o espelho"
+  cp "$_cache" "$T/mirror/gitleaks-bad/$_asset" \
+    || die_preparo "não consegui montar o espelho"
+  printf '\n' >> "$T/mirror/gitleaks-bad/$_asset" \
+    || die_preparo "não consegui montar o espelho"
+  GL_ASSET=$_asset
 }
 
 prepare_fakes() {
@@ -636,9 +646,9 @@ prepare() {
   if [ "$remote" -eq 0 ]; then
     build_wheel
     build_mirror
+    prepare_gitleaks
     start_server
   fi
-  prepare_gitleaks
   prepare_fakes
 }
 
@@ -729,14 +739,33 @@ step_2() {
     _want="GET /latest/download/install.sh 200
 GET /api/releases/latest 200
 GET /download/$TAG/$WHL 200
-GET /download/$TAG/SHA256SUMS 200"
+GET /download/$TAG/SHA256SUMS 200
+GET /gitleaks/$GL_ASSET 200"
     if [ "$_got" != "$_want" ]; then
       _flat=$(printf '%s' "$_got" | tr '\n' ',' | sed 's/,$//')
       die_passo 2 "pedidos ao espelho: $_flat"
     fi
   fi
+  check_gitleaks_install 2 "$S2_HOME"
   printf 'verify-install: passo 2: tempo %s s\n' "$_secs"
   ok 2
+}
+
+check_gitleaks_install() {
+  BH="$2/.local/share/bob-quality"
+  _link=$(readlink "$BH/bin/gitleaks") || _link=
+  if [ "$_link" != "../tools/gitleaks/$GITLEAKS_VERSION/gitleaks" ]; then
+    die_passo "$1" "BOB_HOME/bin/gitleaks não é o link esperado"
+  fi
+  _ver=$("$BH/bin/gitleaks" version 2>/dev/null) || true
+  if [ "$_ver" != "$GITLEAKS_VERSION" ]; then
+    die_passo "$1" "BOB_HOME/bin/gitleaks version = $_ver"
+  fi
+  _mode=$("$PY_DIR/python3" -c 'import os, sys; print(format(os.stat(sys.argv[1]).st_mode & 0o777, "o"))' \
+    "$BH/tools/gitleaks/$GITLEAKS_VERSION/gitleaks") || _mode=
+  if [ "$_mode" != 755 ]; then
+    die_passo "$1" "modo do gitleaks = $_mode"
+  fi
 }
 
 ensure_2() {
@@ -798,6 +827,14 @@ step_7() {
   if [ -n "$_lock" ]; then
     _before_m=$(file_mtime "$_lock")
   fi
+  _gl_bin=$S2_HOME/.local/share/bob-quality/tools/gitleaks/$GITLEAKS_VERSION/gitleaks
+  if [ ! -f "$_gl_bin" ]; then
+    die_passo 7 "o gitleaks não está instalado"
+  fi
+  _gl_before=$(file_mtime "$_gl_bin")
+  if [ "$remote" -eq 0 ]; then
+    _gl_mark=$(line_count "$T/mirror.log")
+  fi
   release_pair
   _t0=$(date +%s)
   run_oneliner 7 "$S2_HOME" "$T/s7/tmp" "$S2_PROJ" \
@@ -831,6 +868,18 @@ step_7() {
   _after_m=$(file_mtime "$_lock2")
   if [ "$_before_m" != "$_after_m" ]; then
     die_passo 7 "npm ci rodou de novo"
+  fi
+  _gl_after=$(file_mtime "$_gl_bin")
+  if [ "$_gl_before" != "$_gl_after" ]; then
+    die_passo 7 "o gitleaks foi reinstalado"
+  fi
+  if [ "$remote" -eq 0 ]; then
+    mirror_new "$_gl_mark" "$T/mirror.log" > "$T/s7/mirror-new.txt"
+    while IFS= read -r _line || [ -n "$_line" ]; do
+      case "$_line" in
+        *" /gitleaks/"*) die_passo 7 "o gitleaks foi baixado de novo" ;;
+      esac
+    done < "$T/s7/mirror-new.txt"
   fi
   printf 'verify-install: passo 7: tempo %s s\n' "$_secs"
   ok 7
@@ -899,6 +948,75 @@ step_8() {
   ok 8
 }
 
+step_9a() {
+  if [ "$remote" -eq 1 ]; then
+    printf '%s\n' 'verify-install: passo 9a: não se aplica (VERIFY_REMOTE=1)'
+    return 0
+  fi
+  mkdir -p "$T/s9a/home" "$T/s9a/tmp" "$T/s9a/proj" \
+    || die_passo 9a "não consegui criar o projeto"
+  new_project "$T/s9a/proj" || die_passo 9a "não consegui criar o projeto"
+  digest "$T/s9a/proj" > "$T/s9a/before.txt" || die_passo 9a "o projeto mudou:"
+  release_pair
+  GL_URL=$BASE/gitleaks-bad
+  _mark=$(line_count "$T/mirror.log")
+  run_oneliner 9a "$T/s9a/home" "$T/s9a/tmp" "$T/s9a/proj" \
+    "$REL_ENV" "$REL_URL" "$(tool_path)" "$T/s9a/out.log" "$T/s9a/err.log"
+  _rc=$?
+  if [ "$_rc" -ne 4 ]; then
+    die_passo 9a "saiu $_rc com gitleaks adulterado"
+  fi
+  _cited=0
+  while IFS= read -r _line || [ -n "$_line" ]; do
+    case "$_line" in
+      "bob setup: gitleaks:"*)
+        case "$_line" in
+          *sha256*) _cited=1 ;;
+        esac
+        ;;
+    esac
+  done < "$T/s9a/err.log"
+  if [ "$_cited" -eq 0 ]; then
+    die_passo 9a "stderr não cita gitleaks e sha256"
+  fi
+  if [ -e "$T/s9a/home/.local/share/bob-quality/tools/gitleaks" ] \
+    || [ -L "$T/s9a/home/.local/share/bob-quality/tools/gitleaks" ]; then
+    die_passo 9a "tools/gitleaks foi criado"
+  fi
+  if [ -e "$T/s9a/home/.local/share/bob-quality/bin/gitleaks" ] \
+    || [ -L "$T/s9a/home/.local/share/bob-quality/bin/gitleaks" ]; then
+    die_passo 9a "bin/gitleaks foi criado"
+  fi
+  _last=$(last_nonempty "$T/s9a/out.log")
+  if [ "$_last" != "  bob doctor: not run" ]; then
+    die_passo 9a "a última linha não é \"  bob doctor: not run\""
+  fi
+  mirror_new "$_mark" "$T/mirror.log" > "$T/s9a/mirror-new.txt"
+  _got=
+  while IFS= read -r _line || [ -n "$_line" ]; do
+    case "$_line" in
+      *" /gitleaks"*)
+        if [ -n "$_got" ]; then
+          _got="$_got
+$_line"
+        else
+          _got=$_line
+        fi
+        ;;
+    esac
+  done < "$T/s9a/mirror-new.txt"
+  if [ "$_got" != "GET /gitleaks-bad/$GL_ASSET 200" ]; then
+    _flat=$(printf '%s' "$_got" | tr '\n' ',' | sed 's/,$//')
+    die_passo 9a "pedidos de gitleaks ao espelho: $_flat"
+  fi
+  digest "$T/s9a/proj" > "$T/s9a/after.txt" || die_passo 9a "o projeto mudou:"
+  if ! cmp -s "$T/s9a/before.txt" "$T/s9a/after.txt"; then
+    _diff=$(first_diff "$T/s9a/before.txt" "$T/s9a/after.txt")
+    die_passo 9a "o projeto mudou: $_diff"
+  fi
+  ok 9a
+}
+
 step_9b() {
   if [ "$remote" -eq 1 ]; then
     printf '%s\n' 'verify-install: passo 9b: não se aplica (VERIFY_REMOTE=1)'
@@ -908,6 +1026,7 @@ step_9b() {
     || die_passo 9b "não consegui criar o projeto"
   new_project "$T/s9b/proj" || die_passo 9b "não consegui criar o projeto"
   digest "$T/s9b/proj" > "$T/s9b/before.txt" || die_passo 9b "o projeto mudou:"
+  GL_URL=$BASE/gitleaks
   run_oneliner 9b "$T/s9b/home" "$T/s9b/tmp" "$T/s9b/proj" \
     "$BASE/bad" "$BASE/bad" "$(tool_path)" "$T/s9b/out.log" "$T/s9b/err.log"
   _rc=$?
@@ -950,6 +1069,7 @@ run_selected() {
       4) step_4 ;;
       7) step_7 ;;
       8) step_8 ;;
+      9a) step_9a ;;
       9b) step_9b ;;
     esac
   done
