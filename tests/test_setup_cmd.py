@@ -1013,6 +1013,27 @@ def test_gitleaks_step_failure_stops_setup(
     )
 
 
+def test_gitleaks_step_passes_ctx_home_to_installed_version(
+    monkeypatch: pytest.MonkeyPatch,
+    ctx: Callable[..., SetupContext],
+    tmp_path: Path,
+) -> None:
+    seen: list[object] = []
+
+    def record(home: object) -> str:
+        seen.append(home)
+        return "8.30.1"
+
+    def forbid(home: object) -> None:
+        raise AssertionError(home)
+
+    monkeypatch.setattr(gitleaks, "installed_version", record)
+    monkeypatch.setattr(gitleaks, "ensure_gitleaks", forbid)
+    current = ctx(tmp_path)
+    assert step_gitleaks(current) == StepResult("unchanged")
+    assert seen[0] is current.home
+
+
 def test_gitleaks_step_reaches_the_summary(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
