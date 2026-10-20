@@ -161,12 +161,12 @@ def _failure(url: str, exc: BaseException) -> GitleaksError:
 
 
 def _fetch(url: str) -> bytes | BaseException:
-    for attempt in range(1, _ATTEMPTS + 1):
+    for attempt in range(_ATTEMPTS):
         try:
             return _read_url(url)
         except _RETRYABLE as exc:
             failure = exc
-        if _client_error(failure) or attempt == _ATTEMPTS:
+        if _client_error(failure) or attempt + 1 == _ATTEMPTS:
             return failure
         time.sleep(_PAUSE_S)
 
