@@ -103,6 +103,30 @@ class Gitleaks:
         }
 
 
+_BOB_HOME_STUB = '''
+import json
+import sys
+from pathlib import Path
+
+log = Path(__file__).with_name("calls.jsonl")
+with log.open("a") as handle:
+    handle.write(json.dumps({"argv": sys.argv}) + "\\n")
+args = sys.argv[1:]
+if args in (["version"], ["--version"]):
+    sys.stdout.write("8.30.1\\n")
+    raise SystemExit(0)
+name = "--report-path"
+if name in args:
+    Path(args[args.index(name) + 1]).write_text("[]")
+raise SystemExit(0)
+'''
+
+
+@pytest.fixture(autouse=True)
+def _empty_bob_home(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    monkeypatch.setenv("BOB_HOME", str(tmp_path / "bob-home"))
+
+
 @pytest.fixture
 def repo(tmp_path: Path) -> Path:
     root = tmp_path / "repo"
@@ -184,6 +208,48 @@ def test_gitleaks_absent_from_path_is_a_missing_tool(
     run = run_secrets_gate(repo, Config(), {})
 
     assert _seen(run) == {
+        "exit_code": 4,
+        "name": "secrets",
+        "status": "not_run",
+        "reason": ("missing tool: gitleaks", "ferramenta ausente: gitleaks"),
+        "ledger": None,
+        "versions": {},
+    }
+
+
+def test_gitleaks_in_bob_home_is_used_before_the_path(
+    repo: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    home_bin = _install_bob_home(tmp_path, monkeypatch)
+    path_dir = tmp_path / "path"
+    path_dir.mkdir()
+    called = path_dir / "called"
+    path_stub = path_dir / "gitleaks"
+    path_stub.write_text(f"#!/bin/sh\nprintf used >> {called}\nexit 99\n")
+    path_stub.chmod(0o755)
+    monkeypatch.setenv("PATH", str(path_dir))
+
+    run = run_secrets_gate(repo, Config(), {})
+
+    binary = str(home_bin / "gitleaks")
+    calls = _calls(home_bin)
+    assert run.versions == {"gitleaks": "8.30.1"}
+    assert calls[0]["argv"] == [binary, "--version"]
+    assert {call["argv"][0] for call in calls} == {binary}
+    assert not called.is_file()
+
+
+def test_gitleaks_only_in_bob_home_is_not_a_missing_tool(
+    repo: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    empty = tmp_path / "empty"
+    empty.mkdir()
+    monkeypatch.setenv("PATH", str(empty))
+    _install_bob_home(tmp_path, monkeypatch)
+
+    run = run_secrets_gate(repo, Config(), {})
+
+    assert _seen(run) != {
         "exit_code": 4,
         "name": "secrets",
         "status": "not_run",
@@ -768,6 +834,16 @@ def _hex(body: str | bytes | None) -> str | None:
     if isinstance(body, str):
         return body.encode().hex()
     return body.hex()
+
+
+def _install_bob_home(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+    home_bin = tmp_path / "bh" / "bin"
+    home_bin.mkdir(parents=True)
+    stub = home_bin / "gitleaks"
+    stub.write_text(f"#!{sys.executable}\n{_BOB_HOME_STUB}")
+    stub.chmod(0o755)
+    monkeypatch.setenv("BOB_HOME", str(tmp_path / "bh"))
+    return home_bin
 
 
 def _install(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, plan: Gitleaks) -> Path:

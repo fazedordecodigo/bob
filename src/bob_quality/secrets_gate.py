@@ -3,12 +3,12 @@ from __future__ import annotations
 import json
 import os
 import re
-import shutil
 import subprocess
 import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 
+from bob_quality import user_dirs
 from bob_quality.config import Config
 from bob_quality.diff import function_is_changed
 from bob_quality.exit_codes import CONFIG_OR_TOOL, GATE_FAILED, PASSED
@@ -121,7 +121,7 @@ def run_secrets_gate(
         return _unmeasured(roots)
     if _gitleaks_ignore(roots):
         return _unmeasured(msg("secrets.gitleaksignore"))
-    binary = shutil.which("gitleaks")
+    binary = user_dirs.locate_binary("gitleaks")
     if binary is None:
         return _unmeasured(msg("tool.missing", tool="gitleaks"))
     version = _read_version(binary)

@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+`bob check --gates secrets` finds the gitleaks that `bob setup` installs in
+`BOB_HOME/bin` before looking in `PATH` (U3).
+
+`bob check --gates secrets` acha o gitleaks que o `bob setup` instala em
+`BOB_HOME/bin` antes de procurar no `PATH` (U3).
+
 `scripts/verify-install.sh` no longer puts gitleaks on `PATH`: `bob setup` downloads it from the local mirror; new step 9a (tampered gitleaks tar.gz exits 4 and installs nothing) (U3).
 
 `scripts/verify-install.sh` não põe mais o gitleaks no `PATH`: o `bob setup` baixa do espelho local; passo novo 9a (tar.gz do gitleaks adulterado sai 4 e não instala nada) (U3).
