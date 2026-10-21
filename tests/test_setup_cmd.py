@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import importlib.metadata
+import os
 import platform
 import subprocess
 import sys
@@ -17,7 +18,8 @@ try:
 except ModuleNotFoundError:
     import tomli as tomllib
 
-from bob_quality import cli, doctor, gitleaks, install_skills, npm_tools, setup_cmd
+from bob_quality import cli, doctor, gitleaks, init_config, install_skills, npm_tools, setup_cmd
+from bob_quality.config import ConfigError
 from bob_quality.install_skills import SkillsResult, SourceError
 from bob_quality.messages import Language, msg, reason, t
 from bob_quality.gitleaks import GitleaksError
@@ -27,6 +29,7 @@ from bob_quality.setup_cmd import (
     SetupContext,
     StepResult,
     run_setup,
+    step_bob_yaml,
     step_gitleaks,
     step_npm,
     step_projeto,
@@ -170,6 +173,32 @@ _MESSAGES = (
         "achei uma cópia do bob em {path}. O bob agora usa só .agents/skills; "
         "apague {path} se não precisar dela.",
     ),
+    ("setup.item_bob_yaml", "bob.yaml", "bob.yaml"),
+    (
+        "setup.preserved_bob_yaml",
+        "bob.yaml (already exists; not changed)",
+        "bob.yaml (já existe; sem mudanças)",
+    ),
+    (
+        "setup.preserved_waivers",
+        ".bob/waivers.yaml (bob does not change it)",
+        ".bob/waivers.yaml (o bob não altera)",
+    ),
+    (
+        "setup.warn_no_code",
+        'no code folder found; paths.include: ["."].',
+        'nenhuma pasta de código encontrada; paths.include: ["."].',
+    ),
+    (
+        "setup.bob_yaml_invalid",
+        "bob.yaml: the generated file is invalid ({detail}). Open an issue.",
+        "bob.yaml: o arquivo gerado é inválido ({detail}). Abra uma issue.",
+    ),
+    (
+        "setup.bob_yaml_write",
+        "bob.yaml: could not write bob.yaml ({detail}). Check the permissions.",
+        "bob.yaml: não consegui gravar bob.yaml ({detail}). Confira as permissões.",
+    ),
 )
 
 
@@ -299,8 +328,10 @@ def test_steps_follow_the_ct3_order() -> None:
         "npm",
         "gitleaks",
         "skills",
+        "bob.yaml",
     ]
     assert dict(STEPS)["gitleaks"] is step_gitleaks
+    assert dict(STEPS)["bob.yaml"] is step_bob_yaml
 
 
 def test_all_steps_pass_and_doctor_0_exits_0(
@@ -1049,3 +1080,229 @@ def test_gitleaks_step_reaches_the_summary(
     stdout = capsys.readouterr().out
     assert "bob setup: gitleaks: ok" in stdout
     assert "  installed: gitleaks 8.30.1 in BOB_HOME/bin" in stdout
+
+
+def _empty_repo(tmp_path: Path) -> Path:
+    empty_repo = tmp_path / "vazio"
+    empty_repo.mkdir()
+    _git(empty_repo, "init", "-q")
+    return empty_repo.resolve()
+
+
+def test_bob_yaml_step_reports_created(
+    ctx: Callable[..., SetupContext],
+    git_project: Path,
+) -> None:
+    result = step_bob_yaml(ctx(git_project))
+    assert result == StepResult("installed", installed=(msg("setup.item_bob_yaml"),))
+    text = (git_project / "bob.yaml").read_text(encoding="utf-8")
+    assert "  include: [src]" in text
+
+
+def test_bob_yaml_step_warns_when_there_is_no_code(
+    ctx: Callable[..., SetupContext],
+    tmp_path: Path,
+) -> None:
+    empty_repo = _empty_repo(tmp_path)
+    assert step_bob_yaml(ctx(empty_repo)) == StepResult(
+        "installed",
+        installed=(msg("setup.item_bob_yaml"),),
+        warnings=(msg("setup.warn_no_code"),),
+    )
+
+
+def test_bob_yaml_step_reports_preserved(
+    ctx: Callable[..., SetupContext],
+    git_project: Path,
+) -> None:
+    target = git_project / "bob.yaml"
+    target.write_text("base: main\n", encoding="utf-8")
+    before = target.read_bytes()
+    assert step_bob_yaml(ctx(git_project)) == StepResult(
+        "preserved",
+        preserved=(msg("setup.preserved_bob_yaml"),),
+    )
+    assert target.read_bytes() == before
+
+
+@pytest.mark.parametrize("shape", ["file", "symlink", "directory"])
+def test_bob_yaml_step_lists_existing_waivers(
+    ctx: Callable[..., SetupContext],
+    git_project: Path,
+    shape: str,
+) -> None:
+    waivers = git_project / ".bob" / "waivers.yaml"
+    waivers.parent.mkdir()
+    link_target = ""
+    payload = b""
+    if shape == "symlink":
+        (git_project / "bob.yaml").write_text("base: main\n", encoding="utf-8")
+        waivers.symlink_to("ausente")
+        link_target = os.readlink(waivers)
+    elif shape == "directory":
+        waivers.mkdir()
+    else:
+        waivers.write_text("# w\n", encoding="utf-8")
+        payload = waivers.read_bytes()
+    result = step_bob_yaml(ctx(git_project))
+    note = msg("setup.preserved_waivers")
+    if shape == "symlink":
+        assert result == StepResult(
+            "preserved",
+            preserved=(msg("setup.preserved_bob_yaml"), note),
+        )
+        assert os.readlink(waivers) == link_target
+        return
+    assert result == StepResult(
+        "installed",
+        installed=(msg("setup.item_bob_yaml"),),
+        preserved=(note,),
+    )
+    if shape == "directory":
+        assert waivers.is_dir()
+        return
+    assert waivers.read_bytes() == payload
+
+
+def test_bob_yaml_step_invalid_config_fails(
+    monkeypatch: pytest.MonkeyPatch,
+    ctx: Callable[..., SetupContext],
+    tmp_path: Path,
+) -> None:
+    def fail(project: Path) -> None:
+        raise ConfigError("quebrado")
+
+    monkeypatch.setattr(init_config, "write_default_config", fail)
+    assert step_bob_yaml(ctx(tmp_path)) == StepResult(
+        "failed",
+        error=msg("setup.bob_yaml_invalid", detail="quebrado"),
+    )
+
+
+def test_bob_yaml_step_git_failure_fails(
+    monkeypatch: pytest.MonkeyPatch,
+    ctx: Callable[..., SetupContext],
+    tmp_path: Path,
+) -> None:
+    cause = msg("git.ls_files_failed", detail="fatal: x")
+
+    def fail(project: Path) -> None:
+        raise ToolError(cause)
+
+    monkeypatch.setattr(init_config, "write_default_config", fail)
+    assert step_bob_yaml(ctx(tmp_path)) == StepResult(
+        "failed",
+        error=msg("setup.step_reason", step="bob.yaml", reason=cause),
+    )
+
+
+@pytest.mark.parametrize(
+    ("exc", "detail"),
+    [
+        (PermissionError(13, "Permission denied"), "Permission denied"),
+        (OSError(), "OSError"),
+    ],
+)
+def test_bob_yaml_step_write_error_fails(
+    monkeypatch: pytest.MonkeyPatch,
+    ctx: Callable[..., SetupContext],
+    tmp_path: Path,
+    exc: OSError,
+    detail: str,
+) -> None:
+    def fail(project: Path) -> None:
+        raise exc
+
+    monkeypatch.setattr(init_config, "write_default_config", fail)
+    assert step_bob_yaml(ctx(tmp_path)) == StepResult(
+        "failed",
+        error=msg("setup.bob_yaml_write", detail=detail),
+    )
+
+
+@pytest.mark.parametrize("lang", ["en", "pt-BR"])
+def test_bob_yaml_step_failure_stops_setup(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    tmp_path: Path,
+    lang: Language,
+) -> None:
+    def later(current: SetupContext) -> StepResult:
+        raise AssertionError(current)
+
+    monkeypatch.setattr(
+        setup_cmd,
+        "STEPS",
+        (("bob.yaml", step_bob_yaml), ("b", later)),
+    )
+
+    def fail(project: Path) -> None:
+        raise ConfigError("quebrado")
+
+    monkeypatch.setattr(init_config, "write_default_config", fail)
+
+    def doctor_run(install: bool = False, lang: str = "en") -> int:
+        raise AssertionError((install, lang))
+
+    monkeypatch.setattr(doctor, "run_doctor", doctor_run)
+    project = tmp_path / "p"
+    project.mkdir()
+    assert run_setup(project, lang) == 4
+    captured = capsys.readouterr()
+    line = t(
+        lang,
+        "setup.error",
+        reason=msg("setup.bob_yaml_invalid", detail="quebrado"),
+    )
+    assert line in captured.err.splitlines()
+    assert captured.out.splitlines()[-1] == t(
+        lang,
+        "setup.doctor",
+        code=t(lang, "setup.doctor_not_run"),
+    )
+
+
+def test_bob_yaml_step_reaches_the_summary(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    git_project: Path,
+) -> None:
+    monkeypatch.setattr(setup_cmd, "STEPS", (("bob.yaml", step_bob_yaml),))
+    monkeypatch.setattr(doctor, "run_doctor", _pass_doctor(0))
+    waivers = git_project / ".bob" / "waivers.yaml"
+    waivers.parent.mkdir()
+    waivers.write_text("# w\n", encoding="utf-8")
+    assert run_setup(git_project, "en") == 0
+    stdout = capsys.readouterr().out
+    assert "bob setup: bob.yaml: ok" in stdout.splitlines()
+    assert "  installed: bob.yaml" in stdout.splitlines()
+    kept = "  preserved: .bob/waivers.yaml (bob does not change it)"
+    assert kept in stdout.splitlines()
+    config_bytes = (git_project / "bob.yaml").read_bytes()
+    waiver_bytes = waivers.read_bytes()
+    assert run_setup(git_project, "en") == 0
+    again = capsys.readouterr().out
+    existing = "  preserved: bob.yaml (already exists; not changed)"
+    assert existing in again.splitlines()
+    assert again.index(existing) < again.index(kept)
+    assert (git_project / "bob.yaml").read_bytes() == config_bytes
+    assert waivers.read_bytes() == waiver_bytes
+
+
+@pytest.mark.parametrize("lang", ["en", "pt-BR"])
+def test_bob_yaml_step_no_code_warning_reaches_the_output(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    tmp_path: Path,
+    lang: Language,
+) -> None:
+    monkeypatch.setattr(setup_cmd, "STEPS", (("bob.yaml", step_bob_yaml),))
+    monkeypatch.setattr(doctor, "run_doctor", _pass_doctor(0))
+    empty_repo = _empty_repo(tmp_path)
+    assert run_setup(empty_repo, lang) == 0
+    stdout = capsys.readouterr().out.splitlines()
+    warning = t(lang, "setup.warn_no_code")
+    assert t(lang, "setup.warning_line", step="bob.yaml", text=warning) in stdout
+    assert t(lang, "setup.warnings", text=warning) in stdout
+    text = (empty_repo / "bob.yaml").read_text(encoding="utf-8")
+    assert '  include: ["."]' in text

@@ -443,6 +443,16 @@ _EN: dict[str, str] = {
         "found a copy of bob in {path}. bob now uses only .agents/skills; "
         "delete {path} if you do not need it."
     ),
+    "setup.item_bob_yaml": "bob.yaml",
+    "setup.preserved_bob_yaml": "bob.yaml (already exists; not changed)",
+    "setup.preserved_waivers": ".bob/waivers.yaml (bob does not change it)",
+    "setup.warn_no_code": 'no code folder found; paths.include: ["."].',
+    "setup.bob_yaml_invalid": (
+        "bob.yaml: the generated file is invalid ({detail}). Open an issue."
+    ),
+    "setup.bob_yaml_write": (
+        "bob.yaml: could not write bob.yaml ({detail}). Check the permissions."
+    ),
 }
 
 _PT_BR: dict[str, str] = {
@@ -846,6 +856,16 @@ _PT_BR: dict[str, str] = {
     "setup.warn_duplicate": (
         "achei uma cópia do bob em {path}. O bob agora usa só .agents/skills; "
         "apague {path} se não precisar dela."
+    ),
+    "setup.item_bob_yaml": "bob.yaml",
+    "setup.preserved_bob_yaml": "bob.yaml (já existe; sem mudanças)",
+    "setup.preserved_waivers": ".bob/waivers.yaml (o bob não altera)",
+    "setup.warn_no_code": 'nenhuma pasta de código encontrada; paths.include: ["."].',
+    "setup.bob_yaml_invalid": (
+        "bob.yaml: o arquivo gerado é inválido ({detail}). Abra uma issue."
+    ),
+    "setup.bob_yaml_write": (
+        "bob.yaml: não consegui gravar bob.yaml ({detail}). Confira as permissões."
     ),
 }
 

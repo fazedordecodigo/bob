@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+`bob setup` creates `bob.yaml` when the project has none (new `bob.yaml` step, after `skills`),
+lists an existing `bob.yaml` and `.bob/waivers.yaml` as preserved and warns when no code folder is
+found (U4).
+
+O `bob setup` cria o `bob.yaml` quando o projeto não tem um (passo novo `bob.yaml`, depois de
+`skills`), lista um `bob.yaml` e um `.bob/waivers.yaml` existentes como preservados e avisa quando
+não acha pasta de código (U4).
+
 `bob check` no longer exits `4` when `paths.include` has no code to measure (no `.py`, `.ts`,
 `.tsx`, `.js`, `.jsx`, `.mjs` or `.cjs` file outside `paths.exclude`): the `crap` and `coverage`
 gates are skipped with the reason "no code to measure" and do not count as a tool failure (U4).
