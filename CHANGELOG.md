@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+`scripts/verify-install.sh` runs step 5 (three projects get `paths.include` `[src]`, `[app]` and
+`["."]`, and `bob check --base HEAD --gates crap,dry,deps` does not exit 4); steps 7 and 8 check
+that `bob.yaml` and `.bob/waivers.yaml` are preserved (U4).
+
+O `scripts/verify-install.sh` roda o passo 5 (três projetos recebem `paths.include` `[src]`, `[app]`
+e `["."]`, e `bob check --base HEAD --gates crap,dry,deps` não sai 4); os passos 7 e 8 conferem que
+`bob.yaml` e `.bob/waivers.yaml` ficam preservados (U4).
+
 `bob setup` creates `bob.yaml` when the project has none (new `bob.yaml` step, after `skills`),
 lists an existing `bob.yaml` and `.bob/waivers.yaml` as preserved and warns when no code folder is
 found (U4).
