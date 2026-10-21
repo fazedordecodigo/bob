@@ -8,9 +8,10 @@ from typing import cast
 import pytest
 
 import bob_quality.check as check
-from bob_quality.check import _Measured, _absorb, _assemble
+from bob_quality.check import _Measured, _absorb, _assemble, _measure
 from bob_quality.churn import ChurnUnavailable
 from bob_quality.config import Config
+from bob_quality.coverage_gate import CoverageOutcome
 from bob_quality.dead_code import WarningOnly
 from bob_quality.messages import msg, render
 from bob_quality.models import (
@@ -715,4 +716,165 @@ def test_dead_code_records_the_warning(monkeypatch: pytest.MonkeyPatch, tmp_path
     assert state.gates == [advisory.as_gate()]
     assert state.versions == {"vulture": "2.16"}
     assert state.exit_code == 0
+
+
+def test_measure_skips_crap_and_coverage_without_code(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    (tmp_path / "README.md").write_text("# leia\n")
+    config = Config(include=(".",))
+    _forbid(monkeypatch)
+    seen: list[str] = []
+
+    def dry(**kwargs: object) -> tuple[GateResult, list[object], int, dict[str, str]]:
+        seen.append("dry")
+        return (GateResult("dry", "passed"), [], 0, {"jscpd": "5.4.1"})
+
+    def deps(*args: object) -> tuple[GateResult, int, dict[str, str], list[object]]:
+        seen.append("deps")
+        return (GateResult("deps", "passed"), 0, {"import-linter": "2.15"}, [])
+
+    monkeypatch.setattr(check, "run_dry_gate", dry)
+    monkeypatch.setattr(check, "run_deps_gate", deps)
+    state = _measure(
+        tmp_path,
+        config,
+        "main",
+        {},
+        10.0,
+        None,
+        ["crap", "coverage", "dry", "deps"],
+        tmp_path / "out",
+        None,
+        False,
+        None,
+    )
+
+    assert state.gates == [
+        GateResult("crap", "not_run", msg("check.no_code")),
+        GateResult("coverage", "not_run", msg("check.no_code")),
+        GateResult("dry", "passed"),
+        GateResult("deps", "passed"),
+    ]
+    assert state.exit_code == 0
+    assert seen == ["dry", "deps"]
+    assert state.metrics == []
+    assert state.baseline is None
+    assert state.diff_coverage is None
+    assert state.versions == {"jscpd": "5.4.1", "import-linter": "2.15"}
+    assert render(state.gates[0].reason, "en") == "no code to measure"
+    assert render(state.gates[0].reason, "pt-BR") == "nenhum código a medir"
+
+
+@pytest.mark.parametrize(
+    "case", ["fora-do-include", "excluido", "link", "outro-sufixo"]
+)
+def test_measure_finds_no_code_outside_the_include_rule(
+    case: str, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    _forbid(monkeypatch)
+    if case == "fora-do-include":
+        scripts = tmp_path / "scripts"
+        scripts.mkdir()
+        (scripts / "run.py").write_text("X = 1\n")
+        src = tmp_path / "src"
+        src.mkdir()
+        (src / "README.md").write_text("# leia\n")
+        config = Config(include=("src",))
+    elif case == "excluido":
+        tests = tmp_path / "tests"
+        tests.mkdir()
+        (tests / "test_app.py").write_text("X = 1\n")
+        config = Config(include=(".",), exclude=("tests",))
+    elif case == "link":
+        real = tmp_path / "real"
+        real.mkdir()
+        (real / "app.py").write_text("X = 1\n")
+        src = tmp_path / "src"
+        src.mkdir()
+        (src / "app.py").symlink_to(tmp_path / "real" / "app.py")
+        config = Config(include=("src",))
+    else:
+        src = tmp_path / "src"
+        src.mkdir()
+        (src / "app.rb").write_text("puts 1\n")
+        (src / "app.py.txt").write_text("X = 1\n")
+        config = Config(include=("src",))
+
+    state = _measure(
+        tmp_path,
+        config,
+        "main",
+        {},
+        10.0,
+        None,
+        ["crap", "coverage"],
+        tmp_path / "out",
+        None,
+        False,
+        None,
+    )
+
+    assert state.gates == [
+        GateResult("crap", "not_run", msg("check.no_code")),
+        GateResult("coverage", "not_run", msg("check.no_code")),
+    ]
+    assert state.exit_code == 0
+
+
+@pytest.mark.parametrize("path", ["src/app.py", "src/app.ts", "src/deep/app.cjs"])
+def test_measure_runs_crap_and_coverage_when_there_is_code(
+    path: str, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    source = tmp_path / path
+    source.parent.mkdir(parents=True)
+    source.write_text("X = 1\n")
+    config = Config(include=("src",))
+    _forbid(monkeypatch)
+    seen: list[str] = []
+
+    def crap(**kwargs: object) -> tuple[GateResult, list[object], int, dict[str, str], int]:
+        seen.append("crap")
+        return (
+            GateResult(
+                "crap",
+                "not_run",
+                msg("tool.detail", tool="coverage.py", detail="No data to report.\n"),
+            ),
+            [],
+            4,
+            {"lizard": "1.24.1"},
+            0,
+        )
+
+    def coverage(*args: object) -> CoverageOutcome:
+        seen.append("coverage")
+        return CoverageOutcome(
+            GateResult("coverage", "not_run", "No data to report.\n"),
+            4,
+            {"diff-cover": "10.6.0"},
+            None,
+        )
+
+    monkeypatch.setattr(check, "run_crap_gate", crap)
+    monkeypatch.setattr(check, "run_coverage_gate", coverage)
+    state = _measure(
+        tmp_path,
+        config,
+        "main",
+        {},
+        10.0,
+        None,
+        ["crap", "coverage"],
+        tmp_path / "out",
+        None,
+        False,
+        None,
+    )
+
+    assert seen == ["crap", "coverage"]
+    assert state.exit_code == 4
+    assert [gate.name for gate in state.gates] == ["crap", "coverage"]
+    assert render(state.gates[0].reason, "en") == "coverage.py: No data to report.\n"
+    assert state.versions == {"lizard": "1.24.1", "diff-cover": "10.6.0"}
 

@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+`bob check` no longer exits `4` when `paths.include` has no code to measure (no `.py`, `.ts`,
+`.tsx`, `.js`, `.jsx`, `.mjs` or `.cjs` file outside `paths.exclude`): the `crap` and `coverage`
+gates are skipped with the reason "no code to measure" and do not count as a tool failure (U4).
+
+O `bob check` não sai mais `4` quando o `paths.include` não tem código a medir (nenhum arquivo
+`.py`, `.ts`, `.tsx`, `.js`, `.jsx`, `.mjs` ou `.cjs` fora de `paths.exclude`): os gates `crap` e
+`coverage` são pulados com o motivo "nenhum código a medir" e não contam como falha de ferramenta
+(U4).
+
 New `bob_quality.init_config.write_default_config`: creates `bob.yaml` with the README defaults and
 a `paths.include` derived from the code folders git lists, validates it before the rename and never
 changes an existing `bob.yaml` (U4).
