@@ -1,7 +1,7 @@
 #!/bin/sh
-# Harness do comando de verificação (CT15): passos 1, 2, 3, 4, 7, 8, 9a e 9b.
+# Harness do comando de verificação (CT15): passos 1, 2, 3, 4, 5, 7, 8, 9a e 9b.
 set -u
-STEP_IDS='1 2 3 4 7 8 9a 9b'
+STEP_IDS='1 2 3 4 5 7 8 9a 9b'
 GITLEAKS_VERSION='8.30.1'
 GITLEAKS_SHA_LINUX_X64='551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb'
 GITLEAKS_SHA_LINUX_ARM64='e4a487ee7ccd7d3a7f7ec08657610aa3606637dab924210b3aee62570fb4b080'
@@ -329,13 +329,14 @@ sys.stdout.write(text.replace("\n", "\\n"))
 
 new_project() {
   _proj=$1
-  mkdir -p "$_proj/src" || return 1
+  _file=${2:-src/app.py}
+  mkdir -p "$_proj/$(dirname "$_file")" || return 1
   (
     cd "$_proj" || exit 1
     git init -q || exit 1
     git config user.email verify@example.invalid || exit 1
     git config user.name verify || exit 1
-    printf '%s\n' 'print("app")' > src/app.py || exit 1
+    printf '%s\n' 'print("app")' > "$_file" || exit 1
     git add -A || exit 1
     git commit -qm init || exit 1
   )
@@ -819,6 +820,102 @@ step_4() {
   ok 4
 }
 
+expected_bob_yaml() {
+  printf '%s\n' \
+    'base: origin/main' \
+    'language: en' \
+    'paths:' \
+    "  include: $1" \
+    '  exclude: [tests, node_modules, dist]' \
+    'crap:' \
+    '  max_per_function: 10' \
+    '  scope: changed' \
+    'duplication:' \
+    '  min_tokens: 50' \
+    '  new_clones: warn' \
+    '  max_new_clones: 0' \
+    '  min_similarity: 0' \
+    '  min_lines: 0' \
+    'coverage:' \
+    '  min_percent: 80' \
+    'dependencies:' \
+    '  python: .importlinter' \
+    '  typescript: .dependency-cruiser.cjs'
+}
+
+step_5() {
+  _t0=
+  for _case in src app sem-codigo; do
+    _file=src/app.py
+    _include='[src]'
+    case "$_case" in
+      app)
+        _file=app/main.py
+        _include='[app]'
+        ;;
+      sem-codigo)
+        _file=README.md
+        _include='["."]'
+        ;;
+    esac
+    mkdir -p "$T/s5/$_case/proj" "$T/s5/$_case/tmp" \
+      && new_project "$T/s5/$_case/proj" "$_file" \
+      || die_passo 5 "não consegui criar o projeto $_case"
+    release_pair
+    if [ -z "$_t0" ]; then
+      _t0=$(date +%s)
+    fi
+    run_oneliner 5 "$S2_HOME" "$T/s5/$_case/tmp" "$T/s5/$_case/proj" \
+      "$REL_ENV" "$REL_URL" "$(tool_path)" \
+      "$T/s5/$_case/out.log" "$T/s5/$_case/err.log"
+    _rc=$?
+    if [ "$_rc" -ne 0 ]; then
+      die_passo 5 "$_case: saiu $_rc; veja $T/s5/$_case/out.log"
+    fi
+    _last=$(last_nonempty "$T/s5/$_case/out.log")
+    if [ "$_last" != "  bob doctor: 0" ]; then
+      die_passo 5 "$_case: a última linha não é \"  bob doctor: 0\""
+    fi
+    if [ ! -f "$T/s5/$_case/proj/bob.yaml" ]; then
+      die_passo 5 "$_case: falta o bob.yaml"
+    fi
+    expected_bob_yaml "$_include" > "$T/s5/$_case/expected.yaml"
+    if ! cmp -s "$T/s5/$_case/expected.yaml" "$T/s5/$_case/proj/bob.yaml"; then
+      _diff=$(first_diff "$T/s5/$_case/expected.yaml" \
+        "$T/s5/$_case/proj/bob.yaml")
+      die_passo 5 "$_case: bob.yaml difere: $_diff"
+    fi
+    _warn=0
+    if grep -Fx \
+      'bob setup: bob.yaml: warning: no code folder found; paths.include: ["."].' \
+      "$T/s5/$_case/out.log" >/dev/null 2>&1; then
+      _warn=1
+    fi
+    if [ "$_case" = sem-codigo ]; then
+      if [ "$_warn" -eq 0 ]; then
+        die_passo 5 "$_case: falta o aviso de pasta sem código"
+      fi
+    elif [ "$_warn" -eq 1 ]; then
+      die_passo 5 "$_case: aviso de pasta sem código fora do lugar"
+    fi
+    (
+      cd "$T/s5/$_case/proj" || exit 1
+      env -i "HOME=$S2_HOME" "TMPDIR=$T/s5/$_case/tmp" LANG=C.UTF-8 \
+        "PATH=$(tool_path)" \
+        "$S2_HOME/.local/share/bob-quality/bin/bob" \
+        check --base HEAD --gates crap,dry,deps
+    ) >"$T/s5/$_case/check.log" 2>&1
+    _rc=$?
+    if [ "$_rc" -eq 4 ]; then
+      die_passo 5 "$_case: bob check saiu 4; veja $T/s5/$_case/check.log"
+    fi
+  done
+  _t1=$(date +%s)
+  _secs=$((_t1 - _t0))
+  printf 'verify-install: passo 5: tempo %s s\n' "$_secs"
+  ok 5
+}
+
 step_7() {
   mkdir -p "$T/s7/tmp" || die_passo 7 "não consegui criar o projeto"
   digest "$S2_PROJ" > "$T/s7/before.txt" || die_passo 7 "a 2ª execução mudou o projeto:"
@@ -849,6 +946,10 @@ step_7() {
   if ! cmp -s "$T/s7/before.txt" "$T/s7/after.txt"; then
     _diff=$(first_diff "$T/s7/before.txt" "$T/s7/after.txt")
     die_passo 7 "a 2ª execução mudou o projeto: $_diff"
+  fi
+  if ! grep -Fx '  preserved: bob.yaml (already exists; not changed)' \
+    "$T/s7/out.log" >/dev/null 2>&1; then
+    die_passo 7 "o resumo não lista bob.yaml"
   fi
   _flat=$(
     if [ -d "$S2_HOME/.local/share/bob-quality/versions" ]; then
@@ -891,7 +992,7 @@ step_8() {
   new_project "$T/s8/proj" || die_passo 8 "não consegui criar o projeto"
   (
     cd "$T/s8/proj" || exit 1
-    mkdir -p .agents/skills/outra node_modules/vitest || exit 1
+    mkdir -p .agents/skills/outra node_modules/vitest .bob || exit 1
     printf '%s\n' 'node_modules/' > .gitignore || exit 1
     printf '%s\n' '# outra' > .agents/skills/outra/SKILL.md || exit 1
     printf '%s\n' \
@@ -899,10 +1000,15 @@ step_8() {
       > package.json || exit 1
     printf '%s\n' '{"name": "vitest", "version": "4.1.0"}' \
       > node_modules/vitest/package.json || exit 1
+    printf '%s\n' 'base: origin/main' 'paths:' '  include: [src]' \
+      > bob.yaml || exit 1
+    printf '%s\n' '# waivers do dev' > .bob/waivers.yaml || exit 1
     git add -A || exit 1
     git commit -qm fixture || exit 1
   ) || die_passo 8 "não consegui criar o projeto"
-  for _rel in .agents/skills/outra/SKILL.md package.json node_modules/vitest/package.json; do
+  _files='.agents/skills/outra/SKILL.md package.json node_modules/vitest/package.json'
+  _files="$_files bob.yaml .bob/waivers.yaml"
+  for _rel in $_files; do
     file_sha "$T/s8/proj/$_rel" > "$T/s8/sha-$(printf '%s' "$_rel" | tr '/' '_')"
   done
   release_pair
@@ -912,7 +1018,7 @@ step_8() {
   if [ "$_rc" -ne 0 ]; then
     die_passo 8 "saiu $_rc; veja $T/s8/out.log"
   fi
-  for _rel in .agents/skills/outra/SKILL.md package.json node_modules/vitest/package.json; do
+  for _rel in $_files; do
     _key=$(printf '%s' "$_rel" | tr '/' '_')
     _before=$(cat "$T/s8/sha-$_key")
     _after=$(file_sha "$T/s8/proj/$_rel")
@@ -923,6 +1029,14 @@ step_8() {
   if ! grep -Fx '  preserved: .agents/skills/outra (not from bob)' \
     "$T/s8/out.log" >/dev/null 2>&1; then
     die_passo 8 "o resumo não lista .agents/skills/outra"
+  fi
+  if ! grep -Fx '  preserved: bob.yaml (already exists; not changed)' \
+    "$T/s8/out.log" >/dev/null 2>&1; then
+    die_passo 8 "o resumo não lista bob.yaml"
+  fi
+  if ! grep -Fx '  preserved: .bob/waivers.yaml (bob does not change it)' \
+    "$T/s8/out.log" >/dev/null 2>&1; then
+    die_passo 8 "o resumo não lista .bob/waivers.yaml"
   fi
   _last=$(last_nonempty "$T/s8/out.log")
   if [ "$_last" != "  bob doctor: 0" ]; then
@@ -1060,13 +1174,14 @@ run_selected() {
       continue
     fi
     case "$_id" in
-      3|4|7) ensure_2 ;;
+      3|4|5|7) ensure_2 ;;
     esac
     case "$_id" in
       1) step_1 ;;
       2) ensure_2 ;;
       3) step_3 ;;
       4) step_4 ;;
+      5) step_5 ;;
       7) step_7 ;;
       8) step_8 ;;
       9a) step_9a ;;
