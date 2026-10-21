@@ -15,9 +15,11 @@ from typing import Literal
 
 from bob_quality import doctor
 from bob_quality import gitleaks
+from bob_quality import init_config
 from bob_quality import install_skills
 from bob_quality import npm_tools
 from bob_quality import user_dirs
+from bob_quality.config import ConfigError
 from bob_quality.gitleaks import GitleaksError
 from bob_quality.install_skills import SkillsResult, SourceError
 from bob_quality.messages import Language, Text, msg, reason, render, t
@@ -93,6 +95,7 @@ _SKILLS_SOURCE = "setup.skills_source"
 _SKILLS_WRITE = "setup.skills_write"
 _ITEM_NPM = "setup.item_npm"
 _GITLEAKS = "gitleaks"
+_BOB_YAML = "bob.yaml"
 _ITEM_GITLEAKS = "setup.item_gitleaks"
 _ITEM_SKILLS = "setup.item_skills"
 _NO_MARKER = "setup.preserved_no_marker"
@@ -101,6 +104,12 @@ _FILE = "setup.preserved_file"
 _FOREIGN = "setup.preserved_foreign"
 _WARN_NO_MARKER = "setup.warn_no_marker"
 _WARN_DUPLICATE = "setup.warn_duplicate"
+_ITEM_BOB_YAML = "setup.item_bob_yaml"
+_PRESERVED_BOB_YAML = "setup.preserved_bob_yaml"
+_PRESERVED_WAIVERS = "setup.preserved_waivers"
+_WARN_NO_CODE = "setup.warn_no_code"
+_BOB_YAML_INVALID = "setup.bob_yaml_invalid"
+_BOB_YAML_WRITE = "setup.bob_yaml_write"
 
 
 def step_projeto(ctx: SetupContext) -> StepResult:
@@ -189,12 +198,27 @@ def step_skills(ctx: SetupContext) -> StepResult:
     return _skills_outcome(ctx, result)
 
 
+def step_bob_yaml(ctx: SetupContext) -> StepResult:
+    """Passo 6 do CT3: bob.yaml do projeto (CT7) e waivers preservados."""
+    waivers = _waivers_kept(ctx)
+    try:
+        created = init_config.write_default_config(ctx.project)
+    except ConfigError as exc:
+        return StepResult(_FAILED, error=msg(_BOB_YAML_INVALID, detail=reason(exc)))
+    except ToolError as exc:
+        return _failed_reason(_BOB_YAML, exc)
+    except OSError as exc:
+        return _bob_yaml_write_failure(exc)
+    return _config_result(created.state, waivers)
+
+
 STEPS: tuple[tuple[str, Step], ...] = (
     ("projeto", step_projeto),
     ("runtimes", step_runtimes),
     ("npm", step_npm),
     (_GITLEAKS, step_gitleaks),
     ("skills", step_skills),
+    (_BOB_YAML, step_bob_yaml),
 )
 
 
@@ -408,3 +432,33 @@ def _preserved_item(ctx: SetupContext, path: Path, result: SkillsResult) -> Text
 
 def _relative(ctx: SetupContext, path: Path) -> str:
     return path.relative_to(ctx.project).as_posix()
+
+
+def _waivers_kept(ctx: SetupContext) -> tuple[Text, ...]:
+    path = ctx.project / ".bob" / "waivers.yaml"
+    if path.exists() or path.is_symlink():
+        return (msg(_PRESERVED_WAIVERS),)
+    return ()
+
+
+def _bob_yaml_write_failure(exc: OSError) -> StepResult:
+    detail = exc.strerror or type(exc).__name__
+    return StepResult(_FAILED, error=msg(_BOB_YAML_WRITE, detail=detail))
+
+
+def _config_result(state: str, waivers: tuple[Text, ...]) -> StepResult:
+    if state == "preserved":
+        preserved = (msg(_PRESERVED_BOB_YAML),) + waivers
+        return StepResult("preserved", preserved=preserved)
+    return StepResult(
+        _INSTALLED,
+        installed=(msg(_ITEM_BOB_YAML),),
+        preserved=waivers,
+        warnings=_no_code_warning(state),
+    )
+
+
+def _no_code_warning(state: str) -> tuple[Text, ...]:
+    if state == "created_no_code":
+        return (msg(_WARN_NO_CODE),)
+    return ()
