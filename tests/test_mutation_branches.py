@@ -383,6 +383,8 @@ def test_absorb_records_every_gate_argument_and_result(
 ) -> None:
     from bob_quality import check as check_mod
 
+    (tmp_path / "src").mkdir()
+    (tmp_path / "src" / "app.py").write_text("X = 1\n")
     config = Config(languages=("python", "typescript"))
     diff = {"src/safe.ts": {2}, "src/app.py": {4}}
     coverage = tmp_path / "coverage.json"

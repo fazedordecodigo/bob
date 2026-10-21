@@ -110,6 +110,55 @@ def test_a_missing_coverage_file_stays_a_tool_failure(tmp_path: Path) -> None:
     ]
 
 
+def test_a_repo_without_code_skips_crap_and_coverage_and_exits_0(tmp_path: Path) -> None:
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    _git(repo, "init", "-b", "main")
+    _git(repo, "config", "user.email", "bob-test@example.com")
+    _git(repo, "config", "user.name", "bob-test")
+    _write(repo, "README.md", "# leia\n")
+    _write(repo, "bob.yaml", 'paths:\n  include: ["."]\n')
+    _git(repo, "add", ".")
+    _git(repo, "commit", "-m", "base")
+
+    assert run_check(repo, base="HEAD", gates=["crap", "coverage"]) == 0
+
+    assert _payload(repo)["gates"] == [
+        {"name": "crap", "status": "not_run", "reason": "no code to measure"},
+        {"name": "coverage", "status": "not_run", "reason": "no code to measure"},
+    ]
+    assert _payload(repo)["exit_code"] == 0
+    lines = (repo / ".bob" / "report.md").read_text(encoding="utf-8").splitlines()
+    assert "- ⏭️ `crap`: not run (no code to measure)" in lines
+    assert "- ⏭️ `coverage`: not run (no code to measure)" in lines
+
+    assert run_check(repo, base="HEAD", lang="pt-BR") == 0
+
+    assert [gate["name"] for gate in _payload(repo)["gates"]] == ["crap", "dry", "deps"]
+    assert _payload(repo)["gates"][0]["status"] == "not_run"
+    assert _payload(repo)["exit_code"] == 0
+    lines = (repo / ".bob" / "report.md").read_text(encoding="utf-8").splitlines()
+    assert "- ⏭️ `crap`: não executado (nenhum código a medir)" in lines
+
+
+def test_a_missing_coverage_file_keeps_the_coverage_gate_a_tool_failure(
+    tmp_path: Path,
+) -> None:
+    repo, base, _tip = _function_repo(tmp_path)
+
+    assert (
+        run_check(
+            repo, base=base, gates=["coverage"], coverage_file=repo / "missing.coverage"
+        )
+        == 4
+    )
+
+    gate = _payload(repo)["gates"][0]
+    assert gate["name"] == "coverage"
+    assert gate["status"] == "not_run"
+    assert gate["reason"].strip() == "No data to report."
+
+
 def test_missing_config_keeps_the_requested_base_and_command(tmp_path: Path) -> None:
     repo = tmp_path / "repo"
     repo.mkdir()

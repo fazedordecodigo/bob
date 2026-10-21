@@ -8,7 +8,7 @@ from pathlib import Path
 
 from bob_quality.churn import ChurnSection, measure_churn
 from bob_quality.cognitive_gate import run_cognitive_gate
-from bob_quality.config import Config, ConfigError, load_config
+from bob_quality.config import Config, ConfigError, detect_languages, load_config
 from bob_quality.core import files_by_risk, informational_debt, top_changed_crap
 from bob_quality.coverage_gate import run_coverage_gate
 from bob_quality.crap_gate import run_crap_gate
@@ -44,6 +44,7 @@ from bob_quality.test_smells import run_test_smells_gate
 from bob_quality.waivers import WaiverError, load_waivers
 
 DEFAULT_GATES = ("crap", "dry", "deps")
+_NEEDS_CODE = ("crap", "coverage")
 
 
 def run_check(
@@ -177,6 +178,8 @@ def _measure(
     state.memo = memo
     try:
         for gate in gates:
+            if _skipped_without_code(state, gate, cwd, config):
+                continue
             _absorb(
                 state,
                 gate,
@@ -194,6 +197,16 @@ def _measure(
     finally:
         memo.close()
     return state
+
+
+def _skipped_without_code(state: _Measured, gate: str, cwd: Path, config: Config) -> bool:
+    """Sem código no include, crap e coverage não têm o que medir: ⏭️ e exit 0."""
+    if gate not in _NEEDS_CODE:
+        return False
+    if detect_languages(cwd, config.include, config.exclude):
+        return False
+    _record(state, GateResult(gate, "not_run", msg("check.no_code")), PASSED, {})
+    return True
 
 
 def _absorb(
