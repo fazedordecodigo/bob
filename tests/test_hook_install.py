@@ -80,8 +80,9 @@ def test_render_hook_is_the_ct10_text(raw: str) -> None:
 )
 def test_render_hook_rejects_paths_the_hook_cannot_quote(raw: str) -> None:
     assert issubclass(HookPathError, ValueError)
-    with pytest.raises(HookPathError):
+    with pytest.raises(HookPathError) as caught:
         render_hook(Path(raw))
+    assert caught.value.args == (raw,)
 
 
 def test_hook_marker_is_line_2_of_the_template() -> None:
