@@ -15,12 +15,14 @@ from typing import Literal
 
 from bob_quality import doctor
 from bob_quality import gitleaks
+from bob_quality import hook_install
 from bob_quality import init_config
 from bob_quality import install_skills
 from bob_quality import npm_tools
 from bob_quality import user_dirs
 from bob_quality.config import ConfigError
 from bob_quality.gitleaks import GitleaksError
+from bob_quality.hook_install import HookPathError, HookResult
 from bob_quality.install_skills import SkillsResult, SourceError
 from bob_quality.messages import Language, Text, msg, reason, render, t
 from bob_quality.npm_tools import NodeRange, PinSourceError
@@ -110,6 +112,16 @@ _PRESERVED_WAIVERS = "setup.preserved_waivers"
 _WARN_NO_CODE = "setup.warn_no_code"
 _BOB_YAML_INVALID = "setup.bob_yaml_invalid"
 _BOB_YAML_WRITE = "setup.bob_yaml_write"
+_HOOK = "hook"
+_ITEM_HOOK = "setup.item_hook"
+_ITEM_HOOK_UPDATED = "setup.item_hook_updated"
+_PRESERVED_HOOK = "setup.preserved_hook"
+_PRESERVED_HOOKSPATH = "setup.preserved_hookspath"
+_WARN_HOOK_FOREIGN = "setup.warn_hook_foreign"
+_WARN_HOOKSPATH = "setup.warn_hookspath"
+_HOOK_BAD_PATH = "setup.hook_bad_path"
+_HOOK_WRITE = "setup.hook_write"
+_HOOK_FILE = ".git/hooks/pre-push"
 
 
 def step_projeto(ctx: SetupContext) -> StepResult:
@@ -212,6 +224,27 @@ def step_bob_yaml(ctx: SetupContext) -> StepResult:
     return _config_result(created.state, waivers)
 
 
+def step_hook(ctx: SetupContext) -> StepResult:
+    """Passo 7 do CT3: hook pre-push do bob (CT10)."""
+    bob = ctx.home.bin_bob
+    try:
+        result = hook_install.install_hook(ctx.project, bob)
+    except HookPathError:
+        return StepResult(_FAILED, error=msg(_HOOK_BAD_PATH, path=str(bob)))
+    except ToolError as exc:
+        return _failed_reason(_HOOK, exc)
+    except OSError as exc:
+        return StepResult(
+            _FAILED,
+            error=msg(
+                _HOOK_WRITE,
+                path=exc.filename or _HOOK_FILE,
+                detail=exc.strerror or type(exc).__name__,
+            ),
+        )
+    return _hook_result(ctx, result)
+
+
 STEPS: tuple[tuple[str, Step], ...] = (
     ("projeto", step_projeto),
     ("runtimes", step_runtimes),
@@ -219,6 +252,7 @@ STEPS: tuple[tuple[str, Step], ...] = (
     (_GITLEAKS, step_gitleaks),
     ("skills", step_skills),
     (_BOB_YAML, step_bob_yaml),
+    (_HOOK, step_hook),
 )
 
 
@@ -444,6 +478,37 @@ def _waivers_kept(ctx: SetupContext) -> tuple[Text, ...]:
 def _bob_yaml_write_failure(exc: OSError) -> StepResult:
     detail = exc.strerror or type(exc).__name__
     return StepResult(_FAILED, error=msg(_BOB_YAML_WRITE, detail=detail))
+
+
+def _shown(ctx: SetupContext, path: Path) -> str:
+    if path.is_relative_to(ctx.project):
+        return _relative(ctx, path)
+    return str(path)
+
+
+def _hook_result(ctx: SetupContext, result: HookResult) -> StepResult:
+    shown = _shown(ctx, result.path)
+    bob = str(ctx.home.bin_bob)
+    if result.state == "created":
+        return StepResult(_INSTALLED, installed=(msg(_ITEM_HOOK, path=shown),))
+    if result.state == "updated":
+        return StepResult(
+            _INSTALLED,
+            installed=(msg(_ITEM_HOOK_UPDATED, path=shown),),
+        )
+    if result.state == "unchanged":
+        return StepResult(_UNCHANGED)
+    if result.state == "preserved":
+        return StepResult(
+            "preserved",
+            preserved=(msg(_PRESERVED_HOOK, path=shown),),
+            warnings=(msg(_WARN_HOOK_FOREIGN, path=shown, bob=bob),),
+        )
+    return StepResult(
+        "preserved",
+        preserved=(msg(_PRESERVED_HOOKSPATH, value=result.hooks_path),),
+        warnings=(msg(_WARN_HOOKSPATH, value=result.hooks_path, bob=bob),),
+    )
 
 
 def _config_result(state: str, waivers: tuple[Text, ...]) -> StepResult:

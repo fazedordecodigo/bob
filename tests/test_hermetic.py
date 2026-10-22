@@ -9,7 +9,10 @@ import pytest
 
 _ROOT = Path(__file__).resolve().parents[1]
 _GUARD = _ROOT / "tests" / "net_guard"
-_UNIT_ARGS: tuple[tuple[str, ...], ...] = (("tests/test_hook_install.py",),)
+_UNIT_ARGS: tuple[tuple[str, ...], ...] = (
+    ("tests/test_hook_install.py",),
+    ("tests/test_setup_cmd.py", "-k", "hook"),
+)
 
 
 def _guarded_env(log: Path) -> dict[str, str]:

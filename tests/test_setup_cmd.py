@@ -18,8 +18,18 @@ try:
 except ModuleNotFoundError:
     import tomli as tomllib
 
-from bob_quality import cli, doctor, gitleaks, init_config, install_skills, npm_tools, setup_cmd
+from bob_quality import (
+    cli,
+    doctor,
+    gitleaks,
+    hook_install,
+    init_config,
+    install_skills,
+    npm_tools,
+    setup_cmd,
+)
 from bob_quality.config import ConfigError
+from bob_quality.hook_install import HookPathError, HookResult, render_hook
 from bob_quality.install_skills import SkillsResult, SourceError
 from bob_quality.messages import Language, msg, reason, t
 from bob_quality.gitleaks import GitleaksError
@@ -31,6 +41,7 @@ from bob_quality.setup_cmd import (
     run_setup,
     step_bob_yaml,
     step_gitleaks,
+    step_hook,
     step_npm,
     step_projeto,
     step_runtimes,
@@ -56,6 +67,7 @@ _SAMPLES = {
     "detail": "detalhe",
     "names": "nomes",
     "version": "versão",
+    "bob": "/b/bin/bob",
 }
 
 _MESSAGES = (
@@ -199,6 +211,50 @@ _MESSAGES = (
         "bob.yaml: could not write bob.yaml ({detail}). Check the permissions.",
         "bob.yaml: não consegui gravar bob.yaml ({detail}). Confira as permissões.",
     ),
+    ("setup.item_hook", "pre-push hook ({path})", "hook pre-push ({path})"),
+    (
+        "setup.item_hook_updated",
+        "pre-push hook ({path}; updated)",
+        "hook pre-push ({path}; atualizado)",
+    ),
+    (
+        "setup.preserved_hook",
+        "{path} (pre-push hook without the bob marker)",
+        "{path} (hook pre-push sem a marca do bob)",
+    ),
+    (
+        "setup.preserved_hookspath",
+        "core.hooksPath={value} (bob does not write there)",
+        "core.hooksPath={value} (o bob não grava lá)",
+    ),
+    (
+        "setup.warn_hook_foreign",
+        "existing pre-push hook preserved ({path}). To use bob's, add: {bob} check "
+        "--gates crap,dry,deps.",
+        "hook pre-push existente preservado ({path}). Para usar o do bob, "
+        "acrescente: {bob} check --gates crap,dry,deps.",
+    ),
+    (
+        "setup.warn_hookspath",
+        "core.hooksPath={value}; hook not installed. Add to your hook manager: "
+        "{bob} check --gates crap,dry,deps.",
+        "core.hooksPath={value}; hook não instalado. Acrescente ao seu gerenciador "
+        "de hooks: {bob} check --gates crap,dry,deps.",
+    ),
+    (
+        "setup.hook_bad_path",
+        "hook: the hook cannot call {path} (the path must be absolute, "
+        'without ", $, \\, ` or a line break). '
+        "Set BOB_HOME to another folder and run the install again.",
+        "hook: o hook não consegue chamar {path} (o caminho precisa ser "
+        'absoluto, sem ", $, \\, ` nem quebra de linha). '
+        "Defina BOB_HOME em outra pasta e rode a instalação de novo.",
+    ),
+    (
+        "setup.hook_write",
+        "hook: could not write {path} ({detail}). Check the permissions.",
+        "hook: não consegui gravar {path} ({detail}). Confira as permissões.",
+    ),
 )
 
 
@@ -329,9 +385,11 @@ def test_steps_follow_the_ct3_order() -> None:
         "gitleaks",
         "skills",
         "bob.yaml",
+        "hook",
     ]
     assert dict(STEPS)["gitleaks"] is step_gitleaks
     assert dict(STEPS)["bob.yaml"] is step_bob_yaml
+    assert dict(STEPS)["hook"] is step_hook
 
 
 def test_all_steps_pass_and_doctor_0_exits_0(
@@ -1306,3 +1364,302 @@ def test_bob_yaml_step_no_code_warning_reaches_the_output(
     assert t(lang, "setup.warnings", text=warning) in stdout
     text = (empty_repo / "bob.yaml").read_text(encoding="utf-8")
     assert '  include: ["."]' in text
+
+
+def _isolate_git(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    config = tmp_path / "gitconfig"
+    config.touch()
+    monkeypatch.setenv("GIT_CONFIG_GLOBAL", str(config))
+    monkeypatch.setenv("GIT_CONFIG_NOSYSTEM", "1")
+
+
+def test_hook_step_reports_created(
+    monkeypatch: pytest.MonkeyPatch,
+    git_project: Path,
+    ctx: Callable[..., SetupContext],
+    tmp_path: Path,
+) -> None:
+    _isolate_git(monkeypatch, tmp_path)
+    c = ctx(git_project)
+    hook = git_project / ".git/hooks/pre-push"
+    assert step_hook(c) == StepResult(
+        "installed",
+        installed=(msg("setup.item_hook", path=".git/hooks/pre-push"),),
+    )
+    assert hook.read_bytes() == render_hook(c.home.bin_bob)
+
+
+def test_hook_step_second_run_is_unchanged(
+    monkeypatch: pytest.MonkeyPatch,
+    git_project: Path,
+    ctx: Callable[..., SetupContext],
+    tmp_path: Path,
+) -> None:
+    _isolate_git(monkeypatch, tmp_path)
+    c = ctx(git_project)
+    step_hook(c)
+    hook = git_project / ".git/hooks/pre-push"
+    payload = hook.read_bytes()
+    stamp = hook.stat().st_mtime_ns
+    assert step_hook(c) == StepResult("unchanged")
+    assert hook.read_bytes() == payload
+    assert hook.stat().st_mtime_ns == stamp
+
+
+def test_hook_step_reports_updated(
+    monkeypatch: pytest.MonkeyPatch,
+    git_project: Path,
+    ctx: Callable[..., SetupContext],
+    tmp_path: Path,
+) -> None:
+    _isolate_git(monkeypatch, tmp_path)
+    c = ctx(git_project)
+    hook = git_project / ".git/hooks/pre-push"
+    hook.write_bytes(b"#!/bin/sh\n# managed-by: bob-quality\nexec bob\n")
+    hook.chmod(0o755)
+    assert step_hook(c) == StepResult(
+        "installed",
+        installed=(msg("setup.item_hook_updated", path=".git/hooks/pre-push"),),
+    )
+
+
+@pytest.mark.parametrize("kind", ["file", "symlink", "directory"])
+def test_hook_step_preserves_a_foreign_hook(
+    monkeypatch: pytest.MonkeyPatch,
+    git_project: Path,
+    ctx: Callable[..., SetupContext],
+    tmp_path: Path,
+    kind: str,
+) -> None:
+    _isolate_git(monkeypatch, tmp_path)
+    c = ctx(git_project)
+    hook = git_project / ".git/hooks/pre-push"
+    payload = b"#!/bin/sh\nexit 0\n"
+    target = tmp_path / "dev-hook"
+    if kind == "file":
+        hook.write_bytes(payload)
+    elif kind == "symlink":
+        target.write_bytes(payload)
+        hook.symlink_to(target)
+    else:
+        hook.mkdir()
+    bob = str(c.home.bin_bob)
+    assert step_hook(c) == StepResult(
+        "preserved",
+        preserved=(msg("setup.preserved_hook", path=".git/hooks/pre-push"),),
+        warnings=(
+            msg("setup.warn_hook_foreign", path=".git/hooks/pre-push", bob=bob),
+        ),
+    )
+    if kind == "file":
+        assert hook.read_bytes() == payload
+    elif kind == "symlink":
+        assert hook.readlink() == target
+    else:
+        assert hook.is_dir()
+
+
+def test_hook_step_respects_core_hooks_path(
+    monkeypatch: pytest.MonkeyPatch,
+    git_project: Path,
+    ctx: Callable[..., SetupContext],
+    tmp_path: Path,
+) -> None:
+    _isolate_git(monkeypatch, tmp_path)
+    c = ctx(git_project)
+    _git(git_project, "config", "core.hooksPath", ".husky")
+    bob = str(c.home.bin_bob)
+    assert step_hook(c) == StepResult(
+        "preserved",
+        preserved=(msg("setup.preserved_hookspath", value=".husky"),),
+        warnings=(msg("setup.warn_hookspath", value=".husky", bob=bob),),
+    )
+    assert not (git_project / ".git/hooks/pre-push").exists()
+    assert not (git_project / ".husky").exists()
+
+
+def test_hook_step_shows_an_outside_path_in_full(
+    monkeypatch: pytest.MonkeyPatch,
+    git_project: Path,
+    ctx: Callable[..., SetupContext],
+) -> None:
+    def outside(project: Path, bob_bin: Path) -> HookResult:
+        return HookResult("created", Path("/fora/hooks/pre-push"))
+
+    monkeypatch.setattr(hook_install, "install_hook", outside)
+    result = step_hook(ctx(git_project))
+    assert result.installed == (
+        msg("setup.item_hook", path="/fora/hooks/pre-push"),
+    )
+
+
+def test_hook_step_bad_bob_path_fails(
+    monkeypatch: pytest.MonkeyPatch,
+    git_project: Path,
+    tmp_path: Path,
+) -> None:
+    _isolate_git(monkeypatch, tmp_path)
+    home = bob_home({"BOB_HOME": str(tmp_path / "a$b")})
+    current = SetupContext(git_project, home, "en", "1.2.3")
+    bob = str(tmp_path / "a$b" / "bin" / "bob")
+    assert step_hook(current) == StepResult(
+        "failed",
+        error=msg("setup.hook_bad_path", path=bob),
+    )
+    assert not (git_project / ".git/hooks/pre-push").exists()
+
+
+def test_hook_step_git_failure_fails(
+    monkeypatch: pytest.MonkeyPatch,
+    git_project: Path,
+    ctx: Callable[..., SetupContext],
+) -> None:
+    cause = msg("git.command_failed", command="x", detail="y")
+
+    def fail(project: Path, bob_bin: Path) -> HookResult:
+        raise ToolError(cause)
+
+    monkeypatch.setattr(hook_install, "install_hook", fail)
+    assert step_hook(ctx(git_project)) == StepResult(
+        "failed",
+        error=msg("setup.step_reason", step="hook", reason=cause),
+    )
+
+
+@pytest.mark.parametrize(
+    ("exc", "path", "detail"),
+    [
+        (
+            OSError(13, "Permission denied", "/p/.git/hooks/pre-push.tmp-1"),
+            "/p/.git/hooks/pre-push.tmp-1",
+            "Permission denied",
+        ),
+        (PermissionError(), ".git/hooks/pre-push", "PermissionError"),
+    ],
+)
+def test_hook_step_write_error_fails(
+    monkeypatch: pytest.MonkeyPatch,
+    git_project: Path,
+    ctx: Callable[..., SetupContext],
+    exc: OSError,
+    path: str,
+    detail: str,
+) -> None:
+    def fail(project: Path, bob_bin: Path) -> HookResult:
+        raise exc
+
+    monkeypatch.setattr(hook_install, "install_hook", fail)
+    result = step_hook(ctx(git_project))
+    assert result.status == "failed"
+    assert result.error == msg("setup.hook_write", path=path, detail=detail)
+
+
+@pytest.mark.parametrize("lang", ["en", "pt-BR"])
+def test_hook_step_failure_stops_setup(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    git_project: Path,
+    tmp_path: Path,
+    lang: Language,
+) -> None:
+    def later(current: SetupContext) -> StepResult:
+        raise AssertionError(current)
+
+    monkeypatch.setattr(setup_cmd, "STEPS", (("hook", step_hook), ("b", later)))
+
+    def fail(project: Path, bob_bin: Path) -> HookResult:
+        raise HookPathError("x")
+
+    monkeypatch.setattr(hook_install, "install_hook", fail)
+
+    def doctor_run(install: bool = False, lang: str = "en") -> int:
+        raise AssertionError((install, lang))
+
+    monkeypatch.setattr(doctor, "run_doctor", doctor_run)
+    monkeypatch.setenv("BOB_HOME", str(tmp_path / "bh"))
+    _isolate_git(monkeypatch, tmp_path)
+    bob = str(tmp_path / "bh" / "bin" / "bob")
+    assert run_setup(git_project, lang) == 4
+    captured = capsys.readouterr()
+    line = t(lang, "setup.error", reason=msg("setup.hook_bad_path", path=bob))
+    assert line in captured.err.splitlines()
+    assert captured.out.splitlines()[-1] == t(
+        lang,
+        "setup.doctor",
+        code=t(lang, "setup.doctor_not_run"),
+    )
+
+
+def test_hook_step_reaches_the_summary(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    git_project: Path,
+    tmp_path: Path,
+) -> None:
+    _isolate_git(monkeypatch, tmp_path)
+    monkeypatch.setenv("BOB_HOME", str(tmp_path / "bh"))
+    monkeypatch.setattr(setup_cmd, "STEPS", (("hook", step_hook),))
+    monkeypatch.setattr(doctor, "run_doctor", _pass_doctor(0))
+    assert run_setup(git_project, "en") == 0
+    stdout = capsys.readouterr().out
+    assert "bob setup: hook: ok" in stdout.splitlines()
+    installed = "  installed: pre-push hook (.git/hooks/pre-push)"
+    assert installed in stdout.splitlines()
+    hook = git_project / ".git/hooks/pre-push"
+    payload = hook.read_bytes()
+    assert run_setup(git_project, "en") == 0
+    again = capsys.readouterr().out
+    assert "  installed: nothing" in again.splitlines()
+    assert hook.read_bytes() == payload
+
+
+@pytest.mark.parametrize("lang", ["en", "pt-BR"])
+def test_hook_step_foreign_warning_reaches_the_output(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    git_project: Path,
+    tmp_path: Path,
+    lang: Language,
+) -> None:
+    _isolate_git(monkeypatch, tmp_path)
+    monkeypatch.setenv("BOB_HOME", str(tmp_path / "bh"))
+    monkeypatch.setattr(setup_cmd, "STEPS", (("hook", step_hook),))
+    monkeypatch.setattr(doctor, "run_doctor", _pass_doctor(0))
+    hook = git_project / ".git/hooks/pre-push"
+    payload = b"#!/bin/sh\nexit 0\n"
+    hook.write_bytes(payload)
+    bob = str(tmp_path / "bh" / "bin" / "bob")
+    assert run_setup(git_project, lang) == 0
+    stdout = capsys.readouterr().out.splitlines()
+    warning = t(
+        lang,
+        "setup.warn_hook_foreign",
+        path=".git/hooks/pre-push",
+        bob=bob,
+    )
+    assert t(lang, "setup.warning_line", step="hook", text=warning) in stdout
+    kept = t(
+        lang,
+        "setup.preserved",
+        item=t(lang, "setup.preserved_hook", path=".git/hooks/pre-push"),
+    )
+    assert kept in stdout
+    assert t(lang, "setup.warnings", text=warning) in stdout
+    assert hook.read_bytes() == payload
+
+
+def test_hook_step_passes_ctx_home_bin_bob(
+    monkeypatch: pytest.MonkeyPatch,
+    git_project: Path,
+    ctx: Callable[..., SetupContext],
+) -> None:
+    c = ctx(git_project)
+    seen: list[tuple[Path, Path]] = []
+
+    def record(project: Path, bob_bin: Path) -> HookResult:
+        seen.append((project, bob_bin))
+        return HookResult("unchanged", git_project / ".git/hooks/pre-push")
+
+    monkeypatch.setattr(hook_install, "install_hook", record)
+    step_hook(c)
+    assert seen == [(git_project, c.home.bin_bob)]
