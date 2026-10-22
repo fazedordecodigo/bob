@@ -1,8 +1,10 @@
-import shutil
+import os
 import subprocess
+import sys
 import time
 from pathlib import Path
 
+from bob_quality.hook_install import install_hook
 from helpers import (
     RISKY_SOURCE,
     SAFE_CHANGE,
@@ -13,7 +15,7 @@ from helpers import (
     init_ts_repo,
 )
 
-HOOK = Path(__file__).resolve().parents[1] / "src/bob_quality/hooks/pre-push"
+BOB = Path(sys.executable).parent / "bob"
 LEFT = (
     Path(__file__).resolve().parents[0] / "fixtures" / "python_app" / "cases" / "cycle_left.py"
 ).read_text()
@@ -25,11 +27,9 @@ RIGHT_TS = 'import { left } from "./left";\nexport const right = left;\n'
 
 
 def _install_hook(repo: Path) -> Path:
-    dest = repo / ".git" / "hooks" / "pre-push"
-    dest.parent.mkdir(parents=True, exist_ok=True)
-    shutil.copy(HOOK, dest)
-    dest.chmod(0o755)
-    return dest
+    result = install_hook(repo, BOB)
+    assert result.state == "created"
+    return repo / ".git" / "hooks" / "pre-push"
 
 
 def test_pre_push_hook_runs_crap_gate_under_60s(tmp_path: Path) -> None:
@@ -162,3 +162,11 @@ def test_pre_push_hook_allows_an_old_typescript_dependency_violation(tmp_path: P
     assert result.returncode == 0, result.stderr
     assert "src/left.ts → src/right.ts" in markdown
     assert "outside the diff; does not block" in markdown
+
+
+def test_managed_hook_calls_the_bob_next_to_python(tmp_path: Path) -> None:
+    repo = init_python_repo(tmp_path / "repo")
+    dest = _install_hook(repo)
+
+    assert dest.read_bytes().split(b"\n")[5] == b'BOB="' + os.fsencode(str(BOB)) + b'"'
+    assert os.access(BOB, os.X_OK)

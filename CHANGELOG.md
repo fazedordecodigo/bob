@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+New `bob_quality.hook_install.install_hook`: writes the managed pre-push hook (`# managed-by:
+bob-quality`, absolute path to `BOB_HOME/bin/bob`) at `git rev-parse --git-path hooks`, rewrites it
+only when it differs and never touches a hook without the marker or a repo with `core.hooksPath`
+(U5).
+
+Novo `bob_quality.hook_install.install_hook`: grava o hook pre-push gerenciado (`# managed-by:
+bob-quality`, caminho absoluto de `BOB_HOME/bin/bob`) em `git rev-parse --git-path hooks`, só
+regrava quando difere e nunca mexe num hook sem a marca nem num repo com `core.hooksPath` (U5).
+
 `scripts/verify-install.sh` runs step 5 (three projects get `paths.include` `[src]`, `[app]` and
 `["."]`, and `bob check --base HEAD --gates crap,dry,deps` does not exit 4); steps 7 and 8 check
 that `bob.yaml` and `.bob/waivers.yaml` are preserved (U4).
