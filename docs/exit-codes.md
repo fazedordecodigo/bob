@@ -18,6 +18,8 @@ Every requested gate that actually ran passed. A warning also ends at `0`: a new
 
 An unknown gate name is `not_run` and contributes `0`.
 
+With no code to measure, `crap` and `coverage` are `not_run` with the reason `no code to measure` and contribute `0`. No code means no `.py`, `.ts`, `.tsx`, `.js`, `.jsx`, `.mjs`, or `.cjs` file under `paths.include` and outside `paths.exclude`, without following symlinks. Those two gates then run no tool, and the report shows ⏭️.
+
 `bob waive` with a valid reason and a target of a survivor from the last mutation report exits `0` and only writes `.bob/waivers.yaml`.
 
 `bob doctor` exits `0` when every pin matches the found version.
@@ -96,6 +98,8 @@ If the tool is missing in the middle of a gate that can exit `1` or `3` (lizard,
 `bob doctor` with a missing pin or a different version exits `4` on the doctor's own stdout, with no report under `.bob/`.
 
 A warning-only gate (`cognitive`, `test_smells`, `dead_code`) treats a missing or broken tool as `not_run` and contributes `0`. jscpd does the same: DRY without Node is `not_run` with `0`, in fail mode too.
+
+In a project with code, a coverage tool failure stays `4`. For example, coverage.py's `No data to report.` leaves `crap` or `coverage` `not_run` with exit `4`. Only a project with no code to measure gets the `0` described under Exit 0.
 
 In a repository with Python and TypeScript, a missing Node does not use this code for CRAP or for deps. Python continues, TypeScript is attached as a warning, and the exit is whatever was measured (`0` or `1`). See [Python and TypeScript together](guides/gates-and-waivers.md#python-and-typescript-together).
 
