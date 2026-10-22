@@ -75,14 +75,14 @@ def test_render_hook_is_the_ct10_text(raw: str) -> None:
 
 
 @pytest.mark.parametrize(
-    "raw",
+    "p",
     ['/a"b/bob', "/a$b/bob", "/a`b/bob", "/a\\b/bob", "/a\nb/bob", "bin/bob"],
 )
-def test_render_hook_rejects_paths_the_hook_cannot_quote(raw: str) -> None:
+def test_render_hook_rejects_paths_the_hook_cannot_quote(p: str) -> None:
     assert issubclass(HookPathError, ValueError)
     with pytest.raises(HookPathError) as caught:
-        render_hook(Path(raw))
-    assert caught.value.args == (raw,)
+        render_hook(Path(p))
+    assert caught.value.args == (str(p),)
 
 
 def test_hook_marker_is_line_2_of_the_template() -> None:
@@ -371,3 +371,47 @@ def test_temporary_is_next_to_the_hook(
 )
 def test_git_command_failed_message_in_both_languages(lang: str, expected: str) -> None:
     assert t(lang, "git.command_failed", command="rev-parse x", detail="d") == expected
+
+
+def test_hooks_path_value_stops_at_the_first_newline(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    repo = _repo(tmp_path / "repo")
+
+    def fake_run(
+        args: list[str],
+        **_kwargs: object,
+    ) -> subprocess.CompletedProcess[str]:
+        return subprocess.CompletedProcess(args, 0, ".husky\nignored\n", "")
+
+    monkeypatch.setattr(hook_install.subprocess, "run", fake_run)
+    result = install_hook(repo, BOB)
+
+    assert result == HookResult("preserved_hookspath", repo / ".husky", ".husky")
+    assert not (repo / ".husky").exists()
+
+
+def test_hooks_directory_stops_at_the_first_newline(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    repo = _repo(tmp_path / "repo")
+    calls = {"n": 0}
+
+    def fake_run(
+        args: list[str],
+        **_kwargs: object,
+    ) -> subprocess.CompletedProcess[str]:
+        calls["n"] += 1
+        if calls["n"] == 1:
+            return subprocess.CompletedProcess(args, 1, "", "")
+        return subprocess.CompletedProcess(args, 0, ".git/hooks\nignored\n", "")
+
+    monkeypatch.setattr(hook_install.subprocess, "run", fake_run)
+    result = install_hook(repo, BOB)
+    expected = repo / ".git" / "hooks" / "pre-push"
+
+    assert result.state == "created"
+    assert result.path.resolve() == expected.resolve()
+    assert expected.is_file()
