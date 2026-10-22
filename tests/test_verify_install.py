@@ -10,7 +10,13 @@ from pathlib import Path
 
 import pytest
 
+try:
+    import tomllib
+except ModuleNotFoundError:
+    import tomli as tomllib
+
 from bob_quality import gitleaks
+from bob_quality.hook_install import render_hook
 from bob_quality.init_config import render_config
 from bob_quality.messages import t
 
@@ -18,7 +24,7 @@ ROOT = Path(__file__).resolve().parents[1]
 SCRIPT = ROOT / "scripts" / "verify-install.sh"
 _HELP = (
     "uso: sh scripts/verify-install.sh [--only <id>[,<id>...]]\n"
-    "passos: 1 2 3 4 5 7 8 9a 9b\n"
+    "passos: 1 2 3 4 5 6 7 8 9a 9b 12\n"
     "VERIFY_REMOTE=1 usa o GitHub em vez do espelho local.\n"
 )
 _OUTSIDE = (
@@ -85,8 +91,8 @@ def test_verify_install_shape() -> None:
     assert re.search(r"^\s*sudo\b", text, re.M) is None
 
 
-def test_step_ids_are_the_u1_u3_and_u4_steps() -> None:
-    assert _assign("STEP_IDS") == "1 2 3 4 5 7 8 9a 9b"
+def test_step_ids_are_the_u1_u3_u4_and_u5_steps() -> None:
+    assert _assign("STEP_IDS") == "1 2 3 4 5 6 7 8 9a 9b 12"
 
 
 def test_gitleaks_constants_match_the_gitleaks_table() -> None:
@@ -141,7 +147,7 @@ def test_step_5_is_wired() -> None:
     lines = text.splitlines()
     assert "step_5() {" in lines
     assert "      5) step_5 ;;" in lines
-    assert "      3|4|5|7) ensure_2 ;;" in lines
+    assert "      3|4|5|6|7|12) ensure_2 ;;" in lines
     assert "expected_bob_yaml() {" in lines
 
 
@@ -208,6 +214,137 @@ def test_step_5_runs_bob_check_with_the_u4_gates() -> None:
     assert "bob check saiu 4" in text
 
 
+def test_step_6_is_wired() -> None:
+    lines = _text().splitlines()
+    assert "step_6() {" in lines
+    assert "      6) step_6 ;;" in lines
+    assert "      3|4|5|6|7|12) ensure_2 ;;" in lines
+    assert "expected_hook() {" in lines
+
+
+@pytest.mark.parametrize(
+    "bob_bin",
+    (
+        "/h/.local/share/bob-quality/bin/bob",
+        "/opt/bob home/bin/bob",
+    ),
+)
+def test_harness_expects_the_ct10_text(bob_bin: str) -> None:
+    text = _text()
+    match = re.search(
+        r"^expected_hook\(\) \{\n.*?^\}$",
+        text,
+        re.M | re.S,
+    )
+    assert match is not None
+    function = match.group(0)
+    checked = subprocess.run(
+        ["sh", "-c", function + '\nexpected_hook "$1"\n', "_", bob_bin],
+        capture_output=True,
+        check=False,
+    )
+    assert checked.returncode == 0
+    assert checked.stdout == render_hook(Path(bob_bin))
+
+
+def test_step_6_pushes_with_a_clean_env() -> None:
+    text = _text()
+    assert (
+        'env -i "HOME=$S2_HOME" PATH=/usr/bin:/bin git push origin HEAD:main'
+        in text
+    )
+    assert 'git init -q --bare "$T/s6/remote.git"' in text
+    assert (
+        'expected_hook "$S2_HOME/.local/share/bob-quality/bin/bob"' in text
+    )
+    assert "# bob report" in text
+    assert "o push saiu $_rc" in text
+
+
+def test_step_7_checks_the_hook_mtime() -> None:
+    text = _text()
+    assert text.count("o hook foi regravado") == 1
+    assert text.count('file_mtime "$_hook"') == 2
+
+
+def test_step_8_checks_the_foreign_hook() -> None:
+    text = _text()
+    preserved = t(
+        "en",
+        "setup.preserved",
+        item=t("en", "setup.preserved_hook", path=".git/hooks/pre-push"),
+    )
+    assert text.count(preserved) == 1
+    warn_lines = (
+        "  _warn=\"bob setup: hook: warning: existing pre-push hook "
+        "preserved (.git/hooks/pre-push).\"",
+        "  _warn=\"$_warn To use bob's, add: "
+        "$T/s8/home/.local/share/bob-quality/bin/bob\"",
+        '  _warn="$_warn check --gates crap,dry,deps."',
+    )
+    lines = text.splitlines()
+    for line in warn_lines:
+        assert line in lines
+    assert '  _files="$_files .git/hooks/pre-push"' in lines
+    checked = subprocess.run(
+        [
+            "sh",
+            "-c",
+            "T=/t\n" + "\n".join(warn_lines) + '\nprintf %s "$_warn"\n',
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert checked.returncode == 0
+    assert checked.stdout == t(
+        "en",
+        "setup.warning_line",
+        step="hook",
+        text=t(
+            "en",
+            "setup.warn_hook_foreign",
+            path=".git/hooks/pre-push",
+            bob="/t/s8/home/.local/share/bob-quality/bin/bob",
+        ),
+    )
+
+
+def test_step_12_runs_the_hook_tests() -> None:
+    text = _text()
+    lines = text.splitlines()
+    assert "step_12() {" in lines
+    assert "      12) step_12 ;;" in lines
+    assert "pytest_pin() {" in lines
+    assert "-m pytest -q -p no:cacheprovider tests/test_hook.py" in text
+    assert "7 passed" in text
+
+
+def test_pytest_pin_matches_pyproject() -> None:
+    text = _text()
+    match = re.search(
+        r"^pytest_pin\(\) \{\n.*?^\}$",
+        text,
+        re.M | re.S,
+    )
+    assert match is not None
+    function = match.group(0)
+    checked = subprocess.run(
+        ["sh", "-c", function + "\npytest_pin\n"],
+        cwd=ROOT,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert checked.returncode == 0
+    pin = checked.stdout.strip()
+    dev = tomllib.loads(
+        (ROOT / "pyproject.toml").read_text(encoding="utf-8")
+    )["project"]["optional-dependencies"]["dev"]
+    assert pin in dev
+    assert pin.startswith("pytest==")
+
+
 def test_help_exits_0() -> None:
     before = _verify_names(_tmpdir())
     checked = subprocess.run(
@@ -226,17 +363,17 @@ def test_help_exits_0() -> None:
     ("args", "line"),
     [
         (
-            ("--only", "6"),
+            ("--only", "10"),
             (
-                "verify-install: uso: passo desconhecido 6. "
-                "Passos: 1 2 3 4 5 7 8 9a 9b."
+                "verify-install: uso: passo desconhecido 10. "
+                "Passos: 1 2 3 4 5 6 7 8 9a 9b 12."
             ),
         ),
         (
             ("--only", "9c"),
             (
                 "verify-install: uso: passo desconhecido 9c. "
-                "Passos: 1 2 3 4 5 7 8 9a 9b."
+                "Passos: 1 2 3 4 5 6 7 8 9a 9b 12."
             ),
         ),
         (

@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+`scripts/verify-install.sh` runs step 6 (a `git push` with `env -i HOME=$HOME PATH=/usr/bin:/bin`
+runs the hook and `bob check`) and step 12 (`tests/test_hook.py` with the installed bob); step 7
+checks that the hook is not rewritten and step 8 that a foreign hook is preserved (U5).
+
+O `scripts/verify-install.sh` roda o passo 6 (um `git push` com `env -i HOME=$HOME
+PATH=/usr/bin:/bin` roda o hook e o `bob check`) e o passo 12 (`tests/test_hook.py` com o bob
+instalado); o passo 7 confere que o hook não é regravado e o passo 8, que um hook alheio fica
+preservado (U5).
+
 `bob setup` installs the pre-push hook (new `hook` step, after `bob.yaml`); an existing hook without
 the bob marker, or a `core.hooksPath`, is preserved and listed with a warning that shows the line to
 add (U5).

@@ -1,7 +1,7 @@
 #!/bin/sh
-# Harness do comando de verificação (CT15): passos 1, 2, 3, 4, 5, 7, 8, 9a e 9b.
+# Harness do comando de verificação (CT15): passos 1, 2, 3, 4, 5, 6, 7, 8, 9a, 9b e 12.
 set -u
-STEP_IDS='1 2 3 4 5 7 8 9a 9b'
+STEP_IDS='1 2 3 4 5 6 7 8 9a 9b 12'
 GITLEAKS_VERSION='8.30.1'
 GITLEAKS_SHA_LINUX_X64='551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb'
 GITLEAKS_SHA_LINUX_ARM64='e4a487ee7ccd7d3a7f7ec08657610aa3606637dab924210b3aee62570fb4b080'
@@ -916,6 +916,96 @@ step_5() {
   ok 5
 }
 
+expected_hook() {
+  printf '%s\n' \
+    '#!/bin/sh' \
+    '# managed-by: bob-quality' \
+    'set -e' \
+    'unset PYTEST_ADDOPTS' \
+    'unset PYTEST_PLUGINS' \
+    "BOB=\"$1\"" \
+    '[ -x "$BOB" ] || BOB=bob' \
+    'exec "$BOB" check --gates crap,dry,deps </dev/null'
+}
+
+step_6() {
+  mkdir -p "$T/s6/tmp" "$T/s6/proj" \
+    && new_project "$T/s6/proj" \
+    && git init -q --bare "$T/s6/remote.git" \
+    && (
+      cd "$T/s6/proj" || exit 1
+      git remote add origin "$T/s6/remote.git" || exit 1
+      git push -q origin HEAD:main || exit 1
+    ) \
+    || die_passo 6 "não consegui criar o projeto"
+  release_pair
+  run_oneliner 6 "$S2_HOME" "$T/s6/tmp" "$T/s6/proj" \
+    "$REL_ENV" "$REL_URL" "$(tool_path)" "$T/s6/out.log" "$T/s6/err.log"
+  _rc=$?
+  if [ "$_rc" -ne 0 ]; then
+    die_passo 6 "saiu $_rc; veja $T/s6/out.log"
+  fi
+  _last=$(last_nonempty "$T/s6/out.log")
+  if [ "$_last" != "  bob doctor: 0" ]; then
+    die_passo 6 "a última linha não é \"  bob doctor: 0\""
+  fi
+  _hook=$T/s6/proj/.git/hooks/pre-push
+  if [ ! -f "$_hook" ]; then
+    die_passo 6 "falta o hook"
+  fi
+  expected_hook "$S2_HOME/.local/share/bob-quality/bin/bob" \
+    > "$T/s6/expected.hook"
+  if ! cmp -s "$T/s6/expected.hook" "$_hook"; then
+    _diff=$(first_diff "$T/s6/expected.hook" "$_hook")
+    die_passo 6 "o hook difere: $_diff"
+  fi
+  _mode=$(ls -l "$_hook" | cut -c1-10)
+  if [ "$_mode" != "-rwxr-xr-x" ]; then
+    die_passo 6 "modo do hook: $_mode"
+  fi
+  (
+    cd "$T/s6/proj" || exit 1
+    printf '%s\n' 'def feature():' '    return 1' > src/feature.py || exit 1
+    git add -A || exit 1
+    git commit -qm feature || exit 1
+  ) || die_passo 6 "não consegui criar o commit"
+  _t0=$(date +%s)
+  (
+    cd "$T/s6/proj" || exit 1
+    env -i "HOME=$S2_HOME" PATH=/usr/bin:/bin git push origin HEAD:main
+  ) >"$T/s6/push.log" 2>&1
+  _rc=$?
+  _t1=$(date +%s)
+  if [ "$_rc" -ne 0 ]; then
+    die_passo 6 "o push saiu $_rc; veja $T/s6/push.log"
+  fi
+  _remote=$(git -C "$T/s6/remote.git" rev-parse main) || _remote=
+  _head=$(git -C "$T/s6/proj" rev-parse HEAD) || _head=
+  if [ "$_remote" != "$_head" ]; then
+    die_passo 6 "o remoto não recebeu o commit"
+  fi
+  _rep=$T/s6/proj/.bob/report.md
+  if [ ! -f "$_rep" ]; then
+    die_passo 6 "o hook não rodou o bob check (falta .bob/report.md)"
+  fi
+  _rep_line=
+  IFS= read -r _rep_line < "$_rep" || _rep_line=
+  if [ "$_rep_line" != "# bob report" ]; then
+    die_passo 6 "relatório inesperado em .bob/report.md"
+  fi
+  if ! grep -F '`crap`:' "$_rep" >/dev/null 2>&1; then
+    die_passo 6 "o relatório não tem o gate crap"
+  fi
+  if ! grep -F '`dry`:' "$_rep" >/dev/null 2>&1; then
+    die_passo 6 "o relatório não tem o gate dry"
+  fi
+  if ! grep -F '`deps`:' "$_rep" >/dev/null 2>&1; then
+    die_passo 6 "o relatório não tem o gate deps"
+  fi
+  printf 'verify-install: passo 6: tempo %s s\n' "$((_t1 - _t0))"
+  ok 6
+}
+
 step_7() {
   mkdir -p "$T/s7/tmp" || die_passo 7 "não consegui criar o projeto"
   digest "$S2_PROJ" > "$T/s7/before.txt" || die_passo 7 "a 2ª execução mudou o projeto:"
@@ -929,6 +1019,11 @@ step_7() {
     die_passo 7 "o gitleaks não está instalado"
   fi
   _gl_before=$(file_mtime "$_gl_bin")
+  _hook=$S2_PROJ/.git/hooks/pre-push
+  if [ ! -f "$_hook" ]; then
+    die_passo 7 "falta o hook"
+  fi
+  _hook_before=$(file_mtime "$_hook")
   if [ "$remote" -eq 0 ]; then
     _gl_mark=$(line_count "$T/mirror.log")
   fi
@@ -946,6 +1041,9 @@ step_7() {
   if ! cmp -s "$T/s7/before.txt" "$T/s7/after.txt"; then
     _diff=$(first_diff "$T/s7/before.txt" "$T/s7/after.txt")
     die_passo 7 "a 2ª execução mudou o projeto: $_diff"
+  fi
+  if [ "$(file_mtime "$_hook")" != "$_hook_before" ]; then
+    die_passo 7 "o hook foi regravado"
   fi
   if ! grep -Fx '  preserved: bob.yaml (already exists; not changed)' \
     "$T/s7/out.log" >/dev/null 2>&1; then
@@ -1003,11 +1101,15 @@ step_8() {
     printf '%s\n' 'base: origin/main' 'paths:' '  include: [src]' \
       > bob.yaml || exit 1
     printf '%s\n' '# waivers do dev' > .bob/waivers.yaml || exit 1
+    printf '%s\n' '#!/bin/sh' '# hook do dev' 'exit 0' \
+      > .git/hooks/pre-push || exit 1
+    chmod 0755 .git/hooks/pre-push || exit 1
     git add -A || exit 1
     git commit -qm fixture || exit 1
   ) || die_passo 8 "não consegui criar o projeto"
   _files='.agents/skills/outra/SKILL.md package.json node_modules/vitest/package.json'
   _files="$_files bob.yaml .bob/waivers.yaml"
+  _files="$_files .git/hooks/pre-push"
   for _rel in $_files; do
     file_sha "$T/s8/proj/$_rel" > "$T/s8/sha-$(printf '%s' "$_rel" | tr '/' '_')"
   done
@@ -1037,6 +1139,17 @@ step_8() {
   if ! grep -Fx '  preserved: .bob/waivers.yaml (bob does not change it)' \
     "$T/s8/out.log" >/dev/null 2>&1; then
     die_passo 8 "o resumo não lista .bob/waivers.yaml"
+  fi
+  if ! grep -Fx \
+    '  preserved: .git/hooks/pre-push (pre-push hook without the bob marker)' \
+    "$T/s8/out.log" >/dev/null 2>&1; then
+    die_passo 8 "o resumo não lista o hook pre-push"
+  fi
+  _warn="bob setup: hook: warning: existing pre-push hook preserved (.git/hooks/pre-push)."
+  _warn="$_warn To use bob's, add: $T/s8/home/.local/share/bob-quality/bin/bob"
+  _warn="$_warn check --gates crap,dry,deps."
+  if ! grep -Fx "$_warn" "$T/s8/out.log" >/dev/null 2>&1; then
+    die_passo 8 "falta o aviso do hook pre-push"
   fi
   _last=$(last_nonempty "$T/s8/out.log")
   if [ "$_last" != "  bob doctor: 0" ]; then
@@ -1162,6 +1275,42 @@ step_9b() {
   ok 9b
 }
 
+pytest_pin() {
+  sed -n 's/^    "\(pytest==[^"]*\)",$/\1/p' pyproject.toml
+}
+
+step_12() {
+  _venv=$S2_HOME/.local/share/bob-quality/current/venv
+  if [ ! -x "$_venv/bin/python" ]; then
+    die_passo 12 "falta o venv do bob"
+  fi
+  _pin=$(pytest_pin)
+  if [ -z "$_pin" ]; then
+    die_passo 12 "não achei o pin do pytest no pyproject.toml"
+  fi
+  mkdir -p "$T/s12/tmp"
+  "$_venv/bin/python" -m pip install -q "$_pin" >"$T/s12/pip.log" 2>&1
+  _rc=$?
+  if [ "$_rc" -ne 0 ]; then
+    die_passo 12 "pip install $_pin falhou; veja $T/s12/pip.log"
+  fi
+  _t0=$(date +%s)
+  env -i "HOME=$S2_HOME" "TMPDIR=$T/s12/tmp" LANG=C.UTF-8 \
+    "PATH=$_venv/bin:$(tool_path)" \
+    "$_venv/bin/python" -m pytest -q -p no:cacheprovider tests/test_hook.py \
+    >"$T/s12/pytest.log" 2>&1
+  _rc=$?
+  _t1=$(date +%s)
+  if [ "$_rc" -ne 0 ]; then
+    die_passo 12 "tests/test_hook.py saiu $_rc; veja $T/s12/pytest.log"
+  fi
+  if ! grep -F '7 passed' "$T/s12/pytest.log" >/dev/null 2>&1; then
+    die_passo 12 "tests/test_hook.py não rodou os 7 testes"
+  fi
+  printf 'verify-install: passo 12: tempo %s s\n' "$((_t1 - _t0))"
+  ok 12
+}
+
 run_selected() {
   for _id in $STEP_IDS; do
     _wanted=0
@@ -1174,7 +1323,7 @@ run_selected() {
       continue
     fi
     case "$_id" in
-      3|4|5|7) ensure_2 ;;
+      3|4|5|6|7|12) ensure_2 ;;
     esac
     case "$_id" in
       1) step_1 ;;
@@ -1182,10 +1331,12 @@ run_selected() {
       3) step_3 ;;
       4) step_4 ;;
       5) step_5 ;;
+      6) step_6 ;;
       7) step_7 ;;
       8) step_8 ;;
       9a) step_9a ;;
       9b) step_9b ;;
+      12) step_12 ;;
     esac
   done
 }
