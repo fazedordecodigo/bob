@@ -153,6 +153,8 @@ Invalid command-line usage exits `4`, writes no report, and the stderr does not 
 
 When more than one gate fails, `bob check` exits with the highest code.
 
+A gate with nothing to measure does not raise the exit code. With no code under `paths.include` (outside `paths.exclude`), `crap` and `coverage` show ⏭️ `not run (no code to measure)`, and the run can exit `0`.
+
 A local `bob check` does not run mutation. `bob check --gates mutate` and `bob mutate` run it, only on the changed functions and on the functions that still have survivors.
 
 ## How it works

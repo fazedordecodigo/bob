@@ -153,6 +153,8 @@ Um uso inválido da linha de comando sai com `4`, não grava relatório, e o std
 
 Quando mais de um gate falha, `bob check` sai com o código mais alto.
 
+Um gate sem nada a medir não aumenta o exit code. Sem código sob `paths.include` (fora de `paths.exclude`), `crap` e `coverage` mostram ⏭️ `não executado (nenhum código a medir)`, e a execução pode sair com `0`.
+
 `bob check` local não roda mutação. `bob check --gates mutate` e `bob mutate` rodam, só nas funções alteradas e nas funções que ainda têm sobreviventes.
 
 ## Como funciona

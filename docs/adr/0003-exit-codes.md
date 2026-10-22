@@ -29,6 +29,8 @@ O uso que a spec e os PRs fecharam é este.
 
 Um nome de gate desconhecido grava `not_run` e contribui 0. O processo pode sair 0.
 
+Sem código a medir no `paths.include` (nenhum arquivo `.py`, `.ts`, `.tsx`, `.js`, `.jsx`, `.mjs` ou `.cjs` fora de `paths.exclude`), `crap` e `coverage` gravam `not_run` com o motivo "no code to measure" e contribuem 0. Decisão do Emerson em 20/10/2026 (Q1 da U4), entregue na T1b. Com código, falha do coverage segue 4.
+
 ## Consequências
 
 O agente que lê a skill `bob-check` trata 2 como suíte quebrada. O `ArgumentParser` da CLI sai com 4 quando falta o subcomando ou a flag é ilegal, e não grava relatório. Esse 4 não é `BASELINE_BROKEN`. O Emerson deu o OK em 13/10/2026, às 15:05.
