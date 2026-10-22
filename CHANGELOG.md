@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+`bob setup` installs the pre-push hook (new `hook` step, after `bob.yaml`); an existing hook without
+the bob marker, or a `core.hooksPath`, is preserved and listed with a warning that shows the line to
+add (U5).
+
+O `bob setup` instala o hook pre-push (passo novo `hook`, depois de `bob.yaml`); um hook existente
+sem a marca do bob, ou um `core.hooksPath`, fica preservado e aparece com um aviso que mostra a
+linha a acrescentar (U5).
+
 New `bob_quality.hook_install.install_hook`: writes the managed pre-push hook (`# managed-by:
 bob-quality`, absolute path to `BOB_HOME/bin/bob`) at `git rev-parse --git-path hooks`, rewrites it
 only when it differs and never touches a hook without the marker or a repo with `core.hooksPath`

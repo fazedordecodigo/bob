@@ -454,6 +454,24 @@ _EN: dict[str, str] = {
     "setup.bob_yaml_write": (
         "bob.yaml: could not write bob.yaml ({detail}). Check the permissions."
     ),
+    "setup.item_hook": "pre-push hook ({path})",
+    "setup.item_hook_updated": "pre-push hook ({path}; updated)",
+    "setup.preserved_hook": "{path} (pre-push hook without the bob marker)",
+    "setup.preserved_hookspath": "core.hooksPath={value} (bob does not write there)",
+    "setup.warn_hook_foreign": (
+        "existing pre-push hook preserved ({path}). To use bob's, add: {bob} check "
+        "--gates crap,dry,deps."
+    ),
+    "setup.warn_hookspath": (
+        "core.hooksPath={value}; hook not installed. Add to your hook manager: "
+        "{bob} check --gates crap,dry,deps."
+    ),
+    "setup.hook_bad_path": (
+        "hook: the hook cannot call {path} (the path must be absolute, "
+        'without ", $, \\, ` or a line break). '
+        "Set BOB_HOME to another folder and run the install again."
+    ),
+    "setup.hook_write": "hook: could not write {path} ({detail}). Check the permissions.",
 }
 
 _PT_BR: dict[str, str] = {
@@ -868,6 +886,26 @@ _PT_BR: dict[str, str] = {
     ),
     "setup.bob_yaml_write": (
         "bob.yaml: não consegui gravar bob.yaml ({detail}). Confira as permissões."
+    ),
+    "setup.item_hook": "hook pre-push ({path})",
+    "setup.item_hook_updated": "hook pre-push ({path}; atualizado)",
+    "setup.preserved_hook": "{path} (hook pre-push sem a marca do bob)",
+    "setup.preserved_hookspath": "core.hooksPath={value} (o bob não grava lá)",
+    "setup.warn_hook_foreign": (
+        "hook pre-push existente preservado ({path}). Para usar o do bob, "
+        "acrescente: {bob} check --gates crap,dry,deps."
+    ),
+    "setup.warn_hookspath": (
+        "core.hooksPath={value}; hook não instalado. Acrescente ao seu gerenciador "
+        "de hooks: {bob} check --gates crap,dry,deps."
+    ),
+    "setup.hook_bad_path": (
+        "hook: o hook não consegue chamar {path} (o caminho precisa ser "
+        'absoluto, sem ", $, \\, ` nem quebra de linha). '
+        "Defina BOB_HOME em outra pasta e rode a instalação de novo."
+    ),
+    "setup.hook_write": (
+        "hook: não consegui gravar {path} ({detail}). Confira as permissões."
     ),
 }
 
