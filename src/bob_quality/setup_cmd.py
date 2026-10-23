@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import importlib.metadata
+import os
 import platform
 import re
 import shutil
@@ -83,6 +84,12 @@ _PRESERVED_LINE = "setup.preserved"
 _WARNINGS_LINE = "setup.warnings"
 _DOCTOR_LINE = "setup.doctor"
 _DOCTOR_NOT_RUN = "setup.doctor_not_run"
+_PROFILE_ENV = "BOB_INSTALL_PROFILE"
+_PROFILE_LINE = "setup.profile"
+_PROFILE_ON_PATH = "already-on-path"
+_PROFILE_ON_PATH_KEY = "setup.profile_on_path"
+_PROFILE_ADDED_KEY = "setup.profile_added"
+_PROFILE_KINDS = {"already-marked": "setup.profile_marked", "failed": "setup.profile_failed"}
 _INTERNAL = "setup.internal_error"
 _STEP_REASON = "setup.step_reason"
 _GIT_MISSING = "setup.git_missing"
@@ -352,6 +359,22 @@ def _fail(
     _summary(lang, installed, preserved, warnings, t(lang, _DOCTOR_NOT_RUN))
 
 
+def _profile_text(value: str | None) -> Text | None:
+    if value is None:
+        return None
+    if value == _PROFILE_ON_PATH:
+        return msg(_PROFILE_ON_PATH_KEY)
+    head, _sep, rest = value.partition(":")
+    kind = _PROFILE_KINDS.get(head)
+    if kind is not None:
+        if Path(rest).is_absolute():
+            return msg(kind, path=rest)
+        return None
+    if Path(value).is_absolute():
+        return msg(_PROFILE_ADDED_KEY, path=value)
+    return None
+
+
 def _summary(
     lang: Language,
     installed: Sequence[Text],
@@ -365,6 +388,9 @@ def _summary(
         print(t(lang, _PRESERVED_LINE, item=render(item, lang)))
     for warning in warnings:
         print(t(lang, _WARNINGS_LINE, text=render(warning, lang)))
+    profile = _profile_text(os.environ.get(_PROFILE_ENV))
+    if profile is not None:
+        print(t(lang, _PROFILE_LINE, text=profile))
     print(t(lang, _DOCTOR_LINE, code=doctor_code))
 
 

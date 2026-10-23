@@ -405,6 +405,13 @@ _EN: dict[str, str] = {
     "setup.warnings": "  warnings: {text}",
     "setup.doctor": "  bob doctor: {code}",
     "setup.doctor_not_run": "not run",
+    "setup.profile": "  shell profile: {text}",
+    "setup.profile_added": (
+        "added ~/.local/bin to PATH in {path}. Open a new terminal or run: . {path}"
+    ),
+    "setup.profile_on_path": "~/.local/bin is already on PATH; nothing changed",
+    "setup.profile_marked": "{path} already has the bob line; nothing changed",
+    "setup.profile_failed": "could not write {path}; see the warning above",
     "setup.internal_error": "{step}: internal error ({kind}). Open an issue.",
     "setup.step_reason": "{step}: {reason}",
     "setup.git_missing": "projeto: git not found. Install git and run again.",
@@ -835,6 +842,13 @@ _PT_BR: dict[str, str] = {
     "setup.warnings": "  avisos: {text}",
     "setup.doctor": "  bob doctor: {code}",
     "setup.doctor_not_run": "não rodou",
+    "setup.profile": "  perfil do shell: {text}",
+    "setup.profile_added": (
+        "acrescentei ~/.local/bin ao PATH em {path}. Abra um terminal novo ou rode: . {path}"
+    ),
+    "setup.profile_on_path": "~/.local/bin já está no PATH; nada mudou",
+    "setup.profile_marked": "{path} já tem a linha do bob; nada mudou",
+    "setup.profile_failed": "não consegui gravar {path}; veja o aviso acima",
     "setup.internal_error": "{step}: erro interno ({kind}). Abra uma issue.",
     "setup.step_reason": "{step}: {reason}",
     "setup.git_missing": "projeto: git não encontrado. Instale o git e rode de novo.",
