@@ -31,7 +31,7 @@ from bob_quality import (
 from bob_quality.config import ConfigError
 from bob_quality.hook_install import HookPathError, HookResult, render_hook
 from bob_quality.install_skills import SkillsResult, SourceError
-from bob_quality.messages import Language, msg, reason, t
+from bob_quality.messages import Language, msg, reason, render, t
 from bob_quality.gitleaks import GitleaksError
 from bob_quality.npm_tools import PinSourceError
 from bob_quality.setup_cmd import (
@@ -254,6 +254,31 @@ _MESSAGES = (
         "setup.hook_write",
         "hook: could not write {path} ({detail}). Check the permissions.",
         "hook: não consegui gravar {path} ({detail}). Confira as permissões.",
+    ),
+    (
+        "setup.profile",
+        "  shell profile: {text}",
+        "  perfil do shell: {text}",
+    ),
+    (
+        "setup.profile_added",
+        "added ~/.local/bin to PATH in {path}. Open a new terminal or run: . {path}",
+        "acrescentei ~/.local/bin ao PATH em {path}. Abra um terminal novo ou rode: . {path}",
+    ),
+    (
+        "setup.profile_on_path",
+        "~/.local/bin is already on PATH; nothing changed",
+        "~/.local/bin já está no PATH; nada mudou",
+    ),
+    (
+        "setup.profile_marked",
+        "{path} already has the bob line; nothing changed",
+        "{path} já tem a linha do bob; nada mudou",
+    ),
+    (
+        "setup.profile_failed",
+        "could not write {path}; see the warning above",
+        "não consegui gravar {path}; veja o aviso acima",
     ),
 )
 
@@ -956,6 +981,107 @@ def test_setup_messages_exist_in_both_languages(
     template: str,
 ) -> None:
     assert t(lang, key, **_SAMPLES) == template.format(**_SAMPLES)
+
+
+@pytest.mark.parametrize(
+    ("value", "expected"),
+    [
+        (
+            "/h/.zshrc",
+            "added ~/.local/bin to PATH in /h/.zshrc. Open a new terminal or run: "
+            ". /h/.zshrc",
+        ),
+        (
+            "/h/a:b/.zshrc",
+            "added ~/.local/bin to PATH in /h/a:b/.zshrc. Open a new terminal or run: "
+            ". /h/a:b/.zshrc",
+        ),
+        ("already-on-path", "~/.local/bin is already on PATH; nothing changed"),
+        (
+            "already-marked:/h/.bashrc",
+            "/h/.bashrc already has the bob line; nothing changed",
+        ),
+        (
+            "already-marked:/h/a:b/.bashrc",
+            "/h/a:b/.bashrc already has the bob line; nothing changed",
+        ),
+        ("failed:/h/.profile", "could not write /h/.profile; see the warning above"),
+        (None, None),
+        ("", None),
+        ("rel/.bashrc", None),
+        ("already-marked", None),
+        ("already-marked:", None),
+        ("already-marked:rel", None),
+        ("failed", None),
+        ("failed:", None),
+        ("failed:rel", None),
+        ("on-path", None),
+    ],
+)
+def test_profile_text_maps_each_value(
+    value: str | None,
+    expected: str | None,
+) -> None:
+    assert (None if (r := setup_cmd._profile_text(value)) is None else render(r, "en")) == expected
+
+
+@pytest.mark.parametrize(
+    ("lang", "line"),
+    [
+        (
+            "en",
+            "  shell profile: added ~/.local/bin to PATH in /h/.zshrc. "
+            "Open a new terminal or run: . /h/.zshrc",
+        ),
+        (
+            "pt-BR",
+            "  perfil do shell: acrescentei ~/.local/bin ao PATH em /h/.zshrc. "
+            "Abra um terminal novo ou rode: . /h/.zshrc",
+        ),
+    ],
+    ids=["en", "pt-BR"],
+)
+def test_profile_line_sits_before_the_doctor_line(
+    lang: Language,
+    line: str,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    monkeypatch.setenv("BOB_INSTALL_PROFILE", "/h/.zshrc")
+    setup_cmd._summary(lang, [], [], [msg("setup.warn_no_code")], "0")
+    lines = capsys.readouterr().out.splitlines()
+    warning = t(lang, "setup.warnings", text=t(lang, "setup.warn_no_code"))
+    assert lines[-3:] == [warning, line, "  bob doctor: 0"]
+    assert lines.count(line) == 1
+
+
+@pytest.mark.parametrize("value", [None, ""], ids=["unset", "empty"])
+def test_profile_line_is_absent_without_the_variable(
+    value: str | None,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    if value is None:
+        monkeypatch.delenv("BOB_INSTALL_PROFILE", raising=False)
+    else:
+        monkeypatch.setenv("BOB_INSTALL_PROFILE", value)
+    setup_cmd._summary("en", [], [], [], "0")
+    lines = capsys.readouterr().out.splitlines()
+    assert all("shell profile" not in line for line in lines)
+    assert lines[-1] == "  bob doctor: 0"
+
+
+def test_profile_line_is_in_the_partial_summary(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    monkeypatch.setenv("BOB_INSTALL_PROFILE", "already-marked:/h/.bashrc")
+    setup_cmd._fail("en", msg("setup.git_missing"), [], [], [])
+    lines = capsys.readouterr().out.splitlines()
+    assert lines[-2:] == [
+        "  shell profile: /h/.bashrc already has the bob line; nothing changed",
+        "  bob doctor: not run",
+    ]
 
 
 def test_cli_setup_runs_in_the_cwd(
