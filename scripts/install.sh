@@ -1,7 +1,8 @@
 #!/bin/sh
 # bob install.sh: comando único (CT2). POSIX sh; sem bashismos.
 set -u
-STEPS='projeto plataforma python node ferramentas versão download integridade pacote launcher setup'
+STEPS='projeto plataforma python node ferramentas versão download integridade pacote launcher perfil setup'
+PROFILE_LINE='export PATH="$HOME/.local/bin:$PATH" # managed-by: bob-quality'
 DEFAULT_API='https://api.github.com/repos/fazedordecodigo/bob/releases/latest'
 DEFAULT_DOWNLOAD='https://github.com/fazedordecodigo/bob/releases/download'
 CURL_OPTS='-fsSL --connect-timeout 15 --max-time 300 --retry 2'
@@ -98,6 +99,10 @@ say() {
         _msg="install: launcher: não consegui criar $_p1 ($_p2). Confira as permissões." ;;
       launcher_warning)
         _msg="install: launcher: aviso: $_p1 já existe e não é do bob; ficou como está." ;;
+      profile_warning)
+        _msg="install: perfil: aviso: não consegui gravar $_p1 ($_p2). "
+        _msg="${_msg}Para usar o comando bob, acrescente ao seu perfil: "
+        _msg="${_msg}${PROFILE_LINE%% #*}." ;;
     esac
   else
     case "$_id" in
@@ -149,9 +154,13 @@ say() {
         _msg="install: launcher: could not create $_p1 ($_p2). Check the permissions." ;;
       launcher_warning)
         _msg="install: launcher: warning: $_p1 already exists and is not bob's; left as is." ;;
+      profile_warning)
+        _msg="install: perfil: warning: could not write $_p1 ($_p2). "
+        _msg="${_msg}To use the bob command, add to your profile: "
+        _msg="${_msg}${PROFILE_LINE%% #*}." ;;
     esac
   fi
-  if [ "$_id" = "launcher_warning" ]; then
+  if [ "$_id" = "launcher_warning" ] || [ "$_id" = "profile_warning" ]; then
     printf '%s\n' "$_msg"
   else
     printf '%s\n' "$_msg" >&2
@@ -418,9 +427,63 @@ step_launcher() {
   step_ok launcher
 }
 
+step_perfil() {
+  case ":${PATH:-}:" in
+    *":$HOME/.local/bin:"*)
+      BOB_INSTALL_PROFILE=already-on-path
+      step_ok perfil
+      return 0
+      ;;
+  esac
+  _sh=${SHELL:-}
+  case "${_sh##*/}" in
+    zsh) _pf=${ZDOTDIR:-$HOME}/.zshrc ;;
+    bash) _pf=$HOME/.bashrc ;;
+    *) _pf=$HOME/.profile ;;
+  esac
+  _mark="#${PROFILE_LINE#* #}"
+  if [ -f "$_pf" ] && grep -qF "$_mark" "$_pf"; then
+    BOB_INSTALL_PROFILE="already-marked:$_pf"
+    step_ok perfil
+    return 0
+  fi
+  _pok=0
+  if [ -e "$_pf" ]; then
+    _last=$(tail -c 1 "$_pf" 2>"$work/perfil.err") || _pok=1
+    if [ "$_pok" -eq 0 ]; then
+      if [ -n "$_last" ]; then
+        { printf '\n%s\n' "$PROFILE_LINE"; } 2>"$work/perfil.err" >>"$_pf" || _pok=1
+      else
+        { printf '%s\n' "$PROFILE_LINE"; } 2>"$work/perfil.err" >>"$_pf" || _pok=1
+      fi
+    fi
+  else
+    { printf '%s\n' "$PROFILE_LINE"; } 2>"$work/perfil.err" >"$_pf" \
+      && chmod 0644 "$_pf" 2>"$work/perfil.err" || _pok=1
+  fi
+  if [ "$_pok" -eq 0 ]; then
+    BOB_INSTALL_PROFILE=$_pf
+  else
+    _perr=
+    IFS= read -r _perr < "$work/perfil.err" || _perr=
+    _perr=${_perr##*: }
+    if [ -z "$_perr" ]; then
+      if [ "$bob_lang" = "pt-BR" ]; then
+        _perr="erro desconhecido"
+      else
+        _perr="unknown error"
+      fi
+    fi
+    say profile_warning "$_pf" "$_perr"
+    BOB_INSTALL_PROFILE="failed:$_pf"
+  fi
+  step_ok perfil
+}
+
 step_setup() {
   rm -rf "$work"
   trap - EXIT INT TERM
+  export BOB_INSTALL_PROFILE
   exec "$bob_root/bin/bob" setup --lang "$bob_lang" </dev/null
   exit $?
 }
@@ -437,6 +500,7 @@ _run_step() {
     integridade) step_integridade ;;
     pacote) step_pacote ;;
     launcher) step_launcher ;;
+    perfil) step_perfil ;;
     setup) step_setup ;;
     *) exit 4 ;;
   esac
