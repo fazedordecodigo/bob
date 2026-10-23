@@ -763,3 +763,79 @@ def test_constants_match_install_sh_and_gitleaks() -> None:
     timing = (update._TIMEOUT_S, update._ATTEMPTS, update._PAUSE_S)
     pinned = (gitleaks._TIMEOUT_S, gitleaks._ATTEMPTS, gitleaks._PAUSE_S)
     assert timing == pinned == (30, 3, 1.0)
+
+
+def test_http_500_is_retried(
+    project: Path,
+    net: _Net,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    sleeps: list[float],
+) -> None:
+    _version(monkeypatch, "1.2.2")
+    _release(net)
+    script = DL + "install.sh"
+    net.routes[script] = [_http(script, 500), _http(script, 500), _http(script, 500)]
+    assert update.run_update(project, "en") == 4
+    _out, err = capsys.readouterr()
+    assert err == (
+        f"bob update: download: {script} failed (HTTP 500). "
+        "Check the network and try again.\n"
+    )
+    script_calls = [url for url, _headers, _timeout in net.calls if url == script]
+    assert len(script_calls) == 3
+    assert sleeps == [1.0, 1.0]
+    assert not (tmp_path / "upd.log").exists()
+    assert list((tmp_path / "t").iterdir()) == []
+
+
+def test_install_passes_check_false(
+    project: Path,
+    net: _Net,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _version(monkeypatch, "1.2.2")
+    _release(net)
+    real = update.subprocess.run
+    kwargs: dict[str, object] = {}
+
+    def fake(argv, *a, **k):
+        nonlocal kwargs
+        if argv and argv[0] == "sh":
+            kwargs = k
+            return subprocess.CompletedProcess(argv, 0)
+        return real(argv, *a, **k)
+
+    monkeypatch.setattr(update.subprocess, "run", fake)
+    assert update.run_update(project, "en") == 0
+    assert kwargs["check"] is False
+
+
+def test_setup_context_receives_home_lang_version(
+    project: Path,
+    net: _Net,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _version(monkeypatch, "1.2.3")
+    _skills(project, "1.2.3")
+    net.routes[API] = [_latest()]
+    real = update.setup_cmd.SetupContext
+    seen: list[dict[str, object]] = []
+
+    def wrapper(**fields):
+        seen.append(fields)
+        return real(**fields)
+
+    monkeypatch.setattr(update.setup_cmd, "SetupContext", wrapper)
+    assert update.run_update(project, "en") == 0
+    fields = seen[0]
+    assert fields["home"] == update.user_dirs.bob_home()
+    assert fields["lang"] == "en"
+    assert fields["version"] == "1.2.3"
+    assert fields["project"] == project.resolve()
+
+
+def test_version_default_is_suppressed() -> None:
+    namespace = cli.build_parser().parse_args(["doctor"])
+    assert "version" not in vars(namespace)

@@ -112,7 +112,9 @@ def _latest_tag(api: str) -> str:
     try:
         data = json.loads(fetched)
     except ValueError:
-        data = None
+        raise UpdateError(
+            msg("update.api_failed", status=msg("update.bad_response"))
+        )
     tag = data.get(_TAG_KEY) if isinstance(data, dict) else None
     if not isinstance(tag, str) or _TAG_RE.fullmatch(tag) is None:
         raise UpdateError(msg("update.api_failed", status=msg("update.bad_response")))
