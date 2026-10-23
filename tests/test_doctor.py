@@ -53,6 +53,7 @@ from bob_quality.doctor import (
     _own_requirements,
     _rows,
 )
+from bob_quality.install_skills import manifest_skill_names
 from bob_quality.messages import Language, msg, t
 from bob_quality.npm_tools import pinned_npm_versions
 
@@ -398,6 +399,7 @@ def test_doctor_expected_versions_match_pip_and_npm_pins(tmp_path: Path) -> None
     repo.mkdir()
     result = _run_doctor(repo, bin_dir)
     assert result.returncode == 0, result.stderr
+    assert result.stdout.splitlines()[-1] == "project skills: not installed"
     expected = _expected_versions(result.stdout)
 
     project = tomllib.loads((ROOT / "pyproject.toml").read_text())
@@ -953,7 +955,7 @@ def _bob_metadata(parent: Path, *requires: str) -> Path:
 
 def _expected_versions(stdout: str) -> dict[str, str]:
     found: dict[str, str] = {}
-    for line in stdout.splitlines():
+    for line in stdout.splitlines()[:-1]:
         name, rest = line.split(" expected ", 1)
         version, _shown = rest.split(" found ", 1)
         found[name] = version
@@ -1098,3 +1100,32 @@ def test_doctor_bob_home_relative_message_in_both_languages() -> None:
     portuguese = "BOB_HOME=V precisa ser absoluto. Use um caminho absoluto."
     assert t("en", "doctor.bob_home_relative", value="V") == english
     assert t("pt-BR", "doctor.bob_home_relative", value="V") == portuguese
+
+
+@pytest.mark.parametrize(
+    ("lang", "installed", "line"),
+    [
+        ("en", True, "project skills: 0.1.0 (.agents/skills)"),
+        ("en", False, "project skills: not installed"),
+        ("pt-BR", True, "skills do projeto: 0.1.0 (.agents/skills)"),
+        ("pt-BR", False, "skills do projeto: não instaladas"),
+    ],
+)
+def test_doctor_last_line_is_the_project_skills(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    lang: Language,
+    installed: bool,
+    line: str,
+) -> None:
+    monkeypatch.setattr(doctor, "_rows", lambda: [])
+    monkeypatch.chdir(tmp_path)
+    if installed:
+        for name in manifest_skill_names():
+            version = tmp_path / ".agents" / "skills" / name / ".bob-version"
+            version.parent.mkdir(parents=True)
+            version.write_bytes(b"0.1.0\n")
+    code = run_doctor(lang=lang)
+    assert capsys.readouterr().out.splitlines()[-1] == line
+    assert code == doctor._verdict([])

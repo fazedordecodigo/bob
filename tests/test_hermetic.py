@@ -10,6 +10,7 @@ import pytest
 _ROOT = Path(__file__).resolve().parents[1]
 _GUARD = _ROOT / "tests" / "net_guard"
 _UNIT_ARGS: tuple[tuple[str, ...], ...] = (
+    ("tests/test_project_version.py",),
     ("tests/test_hook_install.py",),
     ("tests/test_setup_cmd.py", "-k", "hook"),
 )
