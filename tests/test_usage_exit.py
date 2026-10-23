@@ -210,12 +210,23 @@ def test_invalid_lang_masks_a_later_usage_error(tmp_path: Path) -> None:
     assert not (tmp_path / ".bob").exists(), tmp_path
 
 
-_COMMANDS = ("check", "crap", "dry", "deps", "mutate", "report", "waive", "doctor", "setup")
+_COMMANDS = (
+    "check",
+    "crap",
+    "dry",
+    "deps",
+    "mutate",
+    "report",
+    "waive",
+    "doctor",
+    "setup",
+    "update",
+)
 
 _TOP_HELP = (
     "usage: bob",
     "Quality gates for agents.",
-    "{check,crap,dry,deps,mutate,report,waive,doctor,setup}",
+    "{check,crap,dry,deps,mutate,report,waive,doctor,setup,update}",
     "Run the requested gates and write .bob/",
     "Measure CRAP of the changed functions",
     "Report new clones in the diff; blocks only in fail mode",
@@ -225,6 +236,8 @@ _TOP_HELP = (
     "Record a waiver with a one-line reason",
     "Check the pinned tools and the installed versions",
     "Set up bob in this project (npm tools, skills) and run bob doctor",
+    "Update bob and this project to the latest published release",
+    "Show the bob version and the project skills version",
     "Output language: en or pt-BR (default: en)",
 )
 
@@ -264,6 +277,7 @@ _SUB_HELP = {
         "Install the npm tools with npm ci in the package (or in a user cache)",
     ),
     "setup": ("usage: bob setup", "--lang LANG"),
+    "update": ("usage: bob update", "--lang LANG"),
 }
 
 
