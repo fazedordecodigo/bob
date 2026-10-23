@@ -14,6 +14,7 @@ from pathlib import Path
 from typing import NamedTuple
 
 from bob_quality import gitleaks
+from bob_quality import project_version
 from bob_quality import user_dirs
 from bob_quality.exit_codes import CONFIG_OR_TOOL, PASSED
 from bob_quality.gitleaks import GitleaksError
@@ -160,6 +161,7 @@ def _report_pins(lang: Language) -> int:
         print(t(lang, "doctor.error", reason=reason(exc)), file=sys.stderr)
         return CONFIG_OR_TOOL
     print("\n".join(render(line, lang) for line in _lines(rows)))
+    print(render(project_version.skills_line(Path.cwd()), lang))
     return _verdict(rows)
 
 

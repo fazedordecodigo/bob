@@ -95,6 +95,13 @@ def default_source() -> Path:
     return Path(__file__).resolve().parent / "plugin"
 
 
+def manifest_skill_names(source: Path | None = None) -> tuple[str, ...]:
+    """Nomes das skills do manifesto (último componente de cada entrada). """ \
+    """SourceError se inválido."""
+    root = default_source() if source is None else source
+    return tuple(Path(entry).name for entry in _skill_entries(root / MANIFEST))
+
+
 def main(argv: list[str] | None = None) -> int:
     args = _parser().parse_args(argv)
     source = args.source if args.source is not None else default_source()
