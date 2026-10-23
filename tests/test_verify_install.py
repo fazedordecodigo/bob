@@ -24,7 +24,7 @@ ROOT = Path(__file__).resolve().parents[1]
 SCRIPT = ROOT / "scripts" / "verify-install.sh"
 _HELP = (
     "uso: sh scripts/verify-install.sh [--only <id>[,<id>...]]\n"
-    "passos: 1 2 3 4 5 6 7 8 9a 9b 12\n"
+    "passos: 1 2 3 4 5 6 7 8 9a 9b 12 13\n"
     "VERIFY_REMOTE=1 usa o GitHub em vez do espelho local.\n"
 )
 _OUTSIDE = (
@@ -91,8 +91,8 @@ def test_verify_install_shape() -> None:
     assert re.search(r"^\s*sudo\b", text, re.M) is None
 
 
-def test_step_ids_are_the_u1_u3_u4_and_u5_steps() -> None:
-    assert _assign("STEP_IDS") == "1 2 3 4 5 6 7 8 9a 9b 12"
+def test_step_ids_are_the_known_steps() -> None:
+    assert _assign("STEP_IDS") == "1 2 3 4 5 6 7 8 9a 9b 12 13"
 
 
 def test_gitleaks_constants_match_the_gitleaks_table() -> None:
@@ -345,6 +345,284 @@ def test_pytest_pin_matches_pyproject() -> None:
     assert pin.startswith("pytest==")
 
 
+def _function(text: str, name: str) -> str:
+    match = re.search(rf"^{name}\(\) \{{\n.*?^\}}$", text, re.M | re.S)
+    assert match is not None
+    return match.group(0)
+
+
+_INSTALL = ROOT / "scripts" / "install.sh"
+
+_SUMMARY_LINES = (
+    (
+        '  _added="  shell profile: added ~/.local/bin to PATH in '
+        '$_pf. Open a new terminal or run: . $_pf"'
+    ),
+    (
+        '  _marked="  shell profile: $_pf already has the bob line; '
+        'nothing changed"'
+    ),
+    (
+        '  _onpath="  shell profile: ~/.local/bin is already on PATH; '
+        'nothing changed"'
+    ),
+    '  _failed="  shell profile: could not write $_pf; see the warning above"',
+)
+_WARN_LINES = (
+    "  _full=$(profile_line)",
+    '  _mark="#${_full#* #}"',
+    "  _paste=${_full%% #*}",
+    (
+        '  _warn="install: perfil: warning: could not write $_pf '
+        "(Permission denied). To use the bob command, add to your "
+        'profile: $_paste."'
+    ),
+)
+
+
+def test_step_13_is_wired() -> None:
+    lines = _text().splitlines()
+    expected = (
+        "profile_line() {",
+        "profile_case() {",
+        "step_13() {",
+        "      13) step_13 ;;",
+        "      3|4|5|6|7|12) ensure_2 ;;",
+        "  profile_case a /bin/zsh",
+        "  profile_case b /bin/bash",
+        "  profile_case c /bin/sh",
+        "  profile_case d /bin/bash",
+        "  profile_case e /bin/bash",
+    )
+    for line in expected:
+        assert line in lines
+    assert _function(_text(), "step_13").splitlines()[1:5] == [
+        '  if [ "$(id -u)" -eq 0 ]; then',
+        (
+            '    die_passo 13 "rode sem root: o caso (e) precisa de um '
+            'perfil só leitura"'
+        ),
+        "  fi",
+        "  ensure_2",
+    ]
+    assert '"$2" "$S2_HOME/.local/share/bob-quality"' in _text()
+    step_13 = lines.index("      13) step_13 ;;")
+    step_12 = lines.index("      12) step_12 ;;")
+    assert step_13 == step_12 + 1
+
+
+def _env_rows(home: Path, path: Path, *, shell: str | None) -> list[str]:
+    rows = [
+        "-i",
+        f"HOME={home}",
+        "TMPDIR=/t",
+        "LANG=C.UTF-8",
+        f"PATH={path}",
+        "BOB_RELEASES_URL=http://r",
+    ]
+    if shell is not None:
+        rows.append(f"SHELL={shell}")
+        rows.append("BOB_HOME=/bh")
+    rows.extend(
+        [
+            "sh",
+            "-c",
+            'curl -fsSL "$1/latest/download/install.sh" | sh',
+            "_",
+            "http://u",
+        ]
+    )
+    return rows
+
+
+@pytest.mark.parametrize(
+    "case",
+    ["with", "without", "own_bob", "foreign_bob"],
+)
+def test_run_oneliner_passes_shell_and_bob_home(
+    case: str,
+    tmp_path: Path,
+) -> None:
+    home = tmp_path / "h"
+    home.mkdir()
+    stub = tmp_path / "stub"
+    stub.mkdir()
+    env_bin = stub / "env"
+    env_bin.write_text(
+        "#!/bin/sh\n"
+        "for a in \"$@\"; do printf '%s\\n' \"$a\"; done\n",
+        encoding="utf-8",
+    )
+    env_bin.chmod(0o755)
+    if case in ("with", "without"):
+        path = tmp_path / "none"
+        path.mkdir()
+    elif case == "own_bob":
+        path = home / ".local" / "bin"
+        path.mkdir(parents=True)
+        bob = path / "bob"
+        bob.write_text("#!/bin/sh\n", encoding="utf-8")
+        bob.chmod(0o755)
+    else:
+        path = tmp_path / "other"
+        path.mkdir()
+        bob = path / "bob"
+        bob.write_text("#!/bin/sh\n", encoding="utf-8")
+        bob.chmod(0o755)
+    if case == "with":
+        extra = ["/bin/zsh", "/bh"]
+    elif case == "without":
+        extra = []
+    else:
+        extra = ["/bin/bash", "/bh"]
+    out = tmp_path / "out"
+    err = tmp_path / "err"
+    script = (
+        "GL_URL=\n"
+        + _function(_text(), "die_passo")
+        + "\n"
+        + _function(_text(), "run_oneliner")
+        + '\nrun_oneliner 13 "$@"\necho "RC:$?"\n'
+    )
+    checked = subprocess.run(
+        [
+            "sh",
+            "-c",
+            script,
+            "sh",
+            str(home),
+            "/t",
+            str(tmp_path),
+            "http://r",
+            "http://u",
+            str(path),
+            str(out),
+            str(err),
+            *extra,
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+        env={"PATH": f"{stub}:/usr/bin:/bin"},
+    )
+    if case == "with":
+        assert checked.stdout == "RC:0\n"
+        assert out.read_text(encoding="utf-8").splitlines() == _env_rows(
+            home,
+            path,
+            shell="/bin/zsh",
+        )
+    elif case == "without":
+        assert checked.stdout == "RC:0\n"
+        assert out.read_text(encoding="utf-8").splitlines() == _env_rows(
+            home,
+            path,
+            shell=None,
+        )
+    elif case == "own_bob":
+        assert checked.stdout == "RC:0\n"
+        assert "SHELL=/bin/bash" in out.read_text(encoding="utf-8").splitlines()
+    else:
+        assert checked.returncode == 1
+        assert checked.stderr == (
+            "verify-install: passo 13: bob já está no PATH "
+            f"({path / 'bob'}); a máquina não está limpa.\n"
+        )
+        assert not out.exists()
+
+
+def test_step_13_summary_lines_are_the_ct3_texts() -> None:
+    text_lines = _text().splitlines()
+    for line in _SUMMARY_LINES:
+        assert line in text_lines
+    checked = subprocess.run(
+        [
+            "sh",
+            "-c",
+            "_pf=/h/.bashrc\n"
+            + "\n".join(_SUMMARY_LINES)
+            + '\nprintf "%s\\n" "$_added" "$_marked" "$_onpath" "$_failed"\n',
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert checked.returncode == 0
+    keys = (
+        "setup.profile_added",
+        "setup.profile_marked",
+        "setup.profile_on_path",
+        "setup.profile_failed",
+    )
+    assert checked.stdout.splitlines() == [
+        t("en", "setup.profile", text=t("en", key, path="/h/.bashrc"))
+        for key in keys
+    ]
+
+
+def test_step_13_warning_is_the_install_sh_text() -> None:
+    install = _INSTALL.read_text(encoding="utf-8")
+    text_lines = _text().splitlines()
+    for line in _WARN_LINES:
+        assert line in text_lines
+    harness = subprocess.run(
+        [
+            "sh",
+            "-c",
+            _function(_text(), "profile_line")
+            + "\n_pf=/h/.bashrc\n"
+            + "\n".join(_WARN_LINES)
+            + '\nprintf "%s\\n" "$_warn" "$_mark"\n',
+        ],
+        cwd=ROOT,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    profile = re.search(r"^PROFILE_LINE='.*'$", install, re.M)
+    assert profile is not None
+    install_run = subprocess.run(
+        [
+            "sh",
+            "-c",
+            profile.group(0)
+            + "\nNODE_FLOOR='22.18.0'\nbob_lang=en\n"
+            + _function(install, "say")
+            + "\nsay profile_warning /h/.bashrc 'Permission denied'\n",
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert harness.returncode == 0
+    assert install_run.returncode == 0
+    assert harness.stdout.splitlines()[0] == install_run.stdout[:-1]
+    assert harness.stdout.splitlines()[1] == "# managed-by: bob-quality"
+
+
+def test_profile_line_comes_from_install_sh() -> None:
+    checked = subprocess.run(
+        [
+            "sh",
+            "-c",
+            _function(_text(), "profile_line") + "\nprofile_line\n",
+        ],
+        cwd=ROOT,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert checked.returncode == 0
+    found = re.search(
+        r"^PROFILE_LINE='(.*)'$",
+        _INSTALL.read_text(encoding="utf-8"),
+        re.M,
+    )
+    assert found is not None
+    assert checked.stdout == found.group(1) + "\n"
+    assert "managed-by" not in _text()
+
+
 def test_help_exits_0() -> None:
     before = _verify_names(_tmpdir())
     checked = subprocess.run(
@@ -363,17 +641,17 @@ def test_help_exits_0() -> None:
     ("args", "line"),
     [
         (
-            ("--only", "10"),
+            ("--only", "15"),
             (
-                "verify-install: uso: passo desconhecido 10. "
-                "Passos: 1 2 3 4 5 6 7 8 9a 9b 12."
+                "verify-install: uso: passo desconhecido 15. "
+                "Passos: 1 2 3 4 5 6 7 8 9a 9b 12 13."
             ),
         ),
         (
             ("--only", "9c"),
             (
                 "verify-install: uso: passo desconhecido 9c. "
-                "Passos: 1 2 3 4 5 6 7 8 9a 9b 12."
+                "Passos: 1 2 3 4 5 6 7 8 9a 9b 12 13."
             ),
         ),
         (
