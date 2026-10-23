@@ -589,11 +589,14 @@ def test_sh_failure(
 ) -> None:
     _version(monkeypatch, "1.2.2")
     _release(net)
+    real = update.subprocess.run
 
-    def explode(*_args: object, **_kwargs: object) -> subprocess.CompletedProcess[str]:
-        raise FileNotFoundError(2, "No such file or directory")
+    def fake(argv, *a, **k):
+        if argv and argv[0] == "sh":
+            raise FileNotFoundError(2, "No such file or directory")
+        return real(argv, *a, **k)
 
-    monkeypatch.setattr(update.subprocess, "run", explode)
+    monkeypatch.setattr(update.subprocess, "run", fake)
     assert update.run_update(project, "en") == 4
     _out, err = capsys.readouterr()
     assert err == (
