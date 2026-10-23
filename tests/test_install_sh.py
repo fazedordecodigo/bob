@@ -9,6 +9,7 @@ import os
 import re
 import shutil
 import socket
+import stat
 import subprocess
 import sys
 import tempfile
@@ -49,10 +50,13 @@ _ALLOWED = (
     "grep",
     "sed",
     "tr",
+    "tail",
+    "chmod",
     "id",
 )
 _SOURCE_NAMES = (
     "STEPS",
+    "PROFILE_LINE",
     "DEFAULT_API",
     "DEFAULT_DOWNLOAD",
     "CURL_OPTS",
@@ -64,8 +68,9 @@ _SOURCE_NAMES = (
 _SOURCE = {
     "STEPS": (
         "projeto plataforma python node ferramentas versão "
-        "download integridade pacote launcher setup"
+        "download integridade pacote launcher perfil setup"
     ),
+    "PROFILE_LINE": 'export PATH="$HOME/.local/bin:$PATH" # managed-by: bob-quality',
     "DEFAULT_API": "https://api.github.com/repos/fazedordecodigo/bob/releases/latest",
     "DEFAULT_DOWNLOAD": "https://github.com/fazedordecodigo/bob/releases/download",
     "CURL_OPTS": "-fsSL --connect-timeout 15 --max-time 300 --retry 2",
@@ -85,6 +90,7 @@ _CT2_STEPS = (
     "integridade",
     "pacote",
     "launcher",
+    "perfil",
     "setup",
 )
 _PREREQ_CASES = (
@@ -237,6 +243,11 @@ _TEMPLATES = {
             "install: launcher: warning: {path} already exists and is not bob's; "
             "left as is."
         ),
+        "profile_warning": (
+            "install: perfil: warning: could not write {path} ({err}). "
+            "To use the bob command, add to your profile: "
+            'export PATH="$HOME/.local/bin:$PATH".'
+        ),
     },
     "pt-BR": {
         "usage_unknown": "install: uso: argumento desconhecido {arg}. Rode com --help.",
@@ -308,6 +319,11 @@ _TEMPLATES = {
         "launcher_warning": (
             "install: launcher: aviso: {path} já existe e não é do bob; ficou como está."
         ),
+        "profile_warning": (
+            "install: perfil: aviso: não consegui gravar {path} ({err}). "
+            "Para usar o comando bob, acrescente ao seu perfil: "
+            'export PATH="$HOME/.local/bin:$PATH".'
+        ),
     },
 }
 
@@ -361,6 +377,10 @@ def _fake_wheel(dest: Path, version: str) -> Path:
         "        handle.write('\\n')\n"
         "        handle.write('stdin=' + repr(sys.stdin.read()))\n"
         "        handle.write('\\n')\n"
+        "        if 'FAKE_BOB_ENV' in os.environ:\n"
+        "            handle.write('BOB_INSTALL_PROFILE=' +"
+        " repr(os.environ.get('BOB_INSTALL_PROFILE')))\n"
+        "            handle.write('\\n')\n"
         "    return int(os.environ.get('FAKE_BOB_RC', '0'))\n"
     ).encode()
     dist = f"bob_quality-{version}.dist-info"
@@ -511,6 +531,7 @@ def _run(
     args: tuple[str, ...] = (),
     path: str | None = None,
     stdin: str | None = None,
+    umask: int | None = None,
 ) -> subprocess.CompletedProcess[str]:
     base = Path(tempfile.mkdtemp(prefix="bob-install-"))
     home = base / "home"
@@ -533,6 +554,7 @@ def _run(
         timeout=600,
         input=stdin,
         check=False,
+        preexec_fn=None if umask is None else (lambda: os.umask(umask)),
     )
     result.home = Path(env["HOME"])  # type: ignore[attr-defined]
     result.tmpdir = Path(env["TMPDIR"])  # type: ignore[attr-defined]
@@ -711,6 +733,7 @@ def _assert_install_stdout(stdout: str, version_line: str = "install: versão: v
         "install: integridade: ok",
         "install: pacote: ok",
         "install: launcher: ok",
+        "install: perfil: ok",
     ]
     lines = _lines(stdout)
     progress = [line for line in lines if line.startswith("install:")]
@@ -778,6 +801,7 @@ def test_single_source_lines() -> None:
         assert found == [_SOURCE[name]]
     assert _SOURCE["STEPS"].split() == list(_CT2_STEPS)
     once = (
+        "PROFILE_LINE",
         "DEFAULT_API",
         "DEFAULT_DOWNLOAD",
         "CURL_OPTS",
@@ -1234,3 +1258,295 @@ def test_curl_pipe_sh_works(
     )
     assert result.returncode == 0, result.stderr
     assert _log_text(log) == "setup --lang en\nstdin=''\n"
+
+
+_PROFILE_LINE = 'export PATH="$HOME/.local/bin:$PATH" # managed-by: bob-quality'
+
+
+def _profile_run(
+    git_project: Path,
+    base: str,
+    tmp_path: Path,
+    home: Path,
+    extra: dict[str, str],
+    umask: int | None = None,
+) -> subprocess.CompletedProcess[str]:
+    return _run(
+        git_project,
+        {
+            "BOB_RELEASES_URL": base + "/",
+            "FAKE_BOB_LOG": str(tmp_path / "bob.log"),
+            "FAKE_BOB_ENV": "1",
+            "HOME": str(home),
+            **extra,
+        },
+        umask=umask,
+    )
+
+
+def _profile_env(log: Path) -> str:
+    found = [
+        line
+        for line in log.read_text(encoding="utf-8").splitlines()
+        if line.startswith("BOB_INSTALL_PROFILE=")
+    ]
+    return found[-1]
+
+
+def _redirect_error(target: Path) -> str:
+    result = subprocess.run(
+        ["/bin/sh", "-c", '{ :; } >>"$1"', "sh", str(target)],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    return result.stderr.splitlines()[0].rpartition(": ")[2]
+
+
+@pytest.mark.parametrize(
+    ("shell", "name"),
+    [
+        ("/bin/zsh", ".zshrc"),
+        ("/usr/local/bin/bash", ".bashrc"),
+        ("/bin/sh", ".profile"),
+        ("/usr/bin/fish", ".profile"),
+        ("", ".profile"),
+        (None, ".profile"),
+    ],
+    ids=["zsh", "bash", "sh", "fish", "empty", "unset"],
+)
+def test_profile_file_follows_the_shell(
+    git_project: Path,
+    server: tuple[str, list[tuple[str, str, int]]],
+    tmp_path: Path,
+    shell: str | None,
+    name: str,
+) -> None:
+    base, _requests = server
+    _mirror(tmp_path)
+    home = tmp_path / "shell-home"
+    home.mkdir()
+    extra = {} if shell is None else {"SHELL": shell}
+    result = _profile_run(
+        git_project,
+        base,
+        tmp_path,
+        home,
+        extra,
+        umask=0o077,
+    )
+    assert result.returncode == 0, result.stderr
+    profile = home / name
+    assert profile.read_text(encoding="utf-8") == _PROFILE_LINE + "\n"
+    assert stat.S_IMODE(profile.stat().st_mode) == 0o644
+    for other in (".zshrc", ".bashrc", ".profile"):
+        if other != name:
+            assert not (home / other).exists()
+    log = tmp_path / "bob.log"
+    assert _profile_env(log) == "BOB_INSTALL_PROFILE=" + repr(str(profile))
+    _assert_install_stdout(result.stdout)
+
+
+def test_zdotdir_holds_the_zshrc(
+    git_project: Path,
+    server: tuple[str, list[tuple[str, str, int]]],
+    tmp_path: Path,
+) -> None:
+    base, _requests = server
+    _mirror(tmp_path)
+    home = tmp_path / "zdot-home"
+    home.mkdir()
+    zdot = home / "zdot"
+    zdot.mkdir()
+    result = _profile_run(
+        git_project,
+        base,
+        tmp_path,
+        home,
+        {"SHELL": "/bin/zsh", "ZDOTDIR": str(zdot)},
+    )
+    assert result.returncode == 0, result.stderr
+    assert (zdot / ".zshrc").read_text(encoding="utf-8") == _PROFILE_LINE + "\n"
+    assert not (home / ".zshrc").exists()
+    assert _profile_env(tmp_path / "bob.log") == "BOB_INSTALL_PROFILE=" + repr(
+        str(zdot / ".zshrc")
+    )
+
+
+@pytest.mark.parametrize(
+    "before",
+    [b"alias a=1\n", b"alias a=1"],
+    ids=["newline", "no-newline"],
+)
+def test_profile_append_keeps_the_bytes(
+    git_project: Path,
+    server: tuple[str, list[tuple[str, str, int]]],
+    tmp_path: Path,
+    before: bytes,
+) -> None:
+    base, _requests = server
+    _mirror(tmp_path)
+    home = tmp_path / "append-home"
+    home.mkdir()
+    profile = home / ".bashrc"
+    profile.write_bytes(before)
+    profile.chmod(0o600)
+    result = _profile_run(
+        git_project,
+        base,
+        tmp_path,
+        home,
+        {"SHELL": "/bin/bash"},
+    )
+    assert result.returncode == 0, result.stderr
+    gap = b"" if before.endswith(b"\n") else b"\n"
+    assert profile.read_bytes() == before + gap + _PROFILE_LINE.encode() + b"\n"
+    assert stat.S_IMODE(profile.stat().st_mode) == 0o600
+    assert _profile_env(tmp_path / "bob.log") == "BOB_INSTALL_PROFILE=" + repr(
+        str(profile)
+    )
+
+
+def test_second_run_is_already_marked(
+    git_project: Path,
+    server: tuple[str, list[tuple[str, str, int]]],
+    tmp_path: Path,
+) -> None:
+    base, _requests = server
+    _mirror(tmp_path)
+    home = tmp_path / "marked-home"
+    home.mkdir()
+    extra = {"SHELL": "/bin/bash"}
+    first = _profile_run(git_project, base, tmp_path, home, extra)
+    assert first.returncode == 0, first.stderr
+    saved = (home / ".bashrc").read_bytes()
+    second = _profile_run(git_project, base, tmp_path, home, extra)
+    assert second.returncode == 0, second.stderr
+    profile = home / ".bashrc"
+    assert profile.read_bytes() == saved
+    assert profile.read_text(encoding="utf-8").count("# managed-by: bob-quality") == 1
+    assert _profile_env(tmp_path / "bob.log") == "BOB_INSTALL_PROFILE=" + repr(
+        "already-marked:" + str(profile)
+    )
+    assert "install: perfil: ok" in _lines(second.stdout)
+
+
+def test_local_bin_on_path_writes_nothing(
+    git_project: Path,
+    server: tuple[str, list[tuple[str, str, int]]],
+    tmp_path: Path,
+) -> None:
+    base, _requests = server
+    _mirror(tmp_path)
+    home = tmp_path / "onpath-home"
+    home.mkdir()
+    tools = _toolbox(tmp_path / "onpath-tools")
+    result = _run(
+        git_project,
+        {
+            "BOB_RELEASES_URL": base + "/",
+            "FAKE_BOB_LOG": str(tmp_path / "bob.log"),
+            "FAKE_BOB_ENV": "1",
+            "HOME": str(home),
+            "SHELL": "/bin/bash",
+        },
+        path=f"{home}/.local/bin:{tools}",
+    )
+    assert result.returncode == 0, result.stderr
+    for name in (".zshrc", ".bashrc", ".profile"):
+        assert not (home / name).exists()
+    assert _profile_env(tmp_path / "bob.log") == "BOB_INSTALL_PROFILE='already-on-path'"
+    _assert_install_stdout(result.stdout)
+
+
+@pytest.mark.parametrize("lang", ["en", "pt-BR"], ids=["en", "pt-BR"])
+def test_unwritable_profile_warns_and_exits_0(
+    git_project: Path,
+    server: tuple[str, list[tuple[str, str, int]]],
+    tmp_path: Path,
+    lang: str,
+) -> None:
+    base, _requests = server
+    _mirror(tmp_path)
+    home = tmp_path / "warn-home"
+    home.mkdir()
+    zdot = home / "missing"
+    extra = {"SHELL": "/bin/zsh", "ZDOTDIR": str(zdot)}
+    target = zdot / ".zshrc"
+    warning = _msg(
+        lang,
+        "profile_warning",
+        path=str(target),
+        err=_redirect_error(target),
+    )
+    result = _run(
+        git_project,
+        {
+            "BOB_RELEASES_URL": base + "/",
+            "FAKE_BOB_LOG": str(tmp_path / "bob.log"),
+            "FAKE_BOB_ENV": "1",
+            "HOME": str(home),
+            **extra,
+        },
+        args=("--lang", lang),
+    )
+    assert result.returncode == 0, result.stderr
+    lines = _lines(result.stdout)
+    assert warning in lines
+    assert lines[lines.index(warning) + 1] == "install: perfil: ok"
+    assert "perfil" not in result.stderr
+    assert not zdot.exists()
+    assert _profile_env(tmp_path / "bob.log") == "BOB_INSTALL_PROFILE=" + repr(
+        "failed:" + str(target)
+    )
+
+
+def test_profile_symlink_is_written_through(
+    git_project: Path,
+    server: tuple[str, list[tuple[str, str, int]]],
+    tmp_path: Path,
+) -> None:
+    base, _requests = server
+    _mirror(tmp_path)
+    home = tmp_path / "link-home"
+    home.mkdir()
+    real = home / "dotfiles" / "bashrc"
+    real.parent.mkdir(parents=True)
+    real.write_bytes(b"a\n")
+    (home / ".bashrc").symlink_to(real)
+    result = _profile_run(
+        git_project,
+        base,
+        tmp_path,
+        home,
+        {"SHELL": "/bin/bash"},
+    )
+    assert result.returncode == 0, result.stderr
+    link = home / ".bashrc"
+    assert link.is_symlink()
+    assert os.readlink(link) == str(real)
+    assert real.read_bytes() == b"a\n" + _PROFILE_LINE.encode() + b"\n"
+    assert _profile_env(tmp_path / "bob.log") == "BOB_INSTALL_PROFILE=" + repr(str(link))
+
+
+def test_profile_line_sources_in_sh(tmp_path: Path) -> None:
+    target = tmp_path / "p"
+    target.write_text(_assign("PROFILE_LINE") + "\n", encoding="utf-8")
+    result = subprocess.run(
+        [
+            "env",
+            "-i",
+            "HOME=/h",
+            "PATH=/usr/bin:/bin",
+            "/bin/sh",
+            "-c",
+            '. "$1"; printf %s "$PATH"',
+            "sh",
+            str(target),
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert result.returncode == 0, result.stderr
+    assert result.stdout == "/h/.local/bin:/usr/bin:/bin"
