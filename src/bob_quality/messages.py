@@ -64,6 +64,8 @@ _EN: dict[str, str] = {
     "cli.report": "Render report.json from a directory as Markdown",
     "cli.install": "Install the npm tools with npm ci in the package (or in a user cache)",
     "cli.setup": "Set up bob in this project (npm tools, skills) and run bob doctor",
+    "cli.update": "Update bob and this project to the latest published release",
+    "cli.version": "Show the bob version and the project skills version",
     "config.not_found": "config file not found: {path}",
     "config.not_mapping": "bob.yaml must be a mapping",
     "config.invalid_language": "invalid language: {value} (use en or pt-BR)",
@@ -225,6 +227,29 @@ _EN: dict[str, str] = {
     "version.not_installed": "not installed",
     "version.mixed": "mixed ({versions})",
     "version.mixed_missing": "mixed ({versions}, not installed)",
+    "version.bob": "bob {version}",
+    "update.error": "bob update: {reason}",
+    "update.up_to_date": "bob update: already on the newest release ({tag}).",
+    "update.project_only": "bob update: updating the project to {tag}.",
+    "update.upgrading": "bob update: updating from v{old} to {tag}.",
+    "update.api_failed": "versão: could not read the latest release ({status}). Try again.",
+    "update.bad_response": "invalid response",
+    "update.url_not_allowed": (
+        "versão: BOB_RELEASES_URL={url} is not allowed. "
+        "Use https://, or http:// only on 127.0.0.1 or localhost."
+    ),
+    "update.tmp_failed": "download: could not create a temporary folder ({detail}).",
+    "update.download_failed": (
+        "download: {url} failed ({status}). Check the network and try again."
+    ),
+    "update.download_missing": (
+        "download: release {tag} is incomplete ({asset} missing). Open an issue."
+    ),
+    "update.integrity": (
+        "integridade: the sha256 of {file} does not match. "
+        "Nothing was installed. Try again."
+    ),
+    "update.install_failed": "instalar: could not run sh ({detail}).",
     "status.passed": "passed",
     "status.warn": "warning",
     "status.failed": "failed",
@@ -503,6 +528,8 @@ _PT_BR: dict[str, str] = {
     "cli.report": "Renderiza o report.json de uma pasta como Markdown",
     "cli.install": "Instala as ferramentas npm com npm ci no pacote (ou num cache do usuário)",
     "cli.setup": "Prepara o bob neste projeto (ferramentas npm, skills) e roda o bob doctor",
+    "cli.update": "Atualiza o bob e este projeto para a última release publicada",
+    "cli.version": "Mostra a versão do bob e a das skills do projeto",
     "config.not_found": "arquivo de configuração não encontrado: {path}",
     "config.not_mapping": "bob.yaml deve ser um mapeamento",
     "config.invalid_language": "idioma inválido: {value} (use en ou pt-BR)",
@@ -667,6 +694,26 @@ _PT_BR: dict[str, str] = {
     "version.not_installed": "não instaladas",
     "version.mixed": "misturadas ({versions})",
     "version.mixed_missing": "misturadas ({versions}, não instaladas)",
+    "version.bob": "bob {version}",
+    "update.error": "bob update: {reason}",
+    "update.up_to_date": "bob update: já está na release mais nova ({tag}).",
+    "update.project_only": "bob update: atualizando o projeto para {tag}.",
+    "update.upgrading": "bob update: atualizando de v{old} para {tag}.",
+    "update.api_failed": "versão: não consegui ler a última release ({status}). Tente de novo.",
+    "update.bad_response": "resposta inválida",
+    "update.url_not_allowed": (
+        "versão: BOB_RELEASES_URL={url} não é permitida. "
+        "Use https://, ou http:// só em 127.0.0.1 ou localhost."
+    ),
+    "update.tmp_failed": "download: não consegui criar uma pasta temporária ({detail}).",
+    "update.download_failed": "download: {url} falhou ({status}). Confira a rede e tente de novo.",
+    "update.download_missing": (
+        "download: a release {tag} está incompleta ({asset} ausente). Abra uma issue."
+    ),
+    "update.integrity": (
+        "integridade: o sha256 de {file} não confere. Nada foi instalado. Tente de novo."
+    ),
+    "update.install_failed": "instalar: não consegui rodar o sh ({detail}).",
     "status.passed": "passou",
     "status.warn": "aviso",
     "status.failed": "falhou",

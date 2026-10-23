@@ -15,6 +15,7 @@ from bob_quality.messages import DEFAULT_LANGUAGE, Language, reason, render, t
 from bob_quality.mutate import untested_targets, waivable_targets
 from bob_quality.report import write_saved_markdown
 from bob_quality.setup_cmd import run_setup
+from bob_quality.update import run_update, version_lines
 from bob_quality.waivers import WaiverError, add_waiver, reject_waiver_syntax
 
 
@@ -31,6 +32,34 @@ class _Parser(argparse.ArgumentParser):
         if status == 0:
             raise self.Help
         raise self.Usage
+
+
+class _Version(argparse.Action):
+    def __init__(
+        self,
+        option_strings: list[str],
+        dest: str,
+        lang: Language,
+        help: str,
+    ) -> None:
+        super().__init__(
+            option_strings,
+            dest,
+            nargs=0,
+            default=argparse.SUPPRESS,
+            help=help,
+        )
+        self.lang = lang
+
+    def __call__(
+        self,
+        parser: argparse.ArgumentParser,
+        namespace: argparse.Namespace,
+        values: object,
+        option_string: str | None = None,
+    ) -> None:
+        print("\n".join(version_lines(Path.cwd(), self.lang)))
+        parser.exit()
 
 
 @dataclass(frozen=True)
@@ -60,6 +89,12 @@ def build_parser(lang: Language = DEFAULT_LANGUAGE) -> _Parser:
         description=t(lang, "cli.description"),
     )
     _add_lang(parser, lang)
+    parser.add_argument(
+        "--version",
+        action=_Version,
+        lang=lang,
+        help=t(lang, "cli.version"),
+    )
     parser.add_argument(
         "--config",
         dest=_MISPLACED_CONFIG,
@@ -123,6 +158,8 @@ def build_parser(lang: Language = DEFAULT_LANGUAGE) -> _Parser:
 
     setup = sub.add_parser("setup", help=t(lang, "cli.setup"))
     _add_lang(setup, lang)
+    update = sub.add_parser("update", help=t(lang, "cli.update"))
+    _add_lang(update, lang)
 
     return parser
 
@@ -222,6 +259,8 @@ def main(argv: list[str] | None = None) -> int:
         return run_doctor(install=args.install, lang=lang)
     if args.command == "setup":
         return run_setup(Path.cwd(), lang)
+    if args.command == "update":
+        return run_update(Path.cwd(), lang)
     if args.command == "waive":
         return _waive_command(cwd, args, lang)
     if args.command == "report":
