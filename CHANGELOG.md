@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+The one-line install now adds `~/.local/bin` to `PATH` in the shell profile (`.zshrc`, `.bashrc` or
+`.profile`, by `$SHELL`) with one marked line, never twice, and warns with the line to paste when it
+cannot write; `bob setup` shows a `shell profile:` line in the summary and
+`scripts/verify-install.sh` gains step 13 (U6).
+
+O comando único agora põe `~/.local/bin` no `PATH` pelo perfil do shell (`.zshrc`, `.bashrc` ou
+`.profile`, conforme o `$SHELL`) com uma linha marcada, nunca duas vezes, e avisa com a linha para
+colar quando não consegue gravar; o `bob setup` mostra a linha `perfil do shell:` no resumo e o
+`scripts/verify-install.sh` ganha o passo 13 (U6).
+
 `scripts/verify-install.sh` runs step 6 (a `git push` with `env -i HOME=$HOME PATH=/usr/bin:/bin`
 runs the hook and `bob check`) and step 12 (`tests/test_hook.py` with the installed bob); step 7
 checks that the hook is not rewritten and step 8 that a foreign hook is preserved (U5).

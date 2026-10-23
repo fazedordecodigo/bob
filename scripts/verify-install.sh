@@ -1,7 +1,7 @@
 #!/bin/sh
-# Harness do comando de verificação (CT15): passos 1, 2, 3, 4, 5, 6, 7, 8, 9a, 9b e 12.
+# Harness do comando de verificação (CT15): passos 1, 2, 3, 4, 5, 6, 7, 8, 9a, 9b, 12 e 13.
 set -u
-STEP_IDS='1 2 3 4 5 6 7 8 9a 9b 12'
+STEP_IDS='1 2 3 4 5 6 7 8 9a 9b 12 13'
 GITLEAKS_VERSION='8.30.1'
 GITLEAKS_SHA_LINUX_X64='551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb'
 GITLEAKS_SHA_LINUX_ARM64='e4a487ee7ccd7d3a7f7ec08657610aa3606637dab924210b3aee62570fb4b080'
@@ -364,8 +364,10 @@ run_oneliner() {
   _path=$7
   _out=$8
   _err=$9
+  _shell=${10:-}
+  _bobhome=${11:-}
   _bob=$(PATH="$_path" command -v bob 2>/dev/null) || _bob=
-  if [ -n "$_bob" ]; then
+  if [ -n "$_bob" ] && [ "$_bob" != "$_home/.local/bin/bob" ]; then
     die_passo "$_step" "bob já está no PATH ($_bob); a máquina não está limpa."
   fi
   _gl=$(PATH="$_path" command -v gitleaks 2>/dev/null) || _gl=
@@ -378,6 +380,12 @@ run_oneliner() {
   fi
   if [ -n "$GL_URL" ]; then
     set -- "$@" "BOB_GITLEAKS_BASE_URL=$GL_URL"
+  fi
+  if [ -n "$_shell" ]; then
+    set -- "$@" "SHELL=$_shell"
+  fi
+  if [ -n "$_bobhome" ]; then
+    set -- "$@" "BOB_HOME=$_bobhome"
   fi
   for _name in PIP_INDEX_URL PIP_EXTRA_INDEX_URL PIP_TRUSTED_HOST PIP_CERT \
     npm_config_registry npm_config_cache \
@@ -408,6 +416,10 @@ node_floor() {
 
 node_below() {
   sed -n "s/^NODE_BELOW='\([^']*\)'/\1/p" scripts/install.sh
+}
+
+profile_line() {
+  sed -n "s/^PROFILE_LINE='\(.*\)'$/\1/p" scripts/install.sh
 }
 
 cites_node() {
@@ -1311,6 +1323,147 @@ step_12() {
   ok 12
 }
 
+profile_case() {
+  _c=$1
+  _h=$T/s13/$_c/home
+  mkdir -p "$_h" "$T/s13/$_c/tmp" \
+    || die_passo 13 "caso $_c: não consegui preparar o caso"
+  new_project "$T/s13/$_c/proj" \
+    || die_passo 13 "caso $_c: não consegui preparar o caso"
+  case "$_c" in
+    a) _pf=$_h/.zshrc ;;
+    b|d|e) _pf=$_h/.bashrc ;;
+    c) _pf=$_h/.profile ;;
+  esac
+  _path=$(tool_path)
+  if [ "$_c" = b ]; then
+    printf '%s' 'alias bob-antes=1' > "$_pf" \
+      || die_passo 13 "caso $_c: não consegui preparar o caso"
+  fi
+  if [ "$_c" = d ]; then
+    _path=$_h/.local/bin:$_path
+  fi
+  if [ "$_c" = e ]; then
+    printf '%s\n' '# só leitura' > "$_pf" \
+      && chmod 0444 "$_pf" \
+      || die_passo 13 "caso $_c: não consegui preparar o caso"
+  fi
+  _added="  shell profile: added ~/.local/bin to PATH in $_pf. Open a new terminal or run: . $_pf"
+  _marked="  shell profile: $_pf already has the bob line; nothing changed"
+  _onpath="  shell profile: ~/.local/bin is already on PATH; nothing changed"
+  _failed="  shell profile: could not write $_pf; see the warning above"
+  _full=$(profile_line)
+  _mark="#${_full#* #}"
+  _paste=${_full%% #*}
+  _warn="install: perfil: warning: could not write $_pf (Permission denied). To use the bob command, add to your profile: $_paste."
+  for _run in 1 2; do
+    run_oneliner 13 "$_h" "$T/s13/$_c/tmp" "$T/s13/$_c/proj" \
+      "$REL_ENV" "$REL_URL" "$_path" \
+      "$T/s13/$_c/out$_run.log" "$T/s13/$_c/err$_run.log" \
+      "$2" "$S2_HOME/.local/share/bob-quality"
+    _rc=$?
+    if [ "$_rc" -ne 0 ]; then
+      die_passo 13 \
+        "caso $_c, execução $_run: saiu $_rc; veja $T/s13/$_c/out$_run.log"
+    fi
+    _last=$(last_nonempty "$T/s13/$_c/out$_run.log")
+    if [ "$_last" != "  bob doctor: 0" ]; then
+      die_passo 13 \
+        "caso $_c, execução $_run: a última linha não é \"  bob doctor: 0\""
+    fi
+    case "$_c" in
+      a|b|c)
+        if [ "$_run" = 1 ]; then
+          _want=$_added
+        else
+          _want=$_marked
+        fi
+        ;;
+      d) _want=$_onpath ;;
+      e) _want=$_failed ;;
+    esac
+    _n=$(grep -cxF "$_want" "$T/s13/$_c/out$_run.log" || true)
+    if [ "$_n" != 1 ]; then
+      die_passo 13 "caso $_c, execução $_run: falta a linha \"$_want\""
+    fi
+    if [ "$_c" = e ]; then
+      _n=$(grep -cxF "$_warn" "$T/s13/$_c/out$_run.log" || true)
+      _okn=$(grep -cxF 'install: perfil: ok' \
+        "$T/s13/$_c/out$_run.log" || true)
+      if [ "$_n" != 1 ] || [ "$_okn" != 1 ]; then
+        die_passo 13 "caso e, execução $_run: falta o aviso do perfil"
+      fi
+    fi
+  done
+  case "$_c" in
+    a|c)
+      _got=$(show_file "$_pf")
+      if [ "$_got" != "$_full\\n" ]; then
+        die_passo 13 "caso $_c: conteúdo de $_pf: $_got"
+      fi
+      _mode=$("$PY_DIR/python3" -c \
+        'import os, sys; print(format(os.stat(sys.argv[1]).st_mode & 0o777, "o"))' \
+        "$_pf") || _mode=
+      if [ "$_mode" != 644 ]; then
+        die_passo 13 "caso $_c: modo de $_pf = $_mode"
+      fi
+      ;;
+    b)
+      _got=$(show_file "$_pf")
+      if [ "$_got" != "alias bob-antes=1\\n$_full\\n" ]; then
+        die_passo 13 "caso $_c: conteúdo de $_pf: $_got"
+      fi
+      ;;
+    e)
+      _got=$(show_file "$_pf")
+      if [ "$_got" != '# só leitura\n' ]; then
+        die_passo 13 "caso $_c: conteúdo de $_pf: $_got"
+      fi
+      ;;
+  esac
+  case "$_c" in
+    a|b|c)
+      _n=$(grep -cF "$_mark" "$_pf" || true)
+      if [ "$_n" != 1 ]; then
+        die_passo 13 "caso $_c: a marca aparece $_n vezes em $_pf"
+      fi
+      _got=$(env -i "HOME=$_h" PATH=/usr/bin:/bin \
+        sh -c '. "$1"; command -v bob' _ "$_pf")
+      if [ "$_got" != "$_h/.local/bin/bob" ]; then
+        die_passo 13 "caso $_c: o perfil não põe o bob no PATH ($_got)"
+      fi
+      ;;
+  esac
+  for _o in "$_h/.zshrc" "$_h/.bashrc" "$_h/.profile"; do
+    if [ "$_c" = d ] || [ "$_o" != "$_pf" ]; then
+      if [ -e "$_o" ]; then
+        die_passo 13 "caso $_c: perfil a mais: $_o"
+      fi
+    fi
+  done
+}
+
+step_13() {
+  if [ "$(id -u)" -eq 0 ]; then
+    die_passo 13 "rode sem root: o caso (e) precisa de um perfil só leitura"
+  fi
+  ensure_2
+  release_pair
+  _t0=$(date +%s)
+  profile_case a /bin/zsh
+  profile_case b /bin/bash
+  profile_case c /bin/sh
+  profile_case d /bin/bash
+  profile_case e /bin/bash
+  _t1=$(date +%s)
+  _secs=$((_t1 - _t0))
+  if [ "$_secs" -gt 180 ]; then
+    die_passo 13 "levou $_secs s (máx. 180)"
+  fi
+  printf 'verify-install: passo 13: tempo %s s\n' "$_secs"
+  ok 13
+}
+
 run_selected() {
   for _id in $STEP_IDS; do
     _wanted=0
@@ -1337,6 +1490,7 @@ run_selected() {
       9a) step_9a ;;
       9b) step_9b ;;
       12) step_12 ;;
+      13) step_13 ;;
     esac
   done
 }
