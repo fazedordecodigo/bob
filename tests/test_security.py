@@ -696,3 +696,37 @@ def test_gate_publications_stay_on_the_default_lists() -> None:
     from bob_quality.check import DEFAULT_GATES
 
     assert DEFAULT_GATES == ("crap", "dry", "deps")
+
+
+def test_detached_resolves_symlinked_tempdir(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from bob_quality.security_gate import _detached
+
+    repo = _ready_python(tmp_path)
+    real_tmp = tmp_path / "real_tmp"
+    real_tmp.mkdir()
+    link_tmp = tmp_path / "var_tmp"
+    link_tmp.symlink_to(real_tmp)
+    seen_prefix: list[str | None] = []
+
+    def _fake_mkdtemp(
+        suffix: str | None = None,
+        prefix: str | None = None,
+        dir: str | None = None,
+    ) -> str:
+        seen_prefix.append(prefix)
+        created = real_tmp / "bob-semgrep-123"
+        created.mkdir()
+        return str(link_tmp / "bob-semgrep-123")
+
+    monkeypatch.setattr("bob_quality.security_gate.tempfile.mkdtemp", _fake_mkdtemp)
+    generated = _detached(repo)
+    try:
+        root = next(generated)
+        assert root == (real_tmp / "bob-semgrep-123" / "head").resolve()
+        assert (root / "src" / "app.py").is_file()
+    finally:
+        generated.close()
+    assert seen_prefix == ["bob-semgrep-"]
+    assert not (real_tmp / "bob-semgrep-123").exists()

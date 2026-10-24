@@ -358,7 +358,7 @@ LINE='export PATH="$HOME/.local/bin:$PATH" # managed-by: bob-quality'
 case ":$PATH:" in
   *":$HOME/.local/bin:"*) R=already-on-path ;;
   *)
-    S=${SHELL:-}
+    S=$(awk 'BEGIN { print ENVIRON["SHELL"] }')
     case "${S##*/}" in
       zsh) F="${ZDOTDIR:-$HOME}/.zshrc" ;;
       bash) F="$HOME/.bashrc" ;;

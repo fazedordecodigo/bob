@@ -205,7 +205,7 @@ def _in_place(cwd: Path) -> Iterator[Path]:
 
 
 def _detached(cwd: Path) -> Iterator[Path]:
-    parent = Path(tempfile.mkdtemp(prefix="bob-semgrep-"))
+    parent = Path(tempfile.mkdtemp(prefix="bob-semgrep-")).resolve()
     root = parent / "head"
     try:
         completed = _git(cwd, "worktree", "add", "--detach", str(root), "HEAD")
