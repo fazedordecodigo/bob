@@ -10,11 +10,15 @@ import pytest
 _ROOT = Path(__file__).resolve().parents[1]
 _GUARD = _ROOT / "tests" / "net_guard"
 _UNIT_ARGS: tuple[tuple[str, ...], ...] = (
+    ("tests/test_init_config.py",),
     ("tests/test_project_version.py",),
     ("tests/test_update.py",),
     ("tests/test_docs_pins.py",),
     ("tests/test_hook_install.py",),
-    ("tests/test_setup_cmd.py", "-k", "hook or profile"),
+    ("tests/test_setup_cmd.py", "-k", "bob_yaml or hook or profile"),
+    ("tests/test_verify_install.py",),
+    ("tests/test_release_workflow.py",),
+    ("tests/test_release_checks.py",),
 )
 
 
