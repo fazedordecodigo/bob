@@ -1550,3 +1550,125 @@ def test_profile_line_sources_in_sh(tmp_path: Path) -> None:
     )
     assert result.returncode == 0, result.stderr
     assert result.stdout == "/h/.local/bin:/usr/bin:/bin"
+
+
+def _tree(root: Path) -> dict[str, tuple[object, ...]]:
+    found: dict[str, tuple[object, ...]] = {}
+    for path in sorted(root.rglob("*")):
+        rel = path.relative_to(root).as_posix()
+        if path.is_symlink():
+            found[rel] = ("symlink", os.readlink(path))
+        elif path.is_dir():
+            found[rel] = ("dir", stat.S_IMODE(path.stat().st_mode))
+        else:
+            info = path.stat()
+            digest = hashlib.sha256(path.read_bytes()).hexdigest()
+            found[rel] = (
+                "file",
+                stat.S_IMODE(info.st_mode),
+                info.st_size,
+                info.st_mtime_ns,
+                digest,
+            )
+    return found
+
+
+def _tree_diff(
+    before: dict[str, tuple[object, ...]],
+    after: dict[str, tuple[object, ...]],
+) -> dict[str, tuple[tuple[object, ...] | None, tuple[object, ...] | None]]:
+    return {
+        rel: (before.get(rel), after.get(rel))
+        for rel in sorted(before.keys() | after.keys())
+        if before.get(rel) != after.get(rel)
+    }
+
+
+def _outside_run(
+    git_project: Path,
+    base: str,
+    tmp_path: Path,
+    home: Path,
+    extra: dict[str, str],
+) -> subprocess.CompletedProcess[str]:
+    return _profile_run(
+        git_project,
+        base,
+        home.parent,
+        home,
+        {"TMPDIR": str(tmp_path / "tmp"), **extra},
+    )
+
+
+@pytest.mark.parametrize(
+    ("shell", "name"),
+    [
+        ("/bin/bash", ".bashrc"),
+        ("/bin/sh", ".profile"),
+        ("/bin/zsh", ".zshrc"),
+    ],
+    ids=["bash", "sh", "zsh"],
+)
+def test_install_writes_nothing_outside_home(
+    git_project: Path,
+    server: tuple[str, list[tuple[str, str, int]]],
+    tmp_path: Path,
+    tmp_path_factory: pytest.TempPathFactory,
+    shell: str,
+    name: str,
+) -> None:
+    base, _requests = server
+    _mirror(tmp_path)
+    (tmp_path / "tmp").mkdir()
+    home = tmp_path_factory.mktemp("outside-home") / "home"
+    home.mkdir()
+    before = _tree(tmp_path)
+    result = _outside_run(git_project, base, tmp_path, home, {"SHELL": shell})
+    assert result.returncode == 0, result.stderr
+    _assert_install_stdout(result.stdout)
+    assert (home / name).read_text(encoding="utf-8") == _PROFILE_LINE + "\n"
+    assert (home / ".local" / "bin" / "bob").is_symlink()
+    assert _tree_diff(before, _tree(tmp_path)) == {}
+
+
+@pytest.mark.parametrize(
+    "before",
+    [None, b"alias z=1\n"],
+    ids=["new", "existing"],
+)
+def test_zdotdir_outside_home_is_the_only_outside_write(
+    git_project: Path,
+    server: tuple[str, list[tuple[str, str, int]]],
+    tmp_path: Path,
+    tmp_path_factory: pytest.TempPathFactory,
+    before: bytes | None,
+) -> None:
+    base, _requests = server
+    _mirror(tmp_path)
+    (tmp_path / "tmp").mkdir()
+    home = tmp_path_factory.mktemp("outside-home") / "home"
+    home.mkdir()
+    zdot = tmp_path / "zdot"
+    zdot.mkdir()
+    if before is not None:
+        (zdot / ".zshrc").write_bytes(before)
+    snapshot = _tree(tmp_path)
+    result = _outside_run(
+        git_project,
+        base,
+        tmp_path,
+        home,
+        {"SHELL": "/bin/zsh", "ZDOTDIR": str(zdot)},
+    )
+    assert result.returncode == 0, result.stderr
+    _assert_install_stdout(result.stdout)
+    diff = _tree_diff(snapshot, _tree(tmp_path))
+    assert list(diff) == ["zdot/.zshrc"]
+    assert (diff["zdot/.zshrc"][0] is None) == (before is None)
+    assert (zdot / ".zshrc").read_bytes() == (
+        (b"" if before is None else before) + _PROFILE_LINE.encode() + b"\n"
+    )
+    assert not (home / ".zshrc").exists()
+    assert _profile_env(home.parent / "bob.log") == (
+        "BOB_INSTALL_PROFILE=" + repr(str(zdot / ".zshrc"))
+    )
