@@ -1133,3 +1133,38 @@ def test_outside_the_checkout_exits_1(tmp_path: Path) -> None:
     )
     assert checked.returncode == 1
     assert checked.stderr == _OUTSIDE
+
+
+@pytest.mark.parametrize("case", ["present", "missing"])
+def test_build_wheel_uses_verify_dist(tmp_path: Path, case: str) -> None:
+    work = tmp_path / "T"
+    dist = tmp_path / "VERIFY_DIST"
+    work.mkdir()
+    dist.mkdir()
+    name = "bob_quality-0.1.0-py3-none-any.whl"
+    payload = b"wheel\n"
+    if case == "present":
+        (dist / name).write_bytes(payload)
+    script = (
+        "read_meta() { printf '%s\\n' 0.1.0 'build==1.6.1'; }\n"
+        + _body("die_preparo")
+        + "\n"
+        + _body("build_wheel")
+        + "\nbuild_wheel\n"
+    )
+    checked = _sh(
+        script,
+        env={
+            "PATH": "/usr/bin:/bin",
+            "T": str(work),
+            "VERIFY_DIST": str(dist),
+        },
+    )
+    if case == "present":
+        assert checked.returncode == 0
+        assert (work / "dist" / name).read_bytes() == payload
+        assert not (work / "build-venv").exists()
+        return
+    assert checked.returncode != 0
+    needle = "VERIFY_DIST sem bob_quality-0.1.0-py3-none-any.whl"
+    assert needle in checked.stderr
