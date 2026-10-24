@@ -28,7 +28,7 @@ ROOT = Path(__file__).resolve().parents[1]
 SCRIPT = ROOT / "scripts" / "verify-install.sh"
 _HELP = (
     "uso: sh scripts/verify-install.sh [--only <id>[,<id>...]]\n"
-    "passos: 1 2 3 4 5 6 7 8 9a 9b 10 11 12 13\n"
+    "passos: 1 2 3 4 5 6 7 8 9a 9b 10 11 12 13 14\n"
     "VERIFY_REMOTE=1 usa o GitHub em vez do espelho local.\n"
 )
 _OUTSIDE = (
@@ -96,7 +96,7 @@ def test_verify_install_shape() -> None:
 
 
 def test_step_ids_are_the_known_steps() -> None:
-    assert _assign("STEP_IDS") == "1 2 3 4 5 6 7 8 9a 9b 10 11 12 13"
+    assert _assign("STEP_IDS") == "1 2 3 4 5 6 7 8 9a 9b 10 11 12 13 14"
 
 
 def test_gitleaks_constants_match_the_gitleaks_table() -> None:
@@ -503,6 +503,8 @@ def test_run_bob_builds_the_environment(tmp_path: Path) -> None:
     err = tmp_path / "err"
     script = (
         "T=/t\nNODE_DIR=/n\nPY_DIR=/p\nGL_URL=http://g\n"
+        + _body("pass_env")
+        + "\n"
         + _body("die_passo")
         + "\n"
         + _body("tool_path")
@@ -733,6 +735,8 @@ def test_run_oneliner_passes_shell_and_bob_home(
     err = tmp_path / "err"
     script = (
         "GL_URL=\n"
+        + _function(_text(), "pass_env")
+        + "\n"
         + _function(_text(), "die_passo")
         + "\n"
         + _function(_text(), "run_oneliner")
@@ -877,6 +881,190 @@ def test_profile_line_comes_from_install_sh() -> None:
     assert found.group(1) not in _text()
 
 
+def test_step_14_is_wired() -> None:
+    lines = _text().splitlines()
+    assert lines.index("PASS_ENV=") == lines.index("NEW_WHL=") + 1
+    assert lines.index("BLOCK_FAILED=") == lines.index("NEW_WHL=") + 2
+    for name in (
+        "pass_env",
+        "box_platform",
+        "prompt_blocks",
+        "manifest",
+        "run_blocks",
+        "install_state",
+        "step_14",
+    ):
+        assert f"{name}() {{" in lines
+    assert lines.index("      14) step_14 ;;") == (
+        lines.index("      13) step_13 ;;") + 1
+    )
+    early = [
+        lines.index("release_pair() {"),
+        lines.index("pass_env() {"),
+        lines.index("run_oneliner() {"),
+    ]
+    assert early == sorted(early)
+    assert len(set(early)) == len(early)
+    late = [
+        lines.index("step_13() {"),
+        lines.index("box_platform() {"),
+        lines.index("prompt_blocks() {"),
+        lines.index("manifest() {"),
+        lines.index("run_blocks() {"),
+        lines.index("install_state() {"),
+        lines.index("step_14() {"),
+        lines.index("run_selected() {"),
+    ]
+    assert late == sorted(late)
+    assert len(set(late)) == len(late)
+    head = (
+        '  if [ "$remote" -eq 1 ]; then',
+        (
+            "    printf '%s\\n' "
+            "'verify-install: passo 14: não se aplica (VERIFY_REMOTE=1)'"
+        ),
+        "    return 0",
+        "  fi",
+    )
+    assert _body("step_14").splitlines()[1:5] == list(head)
+    assert "docs/install-prompt.en.md" in _body("step_14")
+
+
+def test_harness_passes_env_in_one_place() -> None:
+    text = _text()
+    assert text.count("for _name in PIP_INDEX_URL") == 1
+    assert "for _name in PIP_INDEX_URL" in _body("pass_env")
+    e = '  eval "set -- \\"\\$@\\"$PASS_ENV"'
+    assert text.splitlines().count(e) == 3
+    for name in ("run_oneliner", "run_bob", "run_blocks"):
+        body = _body(name).splitlines()
+        assert "  pass_env" in body
+        assert e in body
+
+
+@pytest.mark.parametrize(
+    "value",
+    ["http://p", "a b", "it's"],
+    ids=["plain", "space", "quote"],
+)
+def test_pass_env_quotes_the_values(value: str) -> None:
+    checked = _sh(
+        _body("pass_env")
+        + '\nset -- x\npass_env\n'
+        + 'eval "set -- \\"\\$@\\"$PASS_ENV"\n'
+        + 'printf "%s\\n" "$@"\n',
+        env={
+            "PATH": "/usr/bin:/bin",
+            "PIP_INDEX_URL": value,
+            "NO_PROXY": "h",
+        },
+    )
+    assert checked.returncode == 0
+    assert checked.stdout.splitlines() == [
+        "x",
+        f"PIP_INDEX_URL={value}",
+        "NO_PROXY=h",
+    ]
+
+
+@pytest.mark.parametrize("platform", ["linux-x64", "darwin-arm64"])
+def test_prompt_blocks_filter_by_platform(
+    platform: str,
+    tmp_path: Path,
+) -> None:
+    out = tmp_path / "b"
+    out.mkdir()
+    env = {
+        "PATH": "/usr/bin:/bin",
+        "PY_DIR": str(Path(sys.executable).parent),
+    }
+    checked = _sh(
+        _body("prompt_blocks") + '\nprompt_blocks "$1" "$2" "$3"\n',
+        str(ROOT / "docs" / "install-prompt.en.md"),
+        str(out),
+        platform,
+        env=env,
+    )
+    assert checked.returncode == 0
+    assert sorted(p.name for p in out.iterdir()) == [
+        f"{n:02d}.sh" for n in range(1, 15)
+    ]
+    pattern = re.compile(
+        "^```sh bob-step=(\\S+) platform=(\\S+)\n(.*?)^```$",
+        re.M | re.S,
+    )
+    text = (ROOT / "docs" / "install-prompt.en.md").read_text(
+        encoding="utf-8",
+    )
+    want = [
+        body
+        for _step, plat, body in pattern.findall(text)
+        if plat in ("all", platform.split("-")[0], platform)
+    ]
+    got = [
+        (out / f"{n:02d}.sh").read_text(encoding="utf-8")
+        for n in range(1, 15)
+    ]
+    assert got == want
+
+
+def test_manifest_lists_the_install(tmp_path: Path) -> None:
+    h = tmp_path / "h"
+    p = tmp_path / "p"
+    bh = h / ".local" / "share" / "bob-quality"
+    (bh / "versions" / "1.0.0").mkdir(parents=True)
+    (bh / "current").symlink_to("versions/1.0.0")
+    complete = bh / "versions" / "1.0.0" / ".complete"
+    complete.write_text("h\n", encoding="utf-8")
+    complete.chmod(0o644)
+    py = bh / "versions" / "1.0.0" / "venv" / "bin" / "python"
+    py.parent.mkdir(parents=True)
+    py.write_text(
+        "#!/bin/sh\n"
+        'printf "a==1\\nbob-quality @ file:///x/y.whl\\n"\n',
+        encoding="utf-8",
+    )
+    py.chmod(0o755)
+    junk = bh / "versions" / "1.0.0" / "venv" / "lib" / "x"
+    junk.parent.mkdir(parents=True)
+    junk.write_text("junk\n", encoding="utf-8")
+    bob = h / ".local" / "bin" / "bob"
+    bob.parent.mkdir(parents=True)
+    bob.symlink_to(str(bh / "bin" / "bob"))
+    yaml_file = p / "bob.yaml"
+    yaml_file.parent.mkdir(parents=True)
+    yaml_file.write_text("a: 1\n", encoding="utf-8")
+    yaml_file.chmod(0o644)
+    env = {
+        "PATH": "/usr/bin:/bin",
+        "PY_DIR": str(Path(sys.executable).parent),
+    }
+    checked = _sh(
+        _body("manifest") + '\nmanifest "$1" "$2"\n',
+        str(h),
+        str(p),
+        env=env,
+    )
+    assert checked.returncode == 0
+    s = lambda b: hashlib.sha256(b).hexdigest()
+    lines = [
+        "BOB_HOME/current\tlink\t-\tversions/1.0.0",
+        "BOB_HOME/versions\tdir\t-\t-",
+        "BOB_HOME/versions/1.0.0\tdir\t-\t-",
+        "BOB_HOME/versions/1.0.0/.complete\tfile\t644\t" + s(b"h\n"),
+        (
+            "BOB_HOME/versions/1.0.0/venv\tfreeze\t-\t"
+            + s(b"a==1\nbob-quality @ <wheel>\n")
+        ),
+        "HOME/.local/bin/bob\tlink\t-\t" + str(bh / "bin" / "bob"),
+        "HOME/.profile\tmissing\t-\t-",
+        "PROJ/.agents/skills\tmissing\t-\t-",
+        "PROJ/.git/hooks/pre-push\tmissing\t-\t-",
+        "PROJ/bob.yaml\tfile\t644\t" + s(b"a: 1\n"),
+    ]
+    assert checked.stdout == "\n".join(lines) + "\n"
+
+
 def test_help_exits_0() -> None:
     before = _verify_names(_tmpdir())
     checked = subprocess.run(
@@ -898,14 +1086,14 @@ def test_help_exits_0() -> None:
             ("--only", "15"),
             (
                 "verify-install: uso: passo desconhecido 15. "
-                "Passos: 1 2 3 4 5 6 7 8 9a 9b 10 11 12 13."
+                "Passos: 1 2 3 4 5 6 7 8 9a 9b 10 11 12 13 14."
             ),
         ),
         (
             ("--only", "9c"),
             (
                 "verify-install: uso: passo desconhecido 9c. "
-                "Passos: 1 2 3 4 5 6 7 8 9a 9b 10 11 12 13."
+                "Passos: 1 2 3 4 5 6 7 8 9a 9b 10 11 12 13 14."
             ),
         ),
         (

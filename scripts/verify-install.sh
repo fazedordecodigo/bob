@@ -1,7 +1,7 @@
 #!/bin/sh
-# Harness do comando de verificação (CT15): passos 1, 2, 3, 4, 5, 6, 7, 8, 9a, 9b, 10, 11, 12 e 13.
+# Harness do comando de verificação (CT15): passos 1, 2, 3, 4, 5, 6, 7, 8, 9a, 9b, 10, 11, 12, 13 e 14.
 set -u
-STEP_IDS='1 2 3 4 5 6 7 8 9a 9b 10 11 12 13'
+STEP_IDS='1 2 3 4 5 6 7 8 9a 9b 10 11 12 13 14'
 GITLEAKS_VERSION='8.30.1'
 GITLEAKS_SHA_LINUX_X64='551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb'
 GITLEAKS_SHA_LINUX_ARM64='e4a487ee7ccd7d3a7f7ec08657610aa3606637dab924210b3aee62570fb4b080'
@@ -28,6 +28,8 @@ GL_URL=
 NEW_X=
 NEW_TAG=
 NEW_WHL=
+PASS_ENV=
+BLOCK_FAILED=
 
 die_usage() {
   printf 'verify-install: uso: %s\n' "$1" >&2
@@ -359,6 +361,22 @@ release_pair() {
   fi
 }
 
+pass_env() {
+  PASS_ENV=
+  for _name in PIP_INDEX_URL PIP_EXTRA_INDEX_URL PIP_TRUSTED_HOST PIP_CERT \
+    npm_config_registry npm_config_cache \
+    http_proxy https_proxy HTTP_PROXY HTTPS_PROXY \
+    no_proxy NO_PROXY SSL_CERT_FILE SSL_CERT_DIR
+  do
+    eval "_isset=\${$_name+x}"
+    if [ "$_isset" = x ]; then
+      eval "_value=\${$_name}"
+      _value=$(printf '%s' "$_value" | sed "s/'/'\\\\''/g")
+      PASS_ENV="$PASS_ENV '$_name=$_value'"
+    fi
+  done
+}
+
 run_oneliner() {
   _step=$1
   _home=$2
@@ -392,17 +410,8 @@ run_oneliner() {
   if [ -n "$_bobhome" ]; then
     set -- "$@" "BOB_HOME=$_bobhome"
   fi
-  for _name in PIP_INDEX_URL PIP_EXTRA_INDEX_URL PIP_TRUSTED_HOST PIP_CERT \
-    npm_config_registry npm_config_cache \
-    http_proxy https_proxy HTTP_PROXY HTTPS_PROXY \
-    no_proxy NO_PROXY SSL_CERT_FILE SSL_CERT_DIR
-  do
-    eval "_isset=\${$_name+x}"
-    if [ "$_isset" = x ]; then
-      eval "_value=\${$_name}"
-      set -- "$@" "$_name=$_value"
-    fi
-  done
+  pass_env
+  eval "set -- \"\$@\"$PASS_ENV"
   set -- "$@" sh -c 'curl -fsSL "$1/latest/download/install.sh" | sh' _ "$_url"
   (
     cd "$_proj" || exit 99
@@ -1435,17 +1444,8 @@ run_bob() {
   if [ -n "$GL_URL" ]; then
     set -- "$@" "BOB_GITLEAKS_BASE_URL=$GL_URL"
   fi
-  for _name in PIP_INDEX_URL PIP_EXTRA_INDEX_URL PIP_TRUSTED_HOST PIP_CERT \
-    npm_config_registry npm_config_cache \
-    http_proxy https_proxy HTTP_PROXY HTTPS_PROXY \
-    no_proxy NO_PROXY SSL_CERT_FILE SSL_CERT_DIR
-  do
-    eval "_isset=\${$_name+x}"
-    if [ "$_isset" = x ]; then
-      eval "_value=\${$_name}"
-      set -- "$@" "$_name=$_value"
-    fi
-  done
+  pass_env
+  eval "set -- \"\$@\"$PASS_ENV"
   set -- "$@" "$_home/.local/bin/bob" "$_arg"
   (
     cd "$_proj" || exit 99
@@ -1858,6 +1858,312 @@ step_13() {
   ok 13
 }
 
+box_platform() {
+  case "$(uname -s)/$(uname -m)" in
+    Linux/x86_64|Linux/amd64) printf '%s\n' linux-x64 ;;
+    Linux/aarch64|Linux/arm64) printf '%s\n' linux-arm64 ;;
+    Darwin/x86_64) printf '%s\n' darwin-x64 ;;
+    Darwin/arm64) printf '%s\n' darwin-arm64 ;;
+    *) return 1 ;;
+  esac
+}
+
+prompt_blocks() {
+  "$PY_DIR/python3" -c '
+import pathlib
+import re
+import sys
+text = pathlib.Path(sys.argv[1]).read_text(encoding="utf-8")
+pattern = "^```sh bob-step=(\\S+) platform=(\\S+)\n(.*?)^```$"
+found = re.findall(pattern, text, re.M | re.S)
+platform = sys.argv[3]
+system = platform.split("-")[0]
+kept = []
+for step, plat, body in found:
+    if plat == "all" or plat == system or plat == platform:
+        kept.append(body)
+if len(kept) != 14:
+    sys.exit(1)
+out = pathlib.Path(sys.argv[2])
+index = 1
+for body in kept:
+    name = "%02d.sh" % index
+    path = out / name
+    path.write_text(body, encoding="utf-8")
+    index = index + 1
+' "$1" "$2" "$3"
+}
+
+manifest() {
+  "$PY_DIR/python3" -c '
+import hashlib
+import os
+import subprocess
+import sys
+
+home = sys.argv[1]
+proj = sys.argv[2]
+bob = os.path.join(home, ".local", "share", "bob-quality")
+rows = []
+
+def file_hash(path):
+    digest = hashlib.sha256()
+    handle = open(path, "rb")
+    try:
+        chunk = handle.read(65536)
+        while chunk:
+            digest.update(chunk)
+            chunk = handle.read(65536)
+    finally:
+        handle.close()
+    return digest.hexdigest()
+
+def describe(path, label):
+    if not os.path.lexists(path):
+        return label + "\tmissing\t-\t-"
+    if os.path.islink(path):
+        return label + "\tlink\t-\t" + os.readlink(path)
+    if os.path.isdir(path):
+        return label + "\tdir\t-\t-"
+    mode = os.stat(path).st_mode & 0o777
+    return label + "\tfile\t" + format(mode, "o") + "\t" + file_hash(path)
+
+def freeze_line(path, label):
+    program = os.path.join(path, "bin", "python")
+    proc = subprocess.run(
+        [
+            program,
+            "-m",
+            "pip",
+            "freeze",
+            "--all",
+            "--disable-pip-version-check",
+        ],
+        check=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
+    text = proc.stdout.decode("utf-8")
+    normalized = []
+    marker = "bob-quality @ "
+    for line in text.splitlines():
+        if line.startswith(marker):
+            normalized.append("bob-quality @ <wheel>")
+        else:
+            normalized.append(line)
+    payload = ("\n".join(normalized) + "\n").encode("utf-8")
+    digest = hashlib.sha256(payload).hexdigest()
+    return label + "\tfreeze\t-\t" + digest
+
+def child_rel(rel_dir, name):
+    if rel_dir == "":
+        return name
+    return rel_dir + "/" + name
+
+def add_tree(root, prefix):
+    if not os.path.lexists(root):
+        return
+    for dirpath, dirnames, filenames in os.walk(root, followlinks=False):
+        rel_dir = os.path.relpath(dirpath, root).replace(os.sep, "/")
+        if rel_dir == ".":
+            rel_dir = ""
+        linked = []
+        for name in dirnames:
+            path = os.path.join(dirpath, name)
+            if os.path.islink(path):
+                linked.append(name)
+        for name in linked:
+            dirnames.remove(name)
+            path = os.path.join(dirpath, name)
+            rel = child_rel(rel_dir, name)
+            rows.append(describe(path, prefix + "/" + rel))
+        frozen = []
+        for name in dirnames:
+            rel = child_rel(rel_dir, name)
+            parts = rel.split("/")
+            if (
+                len(parts) == 3
+                and parts[0] == "versions"
+                and parts[2] == "venv"
+            ):
+                frozen.append(name)
+        for name in frozen:
+            dirnames.remove(name)
+            path = os.path.join(dirpath, name)
+            rel = child_rel(rel_dir, name)
+            rows.append(freeze_line(path, prefix + "/" + rel))
+        if rel_dir != "":
+            rows.append(describe(dirpath, prefix + "/" + rel_dir))
+        for name in filenames:
+            path = os.path.join(dirpath, name)
+            rel = child_rel(rel_dir, name)
+            rows.append(describe(path, prefix + "/" + rel))
+
+add_tree(bob, "BOB_HOME")
+skills = os.path.join(proj, ".agents", "skills")
+if not os.path.lexists(skills):
+    rows.append("PROJ/.agents/skills\tmissing\t-\t-")
+else:
+    add_tree(skills, "PROJ/.agents/skills")
+loose = [
+    (os.path.join(home, ".local", "bin", "bob"), "HOME/.local/bin/bob"),
+    (os.path.join(home, ".profile"), "HOME/.profile"),
+    (os.path.join(proj, "bob.yaml"), "PROJ/bob.yaml"),
+    (
+        os.path.join(proj, ".git", "hooks", "pre-push"),
+        "PROJ/.git/hooks/pre-push",
+    ),
+]
+for path, label in loose:
+    rows.append(describe(path, label))
+rows.sort()
+sys.stdout.write("\n".join(rows) + "\n")
+' "$1" "$2"
+}
+
+run_blocks() {
+  _dir=$1
+  _home=$2
+  _proj=$3
+  _tmp=$4
+  _out=$5
+  _err=$6
+  set -- env -i "HOME=$_home" "TMPDIR=$_tmp" LANG=C.UTF-8 \
+    "PATH=$(tool_path)"
+  if [ -n "$REL_ENV" ]; then
+    set -- "$@" "BOB_RELEASES_URL=$REL_ENV"
+  fi
+  if [ -n "$GL_URL" ]; then
+    set -- "$@" "BOB_GITLEAKS_BASE_URL=$GL_URL"
+  fi
+  pass_env
+  eval "set -- \"\$@\"$PASS_ENV"
+  set -- "$@" sh
+  for _f in "$_dir"/*.sh; do
+    BLOCK_FAILED=${_f##*/}
+    (
+      cd "$_proj" || exit 99
+      "$@" "$_f"
+    ) >>"$_out" 2>>"$_err"
+    _rc=$?
+    if [ "$_rc" -ne 0 ]; then
+      return "$_rc"
+    fi
+  done
+  BLOCK_FAILED=
+  return 0
+}
+
+install_state() {
+  manifest "$2" "$3" > "$1" || return 1
+  run_bob 14 "$2" "$3" "$4" "" "$4/doctor.out" "$4/doctor.err" doctor
+  _rc=$?
+  printf 'doctor\t%s\n' "$_rc" >> "$1"
+  run_bob 14 "$2" "$3" "$4" "" "$4/version.out" "$4/version.err" \
+    --version || return 1
+  cat "$4/version.out" >> "$1" || return 1
+}
+
+step_14() {
+  if [ "$remote" -eq 1 ]; then
+    printf '%s\n' 'verify-install: passo 14: não se aplica (VERIFY_REMOTE=1)'
+    return 0
+  fi
+  release_pair
+  rm -rf "$T/s14"
+  mkdir -p "$T/s14/h" "$T/s14/a-tmp" "$T/s14/b-tmp" "$T/s14/blocks" \
+    "$T/npm-cache" || die_passo 14 "não consegui criar o projeto"
+  new_project "$T/s14/p" || die_passo 14 "não consegui criar o projeto"
+  _h=$T/s14/h
+  _p=$T/s14/p
+  npm_config_cache=$T/npm-cache
+  export npm_config_cache
+  _t0=$(date +%s)
+  run_oneliner 14 "$_h" "$T/s14/a-tmp" "$_p" "$REL_ENV" "$REL_URL" \
+    "$(tool_path)" "$T/s14/a-out.log" "$T/s14/a-err.log"
+  _rc=$?
+  if [ "$_rc" -ne 0 ]; then
+    die_passo 14 "a instalação A saiu $_rc; veja $T/s14/a-out.log"
+  fi
+  _last=$(last_nonempty "$T/s14/a-out.log")
+  if [ "$_last" != "  bob doctor: 0" ]; then
+    die_passo 14 "a instalação A não terminou com \"  bob doctor: 0\""
+  fi
+  install_state "$T/s14/a.txt" "$_h" "$_p" "$T/s14/a-tmp" \
+    || die_passo 14 "não consegui ler o estado da instalação A"
+  rm -rf "$_h" "$_p"
+  mkdir -p "$_h" || die_passo 14 "não consegui criar o projeto"
+  new_project "$_p" || die_passo 14 "não consegui criar o projeto"
+  _plat=$(box_platform) || die_passo 14 \
+    "plataforma do box não suportada: $(uname -s)/$(uname -m)"
+  prompt_blocks docs/install-prompt.en.md "$T/s14/blocks" "$_plat" \
+    || die_passo 14 "não consegui extrair os 14 blocos do prompt"
+  _mark=$(line_count "$T/mirror.log")
+  run_blocks "$T/s14/blocks" "$_h" "$_p" "$T/s14/b-tmp" \
+    "$T/s14/b-out.log" "$T/s14/b-err.log"
+  _rc=$?
+  if [ "$_rc" -ne 0 ]; then
+    die_passo 14 "o bloco $BLOCK_FAILED saiu $_rc; veja $T/s14/b-err.log"
+  fi
+  _last=$(last_nonempty "$T/s14/b-out.log")
+  _ok="bob-prompt: verificação: ok (bob $X, bob doctor 0)"
+  if [ "$_last" != "$_ok" ]; then
+    die_passo 14 "a instalação B não terminou com a linha do verificação"
+  fi
+  _got=$(mirror_new "$_mark" "$T/mirror.log")
+  _want="GET /api/releases/latest 200
+GET /download/$TAG/$WHL 200
+GET /download/$TAG/SHA256SUMS 200
+GET /gitleaks/$GL_ASSET 200"
+  if [ "$_got" != "$_want" ]; then
+    _flat=$(printf '%s' "$_got" | tr '\n' ',' | sed 's/,$//')
+    die_passo 14 "pedidos ao espelho na instalação B: $_flat"
+  fi
+  if [ -s "$T/sudo.log" ]; then
+    _line=
+    IFS= read -r _line < "$T/sudo.log" || _line=
+    die_passo 14 "o sudo foi chamado: $_line"
+  fi
+  install_state "$T/s14/b.txt" "$_h" "$_p" "$T/s14/b-tmp" \
+    || die_passo 14 "não consegui ler o estado da instalação B"
+  if ! cmp -s "$T/s14/a.txt" "$T/s14/b.txt"; then
+    die_passo 14 \
+      "manifestos diferem: $(first_diff "$T/s14/a.txt" "$T/s14/b.txt")"
+  fi
+  _prof=$(file_sha "$_h/.profile")
+  run_blocks "$T/s14/blocks" "$_h" "$_p" "$T/s14/b-tmp" \
+    "$T/s14/b2-out.log" "$T/s14/b2-err.log"
+  _rc=$?
+  if [ "$_rc" -ne 0 ]; then
+    die_passo 14 \
+      "2ª execução: o bloco $BLOCK_FAILED saiu $_rc; veja $T/s14/b2-err.log"
+  fi
+  if [ "$(file_sha "$_h/.profile")" != "$_prof" ]; then
+    die_passo 14 "a 2ª execução mudou o ~/.profile"
+  fi
+  _n=$(grep -cxF 'bob-prompt: pacote: ok (reused)' "$T/s14/b2-out.log") \
+    || _n=0
+  if [ "$_n" -ne 1 ]; then
+    die_passo 14 "a 2ª execução não reusou o pacote"
+  fi
+  _n=$(grep -cxF 'bob-prompt: gitleaks: ok (reused)' "$T/s14/b2-out.log") \
+    || _n=0
+  if [ "$_n" -ne 1 ]; then
+    die_passo 14 "a 2ª execução não reusou o gitleaks"
+  fi
+  _last=$(last_nonempty "$T/s14/b2-out.log")
+  if [ "$_last" != "$_ok" ]; then
+    die_passo 14 "a 2ª execução não terminou com a linha do verificação"
+  fi
+  _t1=$(date +%s)
+  _secs=$((_t1 - _t0))
+  if [ "$_secs" -gt 360 ]; then
+    die_passo 14 "levou $_secs s (máx. 360)"
+  fi
+  printf 'verify-install: passo 14: tempo %s s\n' "$_secs"
+  ok 14
+}
+
 run_selected() {
   for _id in $STEP_IDS; do
     _wanted=0
@@ -1887,6 +2193,7 @@ run_selected() {
       11) step_11 ;;
       12) step_12 ;;
       13) step_13 ;;
+      14) step_14 ;;
     esac
   done
 }
