@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+`scripts/verify-install.sh` gains step 14: it installs with the one-line install (A), then with the
+blocks of `docs/install-prompt.en.md` in a new `HOME` and project (B), and checks that both give the
+same manifest and that a second run of the blocks changes nothing; the variables passed through to
+the installs now come from one function, `pass_env` (U8).
+
+O `scripts/verify-install.sh` ganha o passo 14: instala pelo comando único (A) e depois pelos
+blocos do `docs/install-prompt.en.md` num `HOME` e num projeto novos (B), e confere que os dois dão
+o mesmo manifesto e que uma 2ª execução dos blocos não muda nada; as variáveis repassadas às
+instalações agora vêm de uma só função, `pass_env` (U8).
+
 `bob update` updates bob and the project to the latest published release (it checks the sha256 of
 `install.sh` against `SHA256SUMS` before running it, and only runs `bob setup` when just the project
 is behind), and `bob --version` shows the bob version and the project skills version; `bob doctor`
