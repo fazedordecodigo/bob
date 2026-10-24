@@ -2,12 +2,13 @@
 
 [Índice](../README.md) · [Primeiro check](../getting-started/first-check.md) · [CI](ci.md) · [Gates e waivers](gates-and-waivers.md)
 
-O script `src/bob_quality/hooks/pre-push` roda os gates rápidos:
+O comando único grava o hook em `.git/hooks/pre-push` (ele roda o `bob setup`, que instala o hook):
 
 ```bash
-cp src/bob_quality/hooks/pre-push .git/hooks/pre-push
-chmod +x .git/hooks/pre-push
+curl -fsSL https://github.com/fazedordecodigo/bob/releases/latest/download/install.sh | sh -s -- --lang pt-BR
 ```
+
+Se o projeto já tem um hook de pre-push que o bob não escreveu, o `bob setup` o mantém e diz a linha a acrescentar nele.
 
 O script é:
 

@@ -98,43 +98,7 @@ Esses comandos instalam o comando `bob`, as ferramentas Python pinadas em `pypro
 
 ## Instalação nos agentes
 
-Nada foi publicado. Os comandos partem de um clone deste repositório. O plugin traz três skills, listadas em [Skills](#skills).
-
-**Claude Code** lê `.claude-plugin/`. Adicione o clone como marketplace local e instale o plugin:
-
-```bash
-claude plugin marketplace add <caminho do clone>
-claude plugin install bob@bob
-```
-
-Para uma sessão só, rode `claude --plugin-dir <caminho do clone>`.
-
-**Cursor** lê `.cursor-plugin/`. Copie o clone para `~/.cursor/plugins/local/bob` como cópia real, não como symlink, e rode **Developer: Reload Window**:
-
-```bash
-git clone <caminho do clone> ~/.cursor/plugins/local/bob
-```
-
-**GitHub Copilot CLI** também lê `.claude-plugin/`:
-
-```bash
-copilot plugin marketplace add <caminho do clone>
-copilot plugin install bob@bob
-```
-
-**Skills do repositório.** O `install_skills.py` copia as skills, achatadas, para a pasta de skills de um projeto:
-
-```bash
-python3 <caminho do clone>/src/bob_quality/install_skills.py --project <projeto> agents
-```
-
-| Alvo | Pasta | Lida por |
-|---|---|---|
-| `agents` | `.agents/skills` | Cursor, Copilot, Devin |
-| `devin` | `.agents/skills` | Devin (a pasta recomendada por ele) |
-| `copilot` | `.github/skills` | Copilot, Devin |
-
-O Devin lê as duas pastas. Se um projeto receber `copilot` e `devin`, o Devin carrega cada skill duas vezes, então escolha um. Rodar o instalador de novo substitui as skills nomeadas no manifesto. Ele apaga uma pasta da lista fixa de skills que o plugin deixou de distribuir só quando o `NOTICE` dela é um arquivo regular com o texto gravado pela instalação antiga. Um arquivo, um link simbólico, um `NOTICE` que é link simbólico ou uma pasta sem esse texto ficam, e o instalador avisa no stderr. Qualquer outra pasta fica. Como o instalador achata as pastas, cada skill instalada leva uma cópia do `LICENSE` do plugin e não leva `NOTICE`. Ele também roda como `python -m bob_quality.install_skills`. O `bob-quality` instalado pelo pip não traz as skills, então passe `--source <caminho do clone>`. Sem manifesto, o instalador diz o caminho que leu e sai com `4`. Quando uma skill não tem `LICENSE` da pasta dela até a raiz do plugin, o instalador avisa no stderr e ainda assim a instala.
+O comando único (ver [Instalar](#instalar)) roda o `bob setup`, que copia as três skills listadas em [Skills](#skills) para uma única pasta do projeto, `.agents/skills`. Não há plugin para instalar. O Cursor, o GitHub Copilot e o Devin leem essa pasta. A doc do Claude Code só cita `.claude/skills` para skills de projeto, então o Claude Code pode não enxergá-las; esse risco é aceito (RA1). Skills de outras origens na pasta ficam como estão. Detalhes em [docs/getting-started/agents.md](docs/getting-started/agents.md).
 
 ## Uso
 
@@ -347,10 +311,7 @@ O limite é zero violações no diff. Uma violação só bloqueia quando a orige
 
 O script `src/bob_quality/hooks/pre-push` roda `bob check --gates crap,dry,deps`, os gates rápidos. Ele segue o `BOB_LANG` e o `language` do `bob.yaml`. `tests/test_hook.py` confere que ele termina em menos de 60 s no fixture.
 
-```bash
-cp src/bob_quality/hooks/pre-push .git/hooks/pre-push
-chmod +x .git/hooks/pre-push
-```
+O comando único grava o hook (ver [Instalar](#instalar)). Se o projeto já tem um hook de pre-push que o bob não escreveu, o `bob setup` o mantém e diz a linha a acrescentar nele.
 
 ## Testes
 

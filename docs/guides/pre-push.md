@@ -2,12 +2,13 @@
 
 [Index](../README.md) · [First check](../getting-started/first-check.md) · [CI](ci.md) · [Gates and waivers](gates-and-waivers.md)
 
-The script `src/bob_quality/hooks/pre-push` runs the fast gates:
+The one-line install writes the hook to `.git/hooks/pre-push` (it runs `bob setup`, which installs the hook):
 
 ```bash
-cp src/bob_quality/hooks/pre-push .git/hooks/pre-push
-chmod +x .git/hooks/pre-push
+curl -fsSL https://github.com/fazedordecodigo/bob/releases/latest/download/install.sh | sh
 ```
+
+If the project already has a pre-push hook that bob did not write, `bob setup` keeps it and prints the line to add to it.
 
 The script is:
 

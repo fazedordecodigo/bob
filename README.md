@@ -98,43 +98,7 @@ These commands install the `bob` command, the Python tools pinned in `pyproject.
 
 ## Installing in the agents
 
-Nothing is published. The commands start from a clone of this repository. The plugin ships three skills, listed in [Skills](#skills).
-
-**Claude Code** reads `.claude-plugin/`. Add the clone as a local marketplace and install the plugin:
-
-```bash
-claude plugin marketplace add <clone path>
-claude plugin install bob@bob
-```
-
-For a single session, run `claude --plugin-dir <clone path>`.
-
-**Cursor** reads `.cursor-plugin/`. Copy the clone to `~/.cursor/plugins/local/bob` as a real copy, not a symlink, then run **Developer: Reload Window**:
-
-```bash
-git clone <clone path> ~/.cursor/plugins/local/bob
-```
-
-**GitHub Copilot CLI** also reads `.claude-plugin/`:
-
-```bash
-copilot plugin marketplace add <clone path>
-copilot plugin install bob@bob
-```
-
-**Repository skills.** `install_skills.py` copies the skills, flattened, into a project's skills folder:
-
-```bash
-python3 <clone path>/src/bob_quality/install_skills.py --project <project> agents
-```
-
-| Target | Folder | Read by |
-|---|---|---|
-| `agents` | `.agents/skills` | Cursor, Copilot, Devin |
-| `devin` | `.agents/skills` | Devin (its recommended folder) |
-| `copilot` | `.github/skills` | Copilot, Devin |
-
-Devin reads both folders. If one project gets `copilot` and `devin`, Devin loads every skill twice, so pick one. Running the installer again replaces the skills named in the manifest. It deletes a folder from the fixed list of skills the plugin no longer ships only when that folder's `NOTICE` is a regular file with the text the old installer wrote. A file, a symlink, a `NOTICE` that is a symlink, or a folder without that text stays, and the installer warns on stderr. Every other folder stays. Because the installer flattens the folders, each installed skill carries a copy of the plugin's `LICENSE` and no `NOTICE`. It also runs as `python -m bob_quality.install_skills`. A pip-installed `bob-quality` does not carry the skills, so pass `--source <clone path>`. Without a manifest the installer names the path it read and exits with `4`. When a skill has no `LICENSE` from its folder up to the plugin root, the installer warns on stderr and still installs the skill.
+The one-line install (see [Install](#install)) runs `bob setup`, which copies the three skills listed in [Skills](#skills) to one folder of the project, `.agents/skills`. There is no plugin to install. Cursor, GitHub Copilot, and Devin read that folder. The Claude Code docs name only `.claude/skills` for project skills, so Claude Code may not see them; this risk is accepted (RA1). Skills from other sources in the folder stay as they are. Details in [docs/getting-started/agents.md](docs/getting-started/agents.md).
 
 ## Usage
 
@@ -347,10 +311,7 @@ The limit is zero violations in the diff. A violation blocks only when its origi
 
 The script `src/bob_quality/hooks/pre-push` runs `bob check --gates crap,dry,deps`, the fast gates. It follows `BOB_LANG` and `language` in `bob.yaml`. `tests/test_hook.py` checks that it finishes in under 60 s on the fixture.
 
-```bash
-cp src/bob_quality/hooks/pre-push .git/hooks/pre-push
-chmod +x .git/hooks/pre-push
-```
+The one-line install writes it (see [Install](#install)). If the project already has a pre-push hook that bob did not write, `bob setup` keeps it and prints the line to add to it.
 
 ## Tests
 

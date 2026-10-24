@@ -408,3 +408,57 @@ def test_docs_cite_only_the_pinned_versions(doc: str) -> None:
     assert pythons <= {_requires_python()}
     leaks = re.findall(r"gitleaks`?\s+`?v?(\d+\.\d+\.\d+)", text, re.I)
     assert set(leaks) <= {gitleaks.VERSION}
+
+
+_NOT_BEFORE = ("git clone", "plugin install", "plugin marketplace add", "--plugin-dir")
+_AGENT_ROWS = {
+    "en": ("| Agent | Folder | Note |", "accepted risk RA1"),
+    "pt-BR": ("| Agente | Pasta | Nota |", "risco aceito RA1"),
+}
+_AGENTS = ("Cursor", "Claude Code", "GitHub Copilot", "Devin")
+
+
+@pytest.mark.parametrize("doc", list(_OTHER_DOCS), ids=list(_OTHER_DOCS))
+def test_agent_and_hook_docs_start_with_the_one_liner(doc: str) -> None:
+    first = _shell_blocks(_doc_text(doc))[0]
+    assert first.group(1) == "bash"
+    assert first.group(2) == _one_liner(_doc_lang(doc)) + "\n"
+
+
+@pytest.mark.parametrize("doc", list(_ALL_DOCS), ids=list(_ALL_DOCS))
+def test_no_clone_or_plugin_before_the_one_liner(doc: str) -> None:
+    text = _doc_text(doc)
+    before = text[: _shell_blocks(text)[0].start()]
+    assert [item for item in _NOT_BEFORE if item in before] == []
+
+
+@pytest.mark.parametrize("doc", list(_ALL_DOCS), ids=list(_ALL_DOCS))
+def test_bob_version_only_in_the_release_check_note(doc: str) -> None:
+    lines = [
+        line
+        for line in _doc_text(doc).splitlines()
+        if "BOB_VERSION" in line and not line.startswith(tuple(_NOTES.values()))
+    ]
+    assert lines == []
+
+
+@pytest.mark.parametrize("doc", list(_OTHER_DOCS[:2]), ids=list(_OTHER_DOCS[:2]))
+def test_agents_doc_names_the_single_folder_and_ra1(doc: str) -> None:
+    text = _doc_text(doc)
+    header, risk = _AGENT_ROWS[_doc_lang(doc)]
+    lines = text.splitlines()
+    assert lines.count(header) == 1
+    rows = [
+        line
+        for line in lines
+        if line.startswith("| ") and "`.agents/skills`" in line
+    ]
+    assert [row.split(" | ")[0][2:] for row in rows] == list(_AGENTS)
+    assert risk in rows[1]
+    banned = (
+        *_NOT_BEFORE,
+        ".github/skills",
+        "install_skills.py",
+        ".claude-plugin",
+    )
+    assert [item for item in banned if item in text] == []
