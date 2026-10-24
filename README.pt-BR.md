@@ -4,7 +4,7 @@
 
 O bob dá aos agentes de código (Cursor, Claude Code, GitHub Copilot, Devin) gates de qualidade determinísticos para o código que eles alteram, mais skills que dizem ao agente quando rodá-los. Os gates medem CRAP, duplicação, mutação e dependências, só nas funções do diff. Cada execução sai com um código que o agente consegue usar e grava um relatório de uma página que diz ao revisor humano onde olhar primeiro. Os gates seguem o fluxo do Uncle Bob (ver [Créditos](#créditos)).
 
-- CLI: `bob` (`bob check | crap | dry | deps | mutate | report | waive | doctor`)
+- CLI: `bob` (`bob check | crap | dry | deps | mutate | report | waive | doctor | setup | update`)
 - Pacote PyPI: `bob-quality` (sdist e wheel prontos, ainda não publicado)
 - Nome nos marketplaces: `bob` (ainda não publicado)
 - Configuração: `bob.yaml`
@@ -56,6 +56,33 @@ flowchart TD
     report --> comment["A Action cria ou atualiza um único comentário no PR"]
     comment --> human["O humano revisa o relatório e os waivers"]
 ```
+
+## Instalar
+
+Rode na raiz do seu projeto (um repositório git):
+
+```bash
+curl -fsSL https://github.com/fazedordecodigo/bob/releases/latest/download/install.sh | sh -s -- --lang pt-BR
+```
+
+Para mensagens em inglês, rode sem o `-s -- --lang pt-BR`.
+
+O comando instala o bob em `BOB_HOME` (por padrão `~/.local/share/bob-quality`), liga o `bob` em `~/.local/bin` e põe essa pasta no `PATH` do perfil do seu shell. Depois roda o `bob setup` no projeto, que instala as ferramentas npm pinadas, o gitleaks `8.30.1`, as skills em `.agents/skills`, o `bob.yaml` e o hook de pre-push. Não usa `git clone`, plugin nem `sudo`.
+
+Requisitos: Python 3.10 ou mais novo, Node `>=22.18.0 <23` com npm, git, curl e `sha256sum` ou `shasum`. Linux e macOS, em x64 e arm64.
+
+### Alternativa: pedir ao seu agente de IA
+
+Este caminho não usa o `install.sh`. Cole [o prompt para agente de IA](docs/install-prompt.pt-BR.md) no seu agente, na raiz do projeto; ele instala passo a passo e chega ao mesmo resultado. Se os dois caminhos divergirem, vale o comando único.
+
+## Atualizar
+
+```bash
+bob update
+bob --version
+```
+
+O `bob update` lê a última release. Se ela for mais nova que o seu bob, baixa o `install.sh` dela, confere o sha256 e o roda no projeto. Se só o projeto está atrasado, roda o `bob setup`. O `bob --version` mostra a versão do bob e a das skills do projeto.
 
 ## Instalação (desenvolvimento)
 

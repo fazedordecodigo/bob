@@ -4,7 +4,7 @@ English | [Português](README.pt-BR.md)
 
 bob gives coding agents (Cursor, Claude Code, GitHub Copilot, Devin) deterministic quality gates for the code they change, plus skills that tell the agent when to run them. The gates measure CRAP, duplication, mutation, and dependencies, only for the functions in the diff. Each run exits with a code the agent can act on and writes a one-page report that tells the human reviewer where to look first. The gates follow Uncle Bob's workflow (see [Credits](#credits)).
 
-- CLI: `bob` (`bob check | crap | dry | deps | mutate | report | waive | doctor`)
+- CLI: `bob` (`bob check | crap | dry | deps | mutate | report | waive | doctor | setup | update`)
 - PyPI package: `bob-quality` (sdist and wheel ready, not published yet)
 - Marketplace name: `bob` (not published yet)
 - Configuration: `bob.yaml`
@@ -56,6 +56,33 @@ flowchart TD
     report --> comment["Action creates or updates one PR comment"]
     comment --> human["Human reviews the report and the waivers"]
 ```
+
+## Install
+
+Run this at the root of your project (a git repository):
+
+```bash
+curl -fsSL https://github.com/fazedordecodigo/bob/releases/latest/download/install.sh | sh
+```
+
+For messages in Brazilian Portuguese, add `-s -- --lang pt-BR` after `sh`.
+
+The command installs bob in `BOB_HOME` (by default `~/.local/share/bob-quality`), links `bob` in `~/.local/bin`, and adds that folder to the `PATH` in your shell profile. Then it runs `bob setup` in the project, which installs the pinned npm tools, gitleaks `8.30.1`, the skills in `.agents/skills`, `bob.yaml`, and the pre-push hook. It uses no `git clone`, no plugin, and no `sudo`.
+
+Requirements: Python 3.10 or newer, Node `>=22.18.0 <23` with npm, git, curl, and `sha256sum` or `shasum`. Linux and macOS, on x64 and arm64.
+
+### Alternative: ask your AI agent
+
+This path does not use `install.sh`. Paste [the AI agent prompt](docs/install-prompt.en.md) into your agent at the project root; it installs step by step and reaches the same result. If the two paths differ, the one-line install wins.
+
+## Update
+
+```bash
+bob update
+bob --version
+```
+
+`bob update` reads the latest release. When it is newer than your bob, it downloads that release's `install.sh`, checks its sha256, and runs it in the project. When only the project is behind, it runs `bob setup`. `bob --version` shows the bob version and the version of the project skills.
 
 ## Installation (development)
 

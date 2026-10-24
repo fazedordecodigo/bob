@@ -263,3 +263,148 @@ def test_prompt_files_have_the_fixed_frame(
     headings = [line for line in lines if re.fullmatch(r"## \d+\. \S+", line)]
     assert headings == [f"## {n}. {step}" for n, step in enumerate(ids, 1)]
     assert [line for line in lines if line][-1].startswith(_NOTES[lang])
+
+
+_ONE_LINER = (
+    "curl -fsSL https://github.com/fazedordecodigo/bob/releases/latest/download/install.sh"
+    " | sh"
+)
+_I18N = "website/i18n/pt-BR/docusaurus-plugin-content-docs/current"
+_INSTALL_DOCS = {
+    "README.md": "docs/install-prompt.en.md",
+    "README.pt-BR.md": "docs/install-prompt.pt-BR.md",
+    "docs/getting-started/installation.md": "../install-prompt.en.md",
+    f"{_I18N}/getting-started/installation.md": "/install-prompt.pt-BR.md",
+}
+_OTHER_DOCS = (
+    "docs/getting-started/agents.md",
+    f"{_I18N}/getting-started/agents.md",
+    "docs/guides/pre-push.md",
+    f"{_I18N}/guides/pre-push.md",
+)
+_ALL_DOCS = (*_INSTALL_DOCS, *_OTHER_DOCS)
+_FENCE = re.compile(r"^```(\S*)[^\n]*\n(.*?)^```$", re.M | re.S)
+_SHELL = frozenset({"bash", "sh", "shell", "console"})
+_HEADS = {
+    "en": ("### Alternative: ask your AI agent", "## Update"),
+    "pt-BR": ("### Alternativa: pedir ao seu agente de IA", "## Atualizar"),
+}
+_ALT = {
+    "en": (
+        "This path does not use `install.sh`. Paste [the AI agent prompt]({}) "
+        "into your agent at the project root; it installs step by step and "
+        "reaches the same result. If the two paths differ, the one-line "
+        "install wins."
+    ),
+    "pt-BR": (
+        "Este caminho não usa o `install.sh`. Cole "
+        "[o prompt para agente de IA]({}) no seu agente, na raiz do projeto; "
+        "ele instala passo a passo e chega ao mesmo resultado. Se os dois "
+        "caminhos divergirem, vale o comando único."
+    ),
+}
+_PYTHON_FLOOR = {"en": "Python {} or newer", "pt-BR": "Python {} ou mais novo"}
+
+
+def _doc_lang(doc: str) -> str:
+    return "pt-BR" if "pt-BR" in doc else "en"
+
+
+def _doc_text(doc: str) -> str:
+    return (ROOT / doc).read_text(encoding="utf-8")
+
+
+def _one_liner(lang: str) -> str:
+    return _ONE_LINER + (" -s -- --lang pt-BR" if lang == "pt-BR" else "")
+
+
+def _shell_blocks(text: str) -> list[re.Match[str]]:
+    return [found for found in _FENCE.finditer(text) if found.group(1) in _SHELL]
+
+
+def _line_at(text: str, line: str) -> int:
+    return text.index("\n" + line + "\n")
+
+
+def _requires_python() -> str:
+    found = re.search(
+        r'^requires-python = ">=(\d+\.\d+)"$',
+        (ROOT / "pyproject.toml").read_text(encoding="utf-8"),
+        re.M,
+    )
+    assert found is not None
+    return found.group(1)
+
+
+@pytest.mark.parametrize("doc", list(_INSTALL_DOCS), ids=list(_INSTALL_DOCS))
+def test_install_docs_start_with_the_one_liner(doc: str) -> None:
+    text = _doc_text(doc)
+    first = _shell_blocks(text)[0]
+    assert first.group(1) == "bash"
+    assert first.group(2) == _one_liner(_doc_lang(doc)) + "\n"
+
+
+@pytest.mark.parametrize("doc", list(_INSTALL_DOCS), ids=list(_INSTALL_DOCS))
+def test_alternative_comes_after_the_one_liner_once(doc: str) -> None:
+    text = _doc_text(doc)
+    alt_head = _HEADS[_doc_lang(doc)][0]
+    assert text.count("\n" + alt_head + "\n") == 1
+    assert _line_at(text, alt_head) > _shell_blocks(text)[0].start()
+
+
+@pytest.mark.parametrize("doc", list(_INSTALL_DOCS), ids=list(_INSTALL_DOCS))
+def test_alternative_links_the_prompt_in_the_doc_language(doc: str) -> None:
+    text = _doc_text(doc)
+    lang = _doc_lang(doc)
+    link = _INSTALL_DOCS[doc]
+    assert text.count("\n" + _ALT[lang].format(link) + "\n") == 1
+    base = ROOT / "docs" if link.startswith("/") else (ROOT / doc).parent
+    got = (base / link.lstrip("/")).resolve()
+    assert got == PROMPTS[lang].resolve()
+
+
+@pytest.mark.parametrize("doc", list(_INSTALL_DOCS), ids=list(_INSTALL_DOCS))
+def test_update_section_shows_update_and_version(doc: str) -> None:
+    text = _doc_text(doc)
+    alt_head, update_head = _HEADS[_doc_lang(doc)]
+    assert text.count("\n" + update_head + "\n") == 1
+    start = _line_at(text, update_head)
+    assert start > _line_at(text, alt_head)
+    block = _FENCE.search(text, start)
+    assert block is not None
+    assert (block.group(1), block.group(2)) == (
+        "bash",
+        "bob update\nbob --version\n",
+    )
+
+
+@pytest.mark.parametrize("doc", list(_INSTALL_DOCS), ids=list(_INSTALL_DOCS))
+def test_install_docs_cite_the_pinned_requirements(doc: str) -> None:
+    text = _doc_text(doc)
+    lang = _doc_lang(doc)
+    assert f"`{npm_tools.node_range()}`" in text
+    assert _PYTHON_FLOOR[lang].format(_requires_python()) in text
+    assert f"gitleaks `{gitleaks.VERSION}`" in text
+
+
+@pytest.mark.parametrize("doc", list(_ALL_DOCS), ids=list(_ALL_DOCS))
+def test_docs_cite_only_the_pinned_versions(doc: str) -> None:
+    text = _doc_text(doc)
+    for name, version in npm_tools.pinned_npm_versions().items():
+        found = re.findall(
+            r"(?<![\w/-])" + re.escape(name) + r"@(\d+\.\d+\.\d+)",
+            text,
+        )
+        assert set(found) <= {version}
+    node = set(re.findall(r">=\d+\.\d+\.\d+ <\d+", text))
+    assert node <= {str(npm_tools.node_range())}
+    pythons = set(
+        re.findall(
+            r"Python (\d+\.\d+) (?:or newer|or later|ou mais novo"
+            r"|ou superior|ou posterior)",
+            text,
+        )
+    )
+    assert pythons <= {_requires_python()}
+    leaks = re.findall(r"gitleaks`?\s+`?v?(\d+\.\d+\.\d+)", text, re.I)
+    assert set(leaks) <= {gitleaks.VERSION}

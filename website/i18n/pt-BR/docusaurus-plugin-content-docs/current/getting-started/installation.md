@@ -2,7 +2,38 @@
 
 [Índice](../README.md) · [Primeiro check](first-check.md) · [Agentes](agents.md) · [Contribuição](../contributing.md)
 
-Há dois artefatos. O pacote pip `bob-quality` fornece o comando `bob`. O plugin `bob` fornece as skills aos agentes. Nada foi publicado no PyPI nem num marketplace. Os passos abaixo partem de um clone de <https://github.com/fazedordecodigo/bob>.
+O comando único abaixo é o caminho principal e não precisa de clone. O pacote pip `bob-quality` fornece o comando `bob`; as skills vão para a pasta `.agents/skills` do projeto.
+
+## Instalar
+
+Rode na raiz do seu projeto (um repositório git):
+
+```bash
+curl -fsSL https://github.com/fazedordecodigo/bob/releases/latest/download/install.sh | sh -s -- --lang pt-BR
+```
+
+Para mensagens em inglês, rode sem o `-s -- --lang pt-BR`.
+
+O comando instala o bob em `BOB_HOME` (por padrão `~/.local/share/bob-quality`), liga o `bob` em `~/.local/bin` e põe essa pasta no `PATH` do perfil do seu shell. Depois roda o `bob setup` no projeto, que instala as ferramentas npm pinadas, o gitleaks `8.30.1`, as skills em `.agents/skills`, o `bob.yaml` e o hook de pre-push. Não usa `git clone`, plugin nem `sudo`.
+
+Requisitos: Python 3.10 ou mais novo, Node `>=22.18.0 <23` com npm, git, curl e `sha256sum` ou `shasum`. Linux e macOS, em x64 e arm64.
+
+### Alternativa: pedir ao seu agente de IA
+
+Este caminho não usa o `install.sh`. Cole [o prompt para agente de IA](/install-prompt.pt-BR.md) no seu agente, na raiz do projeto; ele instala passo a passo e chega ao mesmo resultado. Se os dois caminhos divergirem, vale o comando único.
+
+## Atualizar
+
+```bash
+bob update
+bob --version
+```
+
+O `bob update` lê a última release. Se ela for mais nova que o seu bob, baixa o `install.sh` dela, confere o sha256 e o roda no projeto. Se só o projeto está atrasado, roda o `bob setup`. O `bob --version` mostra a versão do bob e a das skills do projeto.
+
+## Instalação para desenvolvimento (a partir de um clone)
+
+O resto desta página instala o bob a partir de um clone de <https://github.com/fazedordecodigo/bob>, para trabalhar no próprio bob.
 
 ## Requisitos
 
