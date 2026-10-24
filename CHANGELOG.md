@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+The install docs (README, installation, agents and pre-push hook, in en and pt-BR) start from the
+one-line install, with the AI agent prompt (`docs/install-prompt.en.md`,
+`docs/install-prompt.pt-BR.md`) as the alternative and a section to update; the skills live only in
+`.agents/skills`, and `tests/test_docs_pins.py` checks the docs and the prompt against the pins
+(U8).
+
+Os docs de instalação (README, instalação, agentes e hook de pre-push, em en e pt-BR) partem do
+comando único, com o prompt para agente de IA (`docs/install-prompt.en.md`,
+`docs/install-prompt.pt-BR.md`) como alternativa e uma seção de atualizar; as skills ficam só em
+`.agents/skills`, e o `tests/test_docs_pins.py` confere os docs e o prompt contra os pins (U8).
+
 `scripts/verify-install.sh` gains step 14: it installs with the one-line install (A), then with the
 blocks of `docs/install-prompt.en.md` in a new `HOME` and project (B), and checks that both give the
 same manifest and that a second run of the blocks changes nothing; the variables passed through to
