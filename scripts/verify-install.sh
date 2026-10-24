@@ -493,6 +493,12 @@ build_wheel() {
   fi
   TAG="v$X"
   WHL="bob_quality-$X-py3-none-any.whl"
+  if [ -n "${VERIFY_DIST:-}" ]; then
+    [ -f "$VERIFY_DIST/$WHL" ] || die_preparo "VERIFY_DIST sem $WHL"
+    mkdir -p "$T/dist"
+    cp "$VERIFY_DIST/$WHL" "$T/dist/$WHL" || die_preparo "VERIFY_DIST sem $WHL"
+    return 0
+  fi
   if ! "$PY_DIR/python3" -m venv "$T/build-venv" >>"$T/build.log" 2>&1; then
     die_preparo "build do wheel falhou (veja $T/build.log)"
   fi
