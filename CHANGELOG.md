@@ -2,6 +2,18 @@
 
 ## Unreleased
 
+The `release` workflow (`.github/workflows/release.yml`, run by hand on `main`) builds the three
+release assets (`install.sh`, the wheel and `SHA256SUMS`), runs the verification command on Linux
+x64, Linux arm64, macOS x64 and macOS arm64 with those assets, and publishes them as a pre-release
+or a release; `docs/release-checks/` keeps the record of each release, and ADRs 0008 to 0029 are
+now in `docs/adr/` (U9).
+
+O workflow `release` (`.github/workflows/release.yml`, disparado à mão na `main`) gera os três
+assets da release (`install.sh`, o wheel e `SHA256SUMS`), roda o Comando de Verificação em Linux
+x64, Linux arm64, macOS x64 e macOS arm64 com esses assets e os publica como pré-release ou
+release; o `docs/release-checks/` guarda o registro de cada release, e as ADRs 0008 a 0029 agora
+estão em `docs/adr/` (U9).
+
 The install docs (README, installation, agents and pre-push hook, in en and pt-BR) start from the
 one-line install, with the AI agent prompt (`docs/install-prompt.en.md`,
 `docs/install-prompt.pt-BR.md`) as the alternative and a section to update; the skills live only in
