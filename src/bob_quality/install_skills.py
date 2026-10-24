@@ -272,10 +272,10 @@ def _purge_leftovers(dest: Path) -> None:
 
 
 def _remove_path(path: Path) -> None:
-    try:
-        path.unlink()
-    except IsADirectoryError:
+    if _real_dir(path):
         shutil.rmtree(path)
+        return
+    path.unlink()
 
 
 def _apply_manifest(

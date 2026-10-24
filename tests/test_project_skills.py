@@ -357,3 +357,21 @@ def test_install_project_skills_prints_nothing(
     install_project_skills(project, "1.2.3", source=plugin)
 
     assert capsys.readouterr() == ("", "")
+
+
+def test_remove_path_uses_rmtree_for_real_dir_without_unlink(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    folder = tmp_path / "owned"
+    folder.mkdir()
+    (folder / "SKILL.md").write_bytes(b"# skill\n")
+    real_unlink = Path.unlink
+
+    def _bsd_unlink(self: Path, missing_ok: bool = False) -> None:
+        if self.is_dir() and not self.is_symlink():
+            raise PermissionError(1, "Operation not permitted", str(self))
+        real_unlink(self, missing_ok=missing_ok)
+
+    monkeypatch.setattr(Path, "unlink", _bsd_unlink)
+    install_skills._remove_path(folder)
+    assert not folder.exists()

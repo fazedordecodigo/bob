@@ -161,7 +161,7 @@ def test_prompt_profile_matches_install_sh() -> None:
     assert "'#" + line.split(" #", 1)[1] + "'" in perfil
     assert 'R="already-marked:$F"' in perfil
     assert "R=already-marked\n" not in perfil
-    assert "S=${SHELL:-}\n" in perfil
+    assert 'S=$(awk \'BEGIN { print ENVIRON["SHELL"] }\')\n' in perfil
     assert '"${SHELL##*/}"' not in perfil
 
 

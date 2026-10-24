@@ -199,7 +199,7 @@ def _raw(text: str, code: int) -> str:
         "#!/usr/bin/env python3\n"
         "import os\n"
         "import sys\n"
-        "if os.readlink('/proc/self/fd/0') != '/dev/null':\n"
+        "if not os.path.sameopenfile(0, os.open(os.devnull, os.O_RDONLY)):\n"
         "    sys.exit(9)\n"
         "if '--format' not in sys.argv or 'json' not in sys.argv:\n"
         "    sys.exit(9)\n"

@@ -435,7 +435,7 @@ step_perfil() {
       return 0
       ;;
   esac
-  _sh=${SHELL:-}
+  _sh=$(awk 'BEGIN { print ENVIRON["SHELL"] }')
   case "${_sh##*/}" in
     zsh) _pf=${ZDOTDIR:-$HOME}/.zshrc ;;
     bash) _pf=$HOME/.bashrc ;;
