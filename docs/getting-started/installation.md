@@ -2,7 +2,38 @@
 
 [Index](../README.md) · [First check](first-check.md) · [Agents](agents.md) · [Contributing](../contributing.md)
 
-There are two artifacts. The pip package `bob-quality` provides the `bob` command. The plugin `bob` provides the skills to agents. Nothing has been published to PyPI or to a marketplace. The steps below start from a clone of <https://github.com/fazedordecodigo/bob>.
+The one-line install below is the main path and needs no clone. The pip package `bob-quality` provides the `bob` command; the skills go to the project's `.agents/skills`.
+
+## Install
+
+Run this at the root of your project (a git repository):
+
+```bash
+curl -fsSL https://github.com/fazedordecodigo/bob/releases/latest/download/install.sh | sh
+```
+
+For messages in Brazilian Portuguese, add `-s -- --lang pt-BR` after `sh`.
+
+The command installs bob in `BOB_HOME` (by default `~/.local/share/bob-quality`), links `bob` in `~/.local/bin`, and adds that folder to the `PATH` in your shell profile. Then it runs `bob setup` in the project, which installs the pinned npm tools, gitleaks `8.30.1`, the skills in `.agents/skills`, `bob.yaml`, and the pre-push hook. It uses no `git clone`, no plugin, and no `sudo`.
+
+Requirements: Python 3.10 or newer, Node `>=22.18.0 <23` with npm, git, curl, and `sha256sum` or `shasum`. Linux and macOS, on x64 and arm64.
+
+### Alternative: ask your AI agent
+
+This path does not use `install.sh`. Paste [the AI agent prompt](../install-prompt.en.md) into your agent at the project root; it installs step by step and reaches the same result. If the two paths differ, the one-line install wins.
+
+## Update
+
+```bash
+bob update
+bob --version
+```
+
+`bob update` reads the latest release. When it is newer than your bob, it downloads that release's `install.sh`, checks its sha256, and runs it in the project. When only the project is behind, it runs `bob setup`. `bob --version` shows the bob version and the version of the project skills.
+
+## Development install (from a clone)
+
+The rest of this page installs bob from a clone of <https://github.com/fazedordecodigo/bob>, to work on bob itself.
 
 ## Requirements
 
