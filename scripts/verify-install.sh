@@ -1,7 +1,7 @@
 #!/bin/sh
-# Harness do comando de verificação (CT15): passos 1, 2, 3, 4, 5, 6, 7, 8, 9a, 9b, 12 e 13.
+# Harness do comando de verificação (CT15): passos 1, 2, 3, 4, 5, 6, 7, 8, 9a, 9b, 10, 11, 12 e 13.
 set -u
-STEP_IDS='1 2 3 4 5 6 7 8 9a 9b 12 13'
+STEP_IDS='1 2 3 4 5 6 7 8 9a 9b 10 11 12 13'
 GITLEAKS_VERSION='8.30.1'
 GITLEAKS_SHA_LINUX_X64='551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb'
 GITLEAKS_SHA_LINUX_ARM64='e4a487ee7ccd7d3a7f7ec08657610aa3606637dab924210b3aee62570fb4b080'
@@ -11,6 +11,8 @@ GITLEAKS_SHA_DARWIN_ARM64='b40ab0ae55c505963e365f271a8d3846efbc170aa17f2607f13df
 T=
 SERVER_PID=
 STEP2_DONE=0
+STEP8_DONE=0
+STEP10_DONE=0
 remote=0
 BASE=
 X=
@@ -23,6 +25,9 @@ S2_PROJ=
 selected=
 GL_ASSET=
 GL_URL=
+NEW_X=
+NEW_TAG=
+NEW_WHL=
 
 die_usage() {
   printf 'verify-install: uso: %s\n' "$1" >&2
@@ -760,6 +765,9 @@ GET /gitleaks/$GL_ASSET 200"
     fi
   fi
   check_gitleaks_install 2 "$S2_HOME"
+  if [ "$remote" -eq 0 ]; then
+    check_version 2 "$S2_HOME" "$S2_PROJ" "$T/s2/tmp" "$X"
+  fi
   printf 'verify-install: passo 2: tempo %s s\n' "$_secs"
   ok 2
 }
@@ -785,6 +793,20 @@ ensure_2() {
   if [ "$STEP2_DONE" -eq 0 ]; then
     step_2
     STEP2_DONE=1
+  fi
+}
+
+ensure_8() {
+  if [ "$STEP8_DONE" -eq 0 ]; then
+    step_8
+    STEP8_DONE=1
+  fi
+}
+
+ensure_10() {
+  if [ "$STEP10_DONE" -eq 0 ]; then
+    step_10
+    STEP10_DONE=1
   fi
 }
 
@@ -1287,6 +1309,379 @@ step_9b() {
   ok 9b
 }
 
+next_patch() {
+  printf '%s\n' "$1" | awk -F. '{ printf "%s.%s.%d\n", $1, $2, $3 + 1 }'
+}
+
+rebrand_wheel() {
+  "$PY_DIR/python3" -c '
+import base64
+import hashlib
+import sys
+import zipfile
+
+src = sys.argv[1]
+dst = sys.argv[2]
+old = sys.argv[3]
+new = sys.argv[4]
+old_info = "bob_quality-" + old + ".dist-info/"
+new_info = "bob_quality-" + new + ".dist-info/"
+old_record = old_info + "RECORD"
+needle = b"\nVersion: " + old.encode() + b"\n"
+repl = b"\nVersion: " + new.encode() + b"\n"
+rows = []
+replaced = 0
+source = zipfile.ZipFile(src)
+output = zipfile.ZipFile(dst, "w")
+try:
+    for info in source.infolist():
+        name = info.filename
+        if name == old_record:
+            continue
+        data = source.read(name)
+        if name.startswith(old_info):
+            name = new_info + name[len(old_info):]
+        if name == new_info + "METADATA":
+            if needle not in data:
+                sys.exit(1)
+            data = data.replace(needle, repl, 1)
+            replaced = 1
+        item = zipfile.ZipInfo(filename=name, date_time=info.date_time)
+        item.external_attr = info.external_attr
+        item.compress_type = zipfile.ZIP_DEFLATED
+        output.writestr(item, data)
+        digest = hashlib.sha256(data).digest()
+        token = base64.urlsafe_b64encode(digest).rstrip(b"=").decode()
+        line = name + ",sha256=" + token + "," + str(len(data)) + "\n"
+        rows.append(line)
+    if replaced != 1:
+        sys.exit(1)
+    record_name = new_info + "RECORD"
+    body = "".join(rows) + record_name + ",,\n"
+    record = zipfile.ZipInfo(filename=record_name)
+    record.compress_type = zipfile.ZIP_DEFLATED
+    output.writestr(record, body.encode())
+finally:
+    source.close()
+    output.close()
+' "$1" "$2" "$3" "$4"
+}
+
+sums_two() {
+  if [ ! -f "$1/$2" ] || [ ! -f "$1/install.sh" ]; then
+    return 1
+  fi
+  _hw=$(file_sha "$1/$2") || return 1
+  _hi=$(file_sha "$1/install.sh") || return 1
+  if [ -z "$_hw" ] || [ -z "$_hi" ]; then
+    return 1
+  fi
+  printf '%s  %s\n' "$_hw" "$2" > "$1/SHA256SUMS" || return 1
+  printf '%s  %s\n' "$_hi" install.sh >> "$1/SHA256SUMS" || return 1
+}
+
+build_update_mirror() {
+  NEW_X=$(next_patch "$X") || die_passo 10 "não consegui montar o espelho do update"
+  NEW_TAG=v$NEW_X
+  NEW_WHL=bob_quality-$NEW_X-py3-none-any.whl
+  _u=$T/mirror/upd
+  mkdir -p "$T/stage-new" || die_passo 10 "não consegui montar o espelho do update"
+  rebrand_wheel "$T/stage/$WHL" "$T/stage-new/$NEW_WHL" "$X" "$NEW_X" \
+    || die_passo 10 "não consegui montar o espelho do update"
+  cp scripts/install.sh "$T/stage-new/install.sh" \
+    || die_passo 10 "não consegui montar o espelho do update"
+  sums_two "$T/stage-new" "$NEW_WHL" \
+    || die_passo 10 "não consegui montar o espelho do update"
+  mkdir -p "$_u/api/releases" "$_u/download/$NEW_TAG" "$_u/latest/download" \
+    || die_passo 10 "não consegui montar o espelho do update"
+  for _name in install.sh "$NEW_WHL" SHA256SUMS; do
+    cp "$T/stage-new/$_name" "$_u/download/$NEW_TAG/$_name" \
+      || die_passo 10 "não consegui montar o espelho do update"
+    cp "$T/stage-new/$_name" "$_u/latest/download/$_name" \
+      || die_passo 10 "não consegui montar o espelho do update"
+  done
+  copy_three "$_u/download/$TAG" \
+    || die_passo 10 "não consegui montar o espelho do update"
+  copy_three "$_u/download/v99.1.0" \
+    || die_passo 10 "não consegui montar o espelho do update"
+  printf '%s\n' \
+    '{"tag_name": "v99.1.0", "name": "v99.1.0", "draft": false, "prerelease": true}' \
+    > "$_u/prerelease.json" \
+    || die_passo 10 "não consegui montar o espelho do update"
+  copy_three "$_u/drafts/v99.1.1" \
+    || die_passo 10 "não consegui montar o espelho do update"
+  _json="{\"tag_name\": \"$NEW_TAG\", \"name\": \"$NEW_TAG\", "
+  _json="${_json}\"draft\": false, \"prerelease\": false}"
+  printf '%s\n' "$_json" > "$_u/api/releases/latest" \
+    || die_passo 10 "não consegui montar o espelho do update"
+}
+
+run_bob() {
+  _step=$1
+  _home=$2
+  _proj=$3
+  _tmp=$4
+  _releases=$5
+  _out=$6
+  _err=$7
+  _arg=$8
+  if [ ! -x "$_home/.local/bin/bob" ]; then
+    die_passo "$_step" "falta $_home/.local/bin/bob"
+  fi
+  set -- env -i "HOME=$_home" "TMPDIR=$_tmp" LANG=C.UTF-8 "PATH=$(tool_path)"
+  if [ -n "$_releases" ]; then
+    set -- "$@" "BOB_RELEASES_URL=$_releases"
+  fi
+  if [ -n "$GL_URL" ]; then
+    set -- "$@" "BOB_GITLEAKS_BASE_URL=$GL_URL"
+  fi
+  for _name in PIP_INDEX_URL PIP_EXTRA_INDEX_URL PIP_TRUSTED_HOST PIP_CERT \
+    npm_config_registry npm_config_cache \
+    http_proxy https_proxy HTTP_PROXY HTTPS_PROXY \
+    no_proxy NO_PROXY SSL_CERT_FILE SSL_CERT_DIR
+  do
+    eval "_isset=\${$_name+x}"
+    if [ "$_isset" = x ]; then
+      eval "_value=\${$_name}"
+      set -- "$@" "$_name=$_value"
+    fi
+  done
+  set -- "$@" "$_home/.local/bin/bob" "$_arg"
+  (
+    cd "$_proj" || exit 99
+    "$@"
+  ) >"$_out" 2>"$_err"
+  return $?
+}
+
+check_version() {
+  run_bob "$1" "$2" "$3" "$4" "" "$4/version.out" "$4/version.err" --version
+  _rc=$?
+  _v1="bob $5"
+  _v2="project skills: $5 (.agents/skills)"
+  _got=$(cat "$4/version.out")
+  _want=$(printf '%s\n%s' "$_v1" "$_v2")
+  if [ "$_rc" -ne 0 ] || [ "$_got" != "$_want" ]; then
+    die_passo "$1" "bob --version: $(show_file "$4/version.out")"
+  fi
+}
+
+step_10() {
+  if [ "$remote" -eq 1 ]; then
+    printf '%s\n' 'verify-install: passo 10: não se aplica (VERIFY_REMOTE=1)'
+    return 0
+  fi
+  ensure_8
+  build_update_mirror
+  release_pair
+  mkdir -p "$T/s10/tmp" "$T/s10/proj-tmp" \
+    || die_passo 10 "não consegui criar o projeto"
+  new_project "$T/s10/proj" || die_passo 10 "não consegui criar o projeto"
+  _h=$T/s8/home
+  _p=$T/s8/proj
+  _n0=0
+  for _f in "$_p"/.agents/skills/*/.bob-version; do
+    if [ ! -f "$_f" ]; then
+      continue
+    fi
+    _v=
+    IFS= read -r _v < "$_f" || _v=
+    if [ "$_v" != "$X" ]; then
+      die_passo 10 "$_f = $_v (esperado $X)"
+    fi
+    _n0=$((_n0 + 1))
+  done
+  if [ "$_n0" -eq 0 ]; then
+    die_passo 10 "nenhuma skill com .bob-version"
+  fi
+  _mark=$(line_count "$T/mirror.log")
+  _t0=$(date +%s)
+  run_bob 10 "$_h" "$_p" "$T/s10/tmp" "$BASE/upd" \
+    "$T/s10/out.log" "$T/s10/err.log" update
+  _rc=$?
+  _t1=$(date +%s)
+  _secs=$((_t1 - _t0))
+  if [ "$_rc" -ne 0 ]; then
+    die_passo 10 "bob update saiu $_rc; veja $T/s10/out.log"
+  fi
+  if [ "$_secs" -gt 300 ]; then
+    die_passo 10 "levou $_secs s (máx. 300)"
+  fi
+  _upg="bob update: updating from v$X to $NEW_TAG."
+  if [ "$(grep -cxF "$_upg" "$T/s10/out.log")" -ne 1 ]; then
+    die_passo 10 "falta a linha \"$_upg\""
+  fi
+  _last=$(last_nonempty "$T/s10/out.log")
+  if [ "$_last" != "  bob doctor: 0" ]; then
+    die_passo 10 "a última linha não é \"  bob doctor: 0\""
+  fi
+  mirror_new "$_mark" "$T/mirror.log" > "$T/s10/mirror-new.txt"
+  _got=
+  while IFS= read -r _line || [ -n "$_line" ]; do
+    case "$_line" in
+      *" /upd/"*)
+        if [ -n "$_got" ]; then
+          _got="$_got
+$_line"
+        else
+          _got=$_line
+        fi
+        ;;
+    esac
+  done < "$T/s10/mirror-new.txt"
+  _want="GET /upd/api/releases/latest 200
+GET /upd/download/$NEW_TAG/install.sh 200
+GET /upd/download/$NEW_TAG/SHA256SUMS 200
+GET /upd/download/$NEW_TAG/$NEW_WHL 200
+GET /upd/download/$NEW_TAG/SHA256SUMS 200"
+  if [ "$_got" != "$_want" ]; then
+    _flat=$(printf '%s' "$_got" | tr '\n' ',' | sed 's/,$//')
+    die_passo 10 "pedidos ao espelho: $_flat"
+  fi
+  check_version 10 "$_h" "$_p" "$T/s10/tmp" "$NEW_X"
+  _n1=0
+  for _f in "$_p"/.agents/skills/*/.bob-version; do
+    if [ ! -f "$_f" ]; then
+      continue
+    fi
+    _v=
+    IFS= read -r _v < "$_f" || _v=
+    if [ "$_v" != "$NEW_X" ]; then
+      die_passo 10 "$_f = $_v (esperado $NEW_X)"
+    fi
+    _n1=$((_n1 + 1))
+  done
+  if [ "$_n1" -ne "$_n0" ]; then
+    die_passo 10 "skills com .bob-version: $_n1 (antes $_n0)"
+  fi
+  _link=$(readlink "$_h/.local/share/bob-quality/current") || _link=
+  if [ "$_link" != "versions/$NEW_X" ]; then
+    die_passo 10 "current aponta para $_link"
+  fi
+  _files='.agents/skills/outra/SKILL.md package.json node_modules/vitest/package.json'
+  _files="$_files bob.yaml .bob/waivers.yaml"
+  _files="$_files .git/hooks/pre-push"
+  for _rel in $_files; do
+    _key=$(printf '%s' "$_rel" | tr '/' '_')
+    _before=$(cat "$T/s8/sha-$_key")
+    _after=$(file_sha "$_p/$_rel")
+    if [ "$_before" != "$_after" ]; then
+      die_passo 10 "$_rel mudou"
+    fi
+  done
+  _kept="  preserved:"
+  if ! grep -Fx "$_kept .agents/skills/outra (not from bob)" \
+    "$T/s10/out.log" >/dev/null 2>&1; then
+    die_passo 10 "o resumo não lista .agents/skills/outra"
+  fi
+  if ! grep -Fx "$_kept bob.yaml (already exists; not changed)" \
+    "$T/s10/out.log" >/dev/null 2>&1; then
+    die_passo 10 "o resumo não lista bob.yaml"
+  fi
+  if ! grep -Fx "$_kept .bob/waivers.yaml (bob does not change it)" \
+    "$T/s10/out.log" >/dev/null 2>&1; then
+    die_passo 10 "o resumo não lista .bob/waivers.yaml"
+  fi
+  if ! grep -Fx \
+    "$_kept .git/hooks/pre-push (pre-push hook without the bob marker)" \
+    "$T/s10/out.log" >/dev/null 2>&1; then
+    die_passo 10 "o resumo não lista o hook pre-push"
+  fi
+  _mark=$(line_count "$T/mirror.log")
+  run_oneliner 10 "$_h" "$T/s10/proj-tmp" "$T/s10/proj" \
+    "$BASE/upd" "$BASE/upd" "$(tool_path)" \
+    "$T/s10/new-out.log" "$T/s10/new-err.log"
+  _rc=$?
+  if [ "$_rc" -ne 0 ]; then
+    die_passo 10 "o comando único saiu $_rc; veja $T/s10/new-out.log"
+  fi
+  _last=$(last_nonempty "$T/s10/new-out.log")
+  if [ "$_last" != "  bob doctor: 0" ]; then
+    die_passo 10 "a última linha não é \"  bob doctor: 0\""
+  fi
+  if [ "$(grep -cxF "install: versão: $NEW_TAG" "$T/s10/new-out.log")" -ne 1 ]; then
+    die_passo 10 "o comando único não instalou $NEW_TAG"
+  fi
+  mirror_new "$_mark" "$T/mirror.log" > "$T/s10/new-mirror.txt"
+  _got=
+  while IFS= read -r _line || [ -n "$_line" ]; do
+    case "$_line" in
+      *" /upd/"*)
+        if [ -n "$_got" ]; then
+          _got="$_got
+$_line"
+        else
+          _got=$_line
+        fi
+        ;;
+    esac
+  done < "$T/s10/new-mirror.txt"
+  _want="GET /upd/latest/download/install.sh 200
+GET /upd/api/releases/latest 200
+GET /upd/download/$NEW_TAG/$NEW_WHL 200
+GET /upd/download/$NEW_TAG/SHA256SUMS 200"
+  if [ "$_got" != "$_want" ]; then
+    _flat=$(printf '%s' "$_got" | tr '\n' ',' | sed 's/,$//')
+    die_passo 10 "pedidos ao espelho: $_flat"
+  fi
+  printf 'verify-install: passo 10: tempo %s s\n' "$_secs"
+  ok 10
+}
+
+step_11() {
+  if [ "$remote" -eq 1 ]; then
+    printf '%s\n' 'verify-install: passo 11: não se aplica (VERIFY_REMOTE=1)'
+    return 0
+  fi
+  ensure_10
+  release_pair
+  mkdir -p "$T/s11/tmp"
+  digest "$T/s8/proj" > "$T/s11/before.txt" || die_passo 11 "o projeto mudou:"
+  _mark=$(line_count "$T/mirror.log")
+  _t0=$(date +%s)
+  run_bob 11 "$T/s8/home" "$T/s8/proj" "$T/s11/tmp" "$BASE/upd" \
+    "$T/s11/out.log" "$T/s11/err.log" update
+  _rc=$?
+  _t1=$(date +%s)
+  _secs=$((_t1 - _t0))
+  if [ "$_rc" -ne 0 ]; then
+    die_passo 11 "bob update saiu $_rc; veja $T/s11/out.log"
+  fi
+  if [ "$_secs" -gt 30 ]; then
+    die_passo 11 "levou $_secs s (máx. 30)"
+  fi
+  _same="bob update: already on the newest release ($NEW_TAG)."
+  if [ "$(cat "$T/s11/out.log")" != "$_same" ]; then
+    die_passo 11 "saída: $(show_file "$T/s11/out.log")"
+  fi
+  mirror_new "$_mark" "$T/mirror.log" > "$T/s11/mirror-new.txt"
+  _got=
+  while IFS= read -r _line || [ -n "$_line" ]; do
+    case "$_line" in
+      *" /upd/"*)
+        if [ -n "$_got" ]; then
+          _got="$_got
+$_line"
+        else
+          _got=$_line
+        fi
+        ;;
+    esac
+  done < "$T/s11/mirror-new.txt"
+  _want="GET /upd/api/releases/latest 200"
+  if [ "$_got" != "$_want" ]; then
+    _flat=$(printf '%s' "$_got" | tr '\n' ',' | sed 's/,$//')
+    die_passo 11 "pedidos ao espelho: $_flat"
+  fi
+  digest "$T/s8/proj" > "$T/s11/after.txt" || die_passo 11 "o projeto mudou:"
+  if ! cmp -s "$T/s11/before.txt" "$T/s11/after.txt"; then
+    _diff=$(first_diff "$T/s11/before.txt" "$T/s11/after.txt")
+    die_passo 11 "o projeto mudou: $_diff"
+  fi
+  printf 'verify-install: passo 11: tempo %s s\n' "$_secs"
+  ok 11
+}
+
 pytest_pin() {
   sed -n 's/^    "\(pytest==[^"]*\)",$/\1/p' pyproject.toml
 }
@@ -1486,9 +1881,11 @@ run_selected() {
       5) step_5 ;;
       6) step_6 ;;
       7) step_7 ;;
-      8) step_8 ;;
+      8) ensure_8 ;;
       9a) step_9a ;;
       9b) step_9b ;;
+      10) ensure_10 ;;
+      11) step_11 ;;
       12) step_12 ;;
       13) step_13 ;;
     esac
