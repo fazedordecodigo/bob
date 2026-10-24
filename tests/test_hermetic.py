@@ -12,6 +12,7 @@ _GUARD = _ROOT / "tests" / "net_guard"
 _UNIT_ARGS: tuple[tuple[str, ...], ...] = (
     ("tests/test_project_version.py",),
     ("tests/test_update.py",),
+    ("tests/test_docs_pins.py",),
     ("tests/test_hook_install.py",),
     ("tests/test_setup_cmd.py", "-k", "hook or profile"),
 )
