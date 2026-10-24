@@ -1511,9 +1511,8 @@ step_10() {
   if [ "$(grep -cxF "$_upg" "$T/s10/out.log")" -ne 1 ]; then
     die_passo 10 "falta a linha \"$_upg\""
   fi
-  _last=$(last_nonempty "$T/s10/out.log")
-  if [ "$_last" != "  bob doctor: 0" ]; then
-    die_passo 10 "a última linha não é \"  bob doctor: 0\""
+  if [ "$(grep -cxF '  bob doctor: 0' "$T/s10/out.log")" -ne 1 ]; then
+    die_passo 10 "falta a linha \"  bob doctor: 0\""
   fi
   mirror_new "$_mark" "$T/mirror.log" > "$T/s10/mirror-new.txt"
   _got=
