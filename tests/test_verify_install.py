@@ -2,10 +2,14 @@
 
 from __future__ import annotations
 
+import base64
+import hashlib
 import os
 import re
 import shutil
 import subprocess
+import sys
+import zipfile
 from pathlib import Path
 
 import pytest
@@ -24,7 +28,7 @@ ROOT = Path(__file__).resolve().parents[1]
 SCRIPT = ROOT / "scripts" / "verify-install.sh"
 _HELP = (
     "uso: sh scripts/verify-install.sh [--only <id>[,<id>...]]\n"
-    "passos: 1 2 3 4 5 6 7 8 9a 9b 12 13\n"
+    "passos: 1 2 3 4 5 6 7 8 9a 9b 10 11 12 13\n"
     "VERIFY_REMOTE=1 usa o GitHub em vez do espelho local.\n"
 )
 _OUTSIDE = (
@@ -92,7 +96,7 @@ def test_verify_install_shape() -> None:
 
 
 def test_step_ids_are_the_known_steps() -> None:
-    assert _assign("STEP_IDS") == "1 2 3 4 5 6 7 8 9a 9b 12 13"
+    assert _assign("STEP_IDS") == "1 2 3 4 5 6 7 8 9a 9b 10 11 12 13"
 
 
 def test_gitleaks_constants_match_the_gitleaks_table() -> None:
@@ -308,6 +312,256 @@ def test_step_8_checks_the_foreign_hook() -> None:
             bob="/t/s8/home/.local/share/bob-quality/bin/bob",
         ),
     )
+
+
+def _body(name: str) -> str:
+    match = re.search(rf"^{name}\(\) \{{\n.*?^\}}$", _text(), re.M | re.S)
+    assert match is not None, name
+    return match.group(0)
+
+
+def _sh(
+    script: str,
+    *args: str,
+    env: dict[str, str] | None = None,
+) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(
+        ["sh", "-c", script, "sh", *args],
+        capture_output=True,
+        text=True,
+        check=False,
+        env=env if env is not None else {"PATH": "/usr/bin:/bin"},
+    )
+
+
+def test_steps_10_and_11_are_wired() -> None:
+    lines = _text().splitlines()
+    names = (
+        "ensure_8",
+        "ensure_10",
+        "next_patch",
+        "rebrand_wheel",
+        "sums_two",
+        "build_update_mirror",
+        "run_bob",
+        "check_version",
+        "step_10",
+        "step_11",
+    )
+    for line in (
+        "STEP8_DONE=0",
+        "STEP10_DONE=0",
+        "NEW_X=",
+        "NEW_TAG=",
+        "NEW_WHL=",
+        *(f"{name}() {{" for name in names),
+        "      8) ensure_8 ;;",
+        "      10) ensure_10 ;;",
+        "      11) step_11 ;;",
+        '    check_version 2 "$S2_HOME" "$S2_PROJ" "$T/s2/tmp" "$X"',
+    ):
+        assert line in lines
+    assert "      8) step_8 ;;" not in lines
+    assert lines.index("      10) ensure_10 ;;") == (
+        lines.index("      9b) step_9b ;;") + 1
+    )
+    assert lines.index("      11) step_11 ;;") == (
+        lines.index("      10) ensure_10 ;;") + 1
+    )
+    remote = '  if [ "$remote" -eq 1 ]; then'
+    skip = "    return 0"
+    close = "  fi"
+    step_10_head = [
+        remote,
+        "    printf '%s\\n' 'verify-install: passo 10: não se aplica "
+        "(VERIFY_REMOTE=1)'",
+        skip,
+        close,
+        "  ensure_8",
+    ]
+    step_11_head = [
+        remote,
+        "    printf '%s\\n' 'verify-install: passo 11: não se aplica "
+        "(VERIFY_REMOTE=1)'",
+        skip,
+        close,
+        "  ensure_10",
+    ]
+    assert _body("step_10").splitlines()[1:6] == step_10_head
+    assert _body("step_11").splitlines()[1:6] == step_11_head
+    assert lines.index("pytest_pin() {") > lines.index("step_11() {")
+    assert lines.index("step_11() {") > lines.index("step_9b() {")
+
+
+@pytest.mark.parametrize("n", ["8", "10"])
+def test_ensure_runs_the_step_once(n: str) -> None:
+    script = (
+        f"STEP{n}_DONE=0\nstep_{n}() {{ echo ran; }}\n"
+        + _body(f"ensure_{n}")
+        + f"\nensure_{n}\nensure_{n}\n"
+    )
+    checked = _sh(script)
+    assert checked.returncode == 0
+    assert checked.stdout == "ran\n"
+
+
+def test_next_patch() -> None:
+    checked = _sh(_body("next_patch") + "\nnext_patch 1.2.3\nnext_patch 0.9.19\n")
+    assert checked.returncode == 0
+    assert checked.stdout == "1.2.4\n0.9.20\n"
+
+
+@pytest.mark.parametrize("case", ["ok", "no_version"])
+def test_rebrand_wheel_changes_only_the_version(
+    tmp_path: Path, case: str
+) -> None:
+    meta = (
+        b"Metadata-Version: 2.1\nName: bob-quality\n"
+        b"Version: 1.2.3\n\nVersion: 1.2.3\n"
+    )
+    if case == "no_version":
+        meta = b"Metadata-Version: 2.1\nName: bob-quality\n"
+    wheel = tmp_path / "a.whl"
+    with zipfile.ZipFile(wheel, "w") as archive:
+        archive.writestr("bob_quality/__init__.py", b"x = 1\n")
+        archive.writestr("bob_quality-1.2.3.dist-info/METADATA", meta)
+        archive.writestr("bob_quality-1.2.3.dist-info/RECORD", b"velho\n")
+    dest = tmp_path / "b.whl"
+    env = {
+        "PATH": "/usr/bin:/bin",
+        "PY_DIR": str(Path(sys.executable).parent),
+    }
+    checked = _sh(
+        _body("rebrand_wheel") + '\nrebrand_wheel "$1" "$2" 1.2.3 1.2.4\n',
+        str(wheel),
+        str(dest),
+        env=env,
+    )
+    if case == "no_version":
+        assert checked.returncode == 1
+        return
+    assert checked.returncode == 0
+    with zipfile.ZipFile(dest) as archive:
+        assert archive.namelist() == [
+            "bob_quality/__init__.py",
+            "bob_quality-1.2.4.dist-info/METADATA",
+            "bob_quality-1.2.4.dist-info/RECORD",
+        ]
+        init = archive.read("bob_quality/__init__.py")
+        metadata = archive.read("bob_quality-1.2.4.dist-info/METADATA")
+        record = archive.read("bob_quality-1.2.4.dist-info/RECORD")
+    assert init == b"x = 1\n"
+    assert metadata == (
+        b"Metadata-Version: 2.1\nName: bob-quality\n"
+        b"Version: 1.2.4\n\nVersion: 1.2.3\n"
+    )
+    blobs = (
+        ("bob_quality/__init__.py", init),
+        ("bob_quality-1.2.4.dist-info/METADATA", metadata),
+    )
+    expected = "".join(
+        f"{name},sha256="
+        f"{base64.urlsafe_b64encode(hashlib.sha256(data).digest()).rstrip(b'=').decode()},"
+        f"{len(data)}\n"
+        for name, data in blobs
+    )
+    expected += "bob_quality-1.2.4.dist-info/RECORD,,\n"
+    assert record.decode() == expected
+
+
+def test_sums_two_lists_the_wheel_then_install_sh(tmp_path: Path) -> None:
+    folder = tmp_path / "d"
+    folder.mkdir()
+    (folder / "install.sh").write_bytes(b"a\n")
+    (folder / "w.whl").write_bytes(b"b\n")
+    checked = _sh(
+        _body("file_sha") + "\n" + _body("sums_two") + '\nsums_two "$1" w.whl\n',
+        str(folder),
+    )
+    assert checked.returncode == 0
+    ha = hashlib.sha256(b"a\n").hexdigest()
+    hb = hashlib.sha256(b"b\n").hexdigest()
+    assert (folder / "SHA256SUMS").read_text() == (
+        hb + "  w.whl\n" + ha + "  install.sh\n"
+    )
+
+
+def test_run_bob_builds_the_environment(tmp_path: Path) -> None:
+    home = tmp_path / "h"
+    bob = home / ".local" / "bin" / "bob"
+    bob.parent.mkdir(parents=True)
+    bob.write_text("#!/bin/sh\n")
+    bob.chmod(0o755)
+    stub = tmp_path / "stub"
+    stub.mkdir()
+    env_bin = stub / "env"
+    env_bin.write_text(
+        "#!/bin/sh\nfor a in \"$@\"; do printf '%s\\n' \"$a\"; done\n"
+    )
+    env_bin.chmod(0o755)
+    out = tmp_path / "out"
+    err = tmp_path / "err"
+    script = (
+        "T=/t\nNODE_DIR=/n\nPY_DIR=/p\nGL_URL=http://g\n"
+        + _body("die_passo")
+        + "\n"
+        + _body("tool_path")
+        + "\n"
+        + _body("run_bob")
+        + '\nrun_bob 10 "$@"\necho "RC:$?"\n'
+    )
+    checked = _sh(
+        script,
+        str(home),
+        str(tmp_path),
+        "/tt",
+        "http://r",
+        str(out),
+        str(err),
+        "update",
+        env={"PATH": f"{stub}:/usr/bin:/bin", "PIP_INDEX_URL": "http://pip"},
+    )
+    assert checked.stdout == "RC:0\n"
+    assert out.read_text().splitlines() == [
+        "-i",
+        f"HOME={home}",
+        "TMPDIR=/tt",
+        "LANG=C.UTF-8",
+        "PATH=/t/fake-sudo:/n:/p:/usr/bin:/bin",
+        "BOB_RELEASES_URL=http://r",
+        "BOB_GITLEAKS_BASE_URL=http://g",
+        "PIP_INDEX_URL=http://pip",
+        f"{home}/.local/bin/bob",
+        "update",
+    ]
+
+
+def test_update_texts_are_the_catalog_texts() -> None:
+    lines = _text().splitlines()
+    wanted = (
+        '  _v1="bob $5"',
+        '  _v2="project skills: $5 (.agents/skills)"',
+        '  _upg="bob update: updating from v$X to $NEW_TAG."',
+        '  _same="bob update: already on the newest release ($NEW_TAG)."',
+    )
+    for line in wanted:
+        assert line in lines
+    checked = _sh(
+        "set -- a b c d 1.2.3\nX=1.2.3\nNEW_TAG=v1.2.4\n"
+        + "\n".join(wanted)
+        + '\nprintf "%s\\n" "$_v1" "$_v2" "$_upg" "$_same"\n'
+    )
+    assert checked.returncode == 0
+    assert checked.stdout.splitlines() == [
+        t("en", "version.bob", version="1.2.3"),
+        t(
+            "en",
+            "version.skills",
+            state=t("en", "version.at", version="1.2.3"),
+        ),
+        t("en", "update.upgrading", old="1.2.3", tag="v1.2.4"),
+        t("en", "update.up_to_date", tag="v1.2.4"),
+    ]
 
 
 def test_step_12_runs_the_hook_tests() -> None:
@@ -644,14 +898,14 @@ def test_help_exits_0() -> None:
             ("--only", "15"),
             (
                 "verify-install: uso: passo desconhecido 15. "
-                "Passos: 1 2 3 4 5 6 7 8 9a 9b 12 13."
+                "Passos: 1 2 3 4 5 6 7 8 9a 9b 10 11 12 13."
             ),
         ),
         (
             ("--only", "9c"),
             (
                 "verify-install: uso: passo desconhecido 9c. "
-                "Passos: 1 2 3 4 5 6 7 8 9a 9b 12 13."
+                "Passos: 1 2 3 4 5 6 7 8 9a 9b 10 11 12 13."
             ),
         ),
         (

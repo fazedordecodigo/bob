@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+`bob update` updates bob and the project to the latest published release (it checks the sha256 of
+`install.sh` against `SHA256SUMS` before running it, and only runs `bob setup` when just the project
+is behind), and `bob --version` shows the bob version and the project skills version; `bob doctor`
+gains a `project skills:` line and `scripts/verify-install.sh` gains steps 10 and 11 (U7).
+
+O `bob update` atualiza o bob e o projeto para a última release publicada (confere o sha256 do
+`install.sh` contra o `SHA256SUMS` antes de rodá-lo, e só roda o `bob setup` quando só o projeto
+está atrasado), e o `bob --version` mostra a versão do bob e a das skills do projeto; o `bob
+doctor` ganha a linha `skills do projeto:` e o `scripts/verify-install.sh` ganha os passos 10 e 11
+(U7).
+
 The one-line install now adds `~/.local/bin` to `PATH` in the shell profile (`.zshrc`, `.bashrc` or
 `.profile`, by `$SHELL`) with one marked line, never twice, and warns with the line to paste when it
 cannot write; `bob setup` shows a `shell profile:` line in the summary and
