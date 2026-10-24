@@ -620,7 +620,7 @@ def test_profile_line_comes_from_install_sh() -> None:
     )
     assert found is not None
     assert checked.stdout == found.group(1) + "\n"
-    assert "managed-by" not in _text()
+    assert found.group(1) not in _text()
 
 
 def test_help_exits_0() -> None:
