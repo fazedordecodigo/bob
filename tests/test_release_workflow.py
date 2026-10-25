@@ -188,6 +188,7 @@ def test_release_verify_runs_the_verification_command() -> None:
     assert isinstance(env, dict)
     assert "VERIFY_DIST" in env
     assert "TMPDIR" in env
+    assert "PIP_CACHE_DIR" in env
     runs = "\n".join(
         run for step in steps if isinstance(run := step.get("run"), str)
     )

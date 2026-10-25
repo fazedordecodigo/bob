@@ -151,6 +151,8 @@ jobs:
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
       - run: npm ci
       - name: Ambiente de desenvolvimento
+        env:
+          PIP_CACHE_DIR: ${{ runner.temp }}/pip-cache
         run: |
           python3 -m venv /tmp/dev
           /tmp/dev/bin/pip install -e '.[dev]' 'uv==0.13.0'
@@ -161,6 +163,7 @@ jobs:
         env:
           TMPDIR: ${{ runner.temp }}
           VERIFY_DIST: ${{ runner.temp }}/assets
+          PIP_CACHE_DIR: ${{ runner.temp }}/pip-cache
         run: sh scripts/verify-install.sh
       - if: failure()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
