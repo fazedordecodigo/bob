@@ -86,7 +86,7 @@ def test_detached_worktree_names_the_directory_and_removes_it(
     with pytest.raises(security_gate._PrepError) as caught:
         next(_detached(tmp_path))
 
-    parent = Path(created[0])
+    parent = Path(created[0]).resolve()
     root = parent / "head"
     assert caught.value.detail == "fatal: boom"
     assert calls == [(tmp_path, ("worktree", "add", "--detach", str(root), "HEAD"))]
@@ -105,7 +105,7 @@ def test_detached_worktree_names_the_directory_and_removes_it(
     yielded = next(generated)
     generated.close()
 
-    parent = Path(created[1])
+    parent = Path(created[1]).resolve()
     root = parent / "head"
     assert yielded == root
     assert calls == [
