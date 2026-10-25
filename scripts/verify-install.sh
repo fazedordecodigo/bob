@@ -364,6 +364,7 @@ release_pair() {
 pass_env() {
   PASS_ENV=
   for _name in PIP_INDEX_URL PIP_EXTRA_INDEX_URL PIP_TRUSTED_HOST PIP_CERT \
+    PIP_CACHE_DIR PIP_FIND_LINKS \
     npm_config_registry npm_config_cache \
     http_proxy https_proxy HTTP_PROXY HTTPS_PROXY \
     no_proxy NO_PROXY SSL_CERT_FILE SSL_CERT_DIR

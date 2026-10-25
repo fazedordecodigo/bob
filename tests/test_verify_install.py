@@ -934,6 +934,8 @@ def test_harness_passes_env_in_one_place() -> None:
     text = _text()
     assert text.count("for _name in PIP_INDEX_URL") == 1
     assert "for _name in PIP_INDEX_URL" in _body("pass_env")
+    assert "PIP_CACHE_DIR" in _body("pass_env")
+    assert "PIP_FIND_LINKS" in _body("pass_env")
     e = '  eval "set -- \\"\\$@\\"$PASS_ENV"'
     assert text.splitlines().count(e) == 3
     for name in ("run_oneliner", "run_bob", "run_blocks"):
