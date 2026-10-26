@@ -19,8 +19,8 @@ Base do repo: `fazedordecodigo/bob` `main` @ `d2e26bd` (conferido em 2026-10-18 
 | CT3 | `bob setup`: CLI, registro de passos e resumo | v1 | U1 | U3, U4, U5, U6, U7, U8 |
 | CT4 | Skills: `install_skills`, posse e `.bob-version` | v1 | U1 | U7, U8 |
 | CT5 | Layout de instalação e marcadores | v1 | U1 | U3, U5, U6, U7, U8 |
-| CT6 | Variáveis de ambiente | v1 | U1 | U3, U6, U7, U8, U9 |
-| CT7 | `bob.yaml` gerado | v1 | U4 | U8, U9 |
+| CT6 | Variáveis de ambiente | v2 | U1 | U3, U6, U7, U8, U9 |
+| CT7 | `bob.yaml` gerado | v2 | U4 | U8, U9 |
 | CT8 | `bob doctor` e fonte das versões npm | v1 | U2 | U1, U3, U7, U8, U9 |
 | CT9 | gitleaks | v1 | U3 | U8, U9 |
 | CT10 | Hook pre-push | v1 | U5 | U8, U9 |
@@ -28,8 +28,8 @@ Base do repo: `fazedordecodigo/bob` `main` @ `d2e26bd` (conferido em 2026-10-18 
 | CT12 | Formato de release | v1 | U1 | U7, U8, U9 |
 | CT13 | Workflow `release.yml` e release-check | v1 | U9 | nenhuma unit (operação do Emerson, E1–E6) |
 | CT14 | APIs externas | v1 | U1 (registro) | U3, U7, U8, U9 |
-| CT15 | Harness `scripts/verify-install.sh` | v1 | U1 | U3, U4, U5, U6, U7, U8, U9 |
-| CT16 | Perfil do shell (passo `perfil` do `install.sh`) | v1 | U6 | U8, U9 |
+| CT15 | Harness `scripts/verify-install.sh` | v1.1 | U1 | U3, U4, U5, U6, U7, U8, U9 |
+| CT16 | Perfil do shell (passo `perfil` do `install.sh`) | v2 | U6 | U8, U9 |
 | CT17 | Docs de instalação e teste de paridade | v1 | U8 | U9 |
 | CT18 | Prompt para agente de IA, sem `install.sh` (alternativa ao CT2) | v1 | U8 | U9 |
 
@@ -50,6 +50,8 @@ Regra de direção: toda consumidora depende da dona no DAG (`unit-of-work-depen
   - `<prefixo>` ∈ {`install`, `bob setup`, `bob update`, `bob doctor`}.
   - `<passo>`: id do passo, minúsculo, sem espaço (tabelas de CT2 e CT3).
 - Aviso (não falha): stdout, `<prefixo>: <passo>: aviso: <texto>.` (en: `warning:`).
+- Gate `not_run` contribui `0` quando não há o que medir: gate desconhecido (`check.gate_not_implemented`), `dry` sem ferramenta e, desde a T1b, `crap` e `coverage` sem código no `paths.include` (`check.no_code`). `not_run` por ferramenta ausente ou quebrada num projeto com código segue `4`.
+  - Emenda E3 (T1b), aprovada pelo Emerson em 2026-10-20 21:42 UTC-3 ("Aprovo a T1b e as emendas E1 a E3, com a T1c separada para a E4."); origem: Q1 = A e `construction/u4-bob-yaml/code-generation/tasks/T1b-emenda.md`.
 - Linha de progresso: stdout, `<prefixo>: <passo>: <texto curto>`.
 - Toda falha de CT2/CT3/CT11 é uma linha nesse formato (NFR9, 100%).
 
@@ -80,7 +82,7 @@ sh install.sh [--lang en|pt-BR] [--help]
 | `pacote` | venv em `versions/<v>/venv`, `pip install --disable-pip-version-check --no-input <wheel>`, marca `.complete` (CT5) | `install: pacote: pip falhou. Veja a saída acima e tente de novo.` | 4 |
 | `launcher` | troca `current` e liga `bin/bob` e `~/.local/bin/bob` (CT5) | `install: launcher: não consegui criar <caminho> (<erro>). Confira as permissões.` | 4 |
 | `perfil` | U6, contrato CT16; nunca falha | aviso (CT16) | — |
-| `setup` | `exec env BOB_INSTALL_PROFILE=<r> "$BOB_HOME/bin/bob" setup --lang <l>` (CT3) | (do `bob setup`) | código do `bob setup` |
+| `setup` | `export BOB_INSTALL_PROFILE=<r>` e `exec "$BOB_HOME/bin/bob" setup --lang <l> </dev/null` (CT3; ADR 0022) | (do `bob setup`) | código do `bob setup` |
 
 - Os passos `projeto` a `ferramentas` não escrevem nada em lugar nenhum (US1.2 crit. 3). Até `launcher`, 0 arquivos do projeto mudam.
 - Venv já existe com `.complete` igual ao sha256 do wheel: reusa, não reinstala.
@@ -156,11 +158,12 @@ bob setup: resumo
 - en: `bob setup: summary`, `installed:`, `preserved:`, `warnings:`, `shell profile:`, `bob doctor:`.
 - `instalado` e `bob doctor` sempre aparecem (`instalado: nada` / `installed: nothing` quando vazio).
 - `preservado` e `avisos`: uma linha por item; omitidas se vazias.
-- `perfil do shell`: só se `BOB_INSTALL_PROFILE` existe. Textos (pt-BR; ADR 0013 / `component-interfaces.md` §2):
-  - `<arquivo>` → `acrescentei ~/.local/bin ao PATH em <arquivo>. Abra um terminal novo ou rode: . <arquivo>`
-  - `already-on-path` → `~/.local/bin já está no PATH; nada mudou`
-  - `already-marked` → `<arquivo> já tem a linha do bob; nada mudou`
-  - `failed:<arquivo>` → `não consegui gravar <arquivo>; veja o aviso acima`
+- `perfil do shell`: só se `BOB_INSTALL_PROFILE` existe (também no resumo parcial). Textos (pt-BR; ADR 0013 / ADR 0023):
+  - `<arquivo absoluto>` → `acrescentei ~/.local/bin ao PATH em <arquivo>. Abra um terminal novo ou rode: . <arquivo>` (en: `added ~/.local/bin to PATH in <arquivo>. Open a new terminal or run: . <arquivo>`)
+  - `already-on-path` → `~/.local/bin já está no PATH; nada mudou` (en: `~/.local/bin is already on PATH; nothing changed`)
+  - `already-marked:<arquivo absoluto>` → `<arquivo> já tem a linha do bob; nada mudou` (en: `<arquivo> already has the bob line; nothing changed`)
+  - `failed:<arquivo absoluto>` → `não consegui gravar <arquivo>; veja o aviso acima` (en: `could not write <arquivo>; see the warning above`)
+  - caminho relativo, vazio ou outro valor → sem linha
 - A última linha é sempre `  bob doctor: <código>` (o passo 2 do Comando de Verificação lê essa linha).
 
 ## CT4 — Skills: `install_skills`, posse e `.bob-version` (v1)
@@ -174,6 +177,10 @@ python -m bob_quality.install_skills [--project DIR] [--source DIR] {agents,copi
 
 **Função nova (usada pelo `bob setup`).**
 ```python
+def manifest_skill_names(source: Path | None = None) -> tuple[str, ...]:
+    """Nomes das skills do manifesto (último componente de cada entrada).
+    SourceError se o manifesto é inválido."""
+
 def install_project_skills(project: Path, version: str) -> SkillsResult: ...
 
 @dataclass(frozen=True)
@@ -231,7 +238,7 @@ $BOB_HOME/                                  # CT6
 | perfil do shell | linha inteira: `export PATH="$HOME/.local/bin:$PATH" # managed-by: bob-quality` | U6 |
 | `bob.yaml` | nenhum; existir = do dev (preserva) | U4 |
 
-## CT6 — Variáveis de ambiente (v1)
+## CT6 — Variáveis de ambiente (v2)
 | Nome | Tipo / valores | Padrão | Validação | Escreve | Lê |
 |---|---|---|---|---|---|
 | `BOB_VERSION` | tag `vX.Y.Z` | vazia → última release publicada | `^v[0-9]+\.[0-9]+\.[0-9]+$`; fora → `install: versão: BOB_VERSION=<v> inválida. Use vX.Y.Z.` e `4` | harness/espelho (CT15); Emerson no release-check da pré-release (E3 do U9); `bob update` (para o filho, com a tag lida de `releases/latest`). **Não é opção de uso normal do dev**: docs e mensagens não a oferecem, exceto numa nota marcada "somente testes/release-check" (esclarecimento compatível da v1) | `install.sh`; bloco `versão` do prompt (CT18) |
@@ -239,7 +246,7 @@ $BOB_HOME/                                  # CT6
 | `BOB_HOME` | caminho absoluto | `${XDG_DATA_HOME:-$HOME/.local/share}/bob-quality` | relativo → `install: launcher: BOB_HOME=<v> precisa ser absoluto.` e `4` | dev; harness | `install.sh`, `user_dirs.py` |
 | `XDG_DATA_HOME` | caminho absoluto | `$HOME/.local/share` | relativo → ignorado (regra do XDG Base Directory: caminho relativo "should be considered invalid and ignored", https://specifications.freedesktop.org/basedir-spec/latest/, acessada 2026-10-18) | SO/dev | idem |
 | `BOB_LANG` | `en`, `pt-BR` | `en` | existente (`config.py:337`); inválido → `4` | dev | todos |
-| `BOB_INSTALL_PROFILE` | `<arquivo absoluto>`, `already-on-path`, `already-marked`, `failed:<arquivo>` | ausente → sem linha | valor fora → ignorado (sem linha). Interna, não documentada ao dev | `install.sh` (U6) | `bob setup` (U1) |
+| `BOB_INSTALL_PROFILE` | `<arquivo absoluto>`, `already-on-path`, `already-marked:<arquivo absoluto>`, `failed:<arquivo absoluto>` | ausente → sem linha | `<arquivo>`, `already-marked:` e `failed:` exigem caminho que começa com `/`; `already-marked` sem arquivo e qualquer outro valor → ignorado (sem linha). Interna, não documentada ao dev | `install.sh` (U6) | `bob setup` (U1) |
 | `BOB_GITLEAKS_BASE_URL` | URL base | `https://github.com/gitleaks/gitleaks/releases/download/v8.30.1` | mesma regra de esquema de `BOB_RELEASES_URL` | harness | `gitleaks.py` (U3) |
 | `VERIFY_REMOTE` | `1` | vazio → modo espelho local | só `1` liga | CI / Emerson | `verify-install.sh` |
 | `SHELL`, `ZDOTDIR`, `HOME`, `PATH` | do SO | — | `SHELL` vazio → `~/.profile` (ADR 0013) | SO | `install.sh` (perfil, launcher) |
@@ -247,7 +254,7 @@ $BOB_HOME/                                  # CT6
 | `BOB_VITEST_SETUP`, `BOB_USER_VITEST_CONFIG` | existentes, internas | — | sem mudança (`npm_tools.py:357-360`) | `npm_tools` | runner vitest |
 | `PIP_*`, `npm_config_*` | do pip e do npm | — | repassadas sem mudança | dev | pip, npm |
 
-## CT7 — `bob.yaml` gerado (v1)
+## CT7 — `bob.yaml` gerado (v2)
 **Preservado do repo.** Esquema em `config.py:90-271` (não há JSON Schema do `bob.yaml` no repo; `src/bob_quality/schemas/` só tem `report_v1.json`). Chave desconhecida → `4` (`config.py:470-473`). `paths.include` com pasta inexistente → `4` (`config.py:428-434`). Padrões em `config.py:275-297` e `README.pt-BR.md:182-203`. `DEFAULT_EXCLUDE = ["tests", "node_modules", "dist"]` (`config.py:15`).
 
 **Função (dona U4, `src/bob_quality/init_config.py`).**
@@ -317,7 +324,9 @@ dependencies:
 ```
 - Compatível: todo documento válido aqui é aceito por `load_config` (todas as chaves existem em `config.py:90-271`, valores dentro dos limites). O teste do U4 confere isso.
 
-**`bob check`: o que muda.** Nada na CLI, nos gates nem nos códigos. Só passa a achar um `bob.yaml` que não sai `4` por configuração (FR4.4).
+**`bob check`: o que muda.** Nada na CLI nem nos códigos. Só passa a achar um `bob.yaml` que não sai `4` por configuração (FR4.4). Nos gates, uma mudança (T1b, Q1 = A): quando `detect_languages(cwd, paths.include, paths.exclude)` é vazio, `crap` e `coverage` não rodam ferramenta, ficam `not_run` com o motivo `check.no_code` (en "no code to measure", pt-BR "nenhum código a medir") e contribuem `0`. Com código, tudo segue igual.
+
+_Emenda E2 (T1b), aprovada pelo Emerson em 2026-10-20 21:42 UTC-3 ("Aprovo a T1b e as emendas E1 a E3, com a T1c separada para a E4."); origem: Q1 = A e `construction/u4-bob-yaml/code-generation/tasks/T1b-emenda.md`._
 
 ## CT8 — `bob doctor` e fonte das versões npm (v1)
 **CLI, preservada:** `bob doctor [--install] [--lang en|pt-BR]` (`cli.py:115-121`). Sem `--config`.
@@ -325,7 +334,7 @@ dependencies:
 **Saída, preservada** (stdout; `doctor.py:136-139`, `:167-172`):
 1. Uma linha por pin, na ordem de `PINS` (`doctor.py:64-112`): en `<nome> expected <esperado> found <encontrado>`; pt-BR `<nome> esperada <esperado> encontrada <encontrado>` (`messages.py:209`, `:531`). Ausente: `missing` / `ausente`.
 2. Depois, as linhas de instalação (pip, Node, gitleaks, dica `npm ci`), como hoje (`doctor.py:188-212`).
-3. **Novo (U7, informativa, última linha):** en `project skills: <versão> (.agents/skills)` | `project skills: not installed` | `project skills: mixed (<v1>, <v2>)`; pt-BR `skills do projeto: …` | `não instaladas` | `misturadas (…)`. Não muda o código.
+3. **Novo (U7, informativa, última linha):** en `project skills: <versão> (.agents/skills)` | `project skills: not installed` | `project skills: mixed (<v1>, <v2>)` | `project skills: mixed (<v…>, not installed)` quando uma parte falta (Q1 = A); pt-BR `skills do projeto: …` | `não instaladas` | `misturadas (…)` | `misturadas (<v…>, não instaladas)`. Versões em ordem numérica. Não muda o código.
 - Código: `0` se todo pin bate; senão `4` (`doctor.py:175-178`). Sem mudança.
 
 **Muda (U2, P1 e ADR 0019).**
@@ -423,8 +432,8 @@ exec "$BOB" check --gates crap,dry,deps </dev/null
   | `projeto` | raiz git | erro CT1, `4` |
   | `versão` | API `releases/latest` (CT14) → `tag_name` | erro `bob update: versão: não consegui ler a última release (<status>). Tente de novo.`, `4` |
   | `comparar` | pacote = `importlib.metadata.version("bob-quality")`; projeto = `.bob-version` das skills do bob (CT4) | ver abaixo |
-  | `download` | `install.sh` e `SHA256SUMS` da tag (CT12) | erro, `4` |
-  | `integridade` | sha256 do `install.sh` = linha do `SHA256SUMS` | erro, `4` |
+  | `download` | `install.sh` e `SHA256SUMS` da tag (CT12); `Accept` só na API; textos en/pt em `update.*` (U7 `functional-design.md`) | erro, `4` |
+  | `integridade` | sha256 do `install.sh` = linha do `SHA256SUMS` (bytes; 1ª linha cujo nome é `install.sh`); textos en/pt em `update.integrity` | erro, `4` |
   | `instalar` | `sh <install.sh> --lang <l>` com `BOB_VERSION=<tag>`, `cwd` = projeto | código do `install.sh` |
 - Comparação por tupla numérica `(X, Y, Z)`:
   - pacote ≥ última **e** projeto ≥ última → stdout `bob update: já está na release mais nova (v<X.Y.Z>).`, `0`, 0 arquivos alterados (FR6.5).
@@ -432,13 +441,13 @@ exec "$BOB" check --gates crap,dry,deps </dev/null
   - pacote < última → stdout `bob update: atualizando de v<A> para v<B>.` e segue para `download`.
 - Nunca altera `bob.yaml`, `.bob/waivers.yaml`, hook alheio, skill alheia (CT3/CT4/CT7/CT10).
 
-**`bob --version`** (top-level, antes da exigência de subcomando de `cli.py:68`; sai `0`):
+**`bob --version`** (top-level; `argparse.Action` própria com `nargs=0`; imprime e chama `parser.exit()` → `Help` no `_Parser`, sai `0` antes da exigência de subcomando; versão do pacote por `importlib.metadata.version("bob-quality")`):
 ```
 bob <X.Y.Z>
 project skills: <X.Y.Z> (.agents/skills)
 ```
-- pt-BR: `skills do projeto: …`. Variações iguais às da linha do doctor (CT8): `not installed` / `não instaladas`, `mixed (…)` / `misturadas (…)`.
-- Projeto = `cwd`; não precisa ser raiz git. Lê só os nomes do manifesto empacotado.
+- pt-BR: `skills do projeto: …`. Variações iguais às da linha do doctor (CT8): `not installed` / `não instaladas`, `mixed (…)` / `misturadas (…)`, inclusive `mixed (<v…>, not installed)` (Q1 = A).
+- Projeto = `cwd`; não precisa ser raiz git. Lê só os nomes do manifesto empacotado (`manifest_skill_names`).
 
 ## CT12 — Formato de release (v1)
 - Tag: `v<X.Y.Z>`, igual a `project.version` de `pyproject.toml` (hoje `0.1.0`, `pyproject.toml:7`). Tag nunca é reaproveitada.
@@ -502,46 +511,47 @@ Um agente de IA real recebe `docs/install-prompt.<idioma>.md` num projeto novo e
 ## CT14 — APIs externas (v1)
 | API | Endpoint | Resposta esperada | Erros e tratamento | Quem consome |
 |---|---|---|---|---|
-| GitHub REST: última release | `GET https://api.github.com/repos/fazedordecodigo/bob/releases/latest`, header `Accept: application/vnd.github+json` | `200`, JSON com `tag_name`. "The latest release is the most recent non-prerelease, non-draft release" (https://docs.github.com/en/rest/releases/releases#get-the-latest-release, acessada 2026-10-18) | `404` = não há release publicada (código listado na mesma página) → `versão` falha, `4`. `403`/`429` = limite (sem token: 60 req/h por IP; https://docs.github.com/en/rest/using-the-rest-api/rate-limits-for-the-rest-api, acessada 2026-10-18) → sem retry, `4`, ação "tente de novo mais tarde" (sem oferecer `BOB_VERSION`; CT6). Rede/timeout → 2 retries, depois `4` | U1 (`install.sh`), U7 (`bob update`), U9 (E2/E6) |
+| GitHub REST: última release | `GET https://api.github.com/repos/fazedordecodigo/bob/releases/latest`, header `Accept: application/vnd.github+json` | `200`, JSON com `tag_name`. "The latest release is the most recent non-prerelease, non-draft release" (https://docs.github.com/en/rest/releases/releases#get-the-latest-release, acessada 2026-10-18) | `404` = não há release publicada (código listado na mesma página) → `versão` falha, `4`. `403`/`429` = limite (sem token: 60 req/h por IP; https://docs.github.com/en/rest/using-the-rest-api/rate-limits-for-the-rest-api, acessada 2026-10-18) → `4`, ação "tente de novo mais tarde" (sem oferecer `BOB_VERSION`; CT6). Retry no limite: `403` **nunca** é repetido (nem pelo `curl`, nem pelo Python). `429`: no `install.sh` (`CURL_OPTS` com `--retry 2`, CT18), o `curl` pode repetir até 2 vezes (trata `429` como transitório e respeita `Retry-After`), depois `4`; no Python (`bob update`), `429` não é repetido. Rede/timeout → 2 retries, depois `4` | U1 (`install.sh`), U7 (`bob update`), U9 (E2/E6) |
 | GitHub: download de asset | `https://github.com/fazedordecodigo/bob/releases/download/<tag>/<asset>` (redireciona; `curl -L`, `urllib` segue) | `200` + bytes | `404` → asset ausente, `4` ("release incompleta; abra uma issue"); rede/timeout → 2 retries, `4` | U1, U7 |
 | gitleaks releases | `https://github.com/gitleaks/gitleaks/releases/download/v8.30.1/<asset>` | `200` + tar.gz com sha256 de CT9 | `404`/rede → `GitleaksError` download, `4`; sha diferente → integridade, `4` | U3 |
 | Registro npm | o do `npm` do dev (padrão `https://registry.npmjs.org/`), via `npm ci --prefix <pacote>` com o `package-lock.json` empacotado | `npm ci` sai `0` | Sem mudança no tratamento atual (`npm_tools.py:133-154`): falha de escrita → cache do usuário; outra falha → mensagem atual e `4` | U1 (passo `npm`) |
 | PyPI | o índice do `pip` do dev (padrão `https://pypi.org/simple`), para as dependências do wheel (`pyproject.toml:13-25`) | `pip install` sai `0` | `pip` ≠ 0 → passo `pacote`, `4`; `PIP_INDEX_URL` e afins respeitados | U1 (`install.sh`) |
-- Tempos: `install.sh` usa `curl --connect-timeout 15 --max-time 300 --retry 2`. Python (`bob update`, `gitleaks.py`) usa `urllib.request` com `timeout=30` por requisição e 2 retries só em erro de rede ou `5xx`; `4xx` não tem retry.
+- Tempos: `install.sh` usa `curl --connect-timeout 15 --max-time 300 --retry 2` (`CURL_OPTS`, fonte única do CT18): até 2 retries em timeout e em HTTP `408`, `429`, `500`, `502`, `503`, `504`; `403` e os outros `4xx` não são repetidos. Python (`bob update`, `gitleaks.py`) usa `urllib.request` com `timeout=30` por requisição e 2 retries só em erro de rede ou `5xx`; `4xx` (inclusive `429`) não tem retry.
 - Nenhum token é lido ou enviado. Nada fala com `api.github.com` além do `releases/latest`.
 - Rede off: falha no primeiro passo que precisa de rede, com a mensagem do passo; 0 arquivos do projeto mudam se for antes de `launcher`.
 
-## CT16 — Perfil do shell (v1)
+## CT16 — Perfil do shell (v2)
 Dona U6. Passo `perfil` do `install.sh` (CT2), entre `launcher` e `setup`. Regra da ADR 0013 (Q1 A do 2.6).
 - Roda só se `:$PATH:` não contém `:$HOME/.local/bin:`. Senão, resultado `already-on-path`, nada escrito.
 - Arquivo: `basename "$SHELL"` = `zsh` → `${ZDOTDIR:-$HOME}/.zshrc`; `bash` → `$HOME/.bashrc`; outro ou vazio → `$HOME/.profile`.
 - Linha (exata, CT5): `export PATH="$HOME/.local/bin:$PATH" # managed-by: bob-quality`
-- Arquivo já tem `# managed-by: bob-quality` → `already-marked`, nada escrito.
-- Arquivo não existe → cria só com a linha + `\n`, modo `0644` → resultado `<arquivo>`.
-- Arquivo existe → acrescenta no fim (com `\n` antes se o último byte não é `\n`); bytes anteriores iguais → `<arquivo>`. Symlink: escreve no destino.
-- Falha de escrita → `failed:<arquivo>` e aviso no stdout: `install: perfil: aviso: não consegui gravar <arquivo> (<erro>). Para usar o comando bob, acrescente ao seu perfil: export PATH="$HOME/.local/bin:$PATH".` O código de saída não muda.
-- Saída para o `bob setup`: `BOB_INSTALL_PROFILE=<resultado>` (CT6); o texto do resumo está em CT3.
+- Arquivo já tem `# managed-by: bob-quality` → `already-marked:<arquivo absoluto>`, nada escrito.
+- Arquivo não existe → cria só com a linha + `\n`, modo `0644` → resultado `<arquivo absoluto>`.
+- Arquivo existe → acrescenta no fim (com `\n` antes se o último byte não é `\n`); bytes anteriores iguais → `<arquivo absoluto>`. Symlink: escreve no destino.
+- Falha de escrita (criar, `chmod 0644` ou acrescentar) → `failed:<arquivo absoluto>` e aviso no stdout (en): `install: perfil: warning: could not write <arquivo> (<erro>). To use the bob command, add to your profile: export PATH="$HOME/.local/bin:$PATH".` pt-BR: `install: perfil: aviso: não consegui gravar <arquivo> (<erro>). Para usar o comando bob, acrescente ao seu perfil: export PATH="$HOME/.local/bin:$PATH".` `<erro>` = texto depois do último `": "` da 1ª linha do stderr do shell, ou `unknown error` / `erro desconhecido`. O código de saída não muda; o passo sempre imprime `install: perfil: ok`.
+- Saída para o `bob setup`: `export BOB_INSTALL_PROFILE=<resultado>` e depois `exec` (CT2, ADR 0022); o texto do resumo está em CT3.
 - `bob update` não roda este passo de novo com efeito (o arquivo já tem a marca).
 
 ## CT17 — Docs de instalação e teste de paridade (v1)
 Dona U8.
-- Arquivos: `README.md`, `README.pt-BR.md`, `docs/instalacao.md`, `docs/getting-started/installation.md`, `docs/getting-started/agents.md`, `docs/guides/pre-push.md` (2.6 C12).
-- Em cada um, o primeiro bloco de código de instalação é o one-liner exato de CT12. Sem `git clone` e sem plugin antes dele.
-- **Ordem dos caminhos** (origem: Emerson, via Maestro, 18/10/2026 19:14 (UTC-3), literal: (1) "Adicione um prompt que orie te um modelo de IA a como instalar passo a passo o pacote sem depender de um arquivo .sh"; (2) "Deve haver as duas opções a principal sendo o arquivo .sh"). Nos 4 docs de instalação (`README.md`, `README.pt-BR.md`, `docs/instalacao.md`, `docs/getting-started/installation.md`):
+- Arquivos (8; ADR 0028): `README.md`, `README.pt-BR.md`, `docs/getting-started/installation.md`, `website/i18n/pt-BR/docusaurus-plugin-content-docs/current/getting-started/installation.md` (no lugar de `docs/instalacao.md`, removido no #174), `docs/getting-started/agents.md`, `website/i18n/pt-BR/…/getting-started/agents.md`, `docs/guides/pre-push.md`, `website/i18n/pt-BR/…/guides/pre-push.md`. Os 4 primeiros são os docs de instalação.
+- Em cada um, o primeiro **bloco de shell** (info string cuja 1ª palavra é `bash`, `sh`, `shell` ou `console`; fica de fora o `mermaid` do README) é o one-liner exato de CT2/CT12 (en: `… | sh`; pt-BR: `… | sh -s -- --lang pt-BR`). Sem `git clone` e sem plugin antes dele.
+- **Ordem dos caminhos** (origem: Emerson, via Maestro, 18/10/2026 19:14 (UTC-3), literal: (1) "Adicione um prompt que orie te um modelo de IA a como instalar passo a passo o pacote sem depender de um arquivo .sh"; (2) "Deve haver as duas opções a principal sendo o arquivo .sh"). Nos 4 docs de instalação (`README.md`, `README.pt-BR.md`, `docs/getting-started/installation.md`, página pt-BR do site):
   1. primeiro, o one-liner do `install.sh` (CT2), apresentado como caminho principal;
-  2. depois, numa seção própria marcada como alternativa (pt-BR: `### Alternativa: pedir ao seu agente de IA`; en: `### Alternative: ask your AI agent`), um parágrafo que diz que o caminho não usa o `install.sh`, chega ao mesmo resultado e que, em divergência, vale o comando principal, e o link para o arquivo do prompt no idioma do doc (CT18).
-  - Mudança em relação à rodada anterior: o doc traz o link, não o prompt inteiro (o prompt agora tem 14 passos e 19 blocos; repetir em 4 docs só criaria cópias para manter). A ordem e o teste de ordem ficam iguais.
+  2. depois, numa seção própria marcada como alternativa (pt-BR: `### Alternativa: pedir ao seu agente de IA`; en: `### Alternative: ask your AI agent`), um parágrafo que diz que o caminho não usa o `install.sh`, chega ao mesmo resultado e que, em divergência, vale o comando principal, e o link para o arquivo do prompt no idioma do doc (CT18). Links: `README.md` → `docs/install-prompt.en.md`; `README.pt-BR.md` → `docs/install-prompt.pt-BR.md`; `docs/getting-started/installation.md` → `../install-prompt.en.md`; página pt-BR do site → `/install-prompt.pt-BR.md` (com `/`; ADR 0028). O teste resolve: com `/`, a partir de `docs/`; sem `/`, a partir da pasta do arquivo.
+  3. depois da alternativa, seção `## Update` / `## Atualizar` com um bloco `bash` de exatamente 2 linhas (`bob update` e `bob --version`) (FR8.3, ADR 0029).
+  - O doc traz o link, não o prompt inteiro. A ordem e o teste de ordem ficam iguais.
 - `docs/getting-started/agents.md` diz: pasta única `.agents/skills`; Claude Code sob RA1.
 - `tests/test_docs_pins.py`:
-  - toda versão de ferramenta npm citada nos 6 arquivos = `pinned_npm_versions()` (CT8);
+  - toda versão de ferramenta npm citada nos 8 arquivos = `pinned_npm_versions()` (CT8);
   - faixa do Node citada = `str(node_range())`;
   - versão do gitleaks citada = `gitleaks.VERSION` (CT9);
   - piso do Python citado = `requires-python` de `pyproject.toml`;
   - o one-liner citado = o de CT12;
   - ordem: nos 4 docs de instalação, a posição do one-liner é menor que a do título da alternativa, e o título existe uma vez;
-  - a seção da alternativa tem o link para `docs/install-prompt.en.md` (`README.md`, `docs/getting-started/installation.md`) ou `docs/install-prompt.pt-BR.md` (os outros dois), e o arquivo existe;
+  - a seção da alternativa tem o link por arquivo (ADR 0028), e o arquivo existe;
   - os 11 itens de paridade do CT18 (blocos do prompt × fontes únicas; `BOB_VERSION` só em nota de testes);
-  - `BOB_VERSION` nos 6 docs: só dentro de uma nota marcada `Somente testes/release-check` / `Tests/release-check only` (uso normal = última release publicada, FR1.4);
+  - `BOB_VERSION` nos 8 docs: só dentro de uma nota marcada `Somente testes/release-check` / `Tests/release-check only` (uso normal = última release publicada, FR1.4);
   - sai `0` só se tudo bate. A U9 roda esse teste no `release.yml` (dentro do `pytest`).
 
 ## CT18 — Prompt de instalação para agente de IA, sem `install.sh` (v1)
@@ -800,13 +810,14 @@ LINE='export PATH="$HOME/.local/bin:$PATH" # managed-by: bob-quality'
 case ":$PATH:" in
   *":$HOME/.local/bin:"*) R=already-on-path ;;
   *)
-    case "${SHELL##*/}" in
+    S=${SHELL:-}
+    case "${S##*/}" in
       zsh) F="${ZDOTDIR:-$HOME}/.zshrc" ;;
       bash) F="$HOME/.bashrc" ;;
       *) F="$HOME/.profile" ;;
     esac
     if [ -f "$F" ] && grep -qF '# managed-by: bob-quality' "$F"; then
-      R=already-marked
+      R="already-marked:$F"
     elif { [ -e "$F" ] || { : > "$F" && chmod 0644 "$F"; }; } 2>/dev/null && { if [ -s "$F" ] && [ -n "$(tail -c 1 "$F")" ]; then printf '\n'; fi; printf '%s\n' "$LINE"; } >> "$F" 2>/dev/null; then
       R=$F
     else
@@ -883,22 +894,25 @@ echo "bob-prompt: verificação: ok (bob $X, bob doctor 0)"
 
 **Dona.** U8 confirmada. U8 depende de U1–U7 e consome CT2, CT3, CT5, CT6 (U1), CT8 (U2), CT9 (U3), CT12, CT14, CT15 (U1) e CT16 (U6): todos de units das quais já depende. Consumidora: U9 (roda o harness completo e o release-check). Nenhuma aresta nova.
 
-## CT15 — Harness `scripts/verify-install.sh` (v1)
+## CT15 — Harness `scripts/verify-install.sh` (v1.1)
 - Dona U1 (2.7: infraestrutura compartilhada). Cada unit acrescenta os seus passos (`unit-of-work.md`).
 - Sintaxe: `sh scripts/verify-install.sh [--only <n>[,<n>...]]`. `--only` roda só os passos pedidos (para a ET de cada unit); sem ele, todos os que existem.
 - Saída: `0` se todos os passos rodados passam; `1` no primeiro que falha, com stderr `verify-install: passo <n>: <motivo>`. Uso inválido: `1`.
 - Modo espelho (padrão): `python -m build --wheel`, copia `scripts/install.sh`, gera `SHA256SUMS` (CT12), serve `<tmp>/mirror` em `http://127.0.0.1:<porta livre>` com o layout `api/releases/latest` + `download/<tag>/<asset>`, exporta `BOB_RELEASES_URL`. Pré-release e rascunho do espelho ficam fora de `api/releases/latest`.
 - `VERIFY_REMOTE=1`: sem espelho; usa o GitHub (CT14).
+- `VERIFY_DIST=<dir>` (ADR 0030, v1.1): quando não vazio, `build_wheel()` usa `$VERIFY_DIST/bob_quality-$X-py3-none-any.whl` (copiado para `$T/dist/`) em vez de construir um wheel novo; se o arquivo não existir, falha no preparo com `verify-install: preparo: VERIFY_DIST sem bob_quality-$X-py3-none-any.whl` e código `1`.
 - Cada passo: `HOME` temporário novo, `PATH=/usr/bin:/bin:<dir do node>:<dir do python3>`, `BOB_HOME` dentro do `HOME`.
 - Fixture de gitleaks (até o U3): põe `gitleaks` 8.30.1 num diretório do `PATH`; o harness baixa e confere pelo CT9.
-- Passos: os 13 de `verification-command.md` (2.6), mais o caso (b) do passo 9 (wheel adulterado) e o critério extra do passo 10 (instalação nova ignora pré-release), definidos no 2.7.
-- **Passo 14 (proposto ao Maestro; não está no 2.6/2.7): prompt de IA sem `install.sh` (CT18).** Unit: U8 acrescenta; U9 roda no harness completo.
-  1. Espelho local (modo padrão) com wheel, `SHA256SUMS` e o tar.gz do gitleaks da plataforma em `<mirror>/gitleaks/`; exporta `BOB_RELEASES_URL` e `BOB_GITLEAKS_BASE_URL` (fixture com sha do CT9).
-  2. Instalação A: `HOME` novo em `<tmp>/h`, projeto fixture em `<tmp>/p`, `SHELL=/bin/bash`, `PATH` do harness (sem `~/.local/bin`), roda `sh install.sh`. Grava o manifesto A.
-  3. Apaga `<tmp>/h` e `<tmp>/p` e recria do zero nos **mesmos caminhos** (assim os symlinks absolutos e o caminho do launcher no hook comparam igual).
-  4. Instalação B: extrai os blocos de `docs/install-prompt.en.md` com a regex do CT18, filtra pela plataforma do box, e roda cada bloco num `sh` separado (prova que cada bloco é independente), na ordem, com o mesmo env. Para no primeiro ≠ 0. Grava o manifesto B. Confere no log do espelho que nenhum `install.sh` foi pedido. A e B rodam sem `BOB_VERSION` (versão pela `api/releases/latest` do espelho, como no uso normal).
-  5. Manifesto = lista ordenada de `(caminho relativo, tipo, modo, alvo do symlink ou sha256)` de: `$BOB_HOME` sem o conteúdo de `versions/*/venv/` (lá: `pip freeze` do venv e o alvo de `venv/bin/bob`); `~/.local/bin/bob`; `.agents/skills/**`; `bob.yaml`; `.git/hooks/pre-push`; `~/.bashrc`. Mais: `bob doctor` = `0` e a saída de `bob --version`.
-  6. Passa se A = B. Depois roda os blocos de novo (B2): `~/.bashrc` com o mesmo hash (linha uma vez só), `pacote` e `gitleaks` imprimem `reused`, `bob doctor` = `0`.
+- Passos: os de `verification-command.md` (2.6) mais os acréscimos das units. Depois da U6 e da U7: `STEP_IDS='1 2 3 4 5 6 7 8 9a 9b 10 11 12 13'` (ADR 0026). Depois da U8 T4: `… 13 14`.
+- **Passos 10 e 11 (U7, ADR 0026).** `ensure_8` / `ensure_10`; espelho `$T/mirror/upd/` com wheel rebatizado `X.Y.(Z+1)`; `run_bob`; passo 2 confere `bob --version` no modo espelho; `VERIFY_REMOTE=1` → "não se aplica"; alvos ≤ 300 s (passo 10) e ≤ 30 s (passo 11).
+- **Passo 13 (U6, ADR 0026).** 5 casos de perfil; `run_oneliner` com `${10}`=`SHELL` e `${11}`=`BOB_HOME`; root → `die_passo 13`; alvo ≤ 180 s.
+- **Passo 14 (U8, ADR 0028/0029): prompt de IA sem `install.sh` (CT18).** Unit: U8 acrescenta; U9 roda no harness completo.
+  1. Espelho local (modo padrão) com wheel, `SHA256SUMS` e o tar.gz do gitleaks da plataforma; exporta `BOB_RELEASES_URL` e `BOB_GITLEAKS_BASE_URL`. `npm_config_cache=$T/npm-cache` (fora do `HOME`). Variáveis de proxy/índice via `pass_env` (ADR 0028).
+  2. Instalação A: `HOME` novo, projeto fixture, `PATH` do harness, **sem** `SHELL` (perfil em `~/.profile`, como no `run_oneliner` de 9 args). Roda o comando único (`run_oneliner`). Grava o manifesto A (`manifest` / `install_state`).
+  3. Apaga `HOME` e projeto e recria do zero nos **mesmos caminhos**.
+  4. Instalação B: `prompt_blocks` extrai os blocos de `docs/install-prompt.en.md` (regex do CT18), filtra por `box_platform`, grava 14 arquivos e roda cada um num `sh` separado (`run_blocks` / `env -i`). Para no primeiro ≠ 0. Pedidos ao espelho = exatamente API + wheel + SHA256SUMS + gitleaks (0 de `install.sh`). `sudo.log` vazio. Grava o manifesto B.
+  5. Manifesto = linhas ordenadas `rótulo TAB tipo TAB modo TAB extra` de: `$BOB_HOME` sem o conteúdo de `versions/*/venv/` (no lugar: 1 linha `freeze` com sha256 do `pip freeze --all` normalizado — `bob-quality @ …` vira `bob-quality @ <wheel>`); `~/.local/bin/bob`; `~/.profile`; `.agents/skills/**`; `bob.yaml`; `.git/hooks/pre-push`. Mais: código do `bob doctor` e as 2 linhas de `bob --version`.
+  6. Passa se A = B. Depois roda os blocos de novo (B2): `~/.profile` com o mesmo sha256, `bob-prompt: pacote: ok (reused)` e `bob-prompt: gitleaks: ok (reused)` 1 vez cada, linha final do `verificação`. Alvo ≤ 360 s. `VERIFY_REMOTE=1` → "não se aplica".
   - Saída: `verify-install: passo 14: <primeira diferença ou bloco que falhou>`.
 
 ---
@@ -933,10 +947,15 @@ Registradas aqui; os estágios aprovados não foram editados.
 | I7 | 2.7 `unit-of-work.md` U2 ("Passos: `pytest`; 8 (parcial)") × DAG | O passo 8 roda no harness `verify-install.sh`, que é do U1; o U1 depende do U2, não o contrário. O U2 não pode ser provado por um passo do harness. | CT8 e `contract-traceability.md`: o pronto 4 do U2 (vitest do projeto, doctor `0`) é provado por teste `pytest` (doctor rodado num `cwd` temporário com `node_modules/vitest` 4.x). O passo 8 reprova isso depois, como parte do U1. U2 fora das consumidoras de CT1, CT6 e CT15. |
 | I8 | 2.6 `component-interfaces.md` §1 (linha `versão`) e `decisions.md` (ADR 0011, "ação 'tente de novo ou defina `BOB_VERSION`'") × FR1.4 | A mensagem oferece `BOB_VERSION` ao dev como saída para falha da API; o uso normal é sempre a última publicada e `BOB_VERSION` é só para testes/release-check. | CT2/CT14/CT18: mensagem vira "tente de novo mais tarde"; CT6 diz quem escreve `BOB_VERSION`. Esclarecimento compatível da v1. 2.6 não editado. |
 
-Não verificado (fica para o 3.6): `include: ["."]` rodando os gates (ADR 0015); `tests/test_hook.py` com o template novo; rótulos de runner (3.7).
+Verificado em 2026-10-22 (U4, `main` @ `b142631`): `include: ["."]` rodando os gates (ADR 0015). Passo 0 e e2e da T2 (PR #196: `include: ["."]`, `bob check` `EXIT:0`); `tests/test_check_report.py::test_a_repo_without_code_skips_crap_and_coverage_and_exits_0` (T1b, PR #197); passo 5 do `scripts/verify-install.sh`, caso `sem-codigo` (T3, PR #198), verde no `verify-install / linux-x64` da `main` `b142631`. Não verificado (fica para o 3.6): `tests/test_hook.py` com o template novo; rótulos de runner (3.7).
 
 ## Registro
 - 2026-10-18 (UTC-3): CT1–CT17 criados em `v1`.
 - 2026-10-18 19:15 (UTC-3): CT18 criado em `v1`; CT17 e CT13 (modelo do release-check) ganham a ordem principal/alternativa e a verificação do prompt. Origem: Emerson, via Maestro, 18/10/2026 19:14 UTC-3: "Deve haver as duas opções a principal sendo o arquivo .sh". Mudança compatível (só acréscimo).
 - 2026-10-18 19:43 (UTC-3): origem das duas falas corrigida para 19:14 (ambas). `BOB_VERSION` esclarecido como só testes/release-check/`bob update` em CT2, CT6, CT14, CT17 e CT18 (nota no prompt, item 11 da paridade, mensagem de falha sem `BOB_VERSION`); I8 registrada. Esclarecimento compatível da v1.
 - 2026-10-18 19:17 (UTC-3): CT18 refeito (ainda `v1`, não estava aprovado): prompt sem `install.sh`, 14 passos com comando exato por plataforma, tabela de equivalência, paridade com fontes únicas e passo 14 proposto. CT2 ganha 6 fontes únicas no topo do script (acréscimo compatível). CT17: o doc traz link para o prompt (não o texto inteiro); ordem mantida. CT6, CT12, CT14 e CT15 ganham U8 como consumidora. Origem: Emerson, via Maestro, 18/10/2026 19:14 (UTC-3), literal: (1) "Adicione um prompt que orie te um modelo de IA a como instalar passo a passo o pacote sem depender de um arquivo .sh"; (2) "Deve haver as duas opções a principal sendo o arquivo .sh".
+- 2026-10-19 23:1x (UTC-3): CT14 (só texto; continua `v1`): retry no limite de taxa esclarecido. `install.sh`/`curl` (`CURL_OPTS` com `--retry 2`): `429` pode ser repetido até 2 vezes, `403` nunca. Python (`gitleaks.py`, `bob update`): `4xx`, inclusive `429`, sem retry. Código, saídas e mensagens sem mudança (o `install.sh` já fazia isso desde o #188). Resolve a I15 (U1/U3). Origem: Q1 = A da U3, Emerson, via Maestro, 19/10/2026 23:10 (UTC-3), literal: "Q1 A, Q2 A." Mudança compatível.
+- 2026-10-22 (UTC-3): CT7 sobe de `v1` para `v2` pela emenda E2 (T1b). O que muda: sem código a medir no `paths.include`, `crap` e `coverage` ficam `not_run` com o motivo "no code to measure" e contribuem `0` (antes saíam `4`); com código, falha do coverage segue `4`. Texto, regra de `include` e estados do `bob.yaml` não mudam. Aprovação: Emerson, 2026-10-20 21:42 UTC-3 ("Aprovo a T1b e as emendas E1 a E3, com a T1c separada para a E4."). Entregue na T1b (PR #197, `637ec39`) e documentado na T1c (PR #199, `b142631`). Não há `v1` a manter: as consumidoras (U8, U9) ainda não começaram.
+- 2026-10-22 (UTC-3): CT10 continua `v1`; acréscimos compatíveis do plano da U5 (`construction/u5-hook-pre-push/`), sem mudar nome, estado nem template: constante `HOOK_MARKER`, `HookPathError(ValueError)` (caminho do launcher não absoluto ou com `"`, `$`, `` ` ``, `\`, quebra de linha), `render_hook(bob_bin) -> bytes` e campo `HookResult.hooks_path: str = ""` (valor cru de `core.hooksPath`). Link e pasta no lugar de `pre-push` → `preserved` sem leitura; mesmo conteúdo com modo ≠ `0755` → `updated`. Os avisos do CT10 entram no catálogo (CT1) em en e pt-BR, com o texto pt sem o prefixo `hook: aviso:`, que vem de `setup.warning_line`. Erros do git: chave nova `git.command_failed`. Consumidoras (U8, U9) ainda não começaram. Registro no complemento da ADR 0016 e em `construction/u5-hook-pre-push/trace.md` (I35–I44).
+- 2026-10-22 22:17 (UTC-3): Plan Approval Emerson (via Maestro). CT6 e CT16 sobem para `v2` (ADR 0021, 0022; sem v1 a manter). Acréscimos/esclarecimentos compatíveis: CT2 (linha `setup`), CT3 (resumo `already-marked:<arquivo>` + textos en), CT4 (`manifest_skill_names`), CT8 e CT11 (`mixed (…, not installed)`, Q1 = A; `--version` por `Action`), CT15 (passos 10, 11, 13 e forma do passo 14), CT17 (8 arquivos, bloco de shell, `## Update`, links ADR 0028), CT18 (bloco `perfil`: `already-marked:$F` e `S=${SHELL:-}`). ADRs 0021–0029 promovidas para `application-design/decisions.md`.
+- 2026-10-24 12:41 (UTC-3): Plan Approval da U9 pelo Emerson (via Maestro). CT15 sobe para `v1.1` (adição compatível, ADR 0030): `VERIFY_DIST` em `build_wheel()` para o job `verify` do `release.yml` testar o wheel construído no job `check`. ADR 0030 promovida para `application-design/decisions.md`. U9 Q1 = B (ADRs 0008–0029 em `docs/adr/`), U9 Q2 = A (Emerson dispara ou autoriza o `dry_run` após os merges).

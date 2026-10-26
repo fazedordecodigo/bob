@@ -1,0 +1,61 @@
+# U4 — Rastreabilidade (u4-bob-yaml)
+
+Escopo: só esta unit. Estado: **aguardando o checkpoint do Emerson** (22/10/2026 08:52 UTC-3, `checkpoint.md`): T1, T1b, T2, T3 e T1c mergeadas (#195, #197, #196, #198, #199); `main` em `b142631935df7cad40f241501969dfea03595057` (#199, 08:26). Histórico: Plan Approval do Emerson em 2026-10-20 16:22 UTC-3 ("Aprovo o plano da U4 com as ETs T1 a T3. Pode despachar a T1."); T1 despachada. Base `main` @ `0b4c6ec4e61f653fe8235b3ed20306a69ca46bcc` (#194). Perguntas: Q1 (`code-generation-questions.md`), aberta pelo passo 0 da T2 e respondida pelo Emerson em 2026-10-20 21:18 UTC-3 (opção A: sem código a medir, `crap` pulado e `bob check` sai 0, com ET nova antes da T2). T1b, E1–E3 e T1c separada para a E4 aprovadas pelo Emerson em 2026-10-20 21:42 UTC-3 ("Aprovo a T1b e as emendas E1 a E3, com a T1c separada para a E4. Pode despachar a T1b."); T1b despachada às 21:47; T1c planejada em 20/10 e despachada em 22/10 06:58 sobre `bb08a2c`.
+
+## FR/US → tarefa → prova
+| FR / US | Tarefa | Prova (teste ou passo do harness) |
+|---|---|---|
+| FR4.1 (cria `bob.yaml` quando falta) | T1, T2, T3 | `test_write_creates_src_when_src_has_code`, `test_bob_yaml_step_reports_created`, `test_bob_yaml_step_reaches_the_summary`; passo 5 |
+| FR4.2 (padrões do README, sem `languages`) | T1, T3 | `test_render_config_is_the_ct7_text`, comando de paridade com `README.pt-BR.md:182-204` (T1); `test_harness_expects_the_ct7_text`; passo 5 (`cmp`) |
+| FR4.3 (`paths.include` derivado das pastas de código) | T1, T3 | `test_write_lists_every_code_folder_in_code_point_order`, `test_each_code_suffix_counts`, `test_other_suffixes_do_not_count`, `test_excluded_folders_do_not_count`, `test_dot_folders_do_not_count`, `test_untracked_count_and_ignored_do_not`, `test_symlinks_do_not_count`, `test_listed_but_deleted_files_do_not_count`, `test_non_ascii_folder_names_are_read`, `test_files_come_from_the_suite_fingerprint_listing`; passo 5 (`[src]`, `[app]`) |
+| FR4.4 (`bob.yaml` gerado é válido; `bob check` ≠ 4) | T1, T1b, T2, T3, T1c | `test_validates_the_temporary_file_before_renaming`, `test_generated_files_pass_load_config`, `test_render_config_quotes_items_that_are_not_plain`; T1b: `test_measure_skips_crap_and_coverage_without_code`, `test_measure_finds_no_code_outside_the_include_rule[4]`, `test_a_repo_without_code_skips_crap_and_coverage_and_exits_0`, e2e da T1b (7 `EXIT:0`); não regressão: `test_measure_runs_crap_and_coverage_when_there_is_code[3]`, `test_a_missing_coverage_file_keeps_the_coverage_gate_a_tool_failure`, `test_a_missing_coverage_file_stays_a_tool_failure`; e2e da T2 (3 `EXIT:`); passo 5 (`bob check --base HEAD --gates crap,dry,deps` ≠ 4); docs D1–D7 (T1c) |
+| FR4.5 (sem pasta de código → `["."]` e aviso) | T1, T2, T3 | `test_code_only_in_the_root_is_dot`, `test_no_code_is_dot_and_created_no_code`, `test_bob_yaml_step_warns_when_there_is_no_code`, `test_bob_yaml_step_no_code_warning_reaches_the_output[en,pt-BR]`, `test_step_5_checks_the_no_code_warning`; passo 5 (aviso só em `sem-codigo`) |
+| FR4.6 (nunca altera `bob.yaml` existente) | T1, T2, T3 | `test_existing_bob_yaml_is_preserved[file,link,dir]`, `test_second_write_is_preserved_and_changes_nothing`, `test_bob_yaml_step_reports_preserved`; passos 7 e 8 |
+| US3.1 crit. 1–4 | T1, T2, T3 | os de FR4.1–FR4.5; passo 5 |
+| US3.2 crit. 1 e 3 (preservar `bob.yaml` e waivers, listar no resumo) | T2, T3 | `test_bob_yaml_step_lists_existing_waivers[a,b,c]`, `test_bob_yaml_step_reaches_the_summary`; passo 8 (sha + 2 linhas `  preserved:`); `test_steps_7_and_8_check_the_preserved_lines` |
+| US3.2 crit. 2 (2ª execução sem mudança) | T1, T2, T3 | `test_second_write_is_preserved_and_changes_nothing`; `test_setup_does_not_touch_the_project_package_files` (sem edição); passo 7 (`digest` + linha `preserved: bob.yaml`) |
+| NFR4 | T1, T3 | mesmos de US3.2 crit. 2 |
+| NFR5 (bob.yaml, waivers) | T1, T2, T3 | mesmos de FR4.6 e US3.2 crit. 1 e 3 |
+| NFR9 (erro claro, en/pt-BR) | T2 | `test_setup_messages_exist_in_both_languages` (+12 casos), `test_bob_yaml_step_invalid_config_fails`, `test_bob_yaml_step_git_failure_fails`, `test_bob_yaml_step_write_error_fails`, `test_bob_yaml_step_failure_stops_setup[en,pt-BR]` |
+| CT7 | T1 | `tests/test_init_config.py` (23 testes) |
+| CT3 (ordem 6) | T2 | `test_steps_follow_the_ct3_order` (ajustado) |
+| CT15 (passo 5; 7 e 8) | T3 | `test_step_ids_are_the_u1_u3_and_u4_steps`, `test_step_5_is_wired`, `test_step_5_runs_bob_check_with_the_u4_gates`; harness inteiro |
+| ADR 0015 | T1, T3 | os de FR4.2–FR4.5 |
+| ADR 0017 (temp + rename; nunca escreve o do dev) | T1, T2 | `test_config_error_removes_the_temporary`, `test_rename_error_removes_the_temporary`, `test_write_error_leaves_no_temporary`, `test_existing_bob_yaml_is_preserved`, `test_bob_yaml_step_lists_existing_waivers` |
+
+## Pronto da U4 → ET → prova
+| Pronto (unit-of-work.md) | ET | Prova |
+|---|---|---|
+| 1. `src/` → `[src]`, só `app/` → `[app]`, sem código → `["."]`; `bob check --base HEAD --gates crap,dry,deps` ≠ 4 nos 3 | T1, T1b, T2, T3 | passo 5; e2e da T1b e da T2; `test_generated_files_pass_load_config`; `test_a_repo_without_code_skips_crap_and_coverage_and_exits_0` |
+| 2. Aviso "nenhuma pasta de código" só no 3º | T2, T3 | passo 5 (en); `test_bob_yaml_step_no_code_warning_reaches_the_output[pt-BR]` (texto pt) |
+| 3. Demais chaves = README (`README.pt-BR.md:182-203`), sem `languages` | T1, T3 | `test_render_config_is_the_ct7_text`; comando de paridade da T1; passo 5 (`cmp`) |
+| 4. `bob.yaml` e `.bob/waivers.yaml` com o mesmo hash; resumo lista os dois como preservados | T2, T3 | passo 8; `test_bob_yaml_step_reaches_the_summary` |
+| DoD: PR cita unit, FR, US e CT; 6 checks (mais `website / build` na T1c, que toca `docs/**` e `website/**`); merge pelo Emerson | T1, T1b, T2, T3, T1c | critérios de aceite de cada ET; `checkpoint.md` |
+
+## Tarefas e PRs
+| Tarefa | ET | Branch | PR | Estado |
+|---|---|---|---|---|
+| T1 | `code-generation/tasks/T1.md` (v2; v1 em `T1-v1.md`) | `aidlc/u4-bob-yaml/t1-init-config` | #195 (head 49cd38b) | despachada em 20/10 16:25 sobre 0b4c6ec (agente bc-1240982e); 2 rodadas de correção; verificado em 20/10 20:3x contra a v2, entregue ao Maestro (ver `code-generation/tasks/T1-verificacao.md`); mergeado pelo Emerson em 20/10 20:33 (merge commit 0d85510b8fd9d578619ce6e7adbde231b66bdd85) |
+| T1b | `code-generation/tasks/T1b.md` (v1; emendas em `T1b-emenda.md`) | `aidlc/u4-bob-yaml/t1b-no-code` | #197 (head 953f91b) | planejada em 20/10 21:40 sobre 0d85510 (Q1 = A do Emerson, 21:18); aprovada às 21:42; despachada em 20/10 21:47 sobre 0d85510 (agente: bc-2343a08e-5bb5-5621-8b6b-b94b3c494a0e; anexos em `/workspace/dispatch/u4-t1b/`); PR #197 aberto em 20/10 23:16, pronto para revisão; verificado em 20/10 23:50 contra a v1, sem rodada de correção: 6/6 checks verdes, 4486 passed; aprovado para checkpoint (ver `code-generation/tasks/T1b-verificacao.md`); mergeado pelo Emerson em 21/10 10:37 (merge commit 637ec39dfe55db138553b827a6bb8a72905476f1) |
+| T2 | `code-generation/tasks/T2.md` (v3; v2 em `T2-v2.md`, v1 em `T2-v1.md`) | `aidlc/u4-bob-yaml/t2-setup-step` | #196 (head 0990f84; histórico d90c24d → merge 88248c7 de 637ec39 → 0990f84) | despachada em 20/10 20:40 sobre 0d85510 (agente: bc-691329cf-9c32-599d-b0e2-34a6b6196ac0); parou no passo 0 (`bob check --base HEAD --gates crap` → EXIT 4, "coverage.py: No data to report."); bloqueada pela T1b; v3 com base fixada em 637ec39 em 21/10 10:45 (passo 0 endurecido de ≠ 4 para `EXIT:0`, a pedido do Maestro); retomada em 21/10 10:47 por reply ao mesmo agente no mesmo PR (run run-42340d21-0e04-4577-b9c9-a3cdd57990f9; anexos em `/workspace/dispatch/u4-t2/`); entregue às 11:12, pronto para revisão; verificado em 21/10 12:2x contra a v3, sem rodada de correção: 6/6 checks verdes, 4513 passed; aprovado para checkpoint (ver `code-generation/tasks/T2-verificacao.md`); mergeado pelo Emerson em 21/10 12:32 (merge commit 031957f6c41dcc4e3b0bf3d998c346d0eee7b456) |
+| T3 | `code-generation/tasks/T3.md` (v2; v1 em `T3-v1.md`) | `aidlc/u4-bob-yaml/t3-verify-install` | #198 (head 79e7ad3) | despachada em 21/10 12:38 sobre 031957f (agente: bc-2662dd6b-6b38-561b-8c35-d9ccd7690468); mergeado pelo Emerson em 22/10 00:43 (squash bb08a2c0fd2ceed93223c3f4cd052b86b7cce5de) **antes da verificação**; verificado depois do merge em 22/10 01:05, sem rodada de correção: 6/6 checks verdes, 4520 passed (ver `code-generation/tasks/T3-verificacao.md`) |
+| T1c | `code-generation/tasks/T1c.md` (v1; emenda E4) | `aidlc/u4-bob-yaml/t1c-docs-no-code` | #199 (head 3a49309) | planejada em 20/10 21:50 (decisão do Emerson, 21:42); base fixada em bb08a2c em 22/10 06:56 (aprovação do Emerson às 06:55); despachada às 06:58 (agente: bc-fcc12763-56b3-5f33-8e48-3b1c33793083); só docs: `docs/exit-codes.md`, espelho pt-BR, `docs/adr/0003-exit-codes.md`, `README.md`, `README.pt-BR.md`; verificado em 22/10 08:25, sem rodada de correção: 7/7 checks verdes (6 + `website / build`), 4520 passed (ver `code-generation/tasks/T1c-verificacao.md`); mergeado pelo Emerson em 22/10 08:26 (squash b142631935df7cad40f241501969dfea03595057) |
+
+Ordem: T1 → T1b → T2 (v3, no #196) → T3 → T1c (aprovada pelo Emerson às 21:42).
+
+## Inconsistências entre docs e código (registradas, sem mudar artefatos do Analista)
+| # | Achado | Tratamento |
+|---|---|---|
+| I22 | O CT7 grava os itens de `include` sem aspas, mas nomes como `true`, `1.0`, `null`, `a,b` e `#x` viram YAML com outro valor, ou inválido | R6/D5: aspas JSON só quando a leitura de volta difere; `"."` como no CT7 |
+| I23 | `git ls-files --cached` lista arquivos apagados do disco, que o `load_config` e o `dry` não acham | R3/D4: só contam arquivos regulares que existem |
+| I24 | O pronto 4 manda o resumo listar `.bob/waivers.yaml`, mas CT3 e CT7 não dizem quem faz isso | Chave nova `setup.preserved_waivers`, no passo `bob.yaml` (D8) |
+| I25 | `component-interfaces.md` §4 dá os estados em pt (`criado`, …), e o CT7 dá em en | Vale o CT7 (`created`, `preserved`, `created_no_code`) |
+| I26 | `component-interfaces.md` §4 trata "bob.yaml já existe" como aviso, e o CT3 usa a linha `  preserved:` | Só a linha `  preserved:` (D9) |
+| I27 | O pronto 2 e o passo 5 citam o aviso em pt, mas o harness roda com `LANG=C.UTF-8` (en) | O harness confere o texto en; o pt é provado por teste |
+| I28 | O CT3 só lista o erro "arquivo gerado inválido"; o CT7 só cita `ConfigError` | Mais 2 falhas, ambas com saída 4: `git ls-files` (`ToolError`) e escrita (`OSError`) |
+| I29 | `tests/test_verify_install.py` usa `--only 5` como exemplo de passo desconhecido | Ajuste em lista fechada na T3 (`--only 6`) |
+| I30 | Não verificado (ADR 0015 / bolt-plan): o gate `crap` roda `coverage run -m pytest` num projeto sem testes; com `HoldUnavailable`, sai `4` (`python_probe.py:38-40`) | **Confirmado** pelo passo 0 da T2 (PR #196): sai `4`, mas pelo `coverage json` (`tools.py:176-177` → `python_probe.py:39-43`), não pelo `HoldUnavailable`. Q1 = A → T1b. A meta não muda |
+| I33 | CT7 (`contract-summary.md:320`) diz que nada muda nos gates; a T1b muda `crap` e `coverage` sem código. A ADR 0015 (`decisions.md:220`) segue com "Não verificado" | Emendas em `code-generation/tasks/T1b-emenda.md`. Aprovadas pelo Emerson às 21:42 e aplicadas às 21:50: E1 em `decisions.md:220-221` (ADR 0015), E3 em `contract-summary.md:53-54` (CT1), E2 em `contract-summary.md:322` e registro na `:324` (CT7). E4 (docs do repo) vai para a T1c. O `contract-summary.md` é do Arquiteto; a versão do CT7 subiu para v2 em 22/10/2026, com nota no "Registro" |
+| I34 | Pela leitura, o gate `coverage` também sai `4` sem código (`coverage_gate.py:156-159` → `_unmeasured`, `:239-245`); `dry` (`dry_gate.py:54-60`) e `deps` (`deps_gate.py:62-96`) saem `0` | A T1b cobre `crap` e `coverage`; o passo 0 da T1b mede os 4 e para se `dry` ou `deps` saírem ≠ 0 |
+| I31 | O CT7 escreve `git ls-files -z --cached --others --exclude-standard`; a T1 reusa `suite_fingerprint._listed_files` (`-co --exclude-standard -z`, `text=True`) | Mesma semântica; desvio compatível por DRY (D3) |
+| I32 | `VERIFY_REMOTE=1` usa a release publicada, que ainda não tem o passo `bob.yaml` | O passo 5 só passa no modo remoto depois de uma release com a U4 (fora de escopo da T3) |
