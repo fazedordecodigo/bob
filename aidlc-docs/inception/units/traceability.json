@@ -4,6 +4,7 @@
       "id": "U1",
       "name": "u1-walking-skeleton",
       "kind": "packaging",
+      "status": "completed",
       "components": [
         "C01",
         "C02",
@@ -59,14 +60,481 @@
         "8 (parcial)",
         "9 (caso b)"
       ],
-      "tasks": [],
-      "prs": [],
+      "tasks": [
+        {
+          "id": "T1",
+          "title": "Levar skills, manifesto e LICENSE no wheel",
+          "et": "construction/u1-walking-skeleton/code-generation/tasks/T1.md",
+          "plan": "construction/u1-walking-skeleton/code-generation/code-generation-plan.md",
+          "plan_steps": [
+            "P1",
+            "P8"
+          ],
+          "branch": "aidlc/u1-walking-skeleton/t1-wheel-plugin",
+          "stories": [
+            "US2.1"
+          ],
+          "frs": [
+            "FR3.1",
+            "FR3.3"
+          ],
+          "nfrs": [],
+          "contracts": [
+            "CT4"
+          ],
+          "depends_on": [],
+          "status": "merged",
+          "prs": [
+            184
+          ],
+          "tests": [
+            "tests/test_package.py::test_wheel_ships_the_plugin_skills_manifest_and_license",
+            "tests/test_package.py::test_installed_wheel_installs_agents_skills_without_a_clone",
+            "tests/test_packaging.py::test_plugin_folder_links_the_root_manifest_skills_and_license",
+            "tests/test_packaging.py::test_default_source_is_the_clone_when_it_has_the_manifest",
+            "tests/test_packaging.py::test_default_source_falls_back_to_the_packaged_plugin"
+          ]
+        },
+        {
+          "id": "T2",
+          "title": "Instalar as skills do projeto em .agents/skills com posse",
+          "et": "construction/u1-walking-skeleton/code-generation/tasks/T2.md",
+          "plan": "construction/u1-walking-skeleton/code-generation/code-generation-plan.md",
+          "plan_steps": [
+            "P2",
+            "P8"
+          ],
+          "branch": "aidlc/u1-walking-skeleton/t2-project-skills",
+          "stories": [
+            "US2.1"
+          ],
+          "frs": [
+            "FR3.1",
+            "FR3.2",
+            "FR3.3",
+            "FR3.4"
+          ],
+          "nfrs": [
+            "NFR4",
+            "NFR5"
+          ],
+          "contracts": [
+            "CT4",
+            "CT5"
+          ],
+          "depends_on": [
+            "T1"
+          ],
+          "status": "merged",
+          "prs": [
+            185,
+            186
+          ],
+          "tests": [
+            "tests/test_project_skills.py::test_install_creates_each_skill_with_license_and_marker",
+            "tests/test_project_skills.py::test_install_creates_only_agents_skills",
+            "tests/test_project_skills.py::test_second_install_writes_nothing",
+            "tests/test_project_skills.py::test_changed_file_rewrites_the_skill",
+            "tests/test_project_skills.py::test_extra_file_in_an_owned_skill_is_removed",
+            "tests/test_project_skills.py::test_new_version_rewrites_the_marker",
+            "tests/test_project_skills.py::test_unmarked_folder_is_preserved_and_reported",
+            "tests/test_project_skills.py::test_foreign_folder_is_preserved_byte_for_byte",
+            "tests/test_project_skills.py::test_symlink_and_file_at_a_skill_name_are_preserved",
+            "tests/test_project_skills.py::test_retired_owned_skill_is_removed",
+            "tests/test_project_skills.py::test_leftover_temporary_folders_are_removed",
+            "tests/test_project_skills.py::test_copies_in_claude_and_github_skills_are_reported_as_duplicates",
+            "tests/test_project_skills.py::test_write_error_propagates_as_oserror",
+            "tests/test_project_skills.py::test_invalid_version_fails_before_writing",
+            "tests/test_project_skills.py::test_invalid_source_fails_before_writing",
+            "tests/test_project_skills.py::test_default_source_installs_the_three_bob_skills",
+            "tests/test_project_skills.py::test_install_project_skills_prints_nothing"
+          ]
+        },
+        {
+          "id": "T3",
+          "title": "bob setup e pastas do usuário",
+          "et": "construction/u1-walking-skeleton/code-generation/tasks/T3.md",
+          "plan": "construction/u1-walking-skeleton/code-generation/code-generation-plan.md",
+          "plan_steps": [
+            "P3",
+            "P4",
+            "P8"
+          ],
+          "branch": "aidlc/u1-walking-skeleton/t3-bob-setup",
+          "stories": [
+            "US1.1",
+            "US6.1"
+          ],
+          "frs": [
+            "FR1.5",
+            "FR2.4",
+            "FR7.1",
+            "FR7.2"
+          ],
+          "nfrs": [
+            "NFR4",
+            "NFR5",
+            "NFR9"
+          ],
+          "contracts": [
+            "CT1",
+            "CT3",
+            "CT4",
+            "CT5",
+            "CT6"
+          ],
+          "depends_on": [
+            "T2"
+          ],
+          "status": "merged",
+          "prs": [
+            187
+          ],
+          "tests": [
+            "tests/test_user_dirs.py::test_default_is_under_home_local_share",
+            "tests/test_user_dirs.py::test_absolute_xdg_data_home_is_used",
+            "tests/test_user_dirs.py::test_relative_xdg_data_home_is_ignored",
+            "tests/test_user_dirs.py::test_bob_home_wins_over_xdg",
+            "tests/test_user_dirs.py::test_empty_values_count_as_unset",
+            "tests/test_user_dirs.py::test_relative_bob_home_is_a_value_error",
+            "tests/test_user_dirs.py::test_bob_home_reads_os_environ_by_default",
+            "tests/test_setup_cmd.py::test_steps_are_the_u1_steps_in_order",
+            "tests/test_setup_cmd.py::test_all_steps_pass_and_doctor_0_exits_0",
+            "tests/test_setup_cmd.py::test_doctor_4_makes_setup_exit_4",
+            "tests/test_setup_cmd.py::test_first_failed_step_stops_and_prints_a_partial_summary",
+            "tests/test_setup_cmd.py::test_exception_in_a_step_is_an_internal_error",
+            "tests/test_setup_cmd.py::test_nothing_installed_says_nothing",
+            "tests/test_setup_cmd.py::test_preserved_and_warnings_lines_follow_the_ct3_order",
+            "tests/test_setup_cmd.py::test_relative_bob_home_fails_before_any_step",
+            "tests/test_setup_cmd.py::test_projeto_accepts_the_git_root",
+            "tests/test_setup_cmd.py::test_projeto_rejects_a_subfolder_and_a_plain_folder",
+            "tests/test_setup_cmd.py::test_projeto_without_git",
+            "tests/test_setup_cmd.py::test_runtimes_accepts_the_pinned_node",
+            "tests/test_setup_cmd.py::test_runtimes_rejects_node_out_of_range",
+            "tests/test_setup_cmd.py::test_runtimes_without_node",
+            "tests/test_setup_cmd.py::test_runtimes_rejects_an_old_python",
+            "tests/test_setup_cmd.py::test_runtimes_reports_a_bad_requires_python",
+            "tests/test_setup_cmd.py::test_python_floor_comes_from_the_package_metadata",
+            "tests/test_setup_cmd.py::test_npm_step_skips_npm_ci_when_the_prefix_matches",
+            "tests/test_setup_cmd.py::test_npm_step_runs_npm_ci_when_a_tool_is_missing",
+            "tests/test_setup_cmd.py::test_npm_step_fails_when_npm_ci_fails",
+            "tests/test_setup_cmd.py::test_skills_step_reports_installed_preserved_and_warnings",
+            "tests/test_setup_cmd.py::test_skills_step_second_run_is_unchanged",
+            "tests/test_setup_cmd.py::test_skills_step_write_error",
+            "tests/test_setup_cmd.py::test_skills_step_bad_source",
+            "tests/test_setup_cmd.py::test_setup_messages_exist_in_both_languages",
+            "tests/test_setup_cmd.py::test_cli_setup_runs_in_the_cwd",
+            "tests/test_setup_cmd.py::test_setup_does_not_touch_the_project_package_files"
+          ]
+        },
+        {
+          "id": "T4",
+          "title": "Comando único scripts/install.sh",
+          "et": "construction/u1-walking-skeleton/code-generation/tasks/T4.md",
+          "plan": "construction/u1-walking-skeleton/code-generation/code-generation-plan.md",
+          "plan_steps": [
+            "P5",
+            "P8"
+          ],
+          "branch": "aidlc/u1-walking-skeleton/t4-install-sh",
+          "stories": [
+            "US1.1",
+            "US1.2",
+            "US6.1"
+          ],
+          "frs": [
+            "FR1.1",
+            "FR1.2",
+            "FR1.3",
+            "FR1.4",
+            "FR7.2",
+            "FR7.3"
+          ],
+          "nfrs": [
+            "NFR2",
+            "NFR4",
+            "NFR6",
+            "NFR7",
+            "NFR9"
+          ],
+          "contracts": [
+            "CT1",
+            "CT2",
+            "CT5",
+            "CT6",
+            "CT12",
+            "CT14"
+          ],
+          "depends_on": [
+            "T3"
+          ],
+          "status": "merged",
+          "prs": [
+            188
+          ],
+          "tests": [
+            "tests/test_install_sh.py::test_install_sh_is_posix",
+            "tests/test_install_sh.py::test_install_sh_shape",
+            "tests/test_install_sh.py::test_single_source_lines",
+            "tests/test_install_sh.py::test_node_and_python_ranges_match_the_package",
+            "tests/test_install_sh.py::test_bob_home_matches_user_dirs",
+            "tests/test_install_sh.py::test_relative_bob_home_matches_user_dirs",
+            "tests/test_install_sh.py::test_help_in_both_languages",
+            "tests/test_install_sh.py::test_usage_errors_exit_4",
+            "tests/test_install_sh.py::test_bob_version_is_offered_only_in_its_own_error",
+            "tests/test_install_sh.py::test_install_sh_never_mentions_sudo",
+            "tests/test_install_sh.py::test_failed_prerequisite_writes_nothing",
+            "tests/test_install_sh.py::test_missing_sha_tool",
+            "tests/test_install_sh.py::test_full_install_via_the_mirror",
+            "tests/test_install_sh.py::test_lang_pt_br_reaches_bob_setup",
+            "tests/test_install_sh.py::test_setup_exit_code_is_passed_through",
+            "tests/test_install_sh.py::test_second_run_reuses_the_venv",
+            "tests/test_install_sh.py::test_tampered_wheel_exits_4_and_creates_no_version",
+            "tests/test_install_sh.py::test_missing_wheel_line_is_an_integrity_failure",
+            "tests/test_install_sh.py::test_bob_version_pins_the_tag",
+            "tests/test_install_sh.py::test_invalid_bob_version",
+            "tests/test_install_sh.py::test_releases_url_must_be_https_or_loopback",
+            "tests/test_install_sh.py::test_api_error_says_try_again_later",
+            "tests/test_install_sh.py::test_unreachable_mirror",
+            "tests/test_install_sh.py::test_missing_asset_says_release_incomplete",
+            "tests/test_install_sh.py::test_pip_failure_removes_the_version",
+            "tests/test_install_sh.py::test_foreign_local_bin_bob_is_kept",
+            "tests/test_install_sh.py::test_relative_bob_home_fails_before_writing",
+            "tests/test_install_sh.py::test_curl_pipe_sh_works"
+          ]
+        },
+        {
+          "id": "T5",
+          "title": "Harness scripts/verify-install.sh com espelho local",
+          "et": "construction/u1-walking-skeleton/code-generation/tasks/T5.md",
+          "plan": "construction/u1-walking-skeleton/code-generation/code-generation-plan.md",
+          "plan_steps": [
+            "P6",
+            "P8"
+          ],
+          "branch": "aidlc/u1-walking-skeleton/t5-verify-install",
+          "stories": [
+            "US1.1",
+            "US1.2",
+            "US2.1"
+          ],
+          "frs": [
+            "FR1.1",
+            "FR1.2",
+            "FR2.4",
+            "FR3.2",
+            "FR3.4",
+            "FR7.3"
+          ],
+          "nfrs": [
+            "NFR1",
+            "NFR4",
+            "NFR5",
+            "NFR6",
+            "NFR7"
+          ],
+          "contracts": [
+            "CT12",
+            "CT15"
+          ],
+          "depends_on": [
+            "T4"
+          ],
+          "status": "merged",
+          "prs": [
+            189
+          ],
+          "verification_steps": [
+            "1",
+            "2 (parcial)",
+            "3",
+            "4",
+            "7",
+            "8 (parcial)",
+            "9 (caso b)"
+          ],
+          "tests": [
+            "tests/test_verify_install.py::test_verify_install_is_posix",
+            "tests/test_verify_install.py::test_verify_install_shape",
+            "tests/test_verify_install.py::test_step_ids_are_the_u1_steps",
+            "tests/test_verify_install.py::test_gitleaks_constants_match_the_doctor_pin",
+            "tests/test_verify_install.py::test_help_exits_0",
+            "tests/test_verify_install.py::test_usage_errors_exit_1_before_preparing",
+            "tests/test_verify_install.py::test_outside_the_checkout_exits_1"
+          ],
+          "verification": {
+            "pr_head": "d17bc2c",
+            "base": "b00a2fa",
+            "checks": "5/5 verdes",
+            "pytest": "4318 passed",
+            "verify_install_only": "exit 0, 7 ok",
+            "timing_s": {
+              "passo2_instalacao": 44,
+              "passo7_segunda_execucao": 1
+            },
+            "merge_commit": "4063e01",
+            "merged_at": "2026-10-19 20:45 UTC-3"
+          }
+        },
+        {
+          "id": "T6",
+          "title": "Rodar o harness no CI (só se Q1 = A)",
+          "et": "construction/u1-walking-skeleton/code-generation/tasks/T6.md",
+          "plan": "construction/u1-walking-skeleton/code-generation/code-generation-plan.md",
+          "plan_steps": [
+            "P7",
+            "P8"
+          ],
+          "branch": "aidlc/u1-walking-skeleton/t6-verify-install-ci",
+          "stories": [],
+          "frs": [],
+          "nfrs": [],
+          "contracts": [
+            "CT15"
+          ],
+          "depends_on": [
+            "T5"
+          ],
+          "status": "merged",
+          "prs": [
+            190
+          ],
+          "condition": "Q1 = A em code-generation-questions.md",
+          "tests": [
+            "tests/test_verify_install_workflow.py::test_workflow_runs_the_harness_on_prs_and_main",
+            "tests/test_verify_install_workflow.py::test_workflow_pins_the_same_actions_as_ci",
+            "tests/test_verify_install_workflow.py::test_workflow_node_matches_install_sh",
+            "tests/test_verify_install_workflow.py::test_workflow_has_no_secrets_and_reads_only"
+          ],
+          "verification": {
+            "pr_head": "1abb835",
+            "base": "4063e01",
+            "checks": "6/6 verdes (inclui verify-install / linux-x64 em 2m13s)",
+            "pytest": "4322 passed",
+            "merge_commit": "387b0b6",
+            "merged_at": "2026-10-19 22:39 UTC-3",
+            "main_run": "https://github.com/fazedordecodigo/bob/actions/runs/39354654559 (linux-x64 verde em 2m50s, 7 linhas ok; conferido pelo Maestro)"
+          }
+        }
+      ],
+      "prs": [
+        {
+          "number": 184,
+          "url": "https://github.com/fazedordecodigo/bob/pull/184",
+          "task": "T1",
+          "title": "ET-u1-walking-skeleton-T1: Levar skills, manifesto e LICENSE no wheel",
+          "base_sha": "053dcaab7796f8885c4830ee3a5f6bf1fc75d65a",
+          "head_sha": "cfb3239c133fdae26fc7ef95a6c49e2f4fa6ffdf",
+          "state": "merged",
+          "verified_at": "2026-10-19T05:00:00-03:00",
+          "checks": {
+            "CI / pytest (3.10)": "success",
+            "CI / pytest (3.12)": "success",
+            "package / dist": "success",
+            "bob / check": "success",
+            "bob / cold": "success"
+          },
+          "pytest": "4123 passed, 0 failed",
+          "correction_rounds": 1,
+          "merge_commit_sha": "80cf9764fa7f498d906f67d66511b91667b29c95",
+          "merged_at": "2026-10-19T09:12:00-03:00",
+          "merged_by": "fazedordecodigo"
+        },
+        {
+          "number": 185,
+          "url": "https://github.com/fazedordecodigo/bob/pull/185",
+          "task": "T2",
+          "title": "ET-u1-walking-skeleton-T2: Instalar as skills do projeto em .agents/skills com posse",
+          "base_sha": "80cf9764fa7f498d906f67d66511b91667b29c95",
+          "head_sha": "6ffb3cfab19eed5a31fb844f7f501e3f0215a69a",
+          "state": "merged",
+          "merge_commit_sha": "baa77da771a61ada5f51886b0eb73828b7a51f9b",
+          "merged_at": "2026-10-19T11:45:11-03:00",
+          "merged_by": "fazedordecodigo",
+          "checks": {
+            "CI / pytest (3.10)": "success",
+            "CI / pytest (3.12)": "success",
+            "package / dist": "success",
+            "bob / check": "success",
+            "bob / cold": "success"
+          },
+          "pytest": "4143 passed, 0 failed",
+          "note": "Mergeado antes do fim da verificação; desvio de largura de linha (4 linhas .py > 100 colunas) corrigido no #186."
+        },
+        {
+          "number": 186,
+          "url": "https://github.com/fazedordecodigo/bob/pull/186",
+          "task": "T2",
+          "title": "ET-u1-walking-skeleton-T2: Quebrar linhas de Python acima de 100 colunas",
+          "base_sha": "baa77da771a61ada5f51886b0eb73828b7a51f9b",
+          "head_sha": "f8c3c8b",
+          "state": "merged",
+          "verified_at": "2026-10-19T12:45:00-03:00",
+          "checks": {
+            "CI / pytest (3.10)": "success",
+            "CI / pytest (3.12)": "success",
+            "package / dist": "success",
+            "bob / check": "success",
+            "bob / cold": "success"
+          },
+          "pytest": "4143 passed, 0 failed",
+          "correction_round": 2,
+          "merge_commit_sha": "358e60e498c519101cbd8faf94240a1288ce006a",
+          "merged_at": "2026-10-19T13:06:00-03:00",
+          "merged_by": "fazedordecodigo"
+        },
+        {
+          "number": 187,
+          "url": "https://github.com/fazedordecodigo/bob/pull/187",
+          "task": "T3",
+          "title": "ET-u1-walking-skeleton-T3: bob setup e pastas do usuário",
+          "base_sha": "752d235",
+          "head_sha": "9f7fc28c9633402ea609ab1709a4d7f940a54c8c",
+          "state": "merged",
+          "verified_at": "2026-10-19T16:49:00-03:00",
+          "checks": {
+            "CI / pytest (3.10)": "success",
+            "CI / pytest (3.12)": "success",
+            "package / dist": "success",
+            "bob / check": "success",
+            "bob / cold": "success"
+          },
+          "pytest": "4245 passed, 0 failed (arquivos da ET: 211 passed)",
+          "correction_round": 1,
+          "merge_commit_sha": "28fba5c06cbca12bddfdd8c588fa1de1cac18b68",
+          "merged_at": "2026-10-19T16:50:00-03:00",
+          "merged_by": "fazedordecodigo"
+        },
+        {
+          "number": 188,
+          "url": "https://github.com/fazedordecodigo/bob/pull/188",
+          "task": "T4",
+          "title": "ET-u1-walking-skeleton-T4: Comando único scripts/install.sh",
+          "base_sha": "28fba5c06cbca12bddfdd8c588fa1de1cac18b68",
+          "head_sha": "523d1842dd4a27eed657d2f04e9f5ca34a4984d4",
+          "state": "merged",
+          "verified_at": "2026-10-19T18:45:00-03:00",
+          "checks": {
+            "CI / pytest (3.10)": "success",
+            "CI / pytest (3.12)": "success",
+            "package / dist": "success",
+            "bob / check": "success",
+            "bob / cold": "success"
+          },
+          "pytest": "4309 passed, 0 failed (tests/test_install_sh.py: 64 passed, 28 testes)",
+          "correction_round": 1,
+          "merge_commit_sha": "b00a2fa5f6aebbf083de7f3b24ded7ffaea52a3e",
+          "merged_at": "2026-10-19T18:50:00-03:00",
+          "merged_by": "fazedordecodigo"
+        }
+      ],
       "tests": []
     },
     {
       "id": "U2",
       "name": "u2-doctor-fonte-unica",
       "kind": "library",
+      "status": "merged",
       "components": [
         "C08",
         "C09"
@@ -89,14 +557,430 @@
         "pytest",
         "8 (parcial)"
       ],
-      "tasks": [],
-      "prs": [],
-      "tests": []
+      "tasks": [
+        {
+          "id": "T1",
+          "title": "Ler as versões npm do package.json empacotado no bob doctor",
+          "et": "construction/u2-doctor-fonte-unica/code-generation/tasks/T1.md",
+          "plan": "construction/u2-doctor-fonte-unica/code-generation/code-generation-plan.md",
+          "plan_steps": [
+            "P1",
+            "P2",
+            "P3",
+            "P4",
+            "P5",
+            "P6",
+            "P7",
+            "P8",
+            "P9"
+          ],
+          "branch": "aidlc/u2-doctor-fonte-unica/t1-fonte-unica-npm",
+          "stories": [
+            "US1.4"
+          ],
+          "frs": [
+            "FR2.1",
+            "FR2.5"
+          ],
+          "nfrs": [
+            "NFR5"
+          ],
+          "contracts": [
+            "CT1",
+            "CT8"
+          ],
+          "prs": [
+            183
+          ]
+        }
+      ],
+      "prs": [
+        {
+          "number": 183,
+          "url": "https://github.com/fazedordecodigo/bob/pull/183",
+          "task": "T1",
+          "title": "ET-u2-doctor-fonte-unica-T1: Ler as versões npm do package.json empacotado no bob doctor",
+          "base_sha": "d2e26bd1a75af1de48042af281ee418eb238fba8",
+          "head_sha": "30519d10074c8b2354a4e3bd96b5bd7291bafeb1",
+          "merge_commit_sha": "13a2792b539a99bc3ee094931a9630c4836cd83a",
+          "merged_at": "2026-10-18T23:11:17-03:00",
+          "merged_by": "fazedordecodigo",
+          "files": [
+            "CHANGELOG.md",
+            "src/bob_quality/doctor.py",
+            "src/bob_quality/messages.py",
+            "src/bob_quality/npm_tools.py",
+            "tests/test_action_workflow.py",
+            "tests/test_doctor.py",
+            "tests/test_gate_publications.py",
+            "tests/test_npm_pin.py",
+            "tests/test_ts_cli.py"
+          ],
+          "checks": [
+            {
+              "workflow": "CI",
+              "job": "pytest (3.10)",
+              "conclusion": "success",
+              "completed_at": "2026-10-18T22:55:45-03:00"
+            },
+            {
+              "workflow": "CI",
+              "job": "pytest (3.12)",
+              "conclusion": "success",
+              "completed_at": "2026-10-18T23:02:44-03:00"
+            },
+            {
+              "workflow": "package",
+              "job": "dist",
+              "conclusion": "success",
+              "completed_at": "2026-10-18T22:46:15-03:00"
+            },
+            {
+              "workflow": "bob",
+              "job": "check",
+              "conclusion": "success",
+              "completed_at": "2026-10-18T23:02:37-03:00"
+            },
+            {
+              "workflow": "bob",
+              "job": "cold",
+              "conclusion": "success",
+              "completed_at": "2026-10-18T22:46:22-03:00"
+            }
+          ],
+          "suite": {
+            "command": "python -m pytest -q",
+            "passed": 4118,
+            "failed": 0,
+            "errors": 0,
+            "baseline_main_failed": 18
+          },
+          "scoped_suite": {
+            "passed": 145,
+            "failed": 0
+          },
+          "verification": {
+            "pytest": "verde",
+            "step_8_partial": "provado por pytest (I7): test_doctor_ignores_the_vitest_installed_in_the_project",
+            "bob_doctor_exit": 0,
+            "bob_doctor_seconds": 0.39
+          },
+          "main_after_merge": {
+            "sha": "13a2792b539a99bc3ee094931a9630c4836cd83a",
+            "package_dist": "success",
+            "package_dist_completed_at": "2026-10-18T23:13:00-03:00",
+            "main_head": {
+              "sha": "053dcaab7796f8885c4830ee3a5f6bf1fc75d65a",
+              "note": "#182 mergeado depois do #183",
+              "checks": [
+                {
+                  "name": "package / dist",
+                  "conclusion": "success",
+                  "completed_at": "2026-10-18T23:14:33-03:00"
+                },
+                {
+                  "name": "CI / pytest (3.10)",
+                  "conclusion": "success",
+                  "completed_at": "2026-10-18T23:24:49-03:00"
+                },
+                {
+                  "name": "CI / pytest (3.12)",
+                  "conclusion": "success",
+                  "completed_at": "2026-10-18T23:32:12-03:00"
+                }
+              ],
+              "checked_at": "2026-10-18T23:45:25-03:00"
+            }
+          },
+          "checkpoint": {
+            "approved_by": "Emerson",
+            "via": "Maestro AI-DLC",
+            "at": "2026-10-18T23:11-03:00",
+            "quote": "Aprovo o checkpoint da U2. Vou fazer o merge do #183. Pode seguir para a U1."
+          }
+        }
+      ],
+      "tests": [
+        {
+          "id": "tests/test_npm_pin.py::test_npm_specs_are_exact_versions",
+          "task": "T1",
+          "pr": 183,
+          "kind": "new",
+          "covers": [
+            "FR2.1",
+            "ADR0008"
+          ]
+        },
+        {
+          "id": "tests/test_npm_pin.py::test_package_lock_matches_package_json",
+          "task": "T1",
+          "pr": 183,
+          "kind": "new",
+          "covers": [
+            "FR2.1",
+            "U2-pronto-3"
+          ]
+        },
+        {
+          "id": "tests/test_npm_pin.py::test_lock_mismatch_names_the_package_and_both_versions",
+          "task": "T1",
+          "pr": 183,
+          "kind": "new",
+          "covers": [
+            "U2-pronto-3"
+          ]
+        },
+        {
+          "id": "tests/test_npm_pin.py::test_packaged_package_json_is_the_root_one",
+          "task": "T1",
+          "pr": 183,
+          "kind": "new",
+          "covers": [
+            "FR2.1",
+            "ADR0008"
+          ]
+        },
+        {
+          "id": "tests/test_npm_pin.py::test_pins_and_node_range_come_from_the_packaged_package_json",
+          "task": "T1",
+          "pr": 183,
+          "kind": "new",
+          "covers": [
+            "FR2.1",
+            "US1.1",
+            "U2-pronto-1",
+            "CT8"
+          ]
+        },
+        {
+          "id": "tests/test_npm_pin.py::test_a_bumped_package_json_changes_the_pins_without_code",
+          "task": "T1",
+          "pr": 183,
+          "kind": "new",
+          "covers": [
+            "FR2.1",
+            "U2-pronto-1",
+            "ADR0008"
+          ]
+        },
+        {
+          "id": "tests/test_npm_pin.py::test_missing_package_json_names_the_file",
+          "task": "T1",
+          "pr": 183,
+          "kind": "new",
+          "covers": [
+            "CT8",
+            "CT1"
+          ]
+        },
+        {
+          "id": "tests/test_npm_pin.py::test_pinned_npm_versions_rejects_a_package_json_out_of_format",
+          "task": "T1",
+          "pr": 183,
+          "kind": "new",
+          "covers": [
+            "CT8"
+          ]
+        },
+        {
+          "id": "tests/test_npm_pin.py::test_node_range_rejects_an_engine_out_of_format",
+          "task": "T1",
+          "pr": 183,
+          "kind": "new",
+          "covers": [
+            "CT8"
+          ]
+        },
+        {
+          "id": "tests/test_npm_pin.py::test_pin_source_detail_is_written_in_both_languages",
+          "task": "T1",
+          "pr": 183,
+          "kind": "new",
+          "covers": [
+            "CT1"
+          ]
+        },
+        {
+          "id": "tests/test_npm_pin.py::test_pin_source_error_is_a_tool_error",
+          "task": "T1",
+          "pr": 183,
+          "kind": "new",
+          "covers": [
+            "CT8"
+          ]
+        },
+        {
+          "id": "tests/test_doctor.py::test_doctor_reads_npm_versions_from_the_bob_prefix_not_the_path",
+          "task": "T1",
+          "pr": 183,
+          "kind": "new",
+          "covers": [
+            "FR2.5",
+            "ADR0019"
+          ]
+        },
+        {
+          "id": "tests/test_doctor.py::test_doctor_ignores_the_vitest_installed_in_the_project",
+          "task": "T1",
+          "pr": 183,
+          "kind": "new",
+          "covers": [
+            "FR2.5",
+            "US1.4",
+            "NFR5",
+            "U2-pronto-4",
+            "step-8-partial"
+          ]
+        },
+        {
+          "id": "tests/test_doctor.py::test_doctor_ignores_binaries_in_the_project_node_modules",
+          "task": "T1",
+          "pr": 183,
+          "kind": "new",
+          "covers": [
+            "FR2.5",
+            "US1.4"
+          ]
+        },
+        {
+          "id": "tests/test_doctor.py::test_assess_sends_the_node_slot_to_the_node_row",
+          "task": "T1",
+          "pr": 183,
+          "kind": "new",
+          "covers": [
+            "CT8"
+          ]
+        },
+        {
+          "id": "tests/test_doctor.py::test_assess_npm_without_an_expected_version_is_not_ok",
+          "task": "T1",
+          "pr": 183,
+          "kind": "new",
+          "covers": [
+            "FR2.1"
+          ]
+        },
+        {
+          "id": "tests/test_doctor.py::test_found_version_reads_the_bob_prefix",
+          "task": "T1",
+          "pr": 183,
+          "kind": "new",
+          "covers": [
+            "FR2.5",
+            "ADR0019"
+          ]
+        },
+        {
+          "id": "tests/test_doctor.py::test_found_version_ignores_the_path_when_the_prefix_lacks_the_package",
+          "task": "T1",
+          "pr": 183,
+          "kind": "new",
+          "covers": [
+            "FR2.5",
+            "ADR0019"
+          ]
+        },
+        {
+          "id": "tests/test_doctor.py::test_vitest_5_0_5_in_the_bob_prefix_passes_when_package_json_pins_5_0_5",
+          "task": "T1",
+          "pr": 183,
+          "kind": "new",
+          "covers": [
+            "FR2.1",
+            "U2-pronto-2"
+          ]
+        },
+        {
+          "id": "tests/test_doctor.py::test_node_pin_comes_from_engines_node_of_the_packaged_package_json",
+          "task": "T1",
+          "pr": 183,
+          "kind": "new",
+          "covers": [
+            "FR2.1",
+            "CT8"
+          ]
+        },
+        {
+          "id": "tests/test_doctor.py::test_doctor_exits_4_with_one_stderr_line_when_package_json_is_unreadable",
+          "task": "T1",
+          "pr": 183,
+          "kind": "new",
+          "covers": [
+            "CT1",
+            "CT8"
+          ]
+        },
+        {
+          "id": "tests/test_doctor.py::test_doctor_runs_only_node_and_gitleaks",
+          "task": "T1",
+          "pr": 183,
+          "kind": "new",
+          "covers": [
+            "ADR0019"
+          ]
+        },
+        {
+          "id": "tests/test_doctor.py::test_doctor_pins_match_pyproject_and_package_json",
+          "task": "T1",
+          "pr": 183,
+          "kind": "rewritten",
+          "covers": [
+            "FR2.1",
+            "US1.1"
+          ]
+        },
+        {
+          "id": "tests/test_doctor.py::test_assess_sends_an_npm_pin_to_the_npm_row",
+          "task": "T1",
+          "pr": 183,
+          "kind": "rewritten",
+          "covers": [
+            "FR2.1"
+          ]
+        },
+        {
+          "id": "tests/test_doctor.py::test_assess_npm_matches",
+          "task": "T1",
+          "pr": 183,
+          "kind": "rewritten",
+          "covers": [
+            "FR2.1"
+          ]
+        },
+        {
+          "id": "tests/test_doctor.py::test_assess_npm_mismatch_has_no_install_line",
+          "task": "T1",
+          "pr": 183,
+          "kind": "rewritten",
+          "covers": [
+            "FR2.1"
+          ]
+        },
+        {
+          "id": "tests/test_doctor.py::test_assess_reads_the_declared_distribution",
+          "task": "T1",
+          "pr": 183,
+          "kind": "rewritten",
+          "covers": [
+            "CT8"
+          ]
+        },
+        {
+          "id": "tests/test_doctor.py::test_assess_binary_matches_the_cli",
+          "task": "T1",
+          "pr": 183,
+          "kind": "rewritten",
+          "covers": [
+            "CT8"
+          ]
+        }
+      ]
     },
     {
       "id": "U3",
       "name": "u3-gitleaks",
       "kind": "library",
+      "status": "completed",
       "components": [
         "C07"
       ],
@@ -121,14 +1005,428 @@
         "7",
         "9 (caso a)"
       ],
-      "tasks": [],
-      "prs": [],
-      "tests": []
+      "tasks": [
+        {
+          "id": "T1",
+          "title": "Módulo gitleaks.py: tabela, download conferido e instalação em BOB_HOME",
+          "et": "construction/u3-gitleaks/code-generation/tasks/T1.md",
+          "plan": "construction/u3-gitleaks/code-generation/code-generation-plan.md",
+          "plan_steps": [
+            "P1",
+            "P6"
+          ],
+          "branch": "aidlc/u3-gitleaks/t1-gitleaks-module",
+          "stories": [
+            "US1.3"
+          ],
+          "frs": [
+            "FR2.2",
+            "FR2.3"
+          ],
+          "nfrs": [
+            "NFR3",
+            "NFR6",
+            "NFR9"
+          ],
+          "contracts": [
+            "CT1",
+            "CT5",
+            "CT6",
+            "CT9",
+            "CT14"
+          ],
+          "depends_on": [],
+          "status": "merged",
+          "prs": [
+            191
+          ],
+          "tests": [
+            "tests/test_gitleaks.py::test_version_and_default_base_url",
+            "tests/test_gitleaks.py::test_assets_are_the_four_adr_0014_entries",
+            "tests/test_gitleaks.py::test_platform_key_maps_the_ct9_table",
+            "tests/test_gitleaks.py::test_platform_key_defaults_to_this_machine",
+            "tests/test_gitleaks.py::test_platform_key_rejects_other_platforms",
+            "tests/test_gitleaks.py::test_gitleaks_error_is_a_tool_error",
+            "tests/test_gitleaks.py::test_base_url_accepts_https_and_loopback",
+            "tests/test_gitleaks.py::test_base_url_rejects_other_urls",
+            "tests/test_gitleaks.py::test_asset_url_joins_base_and_asset",
+            "tests/test_gitleaks.py::test_installed_version",
+            "tests/test_gitleaks.py::test_ensure_installs_the_binary_and_the_link",
+            "tests/test_gitleaks.py::test_second_ensure_downloads_nothing",
+            "tests/test_gitleaks.py::test_wrong_version_is_replaced",
+            "tests/test_gitleaks.py::test_tampered_archive_fails_integrity_and_installs_nothing",
+            "tests/test_gitleaks.py::test_archive_without_the_expected_binary_fails_extraction",
+            "tests/test_gitleaks.py::test_http_4xx_is_not_retried",
+            "tests/test_gitleaks.py::test_5xx_is_retried_twice",
+            "tests/test_gitleaks.py::test_5xx_then_200_installs",
+            "tests/test_gitleaks.py::test_network_error_is_retried_twice",
+            "tests/test_gitleaks.py::test_download_uses_a_30_s_timeout",
+            "tests/test_gitleaks.py::test_reinstall_over_leftovers",
+            "tests/test_gitleaks.py::test_unsupported_platform_fails_before_any_request",
+            "tests/test_gitleaks.py::test_bad_base_url_fails_before_any_request",
+            "tests/test_gitleaks.py::test_write_error_leaves_nothing_in_tools",
+            "tests/test_gitleaks.py::test_write_error_keeps_what_was_there",
+            "tests/test_gitleaks.py::test_write_error_without_filename_names_the_destination",
+            "tests/test_gitleaks.py::test_timeout_error_is_retried_twice",
+            "tests/test_gitleaks.py::test_extractfile_none_fails_extraction",
+            "tests/test_gitleaks.py::test_rollback_removes_temporary_binary",
+            "tests/test_gitleaks.py::test_rollback_removes_temporary_link",
+            "tests/test_gitleaks.py::test_write_error_keeps_an_existing_destination",
+            "tests/test_gitleaks.py::test_gitleaks_messages_exist_in_both_languages"
+          ],
+          "verification": {
+            "pr_head": "041208d",
+            "base": "387b0b6",
+            "checks": "6/6 verdes (verify-install / linux-x64 em 2m41s)",
+            "pytest": "4394 passed",
+            "e2e": "bin/gitleaks 8.30.1",
+            "et_version": "v2"
+          },
+          "merge_commit": "f8b4068",
+          "merged_at": "2026-10-20 09:01 UTC-3"
+        },
+        {
+          "id": "T2",
+          "title": "Passo gitleaks no bob setup e doctor com BOB_HOME/bin",
+          "et": "construction/u3-gitleaks/code-generation/tasks/T2.md",
+          "plan": "construction/u3-gitleaks/code-generation/code-generation-plan.md",
+          "plan_steps": [
+            "P2",
+            "P3",
+            "P6"
+          ],
+          "branch": "aidlc/u3-gitleaks/t2-setup-doctor",
+          "stories": [
+            "US1.3",
+            "US1.1"
+          ],
+          "frs": [
+            "FR2.1",
+            "FR2.2",
+            "FR2.3"
+          ],
+          "nfrs": [
+            "NFR4",
+            "NFR9"
+          ],
+          "contracts": [
+            "CT3",
+            "CT8",
+            "CT9"
+          ],
+          "depends_on": [
+            "T1"
+          ],
+          "status": "merged",
+          "prs": [
+            192
+          ],
+          "tests": [
+            "tests/test_user_dirs.py::test_locate_binary_prefers_bob_home_bin",
+            "tests/test_user_dirs.py::test_locate_binary_follows_a_link_without_resolving_it",
+            "tests/test_user_dirs.py::test_locate_binary_falls_back_to_the_path",
+            "tests/test_user_dirs.py::test_locate_binary_with_relative_bob_home_uses_the_path",
+            "tests/test_user_dirs.py::test_locate_binary_reads_os_environ_by_default",
+            "tests/test_doctor.py::test_gitleaks_pin_comes_from_the_gitleaks_table",
+            "tests/test_doctor.py::test_doctor_has_no_gitleaks_literals",
+            "tests/test_doctor.py::test_doctor_finds_gitleaks_in_bob_home_before_the_path",
+            "tests/test_doctor.py::test_doctor_cli_finds_gitleaks_in_bob_home",
+            "tests/test_doctor.py::test_doctor_install_runs_npm_then_gitleaks",
+            "tests/test_doctor.py::test_doctor_install_stops_when_npm_fails",
+            "tests/test_doctor.py::test_doctor_install_gitleaks_failure_exits_4",
+            "tests/test_doctor.py::test_doctor_install_with_relative_bob_home_exits_4",
+            "tests/test_doctor.py::test_doctor_bob_home_relative_message_in_both_languages",
+            "tests/test_setup_cmd.py::test_gitleaks_step_is_unchanged_when_present",
+            "tests/test_setup_cmd.py::test_gitleaks_step_installs_when_missing",
+            "tests/test_setup_cmd.py::test_gitleaks_step_failure_stops_setup",
+            "tests/test_setup_cmd.py::test_gitleaks_step_passes_ctx_home_to_installed_version",
+            "tests/test_setup_cmd.py::test_gitleaks_step_reaches_the_summary"
+          ],
+          "adjusted_tests": [
+            "tests/test_setup_cmd.py::test_steps_follow_the_ct3_order",
+            "tests/test_setup_cmd.py::test_setup_does_not_touch_the_project_package_files"
+          ],
+          "verification": {
+            "pr_head": "6c5b3d1",
+            "base": "f8b4068",
+            "checks": "6/6 verdes (verify-install / linux-x64 em 2m35s)",
+            "pytest": "4423 passed",
+            "e2e": "bob setup: gitleaks: ok; installed: gitleaks 8.30.1 in BOB_HOME/bin; gitleaks expected 8.30.1 found 8.30.1; bob doctor: 0; 2ª execução installed: nothing; bob doctor --install exit 0 (rodada 1, head 6758783; produção sem mudança até 6c5b3d1)",
+            "et_version": "v2",
+            "correction_rounds": 1
+          },
+          "merge_commit": "8fafff6",
+          "merged_at": "2026-10-20 11:22 UTC-3"
+        },
+        {
+          "id": "T3",
+          "title": "Harness sem fixture do gitleaks e passo 9a",
+          "et": "construction/u3-gitleaks/code-generation/tasks/T3.md",
+          "plan": "construction/u3-gitleaks/code-generation/code-generation-plan.md",
+          "plan_steps": [
+            "P4",
+            "P6"
+          ],
+          "branch": "aidlc/u3-gitleaks/t3-verify-install",
+          "stories": [
+            "US1.3",
+            "US1.1"
+          ],
+          "frs": [
+            "FR2.2",
+            "FR2.3"
+          ],
+          "nfrs": [
+            "NFR1",
+            "NFR4",
+            "NFR6",
+            "NFR7"
+          ],
+          "contracts": [
+            "CT6",
+            "CT9",
+            "CT15"
+          ],
+          "depends_on": [
+            "T2"
+          ],
+          "status": "merged",
+          "prs": [
+            193
+          ],
+          "tests": [
+            "tests/test_verify_install.py::test_gitleaks_constants_match_the_gitleaks_table",
+            "tests/test_verify_install.py::test_harness_has_no_gitleaks_fixture",
+            "tests/test_verify_install.py::test_harness_serves_gitleaks_from_the_mirror",
+            "tests/test_verify_install.py::test_harness_passes_the_gitleaks_base_url",
+            "tests/test_verify_install.py::test_step_9a_is_wired"
+          ],
+          "verification_steps": [
+            "2",
+            "7",
+            "9 (caso a)"
+          ],
+          "adjusted_tests": [
+            "tests/test_verify_install.py::test_step_ids_are_the_u1_and_u3_steps",
+            "tests/test_verify_install.py::test_help_exits_0",
+            "tests/test_verify_install.py::test_usage_errors_exit_1_before_preparing"
+          ],
+          "verification": {
+            "pr_head": "8e70681",
+            "base": "8fafff6",
+            "checks": "6/6 verdes (verify-install / linux-x64 em 3m41s, 8 linhas ok com 9a)",
+            "pytest": "4428 passed (3.10 e 3.12)",
+            "e2e": "harness inteiro: 8 linhas ok (1 2 3 4 7 8 9a 9b), real 146.968 s; --only 2,7,9a ok (passo 2 45 s, passo 7 0 s); prova negativa do 9a: exit 1, 'saiu 0 com gitleaks adulterado'",
+            "et_version": "v1",
+            "correction_rounds": 0
+          },
+          "merge_commit": "e481ef6",
+          "merged_at": "2026-10-20 13:15 UTC-3"
+        },
+        {
+          "id": "T4",
+          "title": "Gate secrets acha o gitleaks de BOB_HOME/bin",
+          "et": "construction/u3-gitleaks/code-generation/tasks/T4.md",
+          "plan": "construction/u3-gitleaks/code-generation/code-generation-plan.md",
+          "plan_steps": [
+            "P5",
+            "P6"
+          ],
+          "branch": "aidlc/u3-gitleaks/t4-secrets-gate",
+          "stories": [],
+          "frs": [
+            "FR2.1"
+          ],
+          "nfrs": [],
+          "contracts": [
+            "CT8"
+          ],
+          "depends_on": [
+            "T3"
+          ],
+          "status": "merged",
+          "prs": [
+            194
+          ],
+          "tests": [
+            "tests/test_secrets_scan.py::test_gitleaks_in_bob_home_is_used_before_the_path",
+            "tests/test_secrets_scan.py::test_gitleaks_only_in_bob_home_is_not_a_missing_tool"
+          ],
+          "decision": "Q2 = A (Emerson, via Maestro, 2026-10-19 23:10 UTC-3: \"Q1 A, Q2 A.\")",
+          "verification": {
+            "pr_head": "85b35a2",
+            "base": "e481ef6",
+            "checks": "6/6 verdes (verify-install / linux-x64 em 3m12s, 8 linhas ok)",
+            "pytest": "4430 passed (3.10 e 3.12)",
+            "e2e": "bob setup sem gitleaks no PATH (gitleaks 8.30.1 em BOB_HOME/bin); bob check --gates secrets: exit 0, sem 'missing tool: gitleaks', relatório com 'Tools: gitleaks 8.30.1' e 'secrets: passed'",
+            "et_version": "v1",
+            "correction_rounds": 0
+          },
+          "merge_commit": "0b4c6ec",
+          "merged_at": "2026-10-20 15:23 UTC-3"
+        }
+      ],
+      "prs": [
+        {
+          "number": 191,
+          "url": "https://github.com/fazedordecodigo/bob/pull/191",
+          "task": "T1",
+          "title": "ET-u3-gitleaks-T1: Módulo gitleaks.py: tabela, download conferido e instalação em BOB_HOME",
+          "base_sha": "387b0b6d0b19907e02b0db78762d6d8656e7135c",
+          "head_sha": "041208d7a6eb242f4828987f6e12bea9d1b44694",
+          "state": "merged",
+          "verified_at": "2026-10-20T02:20:00-03:00",
+          "checks": {
+            "bob / check": "success",
+            "bob / cold": "success",
+            "CI / pytest (3.10)": "success",
+            "CI / pytest (3.12)": "success",
+            "package / dist": "success",
+            "verify-install / linux-x64": "success"
+          },
+          "pytest": "4394 passed, 0 failed",
+          "et_version": "v2",
+          "correction_rounds": 0,
+          "merge_commit": "f8b4068"
+        },
+        {
+          "number": 192,
+          "url": "https://github.com/fazedordecodigo/bob/pull/192",
+          "task": "T2",
+          "title": "ET-u3-gitleaks-T2: Passo gitleaks no bob setup e doctor com BOB_HOME/bin",
+          "base_sha": "f8b4068f4669b447fbc1e974ae9fd746451bd004",
+          "head_sha": "6c5b3d12a98d8dcfbca26a3ad48f605b8f7e7ece",
+          "state": "merged",
+          "verified_at": "2026-10-20T11:19:00-03:00",
+          "checks": {
+            "bob / check": "success",
+            "bob / cold": "success",
+            "CI / pytest (3.10)": "success",
+            "CI / pytest (3.12)": "success",
+            "package / dist": "success",
+            "verify-install / linux-x64": "success"
+          },
+          "pytest": "4423 passed, 0 failed",
+          "et_version": "v2",
+          "correction_rounds": 1,
+          "merge_commit": "8fafff6",
+          "merged_at": "2026-10-20 11:22 UTC-3"
+        },
+        {
+          "number": 193,
+          "url": "https://github.com/fazedordecodigo/bob/pull/193",
+          "task": "T3",
+          "title": "ET-u3-gitleaks-T3: Harness sem fixture do gitleaks e passo 9a",
+          "base_sha": "8fafff6f724d453f7a9df16dc253cbf1363fc08d",
+          "head_sha": "8e70681b591f70b634078de28c1834ada6d2c20b",
+          "state": "merged",
+          "verified_at": "2026-10-20T12:58:00-03:00",
+          "checks": {
+            "bob / check": "success",
+            "bob / cold": "success",
+            "CI / pytest (3.10)": "success",
+            "CI / pytest (3.12)": "success",
+            "package / dist": "success",
+            "verify-install / linux-x64": "success"
+          },
+          "pytest": "4428 passed, 0 failed",
+          "et_version": "v1",
+          "correction_rounds": 0,
+          "merge_commit": "e481ef6",
+          "merged_at": "2026-10-20 13:15 UTC-3"
+        },
+        {
+          "number": 194,
+          "url": "https://github.com/fazedordecodigo/bob/pull/194",
+          "task": "T4",
+          "title": "ET-u3-gitleaks-T4: Gate secrets acha o gitleaks de BOB_HOME/bin",
+          "base_sha": "e481ef647c97fcb9c4a0e839ce60cf6da3ea378c",
+          "head_sha": "85b35a2b86096620b5744d98b8e394970a5d0671",
+          "state": "merged",
+          "verified_at": "2026-10-20T15:20:00-03:00",
+          "checks": {
+            "bob / check": "success",
+            "bob / cold": "success",
+            "CI / pytest (3.10)": "success",
+            "CI / pytest (3.12)": "success",
+            "package / dist": "success",
+            "verify-install / linux-x64": "success"
+          },
+          "pytest": "4430 passed, 0 failed",
+          "et_version": "v1",
+          "correction_rounds": 0,
+          "merge_commit": "0b4c6ec",
+          "merged_at": "2026-10-20 15:23 UTC-3"
+        }
+      ],
+      "tests": [
+        "tests/test_doctor.py::test_doctor_bob_home_relative_message_in_both_languages",
+        "tests/test_doctor.py::test_doctor_cli_finds_gitleaks_in_bob_home",
+        "tests/test_doctor.py::test_doctor_finds_gitleaks_in_bob_home_before_the_path",
+        "tests/test_doctor.py::test_doctor_has_no_gitleaks_literals",
+        "tests/test_doctor.py::test_doctor_install_gitleaks_failure_exits_4",
+        "tests/test_doctor.py::test_doctor_install_runs_npm_then_gitleaks",
+        "tests/test_doctor.py::test_doctor_install_stops_when_npm_fails",
+        "tests/test_doctor.py::test_doctor_install_with_relative_bob_home_exits_4",
+        "tests/test_doctor.py::test_gitleaks_pin_comes_from_the_gitleaks_table",
+        "tests/test_gitleaks.py::test_5xx_is_retried_twice",
+        "tests/test_gitleaks.py::test_5xx_then_200_installs",
+        "tests/test_gitleaks.py::test_archive_without_the_expected_binary_fails_extraction",
+        "tests/test_gitleaks.py::test_asset_url_joins_base_and_asset",
+        "tests/test_gitleaks.py::test_assets_are_the_four_adr_0014_entries",
+        "tests/test_gitleaks.py::test_bad_base_url_fails_before_any_request",
+        "tests/test_gitleaks.py::test_base_url_accepts_https_and_loopback",
+        "tests/test_gitleaks.py::test_base_url_rejects_other_urls",
+        "tests/test_gitleaks.py::test_download_uses_a_30_s_timeout",
+        "tests/test_gitleaks.py::test_ensure_installs_the_binary_and_the_link",
+        "tests/test_gitleaks.py::test_extractfile_none_fails_extraction",
+        "tests/test_gitleaks.py::test_gitleaks_error_is_a_tool_error",
+        "tests/test_gitleaks.py::test_gitleaks_messages_exist_in_both_languages",
+        "tests/test_gitleaks.py::test_http_4xx_is_not_retried",
+        "tests/test_gitleaks.py::test_installed_version",
+        "tests/test_gitleaks.py::test_network_error_is_retried_twice",
+        "tests/test_gitleaks.py::test_platform_key_defaults_to_this_machine",
+        "tests/test_gitleaks.py::test_platform_key_maps_the_ct9_table",
+        "tests/test_gitleaks.py::test_platform_key_rejects_other_platforms",
+        "tests/test_gitleaks.py::test_reinstall_over_leftovers",
+        "tests/test_gitleaks.py::test_rollback_removes_temporary_binary",
+        "tests/test_gitleaks.py::test_rollback_removes_temporary_link",
+        "tests/test_gitleaks.py::test_second_ensure_downloads_nothing",
+        "tests/test_gitleaks.py::test_tampered_archive_fails_integrity_and_installs_nothing",
+        "tests/test_gitleaks.py::test_timeout_error_is_retried_twice",
+        "tests/test_gitleaks.py::test_unsupported_platform_fails_before_any_request",
+        "tests/test_gitleaks.py::test_version_and_default_base_url",
+        "tests/test_gitleaks.py::test_write_error_keeps_an_existing_destination",
+        "tests/test_gitleaks.py::test_write_error_keeps_what_was_there",
+        "tests/test_gitleaks.py::test_write_error_leaves_nothing_in_tools",
+        "tests/test_gitleaks.py::test_write_error_without_filename_names_the_destination",
+        "tests/test_gitleaks.py::test_wrong_version_is_replaced",
+        "tests/test_secrets_scan.py::test_gitleaks_in_bob_home_is_used_before_the_path",
+        "tests/test_secrets_scan.py::test_gitleaks_only_in_bob_home_is_not_a_missing_tool",
+        "tests/test_setup_cmd.py::test_gitleaks_step_failure_stops_setup",
+        "tests/test_setup_cmd.py::test_gitleaks_step_installs_when_missing",
+        "tests/test_setup_cmd.py::test_gitleaks_step_is_unchanged_when_present",
+        "tests/test_setup_cmd.py::test_gitleaks_step_passes_ctx_home_to_installed_version",
+        "tests/test_setup_cmd.py::test_gitleaks_step_reaches_the_summary",
+        "tests/test_setup_cmd.py::test_steps_follow_the_ct3_order",
+        "tests/test_user_dirs.py::test_locate_binary_falls_back_to_the_path",
+        "tests/test_user_dirs.py::test_locate_binary_follows_a_link_without_resolving_it",
+        "tests/test_user_dirs.py::test_locate_binary_prefers_bob_home_bin",
+        "tests/test_user_dirs.py::test_locate_binary_reads_os_environ_by_default",
+        "tests/test_user_dirs.py::test_locate_binary_with_relative_bob_home_uses_the_path",
+        "tests/test_verify_install.py::test_gitleaks_constants_match_the_gitleaks_table",
+        "tests/test_verify_install.py::test_harness_has_no_gitleaks_fixture",
+        "tests/test_verify_install.py::test_harness_passes_the_gitleaks_base_url",
+        "tests/test_verify_install.py::test_harness_serves_gitleaks_from_the_mirror",
+        "tests/test_verify_install.py::test_step_9a_is_wired",
+        "tests/test_verify_install.py::test_step_ids_are_the_u1_and_u3_steps"
+      ]
     },
     {
       "id": "U4",
       "name": "u4-bob-yaml",
       "kind": "library",
+      "status": "completed",
       "components": [
         "C05"
       ],
@@ -157,14 +1455,752 @@
         "7",
         "8 (parcial)"
       ],
-      "tasks": [],
-      "prs": [],
-      "tests": []
+      "tasks": [
+        {
+          "id": "T1",
+          "title": "Gerador do bob.yaml (init_config.py)",
+          "et": "construction/u4-bob-yaml/code-generation/tasks/T1.md",
+          "plan": "construction/u4-bob-yaml/code-generation/code-generation-plan.md",
+          "plan_steps": [
+            "P1",
+            "P4",
+            "P7"
+          ],
+          "branch": "aidlc/u4-bob-yaml/t1-init-config",
+          "stories": [
+            "US3.1",
+            "US3.2"
+          ],
+          "frs": [
+            "FR4.1",
+            "FR4.2",
+            "FR4.3",
+            "FR4.4",
+            "FR4.5",
+            "FR4.6"
+          ],
+          "nfrs": [
+            "NFR4",
+            "NFR5"
+          ],
+          "contracts": [
+            "CT7"
+          ],
+          "depends_on": [],
+          "status": "merged",
+          "prs": [
+            195
+          ],
+          "tests": [
+            "tests/test_init_config.py::test_render_config_is_the_ct7_text",
+            "tests/test_init_config.py::test_render_config_quotes_items_that_are_not_plain",
+            "tests/test_init_config.py::test_write_creates_src_when_src_has_code",
+            "tests/test_init_config.py::test_write_lists_every_code_folder_in_code_point_order",
+            "tests/test_init_config.py::test_each_code_suffix_counts",
+            "tests/test_init_config.py::test_other_suffixes_do_not_count",
+            "tests/test_init_config.py::test_excluded_folders_do_not_count",
+            "tests/test_init_config.py::test_dot_folders_do_not_count",
+            "tests/test_init_config.py::test_code_only_in_the_root_is_dot",
+            "tests/test_init_config.py::test_no_code_is_dot_and_created_no_code",
+            "tests/test_init_config.py::test_untracked_count_and_ignored_do_not",
+            "tests/test_init_config.py::test_symlinks_do_not_count",
+            "tests/test_init_config.py::test_listed_but_deleted_files_do_not_count",
+            "tests/test_init_config.py::test_non_ascii_folder_names_are_read",
+            "tests/test_init_config.py::test_existing_bob_yaml_is_preserved",
+            "tests/test_init_config.py::test_validates_the_temporary_file_before_renaming",
+            "tests/test_init_config.py::test_config_error_removes_the_temporary",
+            "tests/test_init_config.py::test_rename_error_removes_the_temporary",
+            "tests/test_init_config.py::test_write_error_leaves_no_temporary",
+            "tests/test_init_config.py::test_generated_files_pass_load_config",
+            "tests/test_init_config.py::test_files_come_from_the_suite_fingerprint_listing",
+            "tests/test_init_config.py::test_git_failure_is_a_tool_error",
+            "tests/test_init_config.py::test_second_write_is_preserved_and_changes_nothing",
+            "tests/test_init_config.py::test_quote_passes_ensure_ascii_false"
+          ],
+          "verification": {
+            "pr_head": "49cd38b",
+            "base": "0b4c6ec",
+            "checks": "6/6 verdes (verify-install / linux-x64 em 3m37s)",
+            "pytest": "4476 passed",
+            "e2e": "não se aplica (T1 sem e2e)",
+            "et_version": "v2"
+          }
+        },
+        {
+          "id": "T1b",
+          "title": "Gates crap e coverage sem código a medir saem 0",
+          "et": "construction/u4-bob-yaml/code-generation/tasks/T1b.md",
+          "plan": "construction/u4-bob-yaml/code-generation/code-generation-plan.md",
+          "plan_steps": [
+            "P9",
+            "P7"
+          ],
+          "branch": "aidlc/u4-bob-yaml/t1b-no-code",
+          "base": "0d85510b8fd9d578619ce6e7adbde231b66bdd85",
+          "stories": [
+            "US3.1"
+          ],
+          "frs": [
+            "FR4.4"
+          ],
+          "nfrs": [
+            "NFR9"
+          ],
+          "contracts": [
+            "CT1",
+            "CT7"
+          ],
+          "depends_on": [
+            "T1"
+          ],
+          "status": "merged",
+          "agent": "bc-2343a08e-5bb5-5621-8b6b-b94b3c494a0e",
+          "dispatched_at": "2026-10-20T21:47-03:00",
+          "et_version": "v1",
+          "decision": "Q1 = A (Emerson, 2026-10-20 21:18 UTC-3); T1b e E1–E3 aprovadas (Emerson, 2026-10-20 21:42 UTC-3)",
+          "amendments": "construction/u4-bob-yaml/code-generation/tasks/T1b-emenda.md",
+          "amendments_applied": {
+            "E1": "inception/application-design/decisions.md:220-221 (ADR 0015)",
+            "E2": "inception/contracts/contract-summary.md:322, registro na :324 (CT7)",
+            "E3": "inception/contracts/contract-summary.md:53-54 (CT1)",
+            "E4": "vai para a T1c"
+          },
+          "prs": [
+            197
+          ],
+          "tests": [
+            "tests/test_check_dispatch.py::test_measure_skips_crap_and_coverage_without_code",
+            "tests/test_check_dispatch.py::test_measure_finds_no_code_outside_the_include_rule",
+            "tests/test_check_dispatch.py::test_measure_runs_crap_and_coverage_when_there_is_code",
+            "tests/test_check_report.py::test_a_repo_without_code_skips_crap_and_coverage_and_exits_0",
+            "tests/test_check_report.py::test_a_missing_coverage_file_keeps_the_coverage_gate_a_tool_failure"
+          ],
+          "adjusted_tests": [
+            "tests/test_check_dispatch.py (imports: _measure, CoverageOutcome)",
+            "tests/test_mutation_branches.py::test_absorb_records_every_gate_argument_and_result (+2 linhas: src/app.py)"
+          ],
+          "guard_tests": [
+            "tests/test_check_report.py::test_a_missing_coverage_file_stays_a_tool_failure (sem edição)"
+          ],
+          "verification": {
+            "pr_head": "953f91b",
+            "base": "0d85510",
+            "checks": "6/6 verdes (verify-install / linux-x64 em 3m48s)",
+            "pytest": "4486 passed",
+            "e2e": "7 EXIT:0; ⏭️ crap/coverage \"no code to measure\" (en) e \"nenhum código a medir\" (pt-BR)",
+            "passo_0": "crap 4, dry 0, deps 0, coverage 4 em 0d85510",
+            "et_version": "v1",
+            "report": "construction/u4-bob-yaml/code-generation/tasks/T1b-verificacao.md"
+          }
+        },
+        {
+          "id": "T2",
+          "title": "Passo bob.yaml no bob setup",
+          "et": "construction/u4-bob-yaml/code-generation/tasks/T2.md",
+          "plan": "construction/u4-bob-yaml/code-generation/code-generation-plan.md",
+          "plan_steps": [
+            "P2",
+            "P3",
+            "P4",
+            "P7"
+          ],
+          "branch": "aidlc/u4-bob-yaml/t2-setup-step",
+          "stories": [
+            "US3.1",
+            "US3.2"
+          ],
+          "frs": [
+            "FR4.1",
+            "FR4.5",
+            "FR4.6"
+          ],
+          "nfrs": [
+            "NFR4",
+            "NFR5",
+            "NFR9"
+          ],
+          "contracts": [
+            "CT1",
+            "CT3",
+            "CT7"
+          ],
+          "depends_on": [
+            "T1",
+            "T1b"
+          ],
+          "status": "merged",
+          "base": "637ec39dfe55db138553b827a6bb8a72905476f1",
+          "resumed_at": "2026-10-21T10:47-03:00",
+          "run": "run-42340d21-0e04-4577-b9c9-a3cdd57990f9",
+          "note": "base fixada em 637ec39 às 10:45; passo 0 com critério EXIT:0 (antes ≠ 4), a pedido do Maestro; retomada por reply no mesmo PR #196; anexos em /workspace/dispatch/u4-t2/",
+          "agent": "bc-691329cf-9c32-599d-b0e2-34a6b6196ac0",
+          "et_version": "v3",
+          "prs": [
+            196
+          ],
+          "tests": [
+            "tests/test_setup_cmd.py::test_bob_yaml_step_reports_created",
+            "tests/test_setup_cmd.py::test_bob_yaml_step_warns_when_there_is_no_code",
+            "tests/test_setup_cmd.py::test_bob_yaml_step_reports_preserved",
+            "tests/test_setup_cmd.py::test_bob_yaml_step_lists_existing_waivers",
+            "tests/test_setup_cmd.py::test_bob_yaml_step_invalid_config_fails",
+            "tests/test_setup_cmd.py::test_bob_yaml_step_git_failure_fails",
+            "tests/test_setup_cmd.py::test_bob_yaml_step_write_error_fails",
+            "tests/test_setup_cmd.py::test_bob_yaml_step_failure_stops_setup",
+            "tests/test_setup_cmd.py::test_bob_yaml_step_reaches_the_summary",
+            "tests/test_setup_cmd.py::test_bob_yaml_step_no_code_warning_reaches_the_output"
+          ],
+          "adjusted_tests": [
+            "tests/test_setup_cmd.py::test_steps_follow_the_ct3_order",
+            "tests/test_setup_cmd.py::test_setup_messages_exist_in_both_languages (_MESSAGES +6)"
+          ],
+          "verification": {
+            "pr_head": "0990f84",
+            "base": "637ec39",
+            "checks": "6/6 verdes (verify-install / linux-x64 em 3m33s)",
+            "pytest": "4513 passed (4486 + 15 casos novos + 12 de _MESSAGES)",
+            "passo_0": "EXIT:0 em 637ec39 (⏭️ crap no code to measure); anterior EXIT:4 em 0d85510",
+            "e2e": "SETUP:0 ×3; [src], [app], [\".\"]; aviso só em sem-codigo; 3 EXIT:0; 2 linhas preserved; sha256 iguais",
+            "et_version": "v3",
+            "report": "construction/u4-bob-yaml/code-generation/tasks/T2-verificacao.md"
+          }
+        },
+        {
+          "id": "T3",
+          "title": "Harness: passo 5 e preservação do bob.yaml/waivers",
+          "et": "construction/u4-bob-yaml/code-generation/tasks/T3.md",
+          "plan": "construction/u4-bob-yaml/code-generation/code-generation-plan.md",
+          "plan_steps": [
+            "P5",
+            "P6",
+            "P7"
+          ],
+          "branch": "aidlc/u4-bob-yaml/t3-verify-install",
+          "stories": [
+            "US3.1",
+            "US3.2"
+          ],
+          "frs": [
+            "FR4.2",
+            "FR4.3",
+            "FR4.4",
+            "FR4.5",
+            "FR4.6"
+          ],
+          "nfrs": [
+            "NFR4",
+            "NFR5"
+          ],
+          "contracts": [
+            "CT7",
+            "CT15"
+          ],
+          "depends_on": [
+            "T2"
+          ],
+          "status": "merged",
+          "prs": [
+            198
+          ],
+          "tests": [
+            "tests/test_verify_install.py::test_step_5_is_wired",
+            "tests/test_verify_install.py::test_harness_expects_the_ct7_text",
+            "tests/test_verify_install.py::test_step_5_checks_the_no_code_warning",
+            "tests/test_verify_install.py::test_steps_7_and_8_check_the_preserved_lines",
+            "tests/test_verify_install.py::test_step_5_runs_bob_check_with_the_u4_gates",
+            "scripts/verify-install.sh passo 5",
+            "scripts/verify-install.sh passo 7",
+            "scripts/verify-install.sh passo 8"
+          ],
+          "adjusted_tests": [
+            "tests/test_verify_install.py::test_step_ids_are_the_u1_and_u3_steps -> test_step_ids_are_the_u1_u3_and_u4_steps",
+            "tests/test_verify_install.py::_HELP",
+            "tests/test_verify_install.py::test_usage_errors_exit_1_before_preparing (--only 5 -> --only 6)"
+          ],
+          "et_version": "v2",
+          "base": "031957f6c41dcc4e3b0bf3d998c346d0eee7b456",
+          "agent": "bc-2662dd6b-6b38-561b-8c35-d9ccd7690468",
+          "dispatched_at": "2026-10-21T12:38-03:00",
+          "verification": {
+            "pr_head": "79e7ad3",
+            "base": "031957f",
+            "post_merge": true,
+            "note": "verificação feita depois do merge (Emerson, 2026-10-22 00:43:39 UTC-3); box fora do ar de 2026-10-21 14:48 até o merge",
+            "checks": "6/6 verdes no head (verify-install / linux-x64 em 3m48s, 9 linhas ok)",
+            "pytest": "4520 passed (4513 + 7 casos novos), 3.10 e 3.12",
+            "step_5_seconds": {
+              "local": 5,
+              "ci_head": 7,
+              "ci_merge": 7,
+              "target": "≤ 180 s (U4-N10)"
+            },
+            "harness_seconds": {
+              "local": 146,
+              "ci_head": 206,
+              "ci_merge": 202,
+              "target": "≤ 900 s"
+            },
+            "et_version": "v2",
+            "correction_rounds": 0,
+            "report": "construction/u4-bob-yaml/code-generation/tasks/T3-verificacao.md"
+          }
+        },
+        {
+          "id": "T1c",
+          "title": "Documentar o not_run \"no code to measure\" com exit 0",
+          "et": "construction/u4-bob-yaml/code-generation/tasks/T1c.md",
+          "plan": "construction/u4-bob-yaml/code-generation/code-generation-plan.md",
+          "plan_steps": [
+            "P10"
+          ],
+          "branch": "aidlc/u4-bob-yaml/t1c-docs-no-code",
+          "base": "bb08a2c0fd2ceed93223c3f4cd052b86b7cce5de",
+          "stories": [
+            "US3.1"
+          ],
+          "frs": [
+            "FR4.4"
+          ],
+          "nfrs": [
+            "NFR9"
+          ],
+          "contracts": [
+            "CT1",
+            "CT7"
+          ],
+          "depends_on": [
+            "T1b",
+            "T3"
+          ],
+          "status": "merged",
+          "et_version": "v1",
+          "decision": "T1c separada para a E4 (Emerson, 2026-10-20 21:42 UTC-3)",
+          "files": [
+            "docs/exit-codes.md",
+            "website/i18n/pt-BR/docusaurus-plugin-content-docs/current/exit-codes.md",
+            "docs/adr/0003-exit-codes.md",
+            "README.md",
+            "README.pt-BR.md"
+          ],
+          "prs": [
+            199
+          ],
+          "tests": [],
+          "verification_plan": [
+            "website / build: npm ci && npm run build && npm test (onBrokenLinks/onBrokenAnchors: throw)",
+            "tests/test_gate_publications.py",
+            "tests/test_skills_contract.py (âncora docs/exit-codes.md#exit-4)",
+            "grep dos textos D1–D7"
+          ],
+          "agent": "bc-fcc12763-56b3-5f33-8e48-3b1c33793083",
+          "dispatched_at": "2026-10-22T06:58-03:00",
+          "verification": {
+            "pr_head": "3a49309",
+            "base": "bb08a2c",
+            "checks": "7/7 verdes (6 obrigatórios + website / build em 2m25s; verify-install / linux-x64 em 3m51s, 9 linhas ok)",
+            "pytest": "4520 passed (sem teste novo), 3.10 e 3.12",
+            "passo_0": "check.no_code en (l.89) e pt-BR (l.497); _NEEDS_CODE (check.py l.47) em bb08a2c",
+            "texts": "D1–D7 byte a byte (⏭️ com U+FE0F), logo depois da âncora, entre linhas vazias; nenhum título, link ou âncora mudado; CHANGELOG intocado",
+            "website": "build en e pt-BR [SUCCESS]; npm test 14/14",
+            "et_version": "v1",
+            "correction_rounds": 0,
+            "report": "construction/u4-bob-yaml/code-generation/tasks/T1c-verificacao.md"
+          },
+          "merge_commit": "b142631935df7cad40f241501969dfea03595057",
+          "merged_at": "2026-10-22T08:26:20-03:00"
+        }
+      ],
+      "prs": [
+        {
+          "number": 195,
+          "url": "https://github.com/fazedordecodigo/bob/pull/195",
+          "task": "T1",
+          "title": "ET-u4-bob-yaml-T1: Gerador do bob.yaml (init_config.py)",
+          "base_sha": "0b4c6ec4e61f653fe8235b3ed20306a69ca46bcc",
+          "head_sha": "49cd38b0dcee8eb19aa65624c6045b3e3e4e52c8",
+          "state": "merged",
+          "verified_at": "2026-10-20T20:30:00-03:00",
+          "checks": {
+            "bob / check": "success",
+            "bob / cold": "success",
+            "CI / pytest (3.10)": "success",
+            "CI / pytest (3.12)": "success",
+            "package / dist": "success",
+            "verify-install / linux-x64": "success"
+          },
+          "pytest": "4476 passed, 0 failed",
+          "et_version": "v2",
+          "correction_rounds": 2,
+          "merged_at": "2026-10-20T20:33:04-03:00",
+          "merge_commit": "0d85510b8fd9d578619ce6e7adbde231b66bdd85",
+          "merged_by": "fazedordecodigo"
+        },
+        {
+          "number": 196,
+          "url": "https://github.com/fazedordecodigo/bob/pull/196",
+          "task": "T2",
+          "title": "ET-u4-bob-yaml-T2: Passo bob.yaml no bob setup",
+          "base_sha": "637ec39dfe55db138553b827a6bb8a72905476f1",
+          "head_sha": "0990f841c93f8d4daeab9ef5becd5befdd6470b5",
+          "state": "merged",
+          "agent": "bc-691329cf-9c32-599d-b0e2-34a6b6196ac0",
+          "created_at": "2026-10-20T20:40:38-03:00",
+          "commits": 3,
+          "changed_files": 4,
+          "et_version": "v3",
+          "resumed_at": "2026-10-21T10:47-03:00",
+          "draft": false,
+          "additions": 340,
+          "deletions": 1,
+          "history": [
+            "d90c24d (commit vazio, passo 0 bloqueado)",
+            "88248c7 (merge de origin/main 637ec39, sem force-push)",
+            "0990f84 (entrega)"
+          ],
+          "verified_at": "2026-10-21T12:20:00-03:00",
+          "checks": {
+            "bob / check": "success",
+            "bob / cold": "success",
+            "CI / pytest (3.10)": "success",
+            "CI / pytest (3.12)": "success",
+            "package / dist": "success",
+            "verify-install / linux-x64": "success"
+          },
+          "pytest": "4513 passed, 0 failed",
+          "correction_rounds": 0,
+          "merge_commit_sha": "031957f6c41dcc4e3b0bf3d998c346d0eee7b456",
+          "merged_at": "2026-10-21T12:32:41-03:00",
+          "merged_by": "fazedordecodigo"
+        },
+        {
+          "number": 197,
+          "url": "https://github.com/fazedordecodigo/bob/pull/197",
+          "task": "T1b",
+          "title": "ET-u4-bob-yaml-T1b: Gates crap e coverage sem código a medir saem 0",
+          "base_sha": "0d85510b8fd9d578619ce6e7adbde231b66bdd85",
+          "head_sha": "953f91be2002a8dcfa8d90cf785e2499b12297d2",
+          "state": "merged",
+          "agent": "bc-2343a08e-5bb5-5621-8b6b-b94b3c494a0e",
+          "created_at": "2026-10-20T23:16:57-03:00",
+          "commits": 1,
+          "changed_files": 6,
+          "additions": 239,
+          "deletions": 2,
+          "verified_at": "2026-10-20T23:50:00-03:00",
+          "checks": {
+            "bob / check": "success",
+            "bob / cold": "success",
+            "CI / pytest (3.10)": "success",
+            "CI / pytest (3.12)": "success",
+            "package / dist": "success",
+            "verify-install / linux-x64": "success"
+          },
+          "pytest": "4486 passed, 0 failed",
+          "et_version": "v1",
+          "correction_rounds": 0,
+          "merged_at": "2026-10-21T10:37:21-03:00",
+          "merge_commit": "637ec39dfe55db138553b827a6bb8a72905476f1",
+          "merged_by": "fazedordecodigo"
+        },
+        {
+          "number": 198,
+          "url": "https://github.com/fazedordecodigo/bob/pull/198",
+          "task": "T3",
+          "title": "ET-u4-bob-yaml-T3: Harness: passo 5 e preservação do bob.yaml/waivers",
+          "base_sha": "031957f6c41dcc4e3b0bf3d998c346d0eee7b456",
+          "head_sha": "79e7ad3e3712b0af9819a33366fb3986dbcdd30f",
+          "state": "merged",
+          "agent": "bc-2662dd6b-6b38-561b-8c35-d9ccd7690468",
+          "created_at": "2026-10-21T13:36:46-03:00",
+          "commits": 1,
+          "changed_files": 3,
+          "additions": 212,
+          "deletions": 15,
+          "draft": false,
+          "et_version": "v2",
+          "verified_at": "2026-10-22T01:05:00-03:00",
+          "verified_after_merge": true,
+          "checks": {
+            "bob / check": "success",
+            "bob / cold": "success",
+            "CI / pytest (3.10)": "success",
+            "CI / pytest (3.12)": "success",
+            "package / dist": "success",
+            "verify-install / linux-x64": "success"
+          },
+          "pytest": "4520 passed, 0 failed",
+          "correction_rounds": 0,
+          "merge_commit_sha": "bb08a2c0fd2ceed93223c3f4cd052b86b7cce5de",
+          "merged_at": "2026-10-22T00:43:39-03:00",
+          "merged_by": "fazedordecodigo",
+          "merge_checks": {
+            "package / dist": "success",
+            "verify-install / linux-x64": "success",
+            "CI / pytest (3.10)": "success",
+            "CI / pytest (3.12)": "success"
+          },
+          "merge_pytest": "4520 passed, 0 failed (3.10 e 3.12)"
+        },
+        {
+          "number": 199,
+          "url": "https://github.com/fazedordecodigo/bob/pull/199",
+          "task": "T1c",
+          "title": "ET-u4-bob-yaml-T1c: Documentar o not_run \"no code to measure\" com exit 0",
+          "base_sha": "bb08a2c0fd2ceed93223c3f4cd052b86b7cce5de",
+          "head_sha": "3a49309e2c53f16e393e516c3b32664da2bfdb92",
+          "state": "merged",
+          "agent": "bc-fcc12763-56b3-5f33-8e48-3b1c33793083",
+          "created_at": "2026-10-22T07:53:53-03:00",
+          "commits": 1,
+          "changed_files": 5,
+          "additions": 14,
+          "deletions": 0,
+          "draft": false,
+          "et_version": "v1",
+          "verified_at": "2026-10-22T08:25:00-03:00",
+          "checks": {
+            "bob / check": "success",
+            "bob / cold": "success",
+            "CI / pytest (3.10)": "success",
+            "CI / pytest (3.12)": "success",
+            "package / dist": "success",
+            "verify-install / linux-x64": "success",
+            "website / build": "success"
+          },
+          "pytest": "4520 passed, 0 failed",
+          "correction_rounds": 0,
+          "merge_commit_sha": "b142631935df7cad40f241501969dfea03595057",
+          "merged_at": "2026-10-22T08:26:20-03:00",
+          "merged_by": "fazedordecodigo",
+          "merged_tree": "86645a240ee8ef5fdde5fe1e77dc3e2ba5c506bb (igual à do head 3a49309)"
+        }
+      ],
+      "tests": [
+        "tests/test_init_config.py::test_render_config_is_the_ct7_text",
+        "tests/test_init_config.py::test_render_config_quotes_items_that_are_not_plain",
+        "tests/test_init_config.py::test_write_creates_src_when_src_has_code",
+        "tests/test_init_config.py::test_write_lists_every_code_folder_in_code_point_order",
+        "tests/test_init_config.py::test_each_code_suffix_counts",
+        "tests/test_init_config.py::test_other_suffixes_do_not_count",
+        "tests/test_init_config.py::test_excluded_folders_do_not_count",
+        "tests/test_init_config.py::test_dot_folders_do_not_count",
+        "tests/test_init_config.py::test_code_only_in_the_root_is_dot",
+        "tests/test_init_config.py::test_no_code_is_dot_and_created_no_code",
+        "tests/test_init_config.py::test_untracked_count_and_ignored_do_not",
+        "tests/test_init_config.py::test_symlinks_do_not_count",
+        "tests/test_init_config.py::test_listed_but_deleted_files_do_not_count",
+        "tests/test_init_config.py::test_non_ascii_folder_names_are_read",
+        "tests/test_init_config.py::test_existing_bob_yaml_is_preserved",
+        "tests/test_init_config.py::test_validates_the_temporary_file_before_renaming",
+        "tests/test_init_config.py::test_config_error_removes_the_temporary",
+        "tests/test_init_config.py::test_rename_error_removes_the_temporary",
+        "tests/test_init_config.py::test_write_error_leaves_no_temporary",
+        "tests/test_init_config.py::test_generated_files_pass_load_config",
+        "tests/test_init_config.py::test_files_come_from_the_suite_fingerprint_listing",
+        "tests/test_init_config.py::test_git_failure_is_a_tool_error",
+        "tests/test_init_config.py::test_second_write_is_preserved_and_changes_nothing",
+        "tests/test_init_config.py::test_quote_passes_ensure_ascii_false",
+        "tests/test_check_dispatch.py::test_measure_skips_crap_and_coverage_without_code",
+        "tests/test_check_dispatch.py::test_measure_finds_no_code_outside_the_include_rule",
+        "tests/test_check_dispatch.py::test_measure_runs_crap_and_coverage_when_there_is_code",
+        "tests/test_check_report.py::test_a_repo_without_code_skips_crap_and_coverage_and_exits_0",
+        "tests/test_check_report.py::test_a_missing_coverage_file_keeps_the_coverage_gate_a_tool_failure",
+        "tests/test_setup_cmd.py::test_bob_yaml_step_reports_created",
+        "tests/test_setup_cmd.py::test_bob_yaml_step_warns_when_there_is_no_code",
+        "tests/test_setup_cmd.py::test_bob_yaml_step_reports_preserved",
+        "tests/test_setup_cmd.py::test_bob_yaml_step_lists_existing_waivers",
+        "tests/test_setup_cmd.py::test_bob_yaml_step_invalid_config_fails",
+        "tests/test_setup_cmd.py::test_bob_yaml_step_git_failure_fails",
+        "tests/test_setup_cmd.py::test_bob_yaml_step_write_error_fails",
+        "tests/test_setup_cmd.py::test_bob_yaml_step_failure_stops_setup",
+        "tests/test_setup_cmd.py::test_bob_yaml_step_reaches_the_summary",
+        "tests/test_setup_cmd.py::test_bob_yaml_step_no_code_warning_reaches_the_output",
+        "tests/test_verify_install.py::test_step_5_is_wired",
+        "tests/test_verify_install.py::test_harness_expects_the_ct7_text",
+        "tests/test_verify_install.py::test_step_5_checks_the_no_code_warning",
+        "tests/test_verify_install.py::test_steps_7_and_8_check_the_preserved_lines",
+        "tests/test_verify_install.py::test_step_5_runs_bob_check_with_the_u4_gates",
+        "scripts/verify-install.sh passo 5",
+        "scripts/verify-install.sh passo 7",
+        "scripts/verify-install.sh passo 8"
+      ],
+      "checkpoint": {
+        "report": "construction/u4-bob-yaml/checkpoint.md",
+        "prepared_at": "2026-10-22T08:52:00-03:00",
+        "main_sha": "b142631935df7cad40f241501969dfea03595057",
+        "verification_command": {
+          "pytest": "4520 passed, 0 failed (3.10 em 15m29s, 3.12 em 20m53s; run 39770582897)",
+          "verify_install": "success, 9 linhas ok (1,2,3,4,5,7,8,9a,9b); passo 5 em 6 s; harness em 173 s (run 39770582943)",
+          "dist": "success (run 39770583274)",
+          "pr_only_checks_from_199_head": "bob / check, bob / cold, website / build success (mesma árvore 86645a2)"
+        },
+        "nfr": "U4-N1..N13 atendem; U4-N14 não verificado",
+        "approval": "pendente (Emerson)",
+        "gaps": [
+          "L1 versão do CT7 (E2) não incrementada",
+          "L2 'fica para o Analista' em T1b-emenda.md:25 e trace.md:58",
+          "L3 construction/u4-bob-yaml/trace.md desatualizado",
+          "L4 28 vulnerabilidades high do npm do site (pré-existentes)",
+          "L5 pages / deploy falha na main (Pages não habilitado; já falhava em 752d235)",
+          "L6 U4-N14 sem medição",
+          "L7 coverage só no corpo dos PRs",
+          "L8 matriz e VERIFY_REMOTE na U9",
+          "L9 #198 mergeado antes da verificação"
+        ],
+        "approved_by": "Emerson",
+        "approved_at": "2026-10-22T08:55-03:00",
+        "approval_quote": "Aprovo o checkpoint da U4. Pode seguir para a U5 (hook)."
+      },
+      "closure": [
+        {
+          "req": "FR4.1",
+          "tasks": [
+            "T1",
+            "T2",
+            "T3"
+          ],
+          "prs": [
+            195,
+            196,
+            198
+          ],
+          "proof": "test_write_creates_src_when_src_has_code, test_bob_yaml_step_reports_created; passo 5"
+        },
+        {
+          "req": "FR4.2",
+          "tasks": [
+            "T1",
+            "T3"
+          ],
+          "prs": [
+            195,
+            198
+          ],
+          "proof": "test_render_config_is_the_ct7_text, test_harness_expects_the_ct7_text; passo 5 (cmp)"
+        },
+        {
+          "req": "FR4.3",
+          "tasks": [
+            "T1",
+            "T3"
+          ],
+          "prs": [
+            195,
+            198
+          ],
+          "proof": "test_write_lists_every_code_folder_in_code_point_order e afins; passo 5 ([src], [app])"
+        },
+        {
+          "req": "FR4.4",
+          "tasks": [
+            "T1",
+            "T1b",
+            "T2",
+            "T3",
+            "T1c"
+          ],
+          "prs": [
+            195,
+            197,
+            196,
+            198,
+            199
+          ],
+          "proof": "test_generated_files_pass_load_config, test_a_repo_without_code_skips_crap_and_coverage_and_exits_0; passo 5 (≠ 4); docs D1–D7"
+        },
+        {
+          "req": "FR4.5",
+          "tasks": [
+            "T1",
+            "T2",
+            "T3"
+          ],
+          "prs": [
+            195,
+            196,
+            198
+          ],
+          "proof": "test_no_code_is_dot_and_created_no_code, test_bob_yaml_step_warns_when_there_is_no_code, test_step_5_checks_the_no_code_warning; passo 5"
+        },
+        {
+          "req": "FR4.6",
+          "tasks": [
+            "T1",
+            "T2",
+            "T3"
+          ],
+          "prs": [
+            195,
+            196,
+            198
+          ],
+          "proof": "test_existing_bob_yaml_is_preserved, test_bob_yaml_step_reports_preserved; passos 7 e 8"
+        },
+        {
+          "req": "US3.1",
+          "tasks": [
+            "T1",
+            "T1b",
+            "T2",
+            "T3",
+            "T1c"
+          ],
+          "prs": [
+            195,
+            197,
+            196,
+            198,
+            199
+          ],
+          "proof": "FR4.1–FR4.5; passo 5"
+        },
+        {
+          "req": "US3.2",
+          "tasks": [
+            "T1",
+            "T2",
+            "T3"
+          ],
+          "prs": [
+            195,
+            196,
+            198
+          ],
+          "proof": "test_bob_yaml_step_lists_existing_waivers, test_steps_7_and_8_check_the_preserved_lines; passos 7 e 8"
+        },
+        {
+          "req": "NFR4",
+          "tasks": [
+            "T1",
+            "T3"
+          ],
+          "prs": [
+            195,
+            198
+          ],
+          "proof": "test_second_write_is_preserved_and_changes_nothing; passo 7"
+        },
+        {
+          "req": "NFR5",
+          "tasks": [
+            "T1",
+            "T2",
+            "T3"
+          ],
+          "prs": [
+            195,
+            196,
+            198
+          ],
+          "proof": "passo 8; test_bob_yaml_step_reaches_the_summary"
+        }
+      ]
     },
     {
       "id": "U5",
       "name": "u5-hook-pre-push",
       "kind": "library",
+      "status": "completed",
       "components": [
         "C06"
       ],
@@ -191,17 +2227,383 @@
         "8 (parcial)",
         "12"
       ],
-      "tasks": [],
-      "prs": [],
-      "tests": []
+      "tasks": [
+        {
+          "id": "T1",
+          "title": "Instalador do hook pre-push (hook_install.py)",
+          "et": "construction/u5-hook-pre-push/code-generation/tasks/T1.md",
+          "plan": "construction/u5-hook-pre-push/code-generation/code-generation-plan.md",
+          "plan_steps": [
+            "P1",
+            "P2",
+            "P4",
+            "P5",
+            "P8"
+          ],
+          "branch": "aidlc/u5-hook-pre-push/t1-hook-install",
+          "base": "b142631935df7cad40f241501969dfea03595057",
+          "stories": [
+            "US4.1"
+          ],
+          "frs": [
+            "FR5.1",
+            "FR5.2",
+            "FR5.3"
+          ],
+          "nfrs": [
+            "NFR4",
+            "NFR5",
+            "NFR8"
+          ],
+          "contracts": [
+            "CT10",
+            "CT5",
+            "CT1"
+          ],
+          "depends_on": [],
+          "status": "merged",
+          "prs": [
+            200
+          ],
+          "tests": [
+            "tests/test_hook_install.py::test_render_hook_is_the_ct10_text",
+            "tests/test_hook_install.py::test_render_hook_rejects_paths_the_hook_cannot_quote",
+            "tests/test_hook_install.py::test_hook_marker_is_line_2_of_the_template",
+            "tests/test_hook_install.py::test_static_hook_runs_the_same_command",
+            "tests/test_hook_install.py::test_install_creates_the_hook",
+            "tests/test_hook_install.py::test_install_creates_the_hooks_folder_when_missing",
+            "tests/test_hook_install.py::test_install_is_unchanged_on_the_second_run",
+            "tests/test_hook_install.py::test_install_updates_a_bob_hook_that_differs",
+            "tests/test_hook_install.py::test_install_preserves_a_foreign_hook",
+            "tests/test_hook_install.py::test_install_never_follows_a_link_or_a_folder",
+            "tests/test_hook_install.py::test_install_respects_core_hooks_path",
+            "tests/test_hook_install.py::test_install_uses_the_common_hooks_of_a_worktree",
+            "tests/test_hook_install.py::test_git_errors_are_tool_errors",
+            "tests/test_hook_install.py::test_git_is_called_with_the_exact_arguments",
+            "tests/test_hook_install.py::test_bad_path_writes_nothing_and_calls_no_git",
+            "tests/test_hook_install.py::test_write_error_leaves_no_temporary",
+            "tests/test_hook_install.py::test_temporary_is_next_to_the_hook",
+            "tests/test_hook_install.py::test_git_command_failed_message_in_both_languages",
+            "tests/test_hook_install.py::test_hooks_path_value_stops_at_the_first_newline",
+            "tests/test_hook_install.py::test_hooks_directory_stops_at_the_first_newline",
+            "tests/test_hook.py::test_managed_hook_calls_the_bob_next_to_python",
+            "tests/test_hermetic.py::test_net_guard_catches_a_connection",
+            "tests/test_hermetic.py::test_u5_tests_open_no_network"
+          ],
+          "agent": "bc-120d0358-fc94-5c1c-b52a-f77b9bbb79b7",
+          "dispatched_at": "2026-10-22T10:17-03:00",
+          "et_version": "v2",
+          "verification": {
+            "pr_head": "7b97bc0",
+            "base": "b142631",
+            "checks": "6/6 verdes (bob / check 20m26s, bob / cold 1m13s, CI / pytest 3.10 19m58s e 3.12 12m09s, package / dist 1m14s, verify-install / linux-x64 4m11s com 9 linhas ok); website / build não se aplica",
+            "pytest": "4562 passed, 0 failed (4520 + 42 novos: 39 em test_hook_install.py, 1 em test_hook.py, 2 em test_hermetic.py), 3.10 e 3.12",
+            "passo_0": "git 2.43.0; RC:1; .git/hooks RC:0; .husky RC:0; .husky RC:0; test_hook.py 6 passed EXIT:0 em b142631",
+            "bob_check": "exit 0; crap, dry, deps, mutate, coverage passed; 0 sobreviventes; 0 sem teste; diff coverage python 100%; 0 waivers novos",
+            "static_hook_sha256": "2b4a14b541ddf0baf87cedac37a8a4129a8b10a5e0512971da33ebc5b9d79ef6 (igual na base e no head)",
+            "et_version": "v2",
+            "correction_rounds": 0,
+            "report": "construction/u5-hook-pre-push/code-generation/tasks/T1-verificacao.md"
+          },
+          "merge_sha": "7f9ad593ca9d905b1c66cc03a8c30773c326af76",
+          "merged_at": "2026-10-22T13:48-03:00"
+        },
+        {
+          "id": "T2",
+          "title": "Passo hook no bob setup",
+          "et": "construction/u5-hook-pre-push/code-generation/tasks/T2.md",
+          "plan": "construction/u5-hook-pre-push/code-generation/code-generation-plan.md",
+          "plan_steps": [
+            "P2",
+            "P3",
+            "P4",
+            "P5",
+            "P8"
+          ],
+          "branch": "aidlc/u5-hook-pre-push/t2-setup-step",
+          "base": "7f9ad593ca9d905b1c66cc03a8c30773c326af76",
+          "stories": [
+            "US4.1",
+            "US3.2"
+          ],
+          "frs": [
+            "FR5.1",
+            "FR5.2",
+            "FR5.3"
+          ],
+          "nfrs": [
+            "NFR4",
+            "NFR5"
+          ],
+          "contracts": [
+            "CT3",
+            "CT10",
+            "CT1"
+          ],
+          "depends_on": [
+            "T1"
+          ],
+          "status": "merged",
+          "prs": [
+            201
+          ],
+          "tests": [
+            "tests/test_setup_cmd.py::test_hook_step_reports_created",
+            "tests/test_setup_cmd.py::test_hook_step_second_run_is_unchanged",
+            "tests/test_setup_cmd.py::test_hook_step_reports_updated",
+            "tests/test_setup_cmd.py::test_hook_step_preserves_a_foreign_hook",
+            "tests/test_setup_cmd.py::test_hook_step_respects_core_hooks_path",
+            "tests/test_setup_cmd.py::test_hook_step_shows_an_outside_path_in_full",
+            "tests/test_setup_cmd.py::test_hook_step_bad_bob_path_fails",
+            "tests/test_setup_cmd.py::test_hook_step_git_failure_fails",
+            "tests/test_setup_cmd.py::test_hook_step_write_error_fails",
+            "tests/test_setup_cmd.py::test_hook_step_failure_stops_setup",
+            "tests/test_setup_cmd.py::test_hook_step_reaches_the_summary",
+            "tests/test_setup_cmd.py::test_hook_step_foreign_warning_reaches_the_output",
+            "tests/test_setup_cmd.py::test_hook_step_passes_ctx_home_bin_bob"
+          ],
+          "agent": "bc-53456d48-5f27-5a7c-b0a7-b540762ec407",
+          "dispatched_at": "2026-10-22T13:55-03:00",
+          "et_version": "v1",
+          "verification": {
+            "pr_head": "fbd14d0",
+            "base": "7f9ad59",
+            "checks": "6/6 verdes (bob / check 24m22s, bob / cold 1m19s, CI / pytest 3.10 20m15s e 3.12 13m58s, package / dist 1m16s, verify-install / linux-x64 3m49s com 9 linhas ok); website / build não se aplica",
+            "pytest": "4597 passed, 0 failed (4562 + 35 novos: 18 dos 13 testes, 16 de _MESSAGES, 1 em test_hermetic.py), 3.10 e 3.12",
+            "passo_0": "created unchanged .git/hooks/pre-push; RC:0; # managed-by: bob-quality; 41 passed EXIT:0 em 7f9ad59",
+            "messages": "8 chaves de R7 byte a byte en 8/8 e pt-BR 8/8, logo depois de setup.bob_yaml_write; nenhuma chave existente mudou",
+            "bob_check": "exit 0; crap, dry, deps, mutate, coverage passed; 0 sobreviventes; 0 sem teste; diff coverage 100%; 0 waivers novos",
+            "e2e": "SETUP:0 em novo, alheio e hookspath; sha256 do alheio igual; hookspath sem .git/hooks/pre-push nem .husky; reexecução hook: ok com o mesmo mtime; BASE:0; PUSH:0; SHAs iguais (1ae11b2); .bob/report.md com crap ✅, dry ⏭️ (sem Node no PATH do push), deps ✅",
+            "et_version": "v1",
+            "correction_rounds": 0,
+            "report": "construction/u5-hook-pre-push/code-generation/tasks/T2-verificacao.md"
+          },
+          "merge_sha": "144b997079375d78a97530aaa10b506d89d42ab1",
+          "merged_at": "2026-10-22T16:32-03:00"
+        },
+        {
+          "id": "T3",
+          "title": "Harness: passos 6 e 12 e hook nos passos 7 e 8",
+          "et": "construction/u5-hook-pre-push/code-generation/tasks/T3.md",
+          "plan": "construction/u5-hook-pre-push/code-generation/code-generation-plan.md",
+          "plan_steps": [
+            "P6",
+            "P7",
+            "P8"
+          ],
+          "branch": "aidlc/u5-hook-pre-push/t3-verify-install",
+          "base": "144b997079375d78a97530aaa10b506d89d42ab1",
+          "stories": [
+            "US4.1",
+            "US3.2"
+          ],
+          "frs": [
+            "FR5.1",
+            "FR5.2",
+            "FR5.3"
+          ],
+          "nfrs": [
+            "NFR4",
+            "NFR5",
+            "NFR8"
+          ],
+          "contracts": [
+            "CT15",
+            "CT10"
+          ],
+          "depends_on": [
+            "T2"
+          ],
+          "status": "merged",
+          "prs": [
+            202
+          ],
+          "tests": [
+            "tests/test_verify_install.py::test_step_6_is_wired",
+            "tests/test_verify_install.py::test_harness_expects_the_ct10_text",
+            "tests/test_verify_install.py::test_step_6_pushes_with_a_clean_env",
+            "tests/test_verify_install.py::test_step_7_checks_the_hook_mtime",
+            "tests/test_verify_install.py::test_step_8_checks_the_foreign_hook",
+            "tests/test_verify_install.py::test_step_12_runs_the_hook_tests",
+            "tests/test_verify_install.py::test_pytest_pin_matches_pyproject"
+          ],
+          "agent": "bc-161623bf-36a4-55d2-8be4-a81c0bf19d43",
+          "dispatched_at": "2026-10-22T16:45-03:00",
+          "et_version": "v1",
+          "verification": {
+            "pr_head": "03e39e5",
+            "base": "144b997",
+            "checks": "6/6 verdes (bob / check 11m55s, bob / cold 1m21s, CI / pytest 3.10 20m06s e 3.12 13m40s, package / dist 1m24s, verify-install / linux-x64 4m10s com 11 linhas ok); website / build não se aplica; pages / deploy não exigido",
+            "pytest": "4605 passed, 0 failed (4597 + 8 novos em test_verify_install.py), 3.10 e 3.12",
+            "verify_install": "CI: passo 6 tempo 1 s ok; passo 7 tempo 1 s ok; passo 8 ok; passo 12 tempo 14 s ok; 11 linhas ok (1 2 3 4 5 6 7 8 9a 9b 12)",
+            "passo_0": "PIN:pytest==9.1.1; BASE:0; SETUP:0; # managed-by: bob-quality; PUSH:0; # bob report com crap ✅, dry ⏭️, deps ✅; test_hook.py 7 passed EXIT:0 em 144b997",
+            "bob_check": "exit 0; crap, dry, deps, mutate, coverage passed; 0 sobreviventes; 0 sem teste; 0 waivers novos",
+            "script_mode": "100755 na base e no head",
+            "et_version": "v1",
+            "correction_rounds": 0,
+            "report": "construction/u5-hook-pre-push/code-generation/tasks/T3-verificacao.md"
+          },
+          "merge_sha": "22d461a60920ab13e7b09fd654fd0e4686ba14d0",
+          "merged_at": "2026-10-22T19:42-03:00"
+        }
+      ],
+      "prs": [
+        {
+          "number": 200,
+          "url": "https://github.com/fazedordecodigo/bob/pull/200",
+          "task": "T1",
+          "title": "ET-u5-hook-pre-push-T1: Instalador do hook pre-push (hook_install.py)",
+          "base_sha": "b142631935df7cad40f241501969dfea03595057",
+          "head_sha": "7b97bc050f90b4ad6aaf15efced7cb36527ab973",
+          "state": "merged",
+          "agent": "bc-120d0358-fc94-5c1c-b52a-f77b9bbb79b7",
+          "created_at": "2026-10-22T12:11:21-03:00",
+          "commits": 3,
+          "changed_files": 7,
+          "additions": 678,
+          "deletions": 7,
+          "draft": false,
+          "et_version": "v2",
+          "verified_at": "2026-10-22T13:30:00-03:00",
+          "checks": {
+            "bob / check": "success",
+            "bob / cold": "success",
+            "CI / pytest (3.10)": "success",
+            "CI / pytest (3.12)": "success",
+            "package / dist": "success",
+            "verify-install / linux-x64": "success"
+          },
+          "pytest": "4562 passed, 0 failed",
+          "correction_rounds": 1,
+          "merge_sha": "7f9ad593ca9d905b1c66cc03a8c30773c326af76",
+          "merged_at": "2026-10-22T13:48:51-03:00",
+          "merged_by": "fazedordecodigo",
+          "correction_note": "1 rodada por lacuna da ET: na v1 os mutantes partition → rpartition (l.72 e l.94) sobreviveram; resolvida pela T1 v2 (testes 22 e 23), sem mudar o código de produção"
+        },
+        {
+          "number": 201,
+          "url": "https://github.com/fazedordecodigo/bob/pull/201",
+          "task": "T2",
+          "title": "ET-u5-hook-pre-push-T2: Passo hook no bob setup",
+          "base_sha": "7f9ad593ca9d905b1c66cc03a8c30773c326af76",
+          "head_sha": "fbd14d03888dab671a4c3eb38c78a5911df71643",
+          "state": "merged",
+          "agent": "bc-53456d48-5f27-5a7c-b0a7-b540762ec407",
+          "created_at": "2026-10-22T15:16:23-03:00",
+          "commits": 1,
+          "changed_files": 5,
+          "additions": 473,
+          "deletions": 2,
+          "draft": false,
+          "et_version": "v1",
+          "verified_at": "2026-10-22T15:58:00-03:00",
+          "checks": {
+            "bob / check": "success",
+            "bob / cold": "success",
+            "CI / pytest (3.10)": "success",
+            "CI / pytest (3.12)": "success",
+            "package / dist": "success",
+            "verify-install / linux-x64": "success"
+          },
+          "pytest": "4597 passed, 0 failed",
+          "correction_rounds": 0,
+          "merge_sha": "144b997079375d78a97530aaa10b506d89d42ab1",
+          "merged_at": "2026-10-22T16:32:36-03:00",
+          "merged_by": "fazedordecodigo"
+        },
+        {
+          "number": 202,
+          "url": "https://github.com/fazedordecodigo/bob/pull/202",
+          "task": "T3",
+          "title": "ET-u5-hook-pre-push-T3: Harness: passos 6 e 12 e hook nos passos 7 e 8",
+          "base_sha": "144b997079375d78a97530aaa10b506d89d42ab1",
+          "head_sha": "03e39e5452351bab1b84ffb96abca289fbf81bcd",
+          "state": "merged",
+          "agent": "bc-161623bf-36a4-55d2-8be4-a81c0bf19d43",
+          "created_at": "2026-10-22T18:34:52-03:00",
+          "commits": 1,
+          "changed_files": 3,
+          "additions": 308,
+          "deletions": 11,
+          "draft": false,
+          "et_version": "v1",
+          "verified_at": "2026-10-22T19:03:00-03:00",
+          "checks": {
+            "bob / check": "success",
+            "bob / cold": "success",
+            "CI / pytest (3.10)": "success",
+            "CI / pytest (3.12)": "success",
+            "package / dist": "success",
+            "verify-install / linux-x64": "success"
+          },
+          "pytest": "4605 passed, 0 failed",
+          "correction_rounds": 0,
+          "merge_sha": "22d461a60920ab13e7b09fd654fd0e4686ba14d0",
+          "merged_at": "2026-10-22T19:42:55-03:00",
+          "merged_by": "fazedordecodigo",
+          "merged_tree": "c8e7dff1d5a66ce3f12e7927c2bf271d84f0adb8 (igual à do head 03e39e5)",
+          "merge_checks": {
+            "package / dist": "success",
+            "verify-install / linux-x64": "success",
+            "CI / pytest (3.10)": "success",
+            "CI / pytest (3.12)": "success"
+          },
+          "merge_pytest": "4605 passed, 0 failed (3.10 e 3.12)"
+        }
+      ],
+      "tests": [],
+      "plan_approval": {
+        "approved_by": "Emerson",
+        "approved_at": "2026-10-22T10:14-03:00",
+        "quote": "Aprovo o plano da U5 e as ETs T1 a T3. Pode despachar a T1 sobre a main b142631."
+      },
+      "checkpoint": {
+        "report": "construction/u5-hook-pre-push/checkpoint.md",
+        "prepared_at": "2026-10-22T20:45:00-03:00",
+        "main_sha": "22d461a60920ab13e7b09fd654fd0e4686ba14d0",
+        "verification_command": {
+          "pytest": "4605 passed, 0 failed (3.10 em 19m35s, 3.12 em 14m01s; run 39866937619)",
+          "verify_install": "success, 11 linhas ok (1,2,3,4,5,6,7,8,9a,9b,12); passo 6 em 1 s; passo 12 em 9 s; harness em ~146 s; job 2m50s (run 39866937636)",
+          "dist": "success, 1m24s (run 39866937693)",
+          "pr_only_checks_from_202_head": "bob / check (11m55s) e bob / cold (1m21s) success (mesma árvore c8e7dff)",
+          "pages": "não rodou no push de 22d461a; has_pages false"
+        },
+        "b5": "atendida (push dispara o hook; test_hook.py < 60 s; hook alheio e core.hooksPath preservados; DoD 1–6)",
+        "nfr": "U5-N1..N16 atendem (16 Atende, 0 Não atende, 0 Não verificado); U4-N14 segue não verificado (a guarda só cobre test_hook_install.py e test_setup_cmd.py -k hook)",
+        "approval": "aprovado (Emerson)",
+        "gaps": [
+          "L1 GitHub Pages não habilitado (pages não rodou neste push; L5 da U4)",
+          "L2 28 vulnerabilidades high do npm do site (não reverificadas; L4 da U4)",
+          "L3 U4-N14 não verificado; propor na 3.6 os testes da U4 no _UNIT_ARGS",
+          "L4 testes da T3 fora da guarda de rede",
+          "L5 matriz e VERIFY_REMOTE=1 (I44) na U9",
+          "L6 coverage só no corpo dos PRs",
+          "L7 dry ⏭️ no push sem Node (I43)",
+          "L8 ubuntu-latest migra para Ubuntu 26 (annotation notice)",
+          "L9 corpo do #202 editado depois da verificação (sem efeito)",
+          "L10 observações de forma das ETs da T2 e da T3",
+          "L11 lições para as próximas ETs"
+        ],
+        "approved_by": "Emerson",
+        "approved_at": "2026-10-22T20:48-03:00",
+        "approval_quote": "Aprovo o checkpoint da U5. Pode seguir para o Plan Approval conjunto da U6 e da U7.",
+        "carry_over": "U4-N14 fica para a 3.6 (L3)"
+      }
     },
     {
       "id": "U6",
       "name": "u6-perfil-shell",
       "kind": "packaging",
+      "status": "completed",
       "components": [],
-      "stories": [],
-      "frs": [],
+      "stories": [
+        "US1.1",
+        "US6.1"
+      ],
+      "frs": [
+        "FR1.1",
+        "FR7.1"
+      ],
       "nfrs": [
         "NFR2",
         "NFR4",
@@ -210,19 +2612,597 @@
         "NFR9"
       ],
       "adrs": [
-        "0013"
+        "0013",
+        "0021",
+        "0022",
+        "0023",
+        "0026",
+        "0027"
       ],
       "verification_steps": [
         "13"
       ],
-      "tasks": [],
-      "prs": [],
-      "tests": []
+      "tasks": [
+        {
+          "id": "T1",
+          "title": "Passo perfil no install.sh",
+          "et": "construction/u6-perfil-shell/code-generation/tasks/T1.md",
+          "plan": "construction/u6-perfil-shell/code-generation/code-generation-plan.md",
+          "plan_steps": [
+            "P1",
+            "P2"
+          ],
+          "branch": "aidlc/u6-perfil-shell/t1-install-perfil",
+          "base": "22d461a60920ab13e7b09fd654fd0e4686ba14d0",
+          "stories": [
+            "US1.1",
+            "US6.1"
+          ],
+          "frs": [
+            "FR1.1",
+            "FR7.1"
+          ],
+          "nfrs": [
+            "NFR2",
+            "NFR4",
+            "NFR5",
+            "NFR7",
+            "NFR9"
+          ],
+          "contracts": [
+            "CT2",
+            "CT6",
+            "CT16"
+          ],
+          "depends_on": [],
+          "status": "merged",
+          "et_version": "v2",
+          "dispatch_package": "/workspace/dispatch/u6-t1",
+          "agent": "bc-b7d54197-ae92-5825-b14d-3a683e13e7ff",
+          "url": "https://cursor.com/agents/bc-b7d54197-ae92-5825-b14d-3a683e13e7ff",
+          "dispatched_at": "2026-10-22T22:25-03:00",
+          "correction_round": 1,
+          "note": "Lacuna colunas STEPS= fechada na ET v2; PR #204 verificado (não draft).",
+          "prs": [
+            204
+          ],
+          "tests": [
+            "tests/test_install_sh.py::test_profile_file_follows_the_shell",
+            "tests/test_install_sh.py::test_zdotdir_holds_the_zshrc",
+            "tests/test_install_sh.py::test_profile_append_keeps_the_bytes",
+            "tests/test_install_sh.py::test_second_run_is_already_marked",
+            "tests/test_install_sh.py::test_local_bin_on_path_writes_nothing",
+            "tests/test_install_sh.py::test_unwritable_profile_warns_and_exits_0",
+            "tests/test_install_sh.py::test_profile_symlink_is_written_through",
+            "tests/test_install_sh.py::test_profile_line_sources_in_sh"
+          ],
+          "verification": {
+            "pr_head": "a465b85",
+            "base": "22d461a",
+            "checks": "6/6 verdes (bob / check 12m31s, bob / cold 1m17s, CI / pytest 3.10 22m20s e 3.12 22m25s, package / dist 1m31s, verify-install / linux-x64 4m03s com 11 linhas ok); website / build não se aplica",
+            "pytest": "4620 passed, 0 failed (4605 + 15 novos em test_install_sh.py), 3.10 e 3.12",
+            "test_install_sh": "79 passed",
+            "passo_0": "STEPS sem perfil; DEFAULT_API; 0; 0; EXIT:0; 64 passed; 0",
+            "bob_check": "exit 0; crap, dry, deps, mutate, coverage passed (corpo); CI bob: crap/dry/deps/mutate ✅, 0 sobreviventes, 0 sem teste, nenhum arquivo em paths.include; 0 waivers novos",
+            "columns": "0 linhas novas >100 colunas fora de STEPS= (107, exceção CT2 da v2)",
+            "et_version": "v2",
+            "correction_rounds": 1,
+            "correction_note": "1 rodada: lacuna das colunas STEPS= (100→107 com ` perfil`); resolvida pela ET v2 (exceção no cheque); código de produção sem mudança na rodada",
+            "report": "construction/u6-perfil-shell/code-generation/tasks/T1-verificacao.md",
+            "verified_at": "2026-10-23T00:00-03:00"
+          },
+          "merge_sha": "040d744d17e306f27414e0804b7e4d3bb54984c9",
+          "merged_at": "2026-10-23T00:03-03:00",
+          "merged_by": "Emerson",
+          "merged_via": "Maestro",
+          "merge_quote": "Mergeado"
+        },
+        {
+          "id": "T2",
+          "title": "Linha perfil do shell no resumo do bob setup",
+          "et": "construction/u6-perfil-shell/code-generation/tasks/T2.md",
+          "plan": "construction/u6-perfil-shell/code-generation/code-generation-plan.md",
+          "plan_steps": [
+            "P3",
+            "P4"
+          ],
+          "branch": "aidlc/u6-perfil-shell/t2-setup-perfil",
+          "base": "22d461a60920ab13e7b09fd654fd0e4686ba14d0",
+          "stories": [
+            "US1.1",
+            "US6.1"
+          ],
+          "frs": [
+            "FR1.1",
+            "FR7.1"
+          ],
+          "nfrs": [
+            "NFR2",
+            "NFR4",
+            "NFR5",
+            "NFR7",
+            "NFR9"
+          ],
+          "contracts": [
+            "CT3",
+            "CT6"
+          ],
+          "depends_on": [],
+          "status": "merged",
+          "et_version": "v1",
+          "dispatch_package": "/workspace/dispatch/u6-t2",
+          "agent": "bc-0e86d115-1c2a-52e6-986e-1f4634ea4b95",
+          "url": "https://cursor.com/agents/bc-0e86d115-1c2a-52e6-986e-1f4634ea4b95",
+          "dispatched_at": "2026-10-22T22:25-03:00",
+          "correction_round": 0,
+          "prs": [
+            205
+          ],
+          "tests": [
+            "tests/test_setup_cmd.py::test_profile_text_maps_each_value",
+            "tests/test_setup_cmd.py::test_profile_line_sits_before_the_doctor_line",
+            "tests/test_setup_cmd.py::test_profile_line_is_absent_without_the_variable",
+            "tests/test_setup_cmd.py::test_profile_line_is_in_the_partial_summary"
+          ],
+          "verification": {
+            "pr_head": "f3f81066",
+            "base": "040d744",
+            "checks": "6/6 verdes (bob / check 25m27s, bob / cold 0m58s, CI / pytest 3.10 21m51s e 3.12 21m31s, package / dist 1m28s, verify-install / linux-x64 4m17s com 11 linhas ok); website / build não se aplica",
+            "pytest": "4651 passed, 0 failed (4620 + 31: 21 novos + 10 _MESSAGES), 3.10 e 3.12",
+            "test_setup_cmd": "197 passed",
+            "passo_0": "0; 0; hook; EXIT:0; 169 passed; EXIT:5; 166 deselected",
+            "bob_check": "exit 0; crap, dry, deps, mutate, coverage passed (corpo); CI bob: crap/dry/deps/mutate ✅, No surviving mutants, 0 waivers novos; _profile_text CRAP 6.0, _summary 4.0",
+            "columns": "0 linhas novas >100 colunas",
+            "et_version": "v1",
+            "correction_rounds": 0,
+            "correction_note": "0 rodadas; só rebase mecânico sobre 040d744 (U6 T1)",
+            "report": "construction/u6-perfil-shell/code-generation/tasks/T2-verificacao.md",
+            "verified_at": "2026-10-23T01:22-03:00"
+          },
+          "merge_sha": "3a0b6cd7a385511d3623c574eb3e56a4fe128d43",
+          "merged_at": "2026-10-23T08:50-03:00",
+          "merged_by": "Emerson",
+          "merged_via": "Maestro",
+          "merge_quote": "Ambos mergeados"
+        },
+        {
+          "id": "T3",
+          "title": "Harness: passo 13 (perfil do shell)",
+          "et": "construction/u6-perfil-shell/code-generation/tasks/T3.md",
+          "plan": "construction/u6-perfil-shell/code-generation/code-generation-plan.md",
+          "plan_steps": [
+            "P5",
+            "P6",
+            "P7"
+          ],
+          "branch": "aidlc/u6-perfil-shell/t3-verify-install",
+          "stories": [
+            "US1.1",
+            "US6.1"
+          ],
+          "frs": [
+            "FR1.1",
+            "FR7.1"
+          ],
+          "nfrs": [
+            "NFR2",
+            "NFR4",
+            "NFR5",
+            "NFR7",
+            "NFR9"
+          ],
+          "contracts": [
+            "CT15",
+            "CT16"
+          ],
+          "depends_on": [
+            "T1",
+            "T2"
+          ],
+          "status": "merged",
+          "et_version": "v2",
+          "agent": "bc-c25b835a-c8b8-5916-819e-797226d9248a",
+          "base_sha": "377b855daecb1f0354254c19f1ae62fb36800bab",
+          "dispatched_at": "2026-10-23T19:59:00-03:00",
+          "correction_round": 1,
+          "pr": 207,
+          "pr_url": "https://github.com/fazedordecodigo/bob/pull/207",
+          "head_sha": "81ac85ffeab3fa7bf04f94e772a8d38b8d423cc1",
+          "prs": [
+            207
+          ],
+          "tests": [
+            "tests/test_verify_install.py::test_step_13_is_wired",
+            "tests/test_verify_install.py::test_run_oneliner_passes_shell_and_bob_home",
+            "tests/test_verify_install.py::test_step_13_summary_lines_are_the_ct3_texts",
+            "tests/test_verify_install.py::test_step_13_warning_is_the_install_sh_text",
+            "tests/test_verify_install.py::test_profile_line_comes_from_install_sh"
+          ],
+          "verified_at": "2026-10-23T21:48-03:00",
+          "verification": {
+            "pr_head": "81ac85f",
+            "base": "377b855",
+            "checks": "6/6 verdes (bob / check 11m29s, bob / cold 0m39s, CI / pytest 3.10 20m17s e 3.12 20m47s, package / dist 0m40s, verify-install / linux-x64 1m30s com 12 linhas ok, passo 13 tempo 6 s); website / build não se aplica",
+            "pytest": "4790 passed, 0 failed (4782 + 8), 3.10 e 3.12",
+            "test_verify_install": "37 passed",
+            "passo_0": "variante A; 377b855; STEP_IDS ...12; PROFILE_LINE; 10; 4 linhas; 1000; EXIT:0; 29 passed; EXIT:0; 1",
+            "bob_check": "exit 0; crap, dry, deps, mutate, coverage passed (corpo); CI bob: crap/dry/deps/mutate ✅, No surviving mutants, 0 waivers novos",
+            "columns": "só a linha _warn= (131) > 100, excetuada pela v2",
+            "et_version": "v2",
+            "correction_rounds": 1,
+            "correction_note": "rodada 1 por lacuna da ET v1 (teste 5 managed-by; coluna _warn)",
+            "report": "construction/u6-perfil-shell/code-generation/tasks/T3-verificacao.md",
+            "verified_at": "2026-10-23T21:48-03:00"
+          },
+          "merge_sha": "4de84658badec6523a4f1890c748101bd6d2b870",
+          "merged_at": "2026-10-23T21:50:21-03:00",
+          "merged_by": "Emerson",
+          "merged_via": "Maestro"
+        },
+        {
+          "id": "T4",
+          "title": "Teste: a instalação não escreve fora do HOME",
+          "et": "construction/u6-perfil-shell/code-generation/tasks/T4.md",
+          "plan": "construction/u6-perfil-shell/code-generation/code-generation-plan.md",
+          "plan_steps": [
+            "P9"
+          ],
+          "branch": "aidlc/u6-perfil-shell/t4-fora-do-home",
+          "base": "4d1603323ddc13714fa50b5e98487cb0957c7f20",
+          "stories": [
+            "US1.1"
+          ],
+          "frs": [
+            "FR1.1"
+          ],
+          "nfrs": [
+            "NFR7"
+          ],
+          "nfr": [
+            "U6-N5"
+          ],
+          "contracts": [
+            "CT2",
+            "CT16"
+          ],
+          "adrs": [
+            "0013"
+          ],
+          "depends_on": [
+            "U7/T3 merged"
+          ],
+          "status": "merged",
+          "awaiting_plan_approval": false,
+          "et_version": "v1",
+          "et_written_at": "2026-10-23T22:30-03:00",
+          "tests_planned": [
+            "tests/test_install_sh.py::test_install_writes_nothing_outside_home[bash]",
+            "tests/test_install_sh.py::test_install_writes_nothing_outside_home[sh]",
+            "tests/test_install_sh.py::test_install_writes_nothing_outside_home[zsh]",
+            "tests/test_install_sh.py::test_zdotdir_outside_home_is_the_only_outside_write[new]",
+            "tests/test_install_sh.py::test_zdotdir_outside_home_is_the_only_outside_write[existing]"
+          ],
+          "test_counts": {
+            "tests/test_install_sh.py": {
+              "base_4de8465": 79,
+              "after_t4": 84
+            }
+          },
+          "files": [
+            "tests/test_install_sh.py"
+          ],
+          "origin": {
+            "checkpoint_approved_by": "Emerson",
+            "approved_at": "2026-10-23T22:16-03:00",
+            "quote": "Aprovo o checkpoint da U6. Fechar a U6-N5 com a ET U6 T4, depois da U7 T3.",
+            "via": "Maestro"
+          },
+          "note": "Plan Approval da U6 T4 aprovado pelo Emerson (22:57 UTC-3); base fixada em 4d1603323ddc13714fa50b5e98487cb0957c7f20 (#208 U7 T3 mergeada).",
+          "plan_approval": {
+            "approved_by": "Emerson",
+            "approved_at": "2026-10-23T22:57-03:00",
+            "quote": "Aprovo o plano e a ET da U6 T4, com as três leituras da meta. Pode despachar depois do merge da U7 T3.",
+            "via": "Maestro"
+          },
+          "base_sha": "4d1603323ddc13714fa50b5e98487cb0957c7f20",
+          "dispatch_package": "/workspace/dispatch/u6-t4",
+          "agent_id": "bc-d688f05c-76b1-51a3-9fb0-4daf1348f34c",
+          "agent_url": "https://cursor.com/agents/bc-d688f05c-76b1-51a3-9fb0-4daf1348f34c",
+          "dispatched_at": "2026-10-24T00:13:00-03:00",
+          "head_sha": "f8c9f523e1cf463755b9b2a8092e5935184dd6c7",
+          "pr": 210,
+          "pr_url": "https://github.com/fazedordecodigo/bob/pull/210",
+          "prs": [
+            210
+          ],
+          "correction_round": 0,
+          "correction_rounds": 0,
+          "verification_doc": "construction/u6-perfil-shell/code-generation/tasks/T4-verificacao.md",
+          "verified_at": "2026-10-24T01:48-03:00",
+          "tests": [
+            "tests/test_install_sh.py::test_install_writes_nothing_outside_home",
+            "tests/test_install_sh.py::test_zdotdir_outside_home_is_the_only_outside_write"
+          ],
+          "tests_mapped": [
+            {
+              "id": "tests/test_install_sh.py::test_install_writes_nothing_outside_home",
+              "cases": [
+                "bash",
+                "sh",
+                "zsh"
+              ],
+              "covers": [
+                "U6-N5",
+                "NFR7",
+                "CT2",
+                "ADR 0013",
+                "US1.1",
+                "FR1.1"
+              ]
+            },
+            {
+              "id": "tests/test_install_sh.py::test_zdotdir_outside_home_is_the_only_outside_write",
+              "cases": [
+                "new",
+                "existing"
+              ],
+              "covers": [
+                "U6-N5",
+                "NFR7",
+                "CT2",
+                "CT16",
+                "ADR 0013",
+                "US1.1",
+                "FR1.1"
+              ]
+            }
+          ],
+          "verification": {
+            "pr_head": "f8c9f523e1cf463755b9b2a8092e5935184dd6c7",
+            "base": "4d1603323ddc13714fa50b5e98487cb0957c7f20",
+            "checks": "6/6 verdes (bob / check 12m09s, bob / cold 0m38s, CI / pytest 3.10 13m55s e 3.12 16m36s, package / dist 0m34s, verify-install / linux-x64 2m47s com 14 linhas ok); website / build não se aplica",
+            "pytest": "4804 passed, 0 failed, 3 warnings (4799 + 5), 3.10 e 3.12",
+            "test_install_sh": "84 passed (79 -> 84); -k outside: 5 passed, 79 deselected",
+            "sensitivity_proofs": "Prova 1 (.bob-mark em step_ok projeto): EXIT:1, 5 failed, 79 deselected; Prova 2 (.zcompdump-bob em step_ok perfil): EXIT:1, 2 failed, 3 passed, 79 deselected; scripts/install.sh restaurado (git status --porcelain scripts/ vazio)",
+            "passo_0": "4d1603323ddc13714fa50b5e98487cb0957c7f20; STEP_IDS 1..13; 3; PROFILE_LINE; 1; 1; 1; 0; 3; assert result.stdout; EXIT:0; 79 passed; 0",
+            "bob_check": "exit 0; crap, dry, deps, mutate, coverage passed (corpo, diff Python 100.00%); CI bob: crap/dry/deps/mutate ✅, No surviving mutants, No new clones, 0 waivers novos",
+            "columns": "0 linhas novas > 100 colunas (máx. 78 em tests/test_install_sh.py)",
+            "et_version": "v1",
+            "correction_round": 0,
+            "correction_rounds": 0,
+            "report": "construction/u6-perfil-shell/code-generation/tasks/T4-verificacao.md",
+            "verification_doc": "construction/u6-perfil-shell/code-generation/tasks/T4-verificacao.md",
+            "verified_at": "2026-10-24T01:48-03:00"
+          },
+          "merge_sha": "3ced2ce30193ac90035d374ec62f38d86bd63f34",
+          "merge_commit": "3ced2ce",
+          "merged_at": "2026-10-24T07:14:04-03:00",
+          "merged_by": "Emerson",
+          "merged_via": "Maestro"
+        }
+      ],
+      "prs": [
+        {
+          "number": 204,
+          "url": "https://github.com/fazedordecodigo/bob/pull/204",
+          "task": "T1",
+          "title": "ET-u6-perfil-shell-T1: Passo perfil no install.sh",
+          "base_sha": "22d461a60920ab13e7b09fd654fd0e4686ba14d0",
+          "head_sha": "a465b85dc655d652ebc4ca18542347bc75a5c445",
+          "state": "merged",
+          "agent": "bc-b7d54197-ae92-5825-b14d-3a683e13e7ff",
+          "created_at": "2026-10-22T23:26:59-03:00",
+          "commits": 1,
+          "changed_files": 2,
+          "additions": 383,
+          "deletions": 3,
+          "draft": false,
+          "et_version": "v2",
+          "verified_at": "2026-10-23T00:00-03:00",
+          "checks": {
+            "bob / check": "success",
+            "bob / cold": "success",
+            "CI / pytest (3.10)": "success",
+            "CI / pytest (3.12)": "success",
+            "package / dist": "success",
+            "verify-install / linux-x64": "success"
+          },
+          "pytest": "4620 passed, 0 failed",
+          "correction_rounds": 1,
+          "merge_sha": "040d744d17e306f27414e0804b7e4d3bb54984c9",
+          "merged_at": "2026-10-23T00:03:02-03:00",
+          "merged_by": "fazedordecodigo"
+        },
+        {
+          "number": 205,
+          "url": "https://github.com/fazedordecodigo/bob/pull/205",
+          "task": "T2",
+          "title": "ET-u6-perfil-shell-T2: Linha perfil do shell no resumo do bob setup",
+          "base_sha": "040d744d17e306f27414e0804b7e4d3bb54984c9",
+          "head_sha": "f3f810660a0e215ea7fd4cb46cd4f382c28e9640",
+          "state": "merged",
+          "agent": "bc-0e86d115-1c2a-52e6-986e-1f4634ea4b95",
+          "created_at": "2026-10-22T23:59:10-03:00",
+          "commits": 1,
+          "changed_files": 4,
+          "additions": 168,
+          "deletions": 2,
+          "draft": false,
+          "et_version": "v1",
+          "verified_at": "2026-10-23T01:22-03:00",
+          "checks": {
+            "bob / check": "success",
+            "bob / cold": "success",
+            "CI / pytest (3.10)": "success",
+            "CI / pytest (3.12)": "success",
+            "package / dist": "success",
+            "verify-install / linux-x64": "success"
+          },
+          "pytest": "4651 passed, 0 failed",
+          "correction_rounds": 0,
+          "merge_sha": "3a0b6cd7a385511d3623c574eb3e56a4fe128d43",
+          "merged_at": "2026-10-23T08:50:30-03:00",
+          "merged_by": "fazedordecodigo"
+        },
+        {
+          "number": 207,
+          "url": "https://github.com/fazedordecodigo/bob/pull/207",
+          "task": "T3",
+          "title": "ET-u6-perfil-shell-T3: Harness: passo 13 (perfil do shell)",
+          "base_sha": "377b855daecb1f0354254c19f1ae62fb36800bab",
+          "head_sha": "81ac85ffeab3fa7bf04f94e772a8d38b8d423cc1",
+          "state": "merged",
+          "agent": "bc-c25b835a-c8b8-5916-819e-797226d9248a",
+          "created_at": "2026-10-23T21:12:40-03:00",
+          "commits": 2,
+          "changed_files": 3,
+          "additions": 452,
+          "deletions": 10,
+          "draft": false,
+          "et_version": "v2",
+          "verified_at": "2026-10-23T21:48-03:00",
+          "checks": {
+            "bob / check": "success",
+            "bob / cold": "success",
+            "CI / pytest (3.10)": "success",
+            "CI / pytest (3.12)": "success",
+            "package / dist": "success",
+            "verify-install / linux-x64": "success"
+          },
+          "pytest": "4790 passed, 0 failed",
+          "correction_rounds": 1,
+          "merge_sha": "4de84658badec6523a4f1890c748101bd6d2b870",
+          "merged_at": "2026-10-23T21:50:21-03:00",
+          "merged_by": "fazedordecodigo"
+        },
+        {
+          "number": 210,
+          "url": "https://github.com/fazedordecodigo/bob/pull/210",
+          "task": "T4",
+          "title": "ET-u6-perfil-shell-T4: Teste: a instalação não escreve fora do HOME",
+          "base_sha": "4d1603323ddc13714fa50b5e98487cb0957c7f20",
+          "head_sha": "f8c9f523e1cf463755b9b2a8092e5935184dd6c7",
+          "state": "merged",
+          "draft": false,
+          "agent": "bc-d688f05c-76b1-51a3-9fb0-4daf1348f34c",
+          "created_at": "2026-10-24T01:10:57-03:00",
+          "commits": 1,
+          "changed_files": 1,
+          "additions": 122,
+          "deletions": 0,
+          "et_version": "v1",
+          "correction_round": 0,
+          "correction_rounds": 0,
+          "status": "merged",
+          "verified_at": "2026-10-24T01:48-03:00",
+          "verification_doc": "construction/u6-perfil-shell/code-generation/tasks/T4-verificacao.md",
+          "checks": {
+            "bob / check": "success",
+            "bob / cold": "success",
+            "CI / pytest (3.10)": "success",
+            "CI / pytest (3.12)": "success",
+            "package / dist": "success",
+            "verify-install / linux-x64": "success"
+          },
+          "pytest": "4804 passed, 0 failed",
+          "merge_sha": "3ced2ce30193ac90035d374ec62f38d86bd63f34",
+          "merge_commit_sha": "3ced2ce30193ac90035d374ec62f38d86bd63f34",
+          "merged_at": "2026-10-24T07:14:04-03:00",
+          "merged_by": "fazedordecodigo"
+        }
+      ],
+      "tests": [
+        "tests/test_install_sh.py::test_profile_file_follows_the_shell",
+        "tests/test_install_sh.py::test_zdotdir_holds_the_zshrc",
+        "tests/test_install_sh.py::test_profile_append_keeps_the_bytes",
+        "tests/test_install_sh.py::test_second_run_is_already_marked",
+        "tests/test_install_sh.py::test_local_bin_on_path_writes_nothing",
+        "tests/test_install_sh.py::test_unwritable_profile_warns_and_exits_0",
+        "tests/test_install_sh.py::test_profile_symlink_is_written_through",
+        "tests/test_install_sh.py::test_profile_line_sources_in_sh",
+        "tests/test_setup_cmd.py::test_profile_text_maps_each_value",
+        "tests/test_setup_cmd.py::test_profile_line_sits_before_the_doctor_line",
+        "tests/test_setup_cmd.py::test_profile_line_is_absent_without_the_variable",
+        "tests/test_setup_cmd.py::test_profile_line_is_in_the_partial_summary",
+        "tests/test_verify_install.py::test_step_13_is_wired",
+        "tests/test_verify_install.py::test_run_oneliner_passes_shell_and_bob_home",
+        "tests/test_verify_install.py::test_step_13_summary_lines_are_the_ct3_texts",
+        "tests/test_verify_install.py::test_step_13_warning_is_the_install_sh_text",
+        "tests/test_verify_install.py::test_profile_line_comes_from_install_sh",
+        "tests/test_install_sh.py::test_install_writes_nothing_outside_home",
+        "tests/test_install_sh.py::test_zdotdir_outside_home_is_the_only_outside_write"
+      ],
+      "plan_approval": {
+        "approved_by": "Emerson",
+        "approved_at": "2026-10-22T22:17-03:00",
+        "quote": "Aprovo o plano da U6 e da U7, as ETs e o CT6/CT16 v2. U7 Q1: A, mixed (0.1.0, not installed). U8 Q1: A, tirar as instruções de plugin. Pode despachar a U6 T1, a U6 T2 e a U7 T1 sobre a main 22d461a.",
+        "via": "Maestro"
+      },
+      "checkpoint_doc": "construction/u6-perfil-shell/checkpoint.md",
+      "t4_tests_traceability": [
+        {
+          "id": "tests/test_install_sh.py::test_install_writes_nothing_outside_home",
+          "task": "T4",
+          "pr": 210,
+          "cases": [
+            "bash",
+            "sh",
+            "zsh"
+          ],
+          "covers": [
+            "U6-N5",
+            "NFR7",
+            "CT2",
+            "ADR 0013",
+            "US1.1",
+            "FR1.1"
+          ]
+        },
+        {
+          "id": "tests/test_install_sh.py::test_zdotdir_outside_home_is_the_only_outside_write",
+          "task": "T4",
+          "pr": 210,
+          "cases": [
+            "new",
+            "existing"
+          ],
+          "covers": [
+            "U6-N5",
+            "NFR7",
+            "CT2",
+            "CT16",
+            "ADR 0013",
+            "US1.1",
+            "FR1.1"
+          ]
+        }
+      ],
+      "checkpoint": {
+        "report": "construction/u6-perfil-shell/checkpoint.md",
+        "prepared_at": "2026-10-23T22:15:00-03:00",
+        "updated_at": "2026-10-24T07:20:00-03:00",
+        "main_sha": "3ced2ce30193ac90035d374ec62f38d86bd63f34",
+        "b6": "atendida (os 5 casos (a)–(e) do passo 13 passam; marca única depois de 2 execuções; 0 arquivos fora do HOME; 71/71 critérios das 4 ETs atendem)",
+        "nfr": "U6-N1..N11 atendem (11 Atende, 0 Não atende, 0 Não verificado; U6-N5 100% Atende fechada pela T4 no #210)",
+        "correction_rounds": {
+          "T1": 1,
+          "T2": 0,
+          "T3": 1,
+          "T4": 0,
+          "total": 2
+        },
+        "approval": "aprovado (Emerson)",
+        "approved_by": "Emerson",
+        "approved_at": "2026-10-23T22:16-03:00",
+        "approval_quote": "Aprovo o checkpoint da U6. Fechar a U6-N5 com a ET U6 T4, depois da U7 T3.",
+        "t4_closed_at": "2026-10-24T07:14:04-03:00"
+      }
     },
     {
       "id": "U7",
       "name": "u7-update-versao",
       "kind": "library",
+      "status": "completed",
       "components": [
         "C10"
       ],
@@ -246,21 +3226,430 @@
       ],
       "adrs": [
         "0011",
-        "0018"
+        "0018",
+        "0024",
+        "0025",
+        "0026",
+        "0027"
       ],
       "verification_steps": [
         "2 (parcial)",
         "10",
         "11"
       ],
-      "tasks": [],
-      "prs": [],
-      "tests": []
+      "tasks": [
+        {
+          "id": "T1",
+          "title": "Versão das skills do projeto (project_version) e linha no bob doctor",
+          "et": "construction/u7-update-versao/code-generation/tasks/T1.md",
+          "plan": "construction/u7-update-versao/code-generation/code-generation-plan.md",
+          "plan_steps": [
+            "P1",
+            "P2",
+            "P3",
+            "P4"
+          ],
+          "branch": "aidlc/u7-update-versao/t1-project-version",
+          "base": "22d461a60920ab13e7b09fd654fd0e4686ba14d0",
+          "stories": [
+            "US5.1",
+            "US5.2"
+          ],
+          "frs": [
+            "FR6.1"
+          ],
+          "nfrs": [
+            "NFR2",
+            "NFR4",
+            "NFR5",
+            "NFR9"
+          ],
+          "contracts": [
+            "CT4",
+            "CT8",
+            "CT11"
+          ],
+          "depends_on": [],
+          "status": "merged",
+          "et_version": "v2",
+          "dispatch_package": "/workspace/dispatch/u7-t1",
+          "q1": "A",
+          "agent": "bc-b1261427-a288-5375-9a66-bd4e5620acca",
+          "url": "https://cursor.com/agents/bc-b1261427-a288-5375-9a66-bd4e5620acca",
+          "dispatched_at": "2026-10-22T22:25-03:00",
+          "correction_round": 1,
+          "note": "Lacuna Passo 0: âncora 104 (20+81+3) → 116 (20+93+3) na base 22d461a; test_doctor.py 93 (test_doctor_accepts_node_22_from_22_18_0: 12×2). ET v2.",
+          "prs": [
+            203
+          ],
+          "tests": [
+            "tests/test_project_version.py::test_manifest_skill_names_are_the_packaged_skills",
+            "tests/test_project_version.py::test_manifest_skill_names_reads_the_given_source",
+            "tests/test_project_version.py::test_manifest_skill_names_rejects_a_bad_manifest",
+            "tests/test_project_version.py::test_every_skill_with_the_same_version_is_installed",
+            "tests/test_project_version.py::test_not_installed_cases",
+            "tests/test_project_version.py::test_mixed_versions_sort_numerically",
+            "tests/test_project_version.py::test_partial_install_is_mixed_with_missing",
+            "tests/test_project_version.py::test_invalid_version_files_count_as_missing",
+            "tests/test_project_version.py::test_skills_text_in_both_languages",
+            "tests/test_project_version.py::test_skills_line_reads_the_project",
+            "tests/test_project_version.py::test_version_messages_exist_in_both_languages",
+            "tests/test_doctor.py::test_doctor_last_line_is_the_project_skills"
+          ],
+          "verification": {
+            "pr_head": "6d0d232",
+            "base": "040d744",
+            "checks": "6/6 verdes (bob / check 16m19s, bob / cold 0m53s, CI / pytest 3.10 15m09s e 3.12 19m50s, package / dist 1m14s, verify-install / linux-x64 2m46s com 11 linhas ok); website / build não se aplica",
+            "pytest": "4668 passed, 0 failed (4620 + 48: 43 + 4 + 1 hermetic), 3.10 e 3.12",
+            "test_project_version": "43 passed",
+            "test_doctor": "97 passed (era 93)",
+            "passo_0": "RC:2; 0; 0; EXIT:0; 116 passed; skills bob-check/harden/review-report",
+            "bob_check": "exit 0; crap, dry, deps, mutate, coverage passed (corpo); CI bob: crap/dry/deps/mutate ✅; sobrevivente só fora do diff (_report_pins join); 0 waivers novos; read_project_skills CRAP 9.0",
+            "columns": "0 linhas novas >100 colunas",
+            "et_version": "v2",
+            "correction_rounds": 1,
+            "correction_note": "1 rodada: lacuna Passo 0 (104→116; test_doctor 81→93); resolvida pela ET v2; rebase sobre 040d744 sem conflito",
+            "report": "construction/u7-update-versao/code-generation/tasks/T1-verificacao.md",
+            "verified_at": "2026-10-23T01:22-03:00"
+          },
+          "merge_sha": "675d933188b09bb2f23b88257c40efc850cca632",
+          "merged_at": "2026-10-23T08:50:52-03:00",
+          "merged_by": "Emerson",
+          "merged_via": "Maestro",
+          "merge_quote": "Ambos mergeados"
+        },
+        {
+          "id": "T2",
+          "title": "bob update e bob --version",
+          "et": "construction/u7-update-versao/code-generation/tasks/T2.md",
+          "plan": "construction/u7-update-versao/code-generation/code-generation-plan.md",
+          "plan_steps": [
+            "P5",
+            "P6",
+            "P7",
+            "P8"
+          ],
+          "branch": "aidlc/u7-update-versao/t2-update",
+          "stories": [
+            "US5.1",
+            "US5.2",
+            "US7.2"
+          ],
+          "frs": [
+            "FR6.1",
+            "FR6.2",
+            "FR6.3",
+            "FR6.4",
+            "FR6.5"
+          ],
+          "nfrs": [
+            "NFR2",
+            "NFR4",
+            "NFR5",
+            "NFR9"
+          ],
+          "contracts": [
+            "CT11",
+            "CT14"
+          ],
+          "depends_on": [
+            "T1"
+          ],
+          "status": "merged",
+          "et_version": "v3",
+          "base": "675d933188b09bb2f23b88257c40efc850cca632",
+          "dispatch_package": "/workspace/dispatch/u7-t2",
+          "agent": "bc-299592e7-2065-55c6-8890-8ab0ddc6d5c4",
+          "url": "https://cursor.com/agents/bc-299592e7-2065-55c6-8890-8ab0ddc6d5c4",
+          "dispatched_at": "2026-10-23T08:54-03:00",
+          "correction_round": 2,
+          "prs": [
+            206
+          ],
+          "tests": [
+            "tests/test_update.py::test_up_to_date_prints_and_changes_nothing",
+            "tests/test_update.py::test_old_project_runs_setup_without_download",
+            "tests/test_update.py::test_new_release_downloads_checks_and_runs_install_sh",
+            "tests/test_update.py::test_install_sh_exit_code_is_returned",
+            "tests/test_update.py::test_install_keeps_the_environment_and_pins_the_tag",
+            "tests/test_update.py::test_releases_url_rejects",
+            "tests/test_update.py::test_releases_url_builds_the_urls",
+            "tests/test_update.py::test_api_errors_exit_4",
+            "tests/test_update.py::test_bad_tag_is_an_invalid_response",
+            "tests/test_update.py::test_retry_then_success",
+            "tests/test_update.py::test_download_errors",
+            "tests/test_update.py::test_integrity_failures",
+            "tests/test_update.py::test_sums_first_matching_line_wins",
+            "tests/test_update.py::test_tmp_failures",
+            "tests/test_update.py::test_sh_failure",
+            "tests/test_update.py::test_project_errors",
+            "tests/test_update.py::test_version_compare_is_numeric",
+            "tests/test_update.py::test_version_lines",
+            "tests/test_update.py::test_cli_version_flag",
+            "tests/test_update.py::test_cli_update_dispatches",
+            "tests/test_update.py::test_update_messages_exist_in_both_languages",
+            "tests/test_update.py::test_constants_match_install_sh_and_gitleaks",
+            "tests/test_update.py::test_http_500_is_retried",
+            "tests/test_update.py::test_install_passes_check_false",
+            "tests/test_update.py::test_setup_context_receives_home_lang_version",
+            "tests/test_update.py::test_version_default_is_suppressed"
+          ],
+          "verification": {
+            "pr_head": "4c99ff2196665d9d5c63fc2170c511b7468c7936",
+            "base": "675d933",
+            "checks": "6/6 verdes (bob / check, bob / cold, CI / pytest 3.10 e 3.12, package / dist, verify-install / linux-x64 com 11 linhas ok)",
+            "pytest": "4782 passed, 0 failed, 3 warnings (3.10 e 3.12)",
+            "test_update": "82 passed (26 testes)",
+            "bob_check": "CI: crap/deps/mutate ✅, dry ⚠️ 1 clone esperado gitleaks.py:148-159 ↔ update.py:78-89; 0 sobreviventes no diff (2 em cli.py:269 fora do diff, não bloqueiam); 0 waivers novos; CRAP máx main 8.0",
+            "r7": "ValueError de json.loads → UpdateError imediato, sem data=None",
+            "scope": "6 arquivos da ET",
+            "blocks": "vazio; Decisões tomadas: nenhuma",
+            "et_version": "v3",
+            "correction_rounds": 2,
+            "correction_note": "rodada 1: teste 15 dublê seletivo (ET v2); rodada 2: R7 + testes 23–26 do mutate (ET v3)",
+            "report": "construction/u7-update-versao/code-generation/tasks/T2-verificacao.md",
+            "verified_at": "2026-10-23T19:58-03:00"
+          },
+          "merge_commit": "377b855",
+          "merge_sha": "377b855daecb1f0354254c19f1ae62fb36800bab",
+          "merged_at": "2026-10-23T19:57:12-03:00",
+          "merged_by": "Emerson",
+          "merged_via": "Maestro"
+        },
+        {
+          "id": "T3",
+          "title": "Harness: passos 10 e 11 (bob update) e --version no passo 2",
+          "et": "construction/u7-update-versao/code-generation/tasks/T3.md",
+          "plan": "construction/u7-update-versao/code-generation/code-generation-plan.md",
+          "plan_steps": [
+            "P9",
+            "P10",
+            "P11"
+          ],
+          "branch": "aidlc/u7-update-versao/t3-verify-install",
+          "stories": [
+            "US5.1",
+            "US5.2",
+            "US7.2"
+          ],
+          "frs": [
+            "FR6.1",
+            "FR6.2",
+            "FR6.3",
+            "FR6.4",
+            "FR6.5"
+          ],
+          "nfrs": [
+            "NFR2",
+            "NFR4",
+            "NFR5",
+            "NFR9"
+          ],
+          "contracts": [
+            "CT15"
+          ],
+          "depends_on": [
+            "T2",
+            "U6.T3"
+          ],
+          "status": "merged",
+          "et_version": "v2",
+          "agent": "bc-f84f9695-8f2a-5c65-8ed4-b3f4eaa9e5af",
+          "base_sha": "4de84658badec6523a4f1890c748101bd6d2b870",
+          "dispatched_at": "2026-10-23T20:44:00-03:00",
+          "variant": "B (rebased sobre 4de8465, U6 T3 mergeada)",
+          "correction_round": 1,
+          "previous_agents": [
+            "bc-34a643d4-0879-5a33-9521-7e7b5248d612 (erro de plataforma 2x, sem PR)"
+          ],
+          "pr": 208,
+          "pr_url": "https://github.com/fazedordecodigo/bob/pull/208",
+          "head_sha": "002d24e2478f5f668e4a17820423af445a1a3e33",
+          "prs": [
+            208
+          ],
+          "correction_rounds": 1,
+          "correction_note": "rodada 1 por lacuna mecânica da ET v1 → v2: (1) R6d usa grep -cxF para '  bob doctor: 0' porque o print de update.upgrading sem TTY sai no flush final após o subprocesso install.sh; (2) cheque awk de colunas do diff filtra a linha 2 de R-VI1 (99 chars, 101 bytes UTF-8)",
+          "verification_doc": "construction/u7-update-versao/code-generation/tasks/T3-verificacao.md",
+          "verified_at": "2026-10-23T23:25-03:00",
+          "tests": [
+            "tests/test_verify_install.py::test_steps_10_and_11_are_wired",
+            "tests/test_verify_install.py::test_ensure_runs_the_step_once",
+            "tests/test_verify_install.py::test_next_patch",
+            "tests/test_verify_install.py::test_rebrand_wheel_changes_only_the_version",
+            "tests/test_verify_install.py::test_sums_two_lists_the_wheel_then_install_sh",
+            "tests/test_verify_install.py::test_run_bob_builds_the_environment",
+            "tests/test_verify_install.py::test_update_texts_are_the_catalog_texts"
+          ],
+          "verification": {
+            "pr_head": "002d24e2478f5f668e4a17820423af445a1a3e33",
+            "base": "4de84658badec6523a4f1890c748101bd6d2b870",
+            "checks": "6/6 verdes (bob / check 9m56s, bob / cold 0m36s, CI / pytest 3.10 14m06s e 3.12 16m53s, package / dist 0m42s, verify-install / linux-x64 2m22s com 14 linhas ok, passo 10 tempo 17 s, passo 11 tempo 0 s); website / build não se aplica",
+            "pytest": "4799 passed, 0 failed, 3 warnings (4790 + 9), 3.10 e 3.12",
+            "test_verify_install": "46 passed (37 + 9)",
+            "passo_0": "variante A inicial sobre 377b855 (STEP_IDS ...12, 29 passed); rebased para variante B sobre 4de8465 (STEP_IDS ...12 13, 46 passed)",
+            "bob_check": "exit 0; crap, dry, deps, mutate, coverage passed (corpo); CI bob: crap/dry/deps/mutate ✅, No surviving mutants, No new clones, 0 waivers novos",
+            "columns": "0 linhas novas > 100 chars (linha 2 de R-VI1 com 99 chars / 101 bytes UTF-8 filtrada na v2)",
+            "et_version": "v2",
+            "correction_rounds": 1,
+            "correction_note": "rodada 1 por lacuna mecânica da ET v1 → v2: R6d usa grep -cxF para '  bob doctor: 0' e cheque awk filtra a linha 2 de R-VI1",
+            "report": "construction/u7-update-versao/code-generation/tasks/T3-verificacao.md",
+            "verified_at": "2026-10-23T23:25-03:00"
+          },
+          "merge_sha": "4d1603323ddc13714fa50b5e98487cb0957c7f20",
+          "merge_commit": "4d16033",
+          "merged_at": "2026-10-24T00:00:53-03:00",
+          "merged_by": "Emerson",
+          "merged_via": "Maestro"
+        }
+      ],
+      "prs": [
+        {
+          "number": 203,
+          "url": "https://github.com/fazedordecodigo/bob/pull/203",
+          "task": "T1",
+          "title": "ET-u7-update-versao-T1: Versão das skills do projeto (project_version) e linha no bob doctor",
+          "base_sha": "040d744d17e306f27414e0804b7e4d3bb54984c9",
+          "head_sha": "6d0d2329a8caf56e676859707dd9062bd1801c4c",
+          "state": "merged",
+          "agent": "bc-b1261427-a288-5375-9a66-bd4e5620acca",
+          "created_at": "2026-10-22T22:29:37-03:00",
+          "commits": 2,
+          "changed_files": 7,
+          "additions": 386,
+          "deletions": 1,
+          "draft": false,
+          "et_version": "v2",
+          "verified_at": "2026-10-23T01:22-03:00",
+          "checks": {
+            "bob / check": "success",
+            "bob / cold": "success",
+            "CI / pytest (3.10)": "success",
+            "CI / pytest (3.12)": "success",
+            "package / dist": "success",
+            "verify-install / linux-x64": "success"
+          },
+          "pytest": "4668 passed, 0 failed",
+          "correction_rounds": 1,
+          "merge_commit": "675d933",
+          "status": "merged",
+          "merge_sha": "675d933188b09bb2f23b88257c40efc850cca632",
+          "merged_at": "2026-10-23T08:50:52-03:00",
+          "merged_by": "fazedordecodigo"
+        },
+        {
+          "number": 206,
+          "url": "https://github.com/fazedordecodigo/bob/pull/206",
+          "task": "T2",
+          "title": "ET-u7-update-versao-T2: bob update e bob --version",
+          "base_sha": "675d933188b09bb2f23b88257c40efc850cca632",
+          "head_sha": "4c99ff2196665d9d5c63fc2170c511b7468c7936",
+          "state": "merged",
+          "merge_sha": "377b855daecb1f0354254c19f1ae62fb36800bab",
+          "merged_at": "2026-10-23T19:57:12-03:00",
+          "agent": "bc-299592e7-2065-55c6-8890-8ab0ddc6d5c4",
+          "created_at": "2026-10-23T10:20:55-03:00",
+          "commits": 3,
+          "changed_files": 6,
+          "additions": 1158,
+          "deletions": 2,
+          "draft": false,
+          "et_version": "v3",
+          "verified_at": "2026-10-23T19:58-03:00",
+          "checks": {
+            "bob / check": "success",
+            "bob / cold": "success",
+            "CI / pytest (3.10)": "success",
+            "CI / pytest (3.12)": "success",
+            "package / dist": "success",
+            "verify-install / linux-x64": "success"
+          },
+          "pytest": "4782 passed, 0 failed",
+          "correction_rounds": 2,
+          "status": "merged",
+          "merged_by": "fazedordecodigo"
+        },
+        {
+          "number": 208,
+          "url": "https://github.com/fazedordecodigo/bob/pull/208",
+          "task": "T3",
+          "title": "ET-u7-update-versao-T3: Harness: passos 10 e 11 (bob update) e --version no passo 2",
+          "base_sha": "4de84658badec6523a4f1890c748101bd6d2b870",
+          "head_sha": "002d24e2478f5f668e4a17820423af445a1a3e33",
+          "state": "merged",
+          "draft": false,
+          "agent": "bc-f84f9695-8f2a-5c65-8ed4-b3f4eaa9e5af",
+          "created_at": "2026-10-23T22:30:37-03:00",
+          "commits": 2,
+          "changed_files": 3,
+          "additions": 668,
+          "deletions": 7,
+          "et_version": "v2",
+          "correction_rounds": 1,
+          "status": "merged",
+          "verified_at": "2026-10-23T23:25-03:00",
+          "verification_doc": "construction/u7-update-versao/code-generation/tasks/T3-verificacao.md",
+          "checks": {
+            "bob / check": "success",
+            "bob / cold": "success",
+            "CI / pytest (3.10)": "success",
+            "CI / pytest (3.12)": "success",
+            "package / dist": "success",
+            "verify-install / linux-x64": "success"
+          },
+          "pytest": "4799 passed, 0 failed",
+          "merge_sha": "4d1603323ddc13714fa50b5e98487cb0957c7f20",
+          "merge_commit_sha": "4d1603323ddc13714fa50b5e98487cb0957c7f20",
+          "merged_at": "2026-10-24T00:00:53-03:00",
+          "merged_by": "fazedordecodigo"
+        }
+      ],
+      "tests": [],
+      "plan_approval": {
+        "approved_by": "Emerson",
+        "approved_at": "2026-10-22T22:17-03:00",
+        "quote": "Aprovo o plano da U6 e da U7, as ETs e o CT6/CT16 v2. U7 Q1: A, mixed (0.1.0, not installed). U8 Q1: A, tirar as instruções de plugin. Pode despachar a U6 T1, a U6 T2 e a U7 T1 sobre a main 22d461a.",
+        "via": "Maestro"
+      },
+      "product_questions": {
+        "Q1": {
+          "answer": "A",
+          "answered_at": "2026-10-22T22:17-03:00",
+          "summary": "mixed (0.1.0, not installed) / misturadas (…, não instaladas)"
+        }
+      },
+      "checkpoint_doc": "construction/u7-update-versao/checkpoint.md",
+      "checkpoint": {
+        "report": "construction/u7-update-versao/checkpoint.md",
+        "prepared_at": "2026-10-24T00:08:00-03:00",
+        "main_sha": "4d1603323ddc13714fa50b5e98487cb0957c7f20",
+        "merged_tree": "4aba24adb6652cf007ab6b5b9430e78765211ce9 (idêntica à do head 002d24e2478f5f668e4a17820423af445a1a3e33)",
+        "verification_command": {
+          "pytest": "4799 passed, 0 failed, 3 warnings (3.10 em 14m06s e 3.12 em 16m53s na árvore 4aba24a, run 40051845095; run 40056561616 do push em curso)",
+          "verify_install": "success, 14 linhas ok (1,2,3,4,5,6,7,8,9a,9b,10,11,12,13); passo 2 em 13 s, passo 10 em 9 s, passo 11 em 0 s, passo 13 em 6 s; harness em ~78 s; job 1m45s (run 40056561604)",
+          "dist": "success, 41 s (run 40056561603)",
+          "pr_only_checks_from_208_head": "bob / check (9m56s) e bob / cold (36 s) success (mesma árvore 4aba24a)"
+        },
+        "b7": "atendida (passo 10 atualiza de v-antiga para v-nova, preserva os 6 arquivos do passo 8 e ignora pré-release/rascunho; passo 11 sai 0 com 0 mudanças e 1 pedido; passo 2 confere bob --version; 68/68 critérios das 3 ETs atendem)",
+        "nfr": "U7-N1..N13 atendem (13 Atende, 0 Não atende, 0 Não verificado)",
+        "correction_rounds": {
+          "T1": 1,
+          "T2": 2,
+          "T3": 1,
+          "total": 4
+        },
+        "approval": "pendente (Emerson)",
+        "status": "approved",
+        "approved_at": "2026-10-24T07:16:00-03:00",
+        "approved_by": "Emerson Delatorre",
+        "approval_quote": "Aprovo o checkpoint da U7."
+      }
     },
     {
       "id": "U8",
       "name": "u8-docs",
       "kind": "spec",
+      "status": "completed",
       "components": [
         "C12"
       ],
@@ -283,25 +3672,408 @@
         "NFR11"
       ],
       "adrs": [
-        "0020"
+        "0020",
+        "0021",
+        "0028",
+        "0029"
       ],
       "verification_steps": [
         "pytest",
         "14"
       ],
-      "tasks": [],
-      "prs": [],
-      "tests": []
+      "tasks": [
+        {
+          "id": "T1",
+          "title": "Prompt de IA sem install.sh e teste de paridade",
+          "et": "construction/u8-docs/code-generation/tasks/T1.md",
+          "plan": "construction/u8-docs/code-generation/code-generation-plan.md",
+          "plan_steps": [
+            "P1",
+            "P2"
+          ],
+          "branch": "aidlc/u8-docs/t1-prompt",
+          "base": "4d1603323ddc13714fa50b5e98487cb0957c7f20",
+          "base_sha": "4d1603323ddc13714fa50b5e98487cb0957c7f20",
+          "dispatch_package": "/workspace/dispatch/u8-t1",
+          "stories": [
+            "US1.5",
+            "US7.1"
+          ],
+          "frs": [
+            "FR1.6",
+            "FR1.8",
+            "FR8.5"
+          ],
+          "nfrs": [
+            "NFR11"
+          ],
+          "contracts": [
+            "CT17",
+            "CT18"
+          ],
+          "adrs": [
+            "0021",
+            "0028",
+            "0029"
+          ],
+          "depends_on": [
+            "U6/T1",
+            "U7/T3"
+          ],
+          "status": "merged",
+          "et_version": "v1",
+          "agent_id": "bc-141f978e-e508-5e04-9cbc-0bf2608edf82",
+          "agent_url": "https://cursor.com/agents/bc-141f978e-e508-5e04-9cbc-0bf2608edf82",
+          "dispatched_at": "2026-10-24T00:13:00-03:00",
+          "pr": 209,
+          "pr_url": "https://github.com/fazedordecodigo/bob/pull/209",
+          "head_sha": "72497ec437b174d8fbaf7a00e23e17e05558967a",
+          "prs": [
+            209
+          ],
+          "correction_round": 0,
+          "correction_rounds": 0,
+          "verification_doc": "construction/u8-docs/code-generation/tasks/T1-verificacao.md",
+          "verified_at": "2026-10-24T01:10-03:00",
+          "tests": [
+            "tests/test_docs_pins.py::test_prompt_blocks_are_the_same_in_both_languages",
+            "tests/test_docs_pins.py::test_prompt_steps_follow_install_sh",
+            "tests/test_docs_pins.py::test_prompt_platforms_cover_each_step",
+            "tests/test_docs_pins.py::test_prompt_preamble_matches_bob_home",
+            "tests/test_docs_pins.py::test_prompt_gitleaks_matches_the_pins",
+            "tests/test_docs_pins.py::test_prompt_node_and_python_match_the_pins",
+            "tests/test_docs_pins.py::test_prompt_layout_matches_install_sh",
+            "tests/test_docs_pins.py::test_prompt_profile_matches_install_sh",
+            "tests/test_docs_pins.py::test_prompt_urls_and_options_match_install_sh",
+            "tests/test_docs_pins.py::test_prompt_blocks_never_use_install_sh_or_sudo",
+            "tests/test_docs_pins.py::test_bob_version_is_read_only_in_the_prompt",
+            "tests/test_docs_pins.py::test_install_sh_mentions_bob_version_only_when_invalid",
+            "tests/test_docs_pins.py::test_prompt_files_have_the_fixed_frame",
+            "tests/test_hermetic.py::test_u5_tests_open_no_network[tests/test_docs_pins.py]"
+          ],
+          "verification": {
+            "pr_head": "72497ec437b174d8fbaf7a00e23e17e05558967a",
+            "base": "4d1603323ddc13714fa50b5e98487cb0957c7f20",
+            "checks": "7/7 verdes (bob / check 13m32s, bob / cold 0m30s, CI / pytest 3.10 14m11s e 3.12 15m04s, package / dist 0m38s, verify-install / linux-x64 2m08s com 14 linhas ok, website / build 2m32s com 14 subtests ok)",
+            "pytest": "4819 passed, 0 failed, 3 warnings (4799 + 19 + 1), 3.10 e 3.12",
+            "test_docs_pins": "19 passed (13 testes)",
+            "test_hermetic": "6 passed (5 -> 6)",
+            "website_build": "EXIT:0, 14 subtests ok, 4 arquivos install-prompt*/index.html",
+            "passo_0": "4d1603323ddc13714fa50b5e98487cb0957c7f20; STEPS e PROFILE_LINE; 3; 0; 6 linhas _UNIT_ARGS; ok; EXIT:0; 5 passed in 2.04s; sha256 99e5e5b1... (en) e ad4570c9... (pt-BR)",
+            "bob_check": "exit 0; crap, dry, deps, mutate, coverage passed (corpo); CI bob: crap/dry/deps/mutate ✅, No surviving mutants, No new clones, 0 waivers novos",
+            "columns": "0 linhas novas > 100 colunas (máx. 85 em test_docs_pins.py, 33 em test_hermetic.py)",
+            "et_version": "v1",
+            "correction_rounds": 0,
+            "report": "construction/u8-docs/code-generation/tasks/T1-verificacao.md",
+            "verified_at": "2026-10-24T01:10-03:00"
+          },
+          "merge_sha": "465b1056cf1324c00780df42f5659a44ba169358",
+          "merge_commit": "465b105",
+          "merged_at": "2026-10-24T07:14:31-03:00",
+          "merged_by": "Emerson",
+          "merged_via": "Maestro",
+          "merge_commit_sha": "465b1056cf1324c00780df42f5659a44ba169358"
+        },
+        {
+          "id": "T2",
+          "title": "Docs de instalação: comando único, alternativa e atualizar",
+          "et": "construction/u8-docs/code-generation/tasks/T2.md",
+          "plan": "construction/u8-docs/code-generation/code-generation-plan.md",
+          "plan_steps": [
+            "P3"
+          ],
+          "branch": "aidlc/u8-docs/t2-install-docs",
+          "depends_on": [
+            "T1"
+          ],
+          "status": "merged",
+          "et_version": "v1",
+          "base": "465b1056cf1324c00780df42f5659a44ba169358",
+          "base_sha": "465b1056cf1324c00780df42f5659a44ba169358",
+          "dispatch_package": "/workspace/dispatch/u8-t2",
+          "agent_id": "bc-4e4a7cab-c610-5478-ab17-30f0e558d956",
+          "agent_url": "https://cursor.com/agents/bc-4e4a7cab-c610-5478-ab17-30f0e558d956",
+          "dispatched_at": "2026-10-24T07:25:00-03:00",
+          "pr": 212,
+          "pr_number": 212,
+          "pr_url": "https://github.com/fazedordecodigo/bob/pull/212",
+          "head_sha": "cb166448d7c943182e5812b97286fde452ecc458",
+          "prs": [
+            212
+          ],
+          "correction_round": 0,
+          "correction_rounds": 0,
+          "verification_doc": "construction/u8-docs/code-generation/tasks/T2-verificacao.md",
+          "verification_artifact": "aidlc-docs/construction/u8-docs/code-generation/tasks/T2-verificacao.md",
+          "verified_at": "2026-10-24T09:20-03:00",
+          "tests": [
+            "tests/test_docs_pins.py::test_install_docs_start_with_the_one_liner",
+            "tests/test_docs_pins.py::test_alternative_comes_after_the_one_liner_once",
+            "tests/test_docs_pins.py::test_alternative_links_the_prompt_in_the_doc_language",
+            "tests/test_docs_pins.py::test_update_section_shows_update_and_version",
+            "tests/test_docs_pins.py::test_install_docs_cite_the_pinned_requirements",
+            "tests/test_docs_pins.py::test_docs_cite_only_the_pinned_versions"
+          ],
+          "verification": {
+            "pr_head": "cb166448d7c943182e5812b97286fde452ecc458",
+            "base": "465b1056cf1324c00780df42f5659a44ba169358",
+            "checks": "7/7 verdes (bob / check 12m27s, bob / cold 38s, pytest 3.10 20m18s, 3.12 14m29s, package / dist 39s, verify-install / linux-x64 2m17s, website / build 2m48s)",
+            "pytest": "4852 passed, 0 failed, 3 warnings (3.10 e 3.12)",
+            "test_docs_pins": "47 passed (19 + 28)",
+            "with_hermetic": "53 passed",
+            "columns": "0 linhas novas > 100 em tests/",
+            "waivers_novos": 0,
+            "et_version": "v1",
+            "correction_rounds": 0,
+            "report": "construction/u8-docs/code-generation/tasks/T2-verificacao.md"
+          },
+          "merge_commit_sha": "d30080723d5cc79e8868940effe619bda08c4863",
+          "merged_at": "2026-10-24T10:07:14-03:00"
+        },
+        {
+          "id": "T3",
+          "title": "Docs dos agentes e do hook a partir do comando único",
+          "et": "construction/u8-docs/code-generation/tasks/T3.md",
+          "plan": "construction/u8-docs/code-generation/code-generation-plan.md",
+          "plan_steps": [
+            "P4"
+          ],
+          "branch": "aidlc/u8-docs/t3-agents-hook-docs",
+          "depends_on": [
+            "T2"
+          ],
+          "q1": "A",
+          "status": "merged",
+          "et_version": "v1",
+          "base_sha": "d30080723d5cc79e8868940effe619bda08c4863",
+          "agent_id": "bc-dc052d84-17fe-5c43-b436-e983570bf8a2",
+          "agent_url": "https://cursor.com/agents/bc-dc052d84-17fe-5c43-b436-e983570bf8a2",
+          "dispatched_at": "2026-10-24T10:12:00-03:00",
+          "base": "d30080723d5cc79e8868940effe619bda08c4863",
+          "pr": 213,
+          "pr_number": 213,
+          "pr_url": "https://github.com/fazedordecodigo/bob/pull/213",
+          "head_sha": "0f88870b4ec128f942d4ab7ed5aef92ebaf75466",
+          "prs": [
+            213
+          ],
+          "correction_round": 0,
+          "correction_rounds": 0,
+          "verification_doc": "construction/u8-docs/code-generation/tasks/T3-verificacao.md",
+          "verification_artifact": "aidlc-docs/construction/u8-docs/code-generation/tasks/T3-verificacao.md",
+          "verified_at": "2026-10-24T11:40-03:00",
+          "tests": [
+            "tests/test_docs_pins.py::test_agent_and_hook_docs_start_with_the_one_liner",
+            "tests/test_docs_pins.py::test_no_clone_or_plugin_before_the_one_liner",
+            "tests/test_docs_pins.py::test_bob_version_only_in_the_release_check_note",
+            "tests/test_docs_pins.py::test_agents_doc_names_the_single_folder_and_ra1"
+          ],
+          "verification": {
+            "pr_head": "0f88870b4ec128f942d4ab7ed5aef92ebaf75466",
+            "base": "d30080723d5cc79e8868940effe619bda08c4863",
+            "checks": "7/7 verdes",
+            "pytest": "4882 passed, 0 failed, 3 warnings (3.10 e 3.12)",
+            "test_docs_pins": "69 passed (47 + 22)",
+            "with_hermetic": "75 passed",
+            "columns": "0",
+            "waivers_novos": 0,
+            "q1": "A",
+            "et_version": "v1",
+            "correction_rounds": 0
+          },
+          "merge_commit_sha": "1b107922bf6553660231f598d758258b96fc091c",
+          "merged_at": "2026-10-24T11:51:50-03:00"
+        },
+        {
+          "id": "T4",
+          "title": "Harness: passo 14 (comando único × prompt de IA) e pass_env",
+          "et": "construction/u8-docs/code-generation/tasks/T4.md",
+          "plan": "construction/u8-docs/code-generation/code-generation-plan.md",
+          "plan_steps": [
+            "P5"
+          ],
+          "branch": "aidlc/u8-docs/t4-step-14",
+          "depends_on": [
+            "T1",
+            "U6/T3",
+            "U7/T3"
+          ],
+          "status": "merged",
+          "et_version": "v1",
+          "base": "465b1056cf1324c00780df42f5659a44ba169358",
+          "base_sha": "465b1056cf1324c00780df42f5659a44ba169358",
+          "dispatch_package": "/workspace/dispatch/u8-t4",
+          "agent_id": "bc-b3042bc9-9c62-5b0c-b45a-30d69643b3fe",
+          "agent_url": "https://cursor.com/agents/bc-b3042bc9-9c62-5b0c-b45a-30d69643b3fe",
+          "dispatched_at": "2026-10-24T07:25:00-03:00",
+          "pr": 211,
+          "pr_number": 211,
+          "pr_url": "https://github.com/fazedordecodigo/bob/pull/211",
+          "head_sha": "22fc38485e11f62cb9e114ab828174bb31c985cf",
+          "prs": [
+            211
+          ],
+          "correction_round": 0,
+          "correction_rounds": 0,
+          "verification_doc": "construction/u8-docs/code-generation/tasks/T4-verificacao.md",
+          "verification_artifact": "aidlc-docs/construction/u8-docs/code-generation/tasks/T4-verificacao.md",
+          "verified_at": "2026-10-24T09:12-03:00",
+          "tests": [
+            "tests/test_verify_install.py::test_step_14_is_wired",
+            "tests/test_verify_install.py::test_harness_passes_env_in_one_place",
+            "tests/test_verify_install.py::test_pass_env_quotes_the_values",
+            "tests/test_verify_install.py::test_prompt_blocks_filter_by_platform",
+            "tests/test_verify_install.py::test_manifest_lists_the_install"
+          ],
+          "verification": {
+            "pr_head": "22fc38485e11f62cb9e114ab828174bb31c985cf",
+            "base": "465b1056cf1324c00780df42f5659a44ba169358",
+            "checks": "6/6 verdes (bob / check 12m30s, bob / cold 34s, pytest 3.10 22m13s, 3.12 19m48s, package / dist 39s, verify-install / linux-x64 3m12s com 15 linhas ok)",
+            "pytest": "4832 passed, 0 failed, 3 warnings (3.10 e 3.12)",
+            "test_verify_install": "54 passed (46 + 8)",
+            "verify_install": "192 s; tempos passo 2 19 s, 10 17 s, 11 0 s, 13 10 s, 14 42 s",
+            "columns": "0 linhas novas > 100 bytes",
+            "waivers_novos": 0,
+            "et_version": "v1",
+            "correction_rounds": 0,
+            "report": "construction/u8-docs/code-generation/tasks/T4-verificacao.md"
+          },
+          "merge_commit_sha": "9c8c4f5c5629bafaf8780c877caebe88c99e8ced",
+          "merged_at": "2026-10-24T10:06:14-03:00"
+        }
+      ],
+      "prs": [
+        {
+          "number": 209,
+          "url": "https://github.com/fazedordecodigo/bob/pull/209",
+          "task": "T1",
+          "title": "ET-u8-docs-T1: Prompt de IA sem install.sh e teste de paridade",
+          "base_sha": "4d1603323ddc13714fa50b5e98487cb0957c7f20",
+          "head_sha": "72497ec437b174d8fbaf7a00e23e17e05558967a",
+          "state": "merged",
+          "draft": false,
+          "agent": "bc-141f978e-e508-5e04-9cbc-0bf2608edf82",
+          "created_at": "2026-10-24T00:49:09-03:00",
+          "commits": 1,
+          "changed_files": 4,
+          "additions": 1092,
+          "deletions": 0,
+          "et_version": "v1",
+          "correction_round": 0,
+          "correction_rounds": 0,
+          "status": "merged",
+          "verified_at": "2026-10-24T01:10-03:00",
+          "verification_doc": "construction/u8-docs/code-generation/tasks/T1-verificacao.md",
+          "checks": {
+            "bob / check": "success",
+            "bob / cold": "success",
+            "CI / pytest (3.10)": "success",
+            "CI / pytest (3.12)": "success",
+            "package / dist": "success",
+            "verify-install / linux-x64": "success",
+            "website / build": "success"
+          },
+          "pytest": "4819 passed, 0 failed",
+          "merge_sha": "465b1056cf1324c00780df42f5659a44ba169358",
+          "merge_commit_sha": "465b1056cf1324c00780df42f5659a44ba169358",
+          "merged_at": "2026-10-24T07:14:31-03:00",
+          "merged_by": "fazedordecodigo"
+        }
+      ],
+      "tests": [
+        "tests/test_docs_pins.py::test_prompt_blocks_are_the_same_in_both_languages",
+        "tests/test_docs_pins.py::test_prompt_steps_follow_install_sh",
+        "tests/test_docs_pins.py::test_prompt_platforms_cover_each_step",
+        "tests/test_docs_pins.py::test_prompt_preamble_matches_bob_home",
+        "tests/test_docs_pins.py::test_prompt_gitleaks_matches_the_pins",
+        "tests/test_docs_pins.py::test_prompt_node_and_python_match_the_pins",
+        "tests/test_docs_pins.py::test_prompt_layout_matches_install_sh",
+        "tests/test_docs_pins.py::test_prompt_profile_matches_install_sh",
+        "tests/test_docs_pins.py::test_prompt_urls_and_options_match_install_sh",
+        "tests/test_docs_pins.py::test_prompt_blocks_never_use_install_sh_or_sudo",
+        "tests/test_docs_pins.py::test_bob_version_is_read_only_in_the_prompt",
+        "tests/test_docs_pins.py::test_install_sh_mentions_bob_version_only_when_invalid",
+        "tests/test_docs_pins.py::test_prompt_files_have_the_fixed_frame",
+        "tests/test_hermetic.py::test_u5_tests_open_no_network[tests/test_docs_pins.py]"
+      ],
+      "product_questions": {
+        "Q1": {
+          "answer": "A",
+          "answered_at": "2026-10-22T22:17-03:00",
+          "summary": "tirar as instruções de plugin dos docs de usuário; publishing.md fica"
+        }
+      },
+      "plan_approval": {
+        "approved_by": "Emerson",
+        "approved_at": "2026-10-23T19:00-03:00",
+        "quote": "Aprovo o plano da U8 e as ETs T1 a T4. U8 Q1 permanece A. Pode despachar depois que a U6 T3 e a U7 T3 estiverem mergeadas.",
+        "via": "Maestro"
+      },
+      "checkpoint": {
+        "artifact": "aidlc-docs/construction/u8-docs/checkpoint.md",
+        "prepared_at": "2026-10-24T12:05-03:00",
+        "main_sha": "1b107922bf6553660231f598d758258b96fc091c",
+        "et_criteria": {
+          "total": 82,
+          "atende": 82,
+          "nao_atende": 0,
+          "nao_verificado": 0,
+          "by_task": {
+            "T1": 17,
+            "T2": 18,
+            "T3": 18,
+            "T4": 29
+          }
+        },
+        "nfr": {
+          "total": 13,
+          "atende": 13,
+          "nao_atende": 0,
+          "nao_verificado": 0,
+          "ids": "U8-N1..U8-N13",
+          "pending_u9": [
+            "passo 14 e 1–13 na matriz (NFR3, NFR10)",
+            "Prompt de IA com agente real (US1.5 crit. 7, CT13)"
+          ]
+        },
+        "prs": [
+          209,
+          211,
+          212,
+          213
+        ],
+        "correction_rounds": {
+          "T1": 0,
+          "T2": 0,
+          "T3": 0,
+          "T4": 0
+        },
+        "verify_install_main": "run 40104391267 success, 15 ok, passo 14 34 s, 166 s",
+        "approval": null,
+        "path": "construction/u8-docs/checkpoint.md",
+        "status": "completed",
+        "approved_at": "2026-10-24T12:41:00-03:00",
+        "approved_by": "Emerson Delatorre",
+        "literal": "Aprovo o checkpoint da U8 e o plano/ETs T1 a T3 da U9 com a ADR 0030. U9 Q1: B (publicar ADRs 0008 a 0029). U9 Q2: A (eu disparo ou autorizo o dry_run depois dos merges). Pode despachar a U9 T1, T2 e T3 em paralelo sobre 1b10792."
+      }
     },
     {
       "id": "U9",
       "name": "u9-release-v0-1-0",
       "kind": "packaging",
+      "status": "completed",
       "components": [
         "C11"
       ],
-      "stories": [],
-      "frs": [],
+      "stories": [
+        "US7.2",
+        "US1.1 (crit. 1 por plataforma)",
+        "US1.5 (crit. 7)"
+      ],
+      "frs": [
+        "FR1.2",
+        "FR1.4"
+      ],
       "nfrs": [
         "NFR1",
         "NFR3",
@@ -309,16 +4081,307 @@
         "NFR11"
       ],
       "adrs": [
-        "0011"
+        "0011",
+        "0030"
       ],
       "verification_steps": [
         "1-14 (matriz)",
         "manual por release",
         "E1-E6 (fluxo da release, Q1 A)"
       ],
-      "tasks": [],
-      "prs": [],
-      "tests": []
+      "tasks": [
+        {
+          "id": "T1",
+          "name": "ET-u9-release-T1: workflow release e VERIFY_DIST no harness",
+          "spec": "construction/u9-release-v0-1-0/code-generation/tasks/T1.md",
+          "status": "merged",
+          "branch": "aidlc/u9-release/t1-release-workflow",
+          "base_commit": "1b107922bf6553660231f598d758258b96fc091c",
+          "agent_id": "bc-cbbe0656-8905-5398-911d-c3f5cdc924cd",
+          "agent_url": "https://cursor.com/agents/bc-cbbe0656-8905-5398-911d-c3f5cdc924cd",
+          "dispatched_at": "2026-10-24T12:44:00-03:00",
+          "correction_round": 0,
+          "pr_number": 216,
+          "pr_url": "https://github.com/fazedordecodigo/bob/pull/216",
+          "head_commit": "ebc3476315c041e562a2914e7317b1e7785e92a9",
+          "verification_doc": "construction/u9-release-v0-1-0/code-generation/tasks/T1-verificacao.md",
+          "verified_at": "2026-10-24T13:48:00-03:00",
+          "criteria_passed": "6/6",
+          "tests": [
+            "tests/test_release_workflow.py::test_release_runs_only_by_hand_on_main",
+            "tests/test_release_workflow.py::test_release_jobs_and_permissions",
+            "tests/test_release_workflow.py::test_release_matrix_is_the_four_platforms",
+            "tests/test_release_workflow.py::test_release_builds_the_three_assets",
+            "tests/test_release_workflow.py::test_release_verify_runs_the_verification_command",
+            "tests/test_release_workflow.py::test_release_publish_creates_the_release_from_the_notes",
+            "tests/test_release_workflow.py::test_release_pins_actions_like_ci",
+            "tests/test_verify_install.py::test_build_wheel_uses_verify_dist"
+          ],
+          "merge_commit": "ee1416808b2baf643d2b9ec8ce4005aa31f4bdd6",
+          "merge_commit_sha": "ee1416808b2baf643d2b9ec8ce4005aa31f4bdd6",
+          "merged_at": "2026-10-24T14:36:34-03:00",
+          "merged_by": "fazedordecodigo"
+        },
+        {
+          "id": "T2",
+          "name": "ET-u9-release-T2: release-check (modelo e v0.1.0)",
+          "spec": "construction/u9-release-v0-1-0/code-generation/tasks/T2.md",
+          "status": "merged",
+          "branch": "aidlc/u9-release/t2-release-checks",
+          "base_commit": "1b107922bf6553660231f598d758258b96fc091c",
+          "agent_id": "bc-235c9d87-aeae-5197-8fc0-cc8b753559fa",
+          "agent_url": "https://cursor.com/agents/bc-235c9d87-aeae-5197-8fc0-cc8b753559fa",
+          "dispatched_at": "2026-10-24T12:44:00-03:00",
+          "correction_round": 0,
+          "pr_number": 214,
+          "pr_url": "https://github.com/fazedordecodigo/bob/pull/214",
+          "head_commit": "eb457472a77fdb976813d6fd4ac85ea509358431",
+          "verification_doc": "construction/u9-release-v0-1-0/code-generation/tasks/T2-verificacao.md",
+          "verified_at": "2026-10-24T13:39:00-03:00",
+          "criteria_passed": "4/4",
+          "tests": [
+            "tests/test_release_checks.py::test_release_check_titles",
+            "tests/test_release_checks.py::test_release_checks_have_the_ct13_sections",
+            "tests/test_release_checks.py::test_manual_table_lists_the_five_agents",
+            "tests/test_release_checks.py::test_matrix_table_lists_the_four_runners",
+            "tests/test_release_checks.py::test_v0_1_0_has_the_e0_to_e6_script",
+            "tests/test_release_checks.py::test_release_checks_have_no_relative_links"
+          ],
+          "merge_commit": "db567b2126842c3256afea4625971595fe1d104f",
+          "merge_commit_sha": "db567b2126842c3256afea4625971595fe1d104f",
+          "merged_at": "2026-10-24T14:36:53-03:00",
+          "merged_by": "fazedordecodigo"
+        },
+        {
+          "id": "T3",
+          "name": "ET-u9-release-T3: ADRs 0008–0029 públicas, índices e CHANGELOG da U9",
+          "spec": "construction/u9-release-v0-1-0/code-generation/tasks/T3.md",
+          "status": "merged",
+          "branch": "aidlc/u9-release/t3-adrs",
+          "base_commit": "1b107922bf6553660231f598d758258b96fc091c",
+          "agent_id": "bc-80256afb-59d5-51f1-9cbf-606899665ab1",
+          "agent_url": "https://cursor.com/agents/bc-80256afb-59d5-51f1-9cbf-606899665ab1",
+          "dispatched_at": "2026-10-24T12:44:00-03:00",
+          "correction_round": 0,
+          "pr_number": 215,
+          "pr_url": "https://github.com/fazedordecodigo/bob/pull/215",
+          "head_commit": "b84d6d36d7ade2015a4357e1cd772977c1ace271",
+          "verification_doc": "construction/u9-release-v0-1-0/code-generation/tasks/T3-verificacao.md",
+          "verified_at": "2026-10-24T13:39:00-03:00",
+          "criteria_passed": "5/5",
+          "tests": [
+            "website/tests/site.test.mjs",
+            "tests/test_docs_pins.py",
+            "tests/test_hermetic.py"
+          ],
+          "merge_commit": "a658abddf41570168bc9b9e3ff36a8a7d423cdc2",
+          "merge_commit_sha": "a658abddf41570168bc9b9e3ff36a8a7d423cdc2",
+          "merged_at": "2026-10-24T14:37:07-03:00",
+          "merged_by": "fazedordecodigo"
+        }
+      ],
+      "prs": [
+        {
+          "number": 216,
+          "url": "https://github.com/fazedordecodigo/bob/pull/216",
+          "task": "T1",
+          "title": "U9 T1: workflow release e VERIFY_DIST",
+          "base_sha": "1b107922bf6553660231f598d758258b96fc091c",
+          "head_sha": "ebc3476315c041e562a2914e7317b1e7785e92a9",
+          "state": "merged",
+          "draft": false,
+          "agent": "bc-cbbe0656-8905-5398-911d-c3f5cdc924cd",
+          "commits": 1,
+          "changed_files": 4,
+          "additions": 476,
+          "deletions": 0,
+          "et_version": "v1",
+          "correction_round": 0,
+          "correction_rounds": 0,
+          "status": "merged",
+          "verified_at": "2026-10-24T13:48:00-03:00",
+          "verification_doc": "construction/u9-release-v0-1-0/code-generation/tasks/T1-verificacao.md",
+          "checks": {
+            "bob / check": "success",
+            "bob / cold": "success",
+            "CI / pytest (3.10)": "success",
+            "CI / pytest (3.12)": "success",
+            "package / dist": "success",
+            "verify-install / linux-x64": "success"
+          },
+          "pytest": "4891 passed, 0 failed (63 passed in test_release_workflow.py + test_verify_install.py)",
+          "merge_sha": "ee1416808b2baf643d2b9ec8ce4005aa31f4bdd6",
+          "merge_commit_sha": "ee1416808b2baf643d2b9ec8ce4005aa31f4bdd6",
+          "merged_at": "2026-10-24T14:36:34-03:00",
+          "merged_by": "fazedordecodigo"
+        },
+        {
+          "number": 214,
+          "url": "https://github.com/fazedordecodigo/bob/pull/214",
+          "task": "T2",
+          "title": "U9 T2: release-check v0.1.0",
+          "base_sha": "1b107922bf6553660231f598d758258b96fc091c",
+          "head_sha": "eb457472a77fdb976813d6fd4ac85ea509358431",
+          "state": "merged",
+          "draft": false,
+          "agent": "bc-235c9d87-aeae-5197-8fc0-cc8b753559fa",
+          "commits": 1,
+          "changed_files": 3,
+          "additions": 295,
+          "deletions": 0,
+          "et_version": "v1",
+          "correction_round": 0,
+          "correction_rounds": 0,
+          "status": "merged",
+          "verified_at": "2026-10-24T13:39:00-03:00",
+          "verification_doc": "construction/u9-release-v0-1-0/code-generation/tasks/T2-verificacao.md",
+          "checks": {
+            "bob / check": "success",
+            "bob / cold": "success",
+            "CI / pytest (3.10)": "success",
+            "CI / pytest (3.12)": "success",
+            "package / dist": "success",
+            "verify-install / linux-x64": "success",
+            "website / build": "success"
+          },
+          "pytest": "4892 passed, 0 failed (10 passed in test_release_checks.py)",
+          "merge_sha": "db567b2126842c3256afea4625971595fe1d104f",
+          "merge_commit_sha": "db567b2126842c3256afea4625971595fe1d104f",
+          "merged_at": "2026-10-24T14:36:53-03:00",
+          "merged_by": "fazedordecodigo"
+        },
+        {
+          "number": 215,
+          "url": "https://github.com/fazedordecodigo/bob/pull/215",
+          "task": "T3",
+          "title": "U9 T3: ADRs 0008–0029 em docs/adr",
+          "base_sha": "1b107922bf6553660231f598d758258b96fc091c",
+          "head_sha": "b84d6d36d7ade2015a4357e1cd772977c1ace271",
+          "state": "merged",
+          "draft": false,
+          "agent": "bc-80256afb-59d5-51f1-9cbf-606899665ab1",
+          "commits": 1,
+          "changed_files": 26,
+          "additions": 661,
+          "deletions": 0,
+          "et_version": "v1",
+          "correction_round": 0,
+          "correction_rounds": 0,
+          "status": "merged",
+          "verified_at": "2026-10-24T13:39:00-03:00",
+          "verification_doc": "construction/u9-release-v0-1-0/code-generation/tasks/T3-verificacao.md",
+          "checks": {
+            "bob / check": "success",
+            "bob / cold": "success",
+            "CI / pytest (3.10)": "success",
+            "CI / pytest (3.12)": "success",
+            "package / dist": "success",
+            "verify-install / linux-x64": "success",
+            "website / build": "success"
+          },
+          "pytest": "4882 passed, 0 failed (75 passed in test_docs_pins.py + test_hermetic.py; 14 pass in website/tests/site.test.mjs)",
+          "merge_sha": "a658abddf41570168bc9b9e3ff36a8a7d423cdc2",
+          "merge_commit_sha": "a658abddf41570168bc9b9e3ff36a8a7d423cdc2",
+          "merged_at": "2026-10-24T14:37:07-03:00",
+          "merged_by": "fazedordecodigo"
+        }
+      ],
+      "tests": [
+        "tests/test_release_workflow.py::test_release_runs_only_by_hand_on_main",
+        "tests/test_release_workflow.py::test_release_jobs_and_permissions",
+        "tests/test_release_workflow.py::test_release_matrix_is_the_four_platforms",
+        "tests/test_release_workflow.py::test_release_builds_the_three_assets",
+        "tests/test_release_workflow.py::test_release_verify_runs_the_verification_command",
+        "tests/test_release_workflow.py::test_release_publish_creates_the_release_from_the_notes",
+        "tests/test_release_workflow.py::test_release_pins_actions_like_ci",
+        "tests/test_verify_install.py::test_build_wheel_uses_verify_dist[present]",
+        "tests/test_verify_install.py::test_build_wheel_uses_verify_dist[missing]",
+        "tests/test_release_checks.py::test_release_check_titles",
+        "tests/test_release_checks.py::test_release_checks_have_the_ct13_sections[TEMPLATE]",
+        "tests/test_release_checks.py::test_release_checks_have_the_ct13_sections[v0.1.0]",
+        "tests/test_release_checks.py::test_manual_table_lists_the_five_agents[TEMPLATE]",
+        "tests/test_release_checks.py::test_manual_table_lists_the_five_agents[v0.1.0]",
+        "tests/test_release_checks.py::test_matrix_table_lists_the_four_runners[TEMPLATE]",
+        "tests/test_release_checks.py::test_matrix_table_lists_the_four_runners[v0.1.0]",
+        "tests/test_release_checks.py::test_v0_1_0_has_the_e0_to_e6_script",
+        "tests/test_release_checks.py::test_release_checks_have_no_relative_links[TEMPLATE]",
+        "tests/test_release_checks.py::test_release_checks_have_no_relative_links[v0.1.0]",
+        "website/tests/site.test.mjs"
+      ],
+      "plan": "construction/u9-release-v0-1-0/code-generation/code-generation-plan.md",
+      "open_questions": [],
+      "plan_approval": {
+        "approved_at": "2026-10-24T12:41:00-03:00",
+        "approved_by": "Emerson Delatorre",
+        "literal": "Aprovo o checkpoint da U8 e o plano/ETs T1 a T3 da U9 com a ADR 0030. U9 Q1: B (publicar ADRs 0008 a 0029). U9 Q2: A (eu disparo ou autorizo o dry_run depois dos merges). Pode despachar a U9 T1, T2 e T3 em paralelo sobre 1b10792.",
+        "questions": {
+          "Q1": "B (publicar ADRs 0008 a 0029)",
+          "Q2": "A (Emerson dispara ou autoriza o dry_run depois dos merges)"
+        },
+        "adr_promoted": "ADR 0030 (VERIFY_DIST em scripts/verify-install.sh, CT15 v1.1)"
+      },
+      "product_questions": {
+        "Q1": {
+          "answer": "B",
+          "answered_at": "2026-10-24T12:41:00-03:00",
+          "summary": "Publicar ADRs 0008 a 0029 em docs/adr/ (junto com os índices e sidebars.js)"
+        },
+        "Q2": {
+          "answer": "A",
+          "answered_at": "2026-10-24T12:41:00-03:00",
+          "summary": "Emerson dispara ou autoriza o dry_run (passo E0) depois dos merges"
+        }
+      },
+      "checkpoint": {
+        "artifact": "aidlc-docs/construction/u9-release-v0-1-0/checkpoint.md",
+        "path": "construction/u9-release-v0-1-0/checkpoint.md",
+        "prepared_at": "2026-10-24T14:43:00-03:00",
+        "main_sha": "a658abddf41570168bc9b9e3ff36a8a7d423cdc2",
+        "et_criteria": {
+          "total": 15,
+          "atende": 15,
+          "nao_atende": 0,
+          "nao_verificado": 0,
+          "by_task": {
+            "T1": 6,
+            "T2": 4,
+            "T3": 5
+          }
+        },
+        "correction_rounds": {
+          "T1": 0,
+          "T2": 0,
+          "T3": 0
+        },
+        "prs": [
+          216,
+          214,
+          215
+        ],
+        "verify_install_main": "run 40116938937 (job 120940295492) success, 15 ok, passo 2 19 s, passo 10 17 s, passo 14 43 s, total 186 s",
+        "package_main": "run 40116938899 (job 120940055404) dist success (36 s)",
+        "pages_build_main": "run 40116938864 (job 120940399343) build success",
+        "nfr": {
+          "total": 13,
+          "ids": "U9-N1..U9-N13",
+          "atende_in_code_and_linux_x64": 13,
+          "nao_atende": 0,
+          "pending_e0_dry_run_q2_a": [
+            "U9-N1 (execução real do job check no workflow release.yml gerando o artefato release-assets)",
+            "U9-N2 (execução real do job verify usando VERIFY_DIST com o wheel do run)",
+            "U9-N3 (execução da matriz nas 4 plataformas: ubuntu-latest, ubuntu-24.04-arm, macos-15-intel, macos-15)",
+            "U9-N10 (medição de tempo ≤ 300 s dos passos 2 e 10 nos outros 3 runners da matriz: ubuntu-24.04-arm, macos-15-intel, macos-15; em Linux x64 já medido na main a658abd: passo 2 = 19 s, passo 10 = 17 s)"
+          ],
+          "pending_release_operation_e1_e6": [
+            "U9-N4 parte dinâmica E2 (releases/latest = 404 após E1 prerelease) e E4 (5 agentes manuais + Prompt de IA com agente real)"
+          ]
+        },
+        "status": "completed",
+        "approval": null,
+        "approved_at": "2026-10-24T15:54:00-03:00",
+        "approved_by": "Emerson Delatorre",
+        "literal": "Aprovo o checkpoint da U9. Pode escrever e despachar a micro-ET do 3.6 em tests/test_hermetic.py (U4-N14) e autorizo o Arquiteto a disparar o E0 (release.yml com dry_run: true) após o merge dela para consolidar o 3.6 e o 3.7."
+      }
     }
   ],
   "stories": {
@@ -377,5 +4440,257 @@
     "FR1.8": "U8",
     "FR8.4": "U8",
     "FR8.5": "U8"
+  },
+  "updated_at": "2026-10-25T09:39:00-03:00",
+  "build_and_test": {
+    "stage": "3.6 Build and Test",
+    "status": "completed",
+    "tasks": [
+      {
+        "id": "T1",
+        "title": "[3.6][T1] Guarda hermetica completa em test_hermetic.py (U4-N14)",
+        "spec": "aidlc-docs/construction/build-and-test/tasks/T1.md",
+        "verification": "aidlc-docs/construction/build-and-test/tasks/T1-verificacao.md",
+        "agent_id": "bc-f1452baf-a39f-5eae-ac1b-ea19b60f2441",
+        "branch": "aidlc/build-and-test/t1-hermetic-u4-n14",
+        "base_commit": "a658abddf41570168bc9b9e3ff36a8a7d423cdc2",
+        "head_commit": "bfdfa0ddba68c688a0b6619803fc484cde139800",
+        "pr_number": 217,
+        "pr_url": "https://github.com/fazedordecodigo/bob/pull/217",
+        "status": "merged",
+        "correction_rounds": 0,
+        "nfr_closed": [
+          "U4-N14",
+          "U5-N14",
+          "U7-N14",
+          "U9-N12"
+        ],
+        "merge_commit": "55c4de7a00b10459313bea85dbdfb8f71698ddf5",
+        "merged_at": "2026-10-24T20:17:38Z"
+      },
+      {
+        "id": "T2",
+        "title": "[3.6][T2] Portabilidade macOS para o ensaio E0 (release.yml)",
+        "spec": "aidlc-docs/construction/build-and-test/tasks/T2.md",
+        "branch": "aidlc/build-and-test/t2-macos-portability",
+        "base_commit": "55c4de7a00b10459313bea85dbdfb8f71698ddf5",
+        "status": "merged",
+        "nfr_closed": [
+          "U9-N1",
+          "U9-N2",
+          "U9-N3",
+          "U9-N10"
+        ],
+        "agent_id": "bc-1ace0d07-fad1-5eb0-bf14-1cc63f74e8fc",
+        "plan_approval": {
+          "approved_by": "Emerson Delatorre",
+          "literal": "Aprovo a ET 3.6 T2 de portabilidade macOS. Pode despachar sobre a main 55c4de7 e, após o merge, redisparar o E0 (dry_run: true)."
+        },
+        "verification": "aidlc-docs/construction/build-and-test/tasks/T2-verificacao.md",
+        "head_commit": "e70fb4a6c3ce3943dff24bd79a77048a59546282",
+        "pr_number": 221,
+        "pr_url": "https://github.com/fazedordecodigo/bob/pull/221",
+        "correction_rounds": 0,
+        "tests_added": [
+          "tests/test_project_skills.py::test_remove_path_uses_rmtree_for_real_dir_without_unlink",
+          "tests/test_security.py::test_detached_resolves_symlinked_tempdir"
+        ],
+        "merge_commit": "fae853bed8b9c8fc0b52d5838f148882481142f0",
+        "merged_at": "2026-10-24T23:50:38Z"
+      },
+      {
+        "id": "T3",
+        "title": "Alinhar tests/test_security_mutants.py a Path(tempfile.mkdtemp(...)).resolve() no macOS (darwin)",
+        "spec": "construction/build-and-test/tasks/T3.md",
+        "status": "merged",
+        "base_commit": "fae853bed8b9c8fc0b52d5838f148882481142f0",
+        "nfr": [
+          "U9-N8"
+        ],
+        "causes_fixed": [
+          "tests/test_security_mutants.py::test_detached_worktree_names_the_directory_and_removes_it: parent = Path(created[0]).resolve() (linha 89) e parent = Path(created[1]).resolve() (linha 108) para resolver /var -> /private/var no macOS e eliminar também a falha em cascata de tests/test_mutmut_dogfood.py"
+        ],
+        "plan_approved_at": "2026-10-24T21:58:00-03:00",
+        "agent_id": "bc-108dca38-bf24-5f0d-b3d1-1f99c099402e",
+        "agent_url": "https://cursor.com/agents/bc-108dca38-bf24-5f0d-b3d1-1f99c099402e",
+        "pr_number": 222,
+        "pr_url": "https://github.com/fazedordecodigo/bob/pull/222",
+        "head_commit": "0237faa4e54695c6b84b287a078cc727f5866d59",
+        "correction_rounds": 0,
+        "verification_doc": "construction/build-and-test/tasks/T3-verificacao.md",
+        "verified_at": "2026-10-24T23:15:00-03:00",
+        "merge_commit": "512e7d4df85417c45574e0a5ce8a411ecc0bf5d2",
+        "merged_at": "2026-10-25T12:37:33Z"
+      },
+      {
+        "id": "T4",
+        "title": "[3.6][T4] Propagar PIP_CACHE_DIR para verify-install.sh no release.yml (macos-x64)",
+        "spec": "construction/build-and-test/tasks/T4.md",
+        "branch": "aidlc/build-and-test/t4-macos-x64-pip-cache-dir",
+        "base_commit": "512e7d4df85417c45574e0a5ce8a411ecc0bf5d2",
+        "status": "merged",
+        "nfr": [
+          "U9-N8"
+        ],
+        "causes_fixed": [
+          "macos-x64 (macos-15-intel): libcst==1.9.0 (dependência de mutmut==3.8.0) não possui wheel pré-compilado macosx_*_x86_64 no PyPI; o passo 'Ambiente de desenvolvimento' compila o wheel universal2 a partir de libcst-1.9.0.tar.gz, mas verify-install.sh rodava sob env -i HOME=$_home sem PIP_CACHE_DIR e sem ~/.cargo/bin no PATH restrito, tentando recompilar libcst do zero no passo 2 e falhando por falta de rustc. Definir PIP_CACHE_DIR=${{ runner.temp }}/pip-cache em release.yml e repassar PIP_CACHE_DIR em pass_env() de scripts/verify-install.sh permite reutilizar o wheel já compilado."
+        ],
+        "plan_approved_at": "2026-10-25T16:54:00-03:00",
+        "plan_approval": {
+          "approved_by": "Emerson Delatorre",
+          "literal": "Aprovo a ET 3.6 T4 (propagar PIP_CACHE_DIR em verify-install.sh e release.yml). Pode despachar sobre a main 512e7d4 e, após o merge, redisparar o E0 (dry_run: true)."
+        },
+        "agent_id": "bc-dca529a3-e969-5463-9460-2930ac9db903",
+        "agent_url": "https://cursor.com/agents/bc-dca529a3-e969-5463-9460-2930ac9db903",
+        "pr_number": 226,
+        "pr_url": "https://github.com/fazedordecodigo/bob/pull/226",
+        "head_commit": "1dc10f1c9a4a9ff3b7593eb53b505e17dc8bf89b",
+        "correction_rounds": 0,
+        "verification_doc": "construction/build-and-test/tasks/T4-verificacao.md",
+        "verified_at": "2026-10-25T20:30:00-03:00",
+        "merge_commit": "787ea6546da14a417d3eda9171ad5a6d0ed64919",
+        "merged_at": "2026-10-25T23:29:31Z"
+      }
+    ],
+    "e0_runs": [
+      {
+        "run_id": 40129456138,
+        "url": "https://github.com/fazedordecodigo/bob/actions/runs/40129456138",
+        "head_sha": "55c4de7a00b10459313bea85dbdfb8f71698ddf5",
+        "conclusion": "failure",
+        "jobs": {
+          "check": "success",
+          "verify (linux-x64)": "success (pytest + verify-install 15/15 ok)",
+          "verify (linux-arm64)": "success (pytest + verify-install 15/15 ok)",
+          "verify (macos-arm64)": "failure (pytest: 11 failed, 4894 passed)",
+          "verify (macos-x64)": "failure (pytest: 11 failed, 4894 passed)",
+          "publish": "skipped"
+        }
+      }
+    ],
+    "e0_release_dry_run_2": {
+      "run_id": 40144457982,
+      "run_url": "https://github.com/fazedordecodigo/bob/actions/runs/40144457982",
+      "head_sha": "fae853bed8b9c8fc0b52d5838f148882481142f0",
+      "inputs": {
+        "tag": "v0.1.0",
+        "prerelease": true,
+        "dry_run": true
+      },
+      "jobs": {
+        "check": {
+          "id": 121022724532,
+          "conclusion": "success"
+        },
+        "verify (linux-x64)": {
+          "id": 121022785200,
+          "conclusion": "success",
+          "summary": "4907 passed + 15/15 verify-install.sh steps"
+        },
+        "verify (linux-arm64)": {
+          "id": 121022785155,
+          "conclusion": "success",
+          "summary": "4907 passed + 15/15 verify-install.sh steps"
+        },
+        "verify (macos-arm64)": {
+          "id": 121022785188,
+          "conclusion": "failure",
+          "summary": "4905 passed, 2 failed (tests/test_security_mutants.py:89,108 missing .resolve() + cascade in tests/test_mutmut_dogfood.py)"
+        },
+        "verify (macos-x64)": {
+          "id": 121022785144,
+          "conclusion": "failure",
+          "summary": "4905 passed, 2 failed (tests/test_security_mutants.py:89,108 missing .resolve() + cascade in tests/test_mutmut_dogfood.py)"
+        },
+        "publish": {
+          "id": 121030700098,
+          "conclusion": "skipped"
+        }
+      }
+    },
+    "e0_release_dry_run_3": {
+      "run_id": 40194253788,
+      "run_url": "https://github.com/fazedordecodigo/bob/actions/runs/40194253788",
+      "head_sha": "512e7d4df85417c45574e0a5ce8a411ecc0bf5d2",
+      "inputs": {
+        "tag": "v0.1.0",
+        "prerelease": true,
+        "dry_run": true
+      },
+      "jobs": {
+        "check": {
+          "id": 121171595494,
+          "conclusion": "success"
+        },
+        "verify (linux-x64)": {
+          "id": 121171667943,
+          "conclusion": "success",
+          "summary": "4907 passed + 15/15 verify-install.sh steps"
+        },
+        "verify (linux-arm64)": {
+          "id": 121171667930,
+          "conclusion": "success",
+          "summary": "4907 passed + 15/15 verify-install.sh steps"
+        },
+        "verify (macos-arm64)": {
+          "id": 121171667920,
+          "conclusion": "success",
+          "summary": "4907 passed + 15/15 verify-install.sh steps (VERIFY_INSTALL: PASS (passos 0..14))"
+        },
+        "verify (macos-x64)": {
+          "id": 121171667949,
+          "conclusion": "failure",
+          "summary": "pytest: 4907 passed (100% verde nos 4 runners!); verify-install.sh: passo 1 ok, passo 2 falhou ao instalar bob_quality-0.1.0-py3-none-any.whl sob env -i porque libcst==1.9.0 só fornece sdist em darwin-x64 e PIP_CACHE_DIR não era repassado do step 'Ambiente de desenvolvimento' para verify-install.sh"
+        },
+        "publish": {
+          "id": 121181240557,
+          "conclusion": "skipped"
+        }
+      }
+    },
+    "e0_release_dry_run_4": {
+      "run_id": 40245141721,
+      "run_url": "https://github.com/fazedordecodigo/bob/actions/runs/40245141721",
+      "head_sha": "787ea6546da14a417d3eda9171ad5a6d0ed64919",
+      "status": "completed",
+      "conclusion": "success",
+      "inputs": {
+        "tag": "v0.1.0",
+        "prerelease": true,
+        "dry_run": true
+      },
+      "jobs": {
+        "check": {
+          "id": 121325014122,
+          "conclusion": "success"
+        },
+        "verify (linux-x64)": {
+          "id": 121325092564,
+          "conclusion": "success",
+          "summary": "4907 passed + 15/15 verify-install.sh steps (VERIFY_DIST)"
+        },
+        "verify (linux-arm64)": {
+          "id": 121325092574,
+          "conclusion": "success",
+          "summary": "4907 passed + 15/15 verify-install.sh steps (VERIFY_DIST)"
+        },
+        "verify (macos-arm64)": {
+          "id": 121325092568,
+          "conclusion": "success",
+          "summary": "4907 passed + 15/15 verify-install.sh steps (VERIFY_DIST)"
+        },
+        "verify (macos-x64)": {
+          "id": 121325092595,
+          "conclusion": "success",
+          "summary": "4907 passed + 15/15 verify-install.sh steps (VERIFY_DIST; passo 2: 28s, passo 5: 12s, passo 6: 2s, passo 7: 2s, passo 10: 29s, passo 11: 0s, passo 12: 22s, passo 13: 17s, passo 14: 71s)"
+        },
+        "publish": {
+          "id": 121334934293,
+          "conclusion": "skipped"
+        }
+      }
+    },
+    "head_sha": "787ea6546da14a417d3eda9171ad5a6d0ed64919",
+    "completed_at": "2026-10-25T21:16:00-03:00"
   }
 }

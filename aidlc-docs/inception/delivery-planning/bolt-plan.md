@@ -59,3 +59,10 @@ python3 -m venv /tmp/dev && /tmp/dev/bin/pip install -e '.[dev]' && /tmp/dev/bin
 - **Passo 14** (2.8, CT15/CT18): instala pelo `install.sh` (A) e pelos blocos do prompt de IA (B) no mesmo `HOME` recriado; A = B no manifesto; `bob doctor` = 0 nos dois; nenhum pedido de `install.sh` no log do espelho; 2ª execução não muda nada.
 - Fora da automação: verificação manual por release nos 5 agentes e com um agente de IA real seguindo o prompt (`docs/release-checks/vX.Y.Z.md`).
 - Saída: `0` se tudo passa; `1` no primeiro passo que falha (`verify-install: passo <n>: <motivo>`).
+
+## Mudança aprovada em 2026-10-22 19:47 (UTC-3)
+Pedido do Emerson: paralelizar o que fosse possível. Aprovação literal: "Aprovo a mudança no bolt-plan: U6 e U7 em paralelo, com o desenho da U8 junto e o despacho dela depois dos merges da U6 e da U7."
+- B6 (U6) e B7 (U7) rodam em paralelo: desenho, Plan Approval conjunto e agentes simultâneos, em branches separadas. Dentro de cada unit, ETs sem arquivo em comum também podem ir juntas.
+- B8 (U8): desenho e plano em paralelo com a U6 e a U7; o despacho só depois dos merges da U6 e da U7 (o DAG não muda).
+- B9 (U9) continua por último.
+- Risco: a U6 e a U7 tocam o registro de passos do `bob setup` (CT3), o harness (CT15) e o CHANGELOG. Os merges são um de cada vez, e o PR que entrar depois faz rebase sobre a main nova antes da verificação.
