@@ -6,7 +6,7 @@ Two files. `bob.yaml` at the repository root, or the path in `--config`, sets th
 
 ## bob.yaml
 
-If the file is missing and `--config` was not passed, `load_config` returns the defaults in `Config` (`src/bob_quality/config.py`) and detects languages from the tree. If `--config` points at a file that does not exist, `check`, `crap`, `dry`, `deps`, and `mutate` exit `4`. English stderr names the path (`config file not found: <path>`). Nothing is written. `doctor`, `waive`, and `report` do not accept `--config`.
+If the file is missing and `--config` was not passed, `load_config` returns the defaults in `Config` (`src/bob_quality/config.py`) and detects languages from the tree. If `--config` points at a file that does not exist, `check`, `crap`, `dry`, `deps`, and `mutate` exit `4`. English stderr names the path (`config file not found: <path>`). Nothing is written. `doctor`, `waive`, `report`, `setup`, and `update` do not accept `--config`.
 
 A file that only sets what this repository sets (`base`, `languages`, `paths`, and `crap`) leaves every other key at the code default. The full key list, the types, and the values that exit `4` are in the [configuration schema](../reference/configuration.md).
 

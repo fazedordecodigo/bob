@@ -10,7 +10,7 @@ O bob dá aos agentes de código (Cursor, Claude Code, GitHub Copilot, Devin) ga
 - Configuração: `bob.yaml`
 - Relatórios: `.bob/report.md` e `.bob/report.json` (schema v1)
 - Idioma da saída: inglês (`en`, o padrão) ou português do Brasil (`pt-BR`)
-- Documentação: [docs/README.md](docs/README.md) (guias em português; a spec continua em [docs/SPEC.md](docs/SPEC.md))
+- Documentação: [docs/README.md](docs/README.md) (guias em inglês, com as páginas pt-BR do site em `website/i18n/pt-BR/`; a spec continua em [docs/SPEC.md](docs/SPEC.md))
 
 Licença: MIT.
 
@@ -25,6 +25,8 @@ Estas partes funcionam na `main`:
 - A GitHub Action que comenta o relatório no pull request.
 - `bob doctor`, e o pacote `bob-quality` pronto para distribuir. Nada foi enviado ao PyPI.
 - `bob report`, que renderiza um `report.json` já gravado como Markdown.
+- Os gates opcionais `coverage`, `test_smells`, `cognitive`, `supply`, `security`, `typing`, `secrets` e `dead_code`, pedidos com `bob check --gates`.
+- O comando único de instalação (`install.sh`), `bob setup`, `bob update` e `bob --version`, com o workflow `release` que gera os assets da release.
 - Os manifestos de plugin para Claude Code, Cursor, Copilot e Devin, e o instalador de skills ([#10](https://github.com/fazedordecodigo/bob/issues/10)). Nada foi enviado a marketplace.
 
 Estas partes estão planejadas (planned):
@@ -94,7 +96,7 @@ python -m pip install -e ".[dev]"
 npm ci
 ```
 
-Esses comandos instalam o comando `bob`, as ferramentas Python pinadas em `pyproject.toml` (`lizard`, `coverage`, `diff-cover`, `mutmut`, `import-linter`, `grimp`) e as ferramentas npm pinadas em `package.json` (`c8`, `vitest`, `jscpd`, `dependency-cruiser`). `bob doctor` mostra a versão esperada e a encontrada de cada ferramenta.
+Esses comandos instalam o comando `bob`, as ferramentas Python pinadas em `pyproject.toml` (`lizard`, `deptry`, `coverage`, `diff-cover`, `import-linter`, `grimp`, `mutmut`, `complexipy`, `bandit`, `vulture`) e as ferramentas npm pinadas em `package.json` (`c8`, `vitest`, `jscpd`, `dependency-cruiser`, `eslint`, `eslint-plugin-sonarjs`, `knip`, `@stryker-mutator/core`, `@stryker-mutator/vitest-runner`). `bob doctor` mostra a versão esperada e a encontrada de cada ferramenta.
 
 ## Instalação nos agentes
 
@@ -140,7 +142,7 @@ Os comandos gravam `.bob/report.md` e `.bob/report.json`. Os exit codes são:
 
 Um uso inválido da linha de comando sai com `4`, não grava relatório, e o stderr não menciona baseline. A ajuda (`-h`, `--help`) continua saindo com `0`.
 
-`--config` antes do comando sai com `4` e não grava relatório. A última linha do stderr fica em inglês, mesmo com `--lang pt-BR`. Ela mostra o comando com a flag depois do nome, como em `bob: error: --config goes after the command: bob check --config ci.yaml`. Um caminho com espaço sai entre aspas, como em `bob crap --config 'my ci.yaml'`. `doctor` não aceita `--config`. A última linha é `bob: error: doctor does not accept --config`. `waive` também não aceita. A última linha é `bob: error: waive does not accept --config`. O `bob --help` não lista `--config`.
+`--config` antes do comando sai com `4` e não grava relatório. A última linha do stderr fica em inglês, mesmo com `--lang pt-BR`. Ela mostra o comando com a flag depois do nome, como em `bob: error: --config goes after the command: bob check --config ci.yaml`. Um caminho com espaço sai entre aspas, como em `bob crap --config 'my ci.yaml'`. `doctor` não aceita `--config`. A última linha é `bob: error: doctor does not accept --config`. `waive` também não aceita. A última linha é `bob: error: waive does not accept --config`. `report`, `setup` e `update` também não aceitam, com a última linha na mesma forma. O `bob --help` não lista `--config`.
 
 Quando mais de um gate falha, `bob check` sai com o código mais alto.
 
@@ -199,7 +201,7 @@ Com `crap.scope: changed`, só funções alteradas bloqueiam. `all` faz toda fun
 
 Se o YAML não é um mapeamento, se o YAML tem erro de sintaxe, se um mapeamento repete uma chave, ou se uma chave tem o tipo errado, a execução sai com `4`. A mensagem vai para o stderr em inglês e cita o arquivo. Um tipo errado também cita a chave, como em `bob.yaml: crap must be a mapping` ou `bob.yaml: crap.max_per_function must be a number`. Uma chave repetida cita a chave e a linha, como em `invalid YAML in bob.yaml: found duplicate key 'base' on line 2`. `check`, `doctor`, `waive` e os outros comandos fazem isso do mesmo jeito. Nenhum deles grava um arquivo.
 
-Se `--config` aponta para um arquivo que não existe, `check`, `crap`, `dry`, `deps` e `mutate` saem com `4`. O stderr fica em inglês e cita o caminho que `load_config` recebeu (`config file not found: <caminho>`). Nada é gravado. `doctor` e `waive` não aceitam `--config`.
+Se `--config` aponta para um arquivo que não existe, `check`, `crap`, `dry`, `deps` e `mutate` saem com `4`. O stderr fica em inglês e cita o caminho que `load_config` recebeu (`config file not found: <caminho>`). Nada é gravado. `doctor`, `waive`, `report`, `setup` e `update` não aceitam `--config`.
 
 ### Idioma da saída
 
@@ -327,7 +329,7 @@ O CI (`.github/workflows/ci.yml`) roda essa suíte em Python 3.10 e 3.12 com Nod
 
 A action composta em `.github/actions/bob` instala o `bob` e roda `bob check` com `crap,dry,deps,mutate`. Ela instala o Node 22.18.0 e o jscpd 5.4.1 antes, para o gate dry rodar quando quem chama a action não instalou os dois. Ela restaura e publica o artefato `bob-mutation-cache` (`.bob/mutation-cache.json` e `.bob/stryker-incremental.json`, guardado por 7 dias) e cria ou atualiza um único comentário no pull request com `.bob/report.md`. O exit code do job é o do `bob`, incluindo `4` para um uso inválido da linha de comando.
 
-A action aceita os inputs `base`, `gates`, `pip-spec` e `token`. Este repositório a usa em `.github/workflows/bob.yml`. O `bob-quality` ainda não está no PyPI, então no checkout deste repositório a action roda `pip install -e ".[dev]"`, e em outro repositório instala o código-fonte git da action. Publicação no GitHub Marketplace não faz parte desta fatia.
+A action aceita os inputs `base`, `gates`, `pip-spec`, `token` e `language`. Este repositório a usa em `.github/workflows/bob.yml`. O `bob-quality` ainda não está no PyPI, então no checkout deste repositório a action roda `pip install -e ".[dev]"`, e em outro repositório instala o código-fonte git da action. Publicação no GitHub Marketplace não faz parte desta fatia.
 
 ## Publicação
 
@@ -345,7 +347,7 @@ A action aceita os inputs `base`, `gates`, `pip-spec` e `token`. Este repositór
 
 Os gates seguem o fluxo do Uncle Bob. Os READMEs e as saídas das ferramentas dele [crapper](https://github.com/unclebob/crapper) e [mutator](https://github.com/unclebob/mutator) (0BSD) são a referência de comportamento, e o bob não reusa código delas. Os exit codes se inspiram no mutator. O gate de duplicação usa o jscpd. Um dryer estrutural próprio do bob, na linha do [dryer](https://github.com/unclebob/dryer) (0BSD) dele, fica fora do escopo do MVP. Os limites vêm dos posts recentes dele, CRAP < 10 para agentes ([post no X](https://x.com/unclebobmartin/status/2108946115169030596)) e matar mutantes dentro do razoável ([podcast da Aviator](https://www.aviator.co/podcast/uncle-bob-martin-ai-clean-code)).
 
-As ferramentas de mercado (lizard, coverage.py, diff-cover, c8, vitest, mutmut, jscpd, import-linter, grimp, dependency-cruiser) são dependências pinadas, e o bob não copia código delas. grimp não tem adaptador.
+As ferramentas de mercado (lizard, coverage.py, diff-cover, c8, vitest, mutmut, StrykerJS, jscpd, import-linter, grimp, dependency-cruiser, deptry, knip, complexipy, eslint, eslint-plugin-sonarjs, bandit, vulture, gitleaks) são dependências pinadas, e o bob não copia código delas. grimp não tem adaptador.
 
 ## Licença
 

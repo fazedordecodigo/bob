@@ -72,7 +72,7 @@ There are two ways to reach `4`.
 
 Invalid command-line usage (missing command, unknown command, illegal flag, a value outside the choices, a value outside the rule for `--threshold` or `--max-workers`) prints argparse usage on stderr. That text does not mention baseline. Help (`-h`, `--help`) exits `0`. This is not exit `2`. The rule for `--threshold` and `--max-workers` is in [Other measurement commands](reference/cli.md#other-measurement-commands). A negative `--max-new-clones` on `bob dry` or `bob check` also exits `4`, with `--max-new-clones must be at least 0` in English on stderr.
 
-`--config` before the command is invalid usage. The last stderr line stays English even with `--lang pt-BR`, as in `bob: error: --config goes after the command: bob check --config ci.yaml`. `doctor` does not accept the flag. The last line is `bob: error: doctor does not accept --config`. `waive` does not accept it. The last line is `bob: error: waive does not accept --config`. `report` does not accept it either.
+`--config` before the command is invalid usage. The last stderr line stays English even with `--lang pt-BR`, as in `bob: error: --config goes after the command: bob check --config ci.yaml`. `doctor` does not accept the flag. The last line is `bob: error: doctor does not accept --config`. `waive` does not accept it. The last line is `bob: error: waive does not accept --config`. `report`, `setup`, and `update` do not accept it either.
 
 Invalid configuration prints English on stderr when:
 
@@ -83,7 +83,7 @@ Invalid configuration prints English on stderr when:
 - `security.fail_severities` has a word outside the vocabulary, a repeated item, or an empty list;
 - `.bob/waivers.yaml` exists and the YAML is invalid, repeats a key, or the shape is not the one in [Configuration](guides/configuration.md#bobwaiversyaml). The message names the path and the field. A repeated key names the key and the line, as in `invalid YAML in .bob/waivers.yaml: found duplicate key 'id' on line 3`.
 
-A `--config` path that is not a file is in this barrier. The missing file raises `ConfigError`, and the preflight prints English on stderr (`config file not found: <path>`) and returns `4` without writing a report. The flag exists on `check`, `crap`, `dry`, `deps`, and `mutate`. `doctor` and `waive` do not accept it. A missing `bob.yaml`, with no `--config`, stays on the defaults.
+A `--config` path that is not a file is in this barrier. The missing file raises `ConfigError`, and the preflight prints English on stderr (`config file not found: <path>`) and returns `4` without writing a report. The flag exists on `check`, `crap`, `dry`, `deps`, and `mutate`. `doctor`, `waive`, `report`, `setup`, and `update` do not accept it. A missing `bob.yaml`, with no `--config`, stays on the defaults.
 
 An invalid `duplication` is in the same barrier as the other keys. English stderr, no report. The refusal covers a value that is not a mapping, a `min_tokens` that is not an integer greater than 0, and `new_clones`, `max_new_clones`, `min_similarity`, or `min_lines` with the wrong type or value. An unknown key, including `mutation`, `duplication.tool`, and `dependencies.violation`, takes the same path.
 

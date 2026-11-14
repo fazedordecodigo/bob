@@ -69,7 +69,7 @@ bob doctor
 
 The pip-installed package carries `package.json`, `package-lock.json`, and `js/` (`tool.setuptools.package-data` in `pyproject.toml`). `bob doctor --install` runs `npm ci` in that package. If npm fails there with `EACCES`, `EPERM`, or `EROFS`, the install goes to `$XDG_CACHE_HOME/bob-quality` or `~/.cache/bob-quality` (`src/bob_quality/npm_tools.py`). Any other npm error exits `4` and prints the command. If the package directory is not writable, the doctor message asks for `bob doctor --install`.
 
-The wheel does not include the skills. From a pip install, pass `--source` with the clone. See [Agents](agents.md).
+The wheel carries the skills, their manifest, and `LICENSE` under `bob_quality/plugin/` (`tool.setuptools.package-data` in `pyproject.toml`). `bob setup` copies them from there, so a pip install needs no clone. See [Agents](agents.md).
 
 On an editable checkout, `src/bob_quality/package.json` is a symlink to the root `package.json`. `bob doctor --install` installs at that root, the same place as `npm ci`. If `src/bob_quality/node_modules` already exists from an older `--install`, delete that directory before `pytest`. It breaks `tests/test_mutmut_dogfood.py`.
 
