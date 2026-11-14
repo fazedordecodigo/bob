@@ -8,7 +8,7 @@ This page describes the code on `main`. [ADR 0000](../adr/0000-architecture-revi
 
 ## Four seams
 
-1. `cli.py` resolves the output language and runs the preflight. `check`, `crap`, `dry`, `deps`, and `mutate` become `run_check`. `doctor`, `waive`, and `report` leave that path after the same preflight. `report` does not measure.
+1. `cli.py` resolves the output language and runs the preflight. `check`, `crap`, `dry`, `deps`, and `mutate` become `run_check`. `doctor`, `waive`, `report`, `setup`, and `update` leave that path after the same preflight. `report` does not measure.
 2. The gates start the pinned tools. Adapters parse text or JSON into the model in `models.py`. The core does not import an adapter.
 3. `crap.py`, `core.py`, and `probe.py` join cyclomatic complexity and line coverage, apply the formula, and mark what the diff can block.
 4. `check.py` builds the `Report`. `report.py` writes `.bob/report.md` and `.bob/report.json` with `schema_version` 1. The process exit is the highest code among the gates.

@@ -4,7 +4,7 @@ Guias em inglês de [bob](https://github.com/fazedordecodigo/bob/blob/main/READM
 
 O pacote pip é `bob-quality`. O comando é `bob`. As listagens de marketplace usam o nome `bob`. A licença é MIT (`LICENSE`).
 
-As páginas pt-BR do site público são uma mudança separada. Estes arquivos são a fonte em inglês.
+As páginas pt-BR do site público ficam em `website/i18n/pt-BR/`. Os arquivos de `docs/` são a fonte em inglês.
 
 ## Por que usar o bob
 

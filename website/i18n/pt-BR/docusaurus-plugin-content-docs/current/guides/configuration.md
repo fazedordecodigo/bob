@@ -6,7 +6,7 @@ Dois arquivos. `bob.yaml` na raiz do repositório, ou o caminho em `--config`, d
 
 ## bob.yaml
 
-Se o arquivo falta e `--config` não foi passado, `load_config` devolve os padrões de `Config` (`src/bob_quality/config.py`) e detecta as linguagens a partir da árvore. Se `--config` aponta para um arquivo que não existe, `check`, `crap`, `dry`, `deps` e `mutate` saem com `4`. O stderr em inglês nomeia o caminho (`config file not found: <path>`). Nada é gravado. `doctor`, `waive` e `report` não aceitam `--config`.
+Se o arquivo falta e `--config` não foi passado, `load_config` devolve os padrões de `Config` (`src/bob_quality/config.py`) e detecta as linguagens a partir da árvore. Se `--config` aponta para um arquivo que não existe, `check`, `crap`, `dry`, `deps` e `mutate` saem com `4`. O stderr em inglês nomeia o caminho (`config file not found: <path>`). Nada é gravado. `doctor`, `waive`, `report`, `setup` e `update` não aceitam `--config`.
 
 Um arquivo que só define o que este repositório define (`base`, `languages`, `paths` e `crap`) deixa toda outra chave no padrão do código. A lista completa de chaves, os tipos e os valores que saem com `4` estão no [schema de configuração](../reference/configuration.md).
 

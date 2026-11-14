@@ -8,7 +8,7 @@ Esta página descreve o código na `main`. O [ADR 0000](adr/0000-architecture-re
 
 ## Quatro costuras
 
-1. `cli.py` resolve o idioma da saída e roda o preflight. `check`, `crap`, `dry`, `deps` e `mutate` viram `run_check`. `doctor`, `waive` e `report` saem desse caminho depois do mesmo preflight. `report` não mede.
+1. `cli.py` resolve o idioma da saída e roda o preflight. `check`, `crap`, `dry`, `deps` e `mutate` viram `run_check`. `doctor`, `waive`, `report`, `setup` e `update` saem desse caminho depois do mesmo preflight. `report` não mede.
 2. Os gates iniciam as ferramentas pinadas. Os adaptadores interpretam texto ou JSON no modelo de `models.py`. O núcleo não importa um adaptador.
 3. `crap.py`, `core.py` e `probe.py` juntam complexidade ciclomática e cobertura de linha, aplicam a fórmula e marcam o que o diff pode bloquear.
 4. `check.py` monta o `Report`. `report.py` grava `.bob/report.md` e `.bob/report.json` com `schema_version` 1. O exit do processo é o código mais alto entre os gates.

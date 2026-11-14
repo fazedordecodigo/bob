@@ -13,13 +13,16 @@ bob mutate --base origin/main
 bob report
 bob waive <file::function|Target> --reason "one line of text"
 bob doctor
+bob setup
+bob update
+bob --version
 ```
 
 Todo comando aceita `--lang en|pt-BR` antes ou depois do nome do comando. Ver [Idioma da saída](#idioma-da-saída).
 
 Um uso inválido da linha de comando sai com `4`. O stderr é o texto de uso do argparse, não menciona baseline, e nada é gravado em `.bob/`. A ajuda (`-h`, `--help`) sai com `0`. Esse `4` não é o exit `2` da baseline. Um valor fora da regra de `--threshold` ou de `--max-workers` também é uso inválido. A última linha do stderr permanece em inglês mesmo com `--lang pt-BR`, como em `bob crap: error: argument --threshold: invalid value: 'nan' (use a finite number greater than 0)`.
 
-`--config` antes do nome do comando sai com `4` e não grava nada. A última linha do stderr permanece em inglês. Ela mostra o comando com a flag depois do nome, como em `bob: error: --config goes after the command: bob check --config ci.yaml`. Um caminho com espaço sai entre aspas, como em `bob crap --config 'my ci.yaml'`. `doctor`, `waive` e `report` não aceitam `--config`. A última linha é `bob: error: doctor does not accept --config`, e a mesma forma para `waive` e `report`. `bob --help` não lista `--config`.
+`--config` antes do nome do comando sai com `4` e não grava nada. A última linha do stderr permanece em inglês. Ela mostra o comando com a flag depois do nome, como em `bob: error: --config goes after the command: bob check --config ci.yaml`. Um caminho com espaço sai entre aspas, como em `bob crap --config 'my ci.yaml'`. `doctor`, `waive`, `report`, `setup` e `update` não aceitam `--config`. A última linha é `bob: error: doctor does not accept --config`, e a mesma forma para os outros quatro. `bob --help` não lista `--config`.
 
 ## bob check
 
@@ -93,7 +96,7 @@ Um `.bob/waivers.yaml` que já está inválido é recusado primeiro, em inglês 
 
 ## bob report
 
-`build_parser` registra `report` ao lado de `check`, `crap`, `dry`, `deps`, `mutate`, `waive` e `doctor`. A interface casa com a spec:
+`build_parser` registra `report` ao lado de `check`, `crap`, `dry`, `deps`, `mutate`, `waive`, `doctor`, `setup` e `update`. A interface casa com a spec:
 
 ```text
 bob report  [--in .bob/] [--out .bob/report.md]
@@ -104,6 +107,28 @@ bob report  [--in .bob/] [--out .bob/report.md]
 Se o arquivo falta, o texto não é JSON, ou a forma é inválida, o comando sai com `4`. O stderr permanece em inglês. O comando não grava `--out` e não trunca um arquivo que já estava lá. Uso inválido da linha de comando também sai com `4` e não grava relatório. O preflight de `bob.yaml` e `.bob/waivers.yaml` é o mesmo dos outros comandos.
 
 `report.json` permanece em inglês. `--lang pt-BR` traduz os títulos que o catálogo conhece. Um motivo de gate, ou um nome de regra, permanece em inglês quando o JSON já o guardou assim. Durante a medição, `--format md` grava só `report.md`. `--format json` grava só `report.json`. `--format both` grava os dois. `write_report` em `src/bob_quality/report.py` é essa divisão.
+
+## bob setup
+
+```bash
+bob setup
+```
+
+Prepara o projeto do diretório de trabalho, que tem de ser a raiz de um repositório git. Os passos rodam na ordem de `STEPS` em `src/bob_quality/setup_cmd.py`: `projeto` (o git e a raiz do repositório), `runtimes` (o piso do Python em `Requires-Python` e a faixa do Node), `npm` (as ferramentas npm pinadas), `gitleaks` (o binário do gitleaks em `BOB_HOME/bin`), `skills` (as três skills em `.agents/skills`), `bob.yaml` (gravado só quando o arquivo falta) e `hook` (o hook pre-push). Um `bob.yaml` que já existe, o `.bob/waivers.yaml` e um hook pre-push que o bob não escreveu são preservados. Depois roda o `bob doctor` e imprime um resumo do que instalou, do que preservou e dos avisos.
+
+Um passo que falha para a execução, imprime o passo e o motivo no stderr e sai com `4`. Fora isso, o exit é `0` quando o `bob doctor` sai com `0`, e `4` quando não sai. O comando único de instalação roda este comando. Ver [Instalação](../getting-started/installation.md).
+
+## bob update
+
+```bash
+bob update
+```
+
+Lê a última release pela API do GitHub. Quando ela é mais nova que o bob instalado, baixa o `install.sh` e o `SHA256SUMS` dessa release, confere o sha256 do script e o roda no projeto com o `--lang` resolvido. Quando o bob já está nessa release e as skills do projeto faltam ou são mais antigas, roda o `bob setup` e sai com o código dele. Quando os dois estão em dia, avisa e sai com `0`. Um diretório de trabalho que não é a raiz de um repositório git, um download que falha ou um sha256 que não bate saem com `4` (`run_update` em `src/bob_quality/update.py`).
+
+## bob --version
+
+Imprime duas linhas: a versão do bob e a versão das skills em `.agents/skills` (`version_lines` em `src/bob_quality/update.py`). Sai com `0`.
 
 ## Idioma da saída
 
