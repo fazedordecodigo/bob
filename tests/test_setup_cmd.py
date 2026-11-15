@@ -73,8 +73,8 @@ _SAMPLES = {
 _MESSAGES = (
     (
         "cli.setup",
-        "Set up bob in this project (npm tools, skills) and run bob doctor",
-        "Prepara o bob neste projeto (ferramentas npm, skills) e roda o bob doctor",
+        "Set up bob in this project (npm tools, gitleaks, skills, bob.yaml, pre-push hook) and run bob doctor",
+        "Prepara o bob neste projeto (ferramentas npm, gitleaks, skills, bob.yaml, hook pre-push) e roda o bob doctor",
     ),
     ("setup.step_ok", "bob setup: {step}: ok", "bob setup: {step}: ok"),
     (

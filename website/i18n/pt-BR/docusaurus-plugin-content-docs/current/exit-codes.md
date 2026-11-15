@@ -72,7 +72,7 @@ Há dois caminhos para chegar a `4`.
 
 Uso inválido da linha de comando (comando ausente, comando desconhecido, flag ilegal, um valor fora das escolhas, um valor fora da regra de `--threshold` ou `--max-workers`) imprime o uso do argparse no stderr. Esse texto não menciona baseline. A ajuda (`-h`, `--help`) sai com `0`. Isso não é exit `2`. A regra de `--threshold` e `--max-workers` está em [Outros comandos de medição](reference/cli.md#outros-comandos-de-medição). Um `--max-new-clones` negativo em `bob dry` ou `bob check` também sai com `4`, com `--max-new-clones must be at least 0` em inglês no stderr.
 
-`--config` antes do comando é uso inválido. A última linha do stderr permanece em inglês mesmo com `--lang pt-BR`, como em `bob: error: --config goes after the command: bob check --config ci.yaml`. `doctor` não aceita a flag. A última linha é `bob: error: doctor does not accept --config`. `waive` não aceita. A última linha é `bob: error: waive does not accept --config`. `report` também não aceita.
+`--config` antes do comando é uso inválido. A última linha do stderr permanece em inglês mesmo com `--lang pt-BR`, como em `bob: error: --config goes after the command: bob check --config ci.yaml`. `doctor` não aceita a flag. A última linha é `bob: error: doctor does not accept --config`. `waive` não aceita. A última linha é `bob: error: waive does not accept --config`. `report`, `setup` e `update` também não aceitam.
 
 Configuração inválida imprime inglês no stderr quando:
 
@@ -83,7 +83,7 @@ Configuração inválida imprime inglês no stderr quando:
 - `security.fail_severities` tem uma palavra fora do vocabulário, um item repetido ou uma lista vazia;
 - `.bob/waivers.yaml` existe e o YAML é inválido, repete uma chave, ou a forma não é a de [Configuração](guides/configuration.md#bobwaiversyaml). A mensagem nomeia o caminho e o campo. Uma chave repetida nomeia a chave e a linha, como em `invalid YAML in .bob/waivers.yaml: found duplicate key 'id' on line 3`.
 
-Um caminho de `--config` que não é um arquivo está nesta barreira. O arquivo ausente levanta `ConfigError`, e o preflight imprime inglês no stderr (`config file not found: <path>`) e devolve `4` sem gravar relatório. A flag existe em `check`, `crap`, `dry`, `deps` e `mutate`. `doctor` e `waive` não a aceitam. Um `bob.yaml` ausente, sem `--config`, permanece nos padrões.
+Um caminho de `--config` que não é um arquivo está nesta barreira. O arquivo ausente levanta `ConfigError`, e o preflight imprime inglês no stderr (`config file not found: <path>`) e devolve `4` sem gravar relatório. A flag existe em `check`, `crap`, `dry`, `deps` e `mutate`. `doctor`, `waive`, `report`, `setup` e `update` não a aceitam. Um `bob.yaml` ausente, sem `--config`, permanece nos padrões.
 
 Um `duplication` inválido está na mesma barreira que as outras chaves. Stderr em inglês, sem relatório. A recusa cobre um valor que não é um mapeamento, um `min_tokens` que não é um inteiro maior que 0, e `new_clones`, `max_new_clones`, `min_similarity` ou `min_lines` com o tipo ou o valor errado. Uma chave desconhecida, inclusive `mutation`, `duplication.tool` e `dependencies.violation`, segue o mesmo caminho.
 

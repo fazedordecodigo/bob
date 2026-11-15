@@ -4,7 +4,7 @@ English guides for [bob](https://github.com/fazedordecodigo/bob/blob/main/README
 
 The pip package is `bob-quality`. The command is `bob`. Marketplace listings use the name `bob`. The license is MIT (`LICENSE`).
 
-The pt-BR pages of the public site are a separate change. These files are the English source.
+The pt-BR pages of the public site live in `website/i18n/pt-BR/`. These files are the English source.
 
 ## Why bob
 

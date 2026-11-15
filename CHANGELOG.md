@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+The `bob setup` help names everything the command installs (npm tools, gitleaks, skills, `bob.yaml`,
+pre-push hook), and the `bob mutate` help names Stryker next to mutmut; the docs list `setup`,
+`update` and `--version` in the CLI reference and stop saying the wheel lacks the skills.
+
+A ajuda do `bob setup` nomeia tudo o que o comando instala (ferramentas npm, gitleaks, skills,
+`bob.yaml`, hook pre-push), e a ajuda do `bob mutate` nomeia o Stryker ao lado do mutmut; os docs
+listam `setup`, `update` e `--version` na referência da CLI e deixam de dizer que o wheel não leva
+as skills.
+
 The `release` workflow (`.github/workflows/release.yml`, run by hand on `main`) builds the three
 release assets (`install.sh`, the wheel and `SHA256SUMS`), runs the verification command on Linux
 x64, Linux arm64, macOS x64 and macOS arm64 with those assets, and publishes them as a pre-release
