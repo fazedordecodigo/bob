@@ -2,7 +2,7 @@
 
 English | [Português](README.pt-BR.md)
 
-bob gives coding agents (Cursor, Claude Code, GitHub Copilot, Devin) deterministic quality gates for the code they change, plus skills that tell the agent when to run them. The gates measure CRAP, duplication, mutation, and dependencies, only for the functions in the diff. Each run exits with a code the agent can act on and writes a one-page report that tells the human reviewer where to look first. The gates follow Uncle Bob's workflow (see [Credits](#credits)).
+bob gives coding agents (Cursor, Claude Code, GitHub Copilot, Devin) deterministic quality gates for the code they change, plus skills that tell the agent when to run them. The gates measure CRAP, duplication, mutation, and dependencies. By default, the diff limits which findings can block a change. Each run exits with a code the agent can act on and writes a one-page report that tells the human reviewer where to look first. The gates follow Uncle Bob's workflow (see [Credits](#credits)).
 
 - CLI: `bob` (`bob check | crap | dry | deps | mutate | report | waive | doctor | setup | update`)
 - PyPI package: `bob-quality` (sdist and wheel ready, not published yet)
@@ -35,7 +35,7 @@ These parts are planned:
 
 ## Flow
 
-The agent changes the code. The pre-push hook runs the fast gates on the developer's machine, and the GitHub Action runs all four gates on the pull request. Both measure only the functions in the diff, write the same report, and exit with the same codes.
+The agent changes the code. The pre-push hook runs the fast gates on the developer's machine, and the GitHub Action runs all four gates on the pull request. CRAP, DRY, and dependency checks analyze the configured source paths, not just the lines in the diff. Both runs use the same report formats and exit codes.
 
 ```mermaid
 flowchart TD
@@ -43,8 +43,9 @@ flowchart TD
     agent --> hook["pre-push hook<br/>bob check --gates crap,dry,deps"]
     agent --> pr["Pull request"]
     pr --> action["GitHub Action<br/>bob check --gates crap,dry,deps,mutate"]
-    hook --> diff["Gates measure only the functions in the diff"]
-    action --> diff
+    hook --> measure["Run gates<br/>Scan scope depends on the gate"]
+    action --> measure
+    measure --> diff["By default, the diff limits which findings can block"]
     diff --> report[".bob/report.md<br/>.bob/report.json"]
     report --> code{"Exit code"}
     code -->|"0 passed"| done["Push or merge check passes"]
@@ -152,9 +153,9 @@ A local `bob check` does not run mutation. `bob check --gates mutate` and `bob m
 
 ## How it works
 
-### Only the diff blocks
+### What the diff filters
 
-bob runs `git diff <base>...HEAD` and maps the changed lines to functions. A function counts as changed when the diff touches one of its lines. Only changed functions, dependency violations that touch changed files, and, in DRY fail mode, clones that touch changed lines can fail a gate. Old debt goes to the informational sections of the report, marked `outside the diff; does not block`, and does not change the exit code. `--base` overrides the `base` key in `bob.yaml`.
+bob runs `git diff <base>...HEAD`. A function counts as changed when the diff touches one of its lines. By default, an unchanged function can appear as old CRAP debt in the report without failing the check. Set `crap.scope: all` to let any measured function fail the CRAP gate. The dependency gate uses changed files, and DRY in fail mode counts clones that touch changed lines. `--base` overrides the `base` key in `bob.yaml`.
 
 ### Pinned tools per language
 
