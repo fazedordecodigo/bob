@@ -61,6 +61,13 @@ def worktree_lines(cwd: Path, lines: dict[str, set[int]]) -> dict[str, set[int]]
     }
 
 
+def _git_raw(cwd: Path, *args: str) -> bytes:
+    try:
+        return subprocess.run(["git", *args], cwd=cwd, check=True, capture_output=True).stdout
+    except (OSError, subprocess.CalledProcessError) as exc:
+        raise GitError(str(exc)) from exc
+
+
 @dataclass
 class _Hunk:
     old: int
@@ -211,10 +218,3 @@ def _git(cwd: Path, *args: str) -> str:
     except (OSError, subprocess.CalledProcessError) as exc:
         raise GitError(str(exc)) from exc
     return completed.stdout
-
-
-def _git_raw(cwd: Path, *args: str) -> bytes:
-    try:
-        return subprocess.run(["git", *args], cwd=cwd, check=True, capture_output=True).stdout
-    except (OSError, subprocess.CalledProcessError) as exc:
-        raise GitError(str(exc)) from exc

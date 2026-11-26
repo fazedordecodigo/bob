@@ -139,3 +139,21 @@ def test_hostile_git_config_does_not_change_the_projection(tmp_path: Path) -> No
     (repo / ".gitattributes").write_text("*.py diff=top\n")
 
     assert worktree_lines(repo, branch) == {FILE: {2, 3}}
+
+
+def test_several_local_hunks_above_add_up(tmp_path: Path) -> None:
+    main = "".join(f"v{n} = {n}\n" for n in range(1, 13))
+    branch = main.replace("v9 = 9", "v9 = 90")
+    local = branch.replace("v1 = 1\n", "top = 0\nv1 = 1\n").replace("v3 = 3\n", "v3 = 30\nv3b = 31\n")
+    local = local.replace("v5 = 5\n", "").replace("v8 = 8\n", "v8 = 8\nmid = 0\n")
+    local = local.replace("v9 = 90\n", "v9 = 90\nafter = 0\n")
+    repo = _branch(tmp_path, main, branch, local)
+
+    assert _projected(repo) == {11}
+
+
+def test_a_deleted_first_line_anchor_falls_back_to_line_one(tmp_path: Path) -> None:
+    repo = _branch(tmp_path, "a = 1\nb = 2\nc = 3\n", "a = 1\nc = 3\n", "c = 3\n")
+
+    assert changed_lines(repo, "main") == {FILE: {1}}
+    assert _projected(repo) == {1}
