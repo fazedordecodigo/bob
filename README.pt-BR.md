@@ -94,7 +94,7 @@ Você precisa de Python 3.10 ou superior e do Node 22.18.0, as versões que o CI
 
 ```bash
 python3 -m venv .venv && . .venv/bin/activate
-python -m pip install -e ".[dev]"
+python -m pip install -e ".[dev]" 'uv==0.13.0'
 npm ci
 ```
 

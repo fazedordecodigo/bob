@@ -13,7 +13,7 @@ The steps in [AGENTS.md](https://github.com/fazedordecodigo/bob/blob/main/AGENTS
 1. Python 3.10 or newer. CI runs 3.10 and 3.12. The image needs `python3-venv`.
 2. Node `>=22.18.0 <23`, the range `bob doctor` accepts. Node 20, Node 24, and a `-rc` suffix exit `4`. CI installs 22.18.0.
 3. `python3 -m venv .venv && . .venv/bin/activate`.
-4. `python -m pip install -e '.[dev]'`.
+4. `python -m pip install -e '.[dev]' 'uv==0.13.0'`.
 5. `npm ci` at the root.
 6. `bob doctor`. It exits `0` only when every tool matches its pin. On an editable checkout, `bob doctor --install` installs at the root, the same place as `npm ci`. Delete `src/bob_quality/node_modules` if an older `--install` created it. That directory breaks `tests/test_mutmut_dogfood.py`.
 7. `python -m pytest`. The suite takes several minutes. The mutmut dogfood generates `mutants/`.
