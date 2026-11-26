@@ -367,13 +367,12 @@ def _semgrep_version(command: list[str]) -> str | None:
             command,
             check=True,
             capture_output=True,
-            encoding="utf-8",
             stdin=subprocess.DEVNULL,
             timeout=60,
         )
+        version = completed.stdout.decode().strip()
     except (OSError, subprocess.SubprocessError, UnicodeDecodeError):
         return None
-    version = completed.stdout.strip()
     if _VERSION.fullmatch(version) is None:
         return None
     return version

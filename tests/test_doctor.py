@@ -239,6 +239,8 @@ def test_doctor_exits_4_and_prints_install_when_a_tool_is_missing(tmp_path: Path
 )
 def test_doctor_reports_semgrep_run_by_uvx(
     tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
     lang: Language,
     banner: str | None,
     runner_exit: int,
@@ -263,20 +265,25 @@ def test_doctor_reports_semgrep_run_by_uvx(
 
     repo = tmp_path / "repo"
     repo.mkdir()
-    result = _run_doctor(repo, bin_dir, "--lang", lang)
+    monkeypatch.chdir(repo)
+    monkeypatch.setenv("PATH", str(bin_dir))
+    monkeypatch.setenv("XDG_CACHE_HOME", str(_bob_npm_prefix(tmp_path)))
+    actual_exit = run_doctor(lang=lang)
+    captured = capsys.readouterr()
 
-    assert result.returncode == expected_exit, result.stdout + result.stderr
-    assert result.stderr == ""
+    assert actual_exit == expected_exit, captured
+    assert captured.err == ""
     version = SEMGREP_VERSION if found == "pinned" else found
     if lang == "en":
-        assert f"semgrep expected {SEMGREP_VERSION} found {version}" in result.stdout
+        assert f"semgrep expected {SEMGREP_VERSION} found {version}" in captured.out.splitlines()
     else:
-        assert f"semgrep esperada {SEMGREP_VERSION} encontrada {version}" in result.stdout
+        assert f"semgrep esperada {SEMGREP_VERSION} encontrada {version}" in captured.out.splitlines()
     if hint:
-        assert hint in result.stdout
-        assert f"uvx {args}" in result.stdout
+        assert hint in captured.out
+        assert f"uvx {args}" in captured.out
     else:
-        assert "Install uv" not in result.stdout
+        assert "Install uv" not in captured.out
+        assert doctor._assess_semgrep().npm_missing is False
 
 
 def test_doctor_handles_uvx_timeout(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -861,10 +868,12 @@ def test_doctor_runs_only_node_gitleaks_and_semgrep(
 
     def fake_run(
         args: list[str], **_kwargs: object
-    ) -> subprocess.CompletedProcess[str]:
+    ) -> subprocess.CompletedProcess[str] | subprocess.CompletedProcess[bytes]:
         name = Path(args[0]).name
         names.append(name)
-        banner = {"node": "v22.18.0", "gitleaks": "8.30.1", "uvx": SEMGREP_VERSION}.get(name, "")
+        if name == "uvx":
+            return subprocess.CompletedProcess(args, 0, stdout=SEMGREP_VERSION.encode())
+        banner = {"node": "v22.18.0", "gitleaks": "8.30.1"}.get(name, "")
         return subprocess.CompletedProcess(args, 0, stdout=banner, stderr="")
 
     prefix = tmp_path / "empty-prefix"
