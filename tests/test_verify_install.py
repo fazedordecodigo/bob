@@ -944,6 +944,19 @@ def test_harness_passes_env_in_one_place() -> None:
         assert e in body
 
 
+def test_install_state_rejects_failed_doctor(tmp_path: Path) -> None:
+    script = "\n".join(
+        (
+            _body("install_state"),
+            "manifest() { :; }",
+            "tool_path() { :; }",
+            'run_bob() { [ "$8" != doctor ] || return 4; echo "bob 0.1.0" > "$6"; }',
+            'install_state "$1/state" "$1/home" "$1/project" "$1"',
+        )
+    )
+    assert _sh(script, str(tmp_path)).returncode == 1
+
+
 @pytest.mark.parametrize(
     "value",
     ["http://p", "a b", "it's"],

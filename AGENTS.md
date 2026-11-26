@@ -15,7 +15,7 @@ Os workflows `.github/workflows/ci.yml` e `.github/workflows/bob.yml` são a fon
 1. Use Python 3.10 ou superior. O CI roda 3.10 e 3.12. A imagem precisa do `python3-venv`.
 2. Use o Node 22.18.0, o mesmo do CI. O `bob doctor` aceita `>=22.18.0 <23` e sai com `4` fora dessa faixa, o Node 20, o Node 24 e um sufixo `-rc` inclusive. Instale com `fnm install 22.18.0` ou `nvm install 22.18.0`, ou baixe o `.tar.gz` de <https://nodejs.org/dist/v22.18.0/>. Prefira o `.tar.gz` ao `.tar.xz`, porque a imagem pode não ter o `xz`.
 3. Crie e ative um venv com `python3 -m venv .venv && . .venv/bin/activate`. O Python do sistema recusa o `pip install` pela PEP 668.
-4. Instale o pacote com `python -m pip install -e '.[dev]'`.
+4. Instale o pacote e o runner usado pelo Semgrep com `python -m pip install -e '.[dev]' 'uv==0.13.0'`.
 5. Instale as ferramentas npm fixadas com `npm ci` na raiz.
 6. Rode `bob doctor`. Ele lista cada ferramenta com a versão esperada e a encontrada, e sai com `0` só quando todas batem. `bob doctor --install` roda `npm ci` no pacote instalado e serve para quem instalou o wheel. Num checkout editável, `src/bob_quality/package.json` é um symlink para a raiz, e o comando instala nessa raiz, no mesmo lugar que `npm ci`. Se já existir `src/bob_quality/node_modules` de um `--install` antigo, apague essa pasta antes do `pytest`. Ela quebra `test_mutmut_dogfood.py`.
 7. Rode `python -m pytest`. A suíte leva vários minutos, porque o dogfood do mutmut gera `mutants/`.

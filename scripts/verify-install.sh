@@ -349,6 +349,16 @@ new_project() {
   )
 }
 
+setup_status() {
+  _status=$(last_nonempty "$1")
+  if [ "$remote" -eq 1 ]; then
+    case "$_status" in
+      "  bob doctor: "*) _status="  setup tools: ${_status#*: }" ;;
+    esac
+  fi
+  printf '%s' "$_status"
+}
+
 release_pair() {
   if [ "$remote" -eq 1 ]; then
     REL_URL=https://github.com/fazedordecodigo/bob/releases
@@ -761,9 +771,9 @@ step_2() {
   if [ "$_secs" -gt 300 ]; then
     die_passo 2 "levou $_secs s (máx. 300)"
   fi
-  _last=$(last_nonempty "$T/s2/out.log")
-  if [ "$_last" != "  bob doctor: 0" ]; then
-    die_passo 2 "a última linha não é \"  bob doctor: 0\""
+  _last=$(setup_status "$T/s2/out.log")
+  if [ "$_last" != "  setup tools: 0" ]; then
+    die_passo 2 "a última linha não é \"  setup tools: 0\""
   fi
   if grep -F 'git clone' "$T/s2/out.log" "$T/s2/err.log" >/dev/null 2>&1; then
     die_passo 2 "o log contém git clone"
@@ -922,9 +932,9 @@ step_5() {
     if [ "$_rc" -ne 0 ]; then
       die_passo 5 "$_case: saiu $_rc; veja $T/s5/$_case/out.log"
     fi
-    _last=$(last_nonempty "$T/s5/$_case/out.log")
-    if [ "$_last" != "  bob doctor: 0" ]; then
-      die_passo 5 "$_case: a última linha não é \"  bob doctor: 0\""
+    _last=$(setup_status "$T/s5/$_case/out.log")
+    if [ "$_last" != "  setup tools: 0" ]; then
+      die_passo 5 "$_case: a última linha não é \"  setup tools: 0\""
     fi
     if [ ! -f "$T/s5/$_case/proj/bob.yaml" ]; then
       die_passo 5 "$_case: falta o bob.yaml"
@@ -995,9 +1005,9 @@ step_6() {
   if [ "$_rc" -ne 0 ]; then
     die_passo 6 "saiu $_rc; veja $T/s6/out.log"
   fi
-  _last=$(last_nonempty "$T/s6/out.log")
-  if [ "$_last" != "  bob doctor: 0" ]; then
-    die_passo 6 "a última linha não é \"  bob doctor: 0\""
+  _last=$(setup_status "$T/s6/out.log")
+  if [ "$_last" != "  setup tools: 0" ]; then
+    die_passo 6 "a última linha não é \"  setup tools: 0\""
   fi
   _hook=$T/s6/proj/.git/hooks/pre-push
   if [ ! -f "$_hook" ]; then
@@ -1201,9 +1211,9 @@ step_8() {
   if ! grep -Fx "$_warn" "$T/s8/out.log" >/dev/null 2>&1; then
     die_passo 8 "falta o aviso do hook pre-push"
   fi
-  _last=$(last_nonempty "$T/s8/out.log")
-  if [ "$_last" != "  bob doctor: 0" ]; then
-    die_passo 8 "a última linha não é \"  bob doctor: 0\""
+  _last=$(setup_status "$T/s8/out.log")
+  if [ "$_last" != "  setup tools: 0" ]; then
+    die_passo 8 "a última linha não é \"  setup tools: 0\""
   fi
   _vitest=$(bob_vitest)
   _saw=0
@@ -1264,9 +1274,9 @@ step_9a() {
     || [ -L "$T/s9a/home/.local/share/bob-quality/bin/gitleaks" ]; then
     die_passo 9a "bin/gitleaks foi criado"
   fi
-  _last=$(last_nonempty "$T/s9a/out.log")
-  if [ "$_last" != "  bob doctor: not run" ]; then
-    die_passo 9a "a última linha não é \"  bob doctor: not run\""
+  _last=$(setup_status "$T/s9a/out.log")
+  if [ "$_last" != "  setup tools: not run" ]; then
+    die_passo 9a "a última linha não é \"  setup tools: not run\""
   fi
   mirror_new "$_mark" "$T/mirror.log" > "$T/s9a/mirror-new.txt"
   _got=
@@ -1444,7 +1454,7 @@ run_bob() {
   if [ ! -x "$_home/.local/bin/bob" ]; then
     die_passo "$_step" "falta $_home/.local/bin/bob"
   fi
-  set -- env -i "HOME=$_home" "TMPDIR=$_tmp" LANG=C.UTF-8 "PATH=$(tool_path)"
+  set -- env -i "HOME=$_home" "TMPDIR=$_tmp" LANG=C.UTF-8 "PATH=${9:-$(tool_path)}"
   if [ -n "$_releases" ]; then
     set -- "$@" "BOB_RELEASES_URL=$_releases"
   fi
@@ -1518,8 +1528,8 @@ step_10() {
   if [ "$(grep -cxF "$_upg" "$T/s10/out.log")" -ne 1 ]; then
     die_passo 10 "falta a linha \"$_upg\""
   fi
-  if [ "$(grep -cxF '  bob doctor: 0' "$T/s10/out.log")" -ne 1 ]; then
-    die_passo 10 "falta a linha \"  bob doctor: 0\""
+  if [ "$(grep -cxF '  setup tools: 0' "$T/s10/out.log")" -ne 1 ]; then
+    die_passo 10 "falta a linha \"  setup tools: 0\""
   fi
   mirror_new "$_mark" "$T/mirror.log" > "$T/s10/mirror-new.txt"
   _got=
@@ -1601,9 +1611,9 @@ GET /upd/download/$NEW_TAG/SHA256SUMS 200"
   if [ "$_rc" -ne 0 ]; then
     die_passo 10 "o comando único saiu $_rc; veja $T/s10/new-out.log"
   fi
-  _last=$(last_nonempty "$T/s10/new-out.log")
-  if [ "$_last" != "  bob doctor: 0" ]; then
-    die_passo 10 "a última linha não é \"  bob doctor: 0\""
+  _last=$(setup_status "$T/s10/new-out.log")
+  if [ "$_last" != "  setup tools: 0" ]; then
+    die_passo 10 "a última linha não é \"  setup tools: 0\""
   fi
   if [ "$(grep -cxF "install: versão: $NEW_TAG" "$T/s10/new-out.log")" -ne 1 ]; then
     die_passo 10 "o comando único não instalou $NEW_TAG"
@@ -1767,10 +1777,10 @@ profile_case() {
       die_passo 13 \
         "caso $_c, execução $_run: saiu $_rc; veja $T/s13/$_c/out$_run.log"
     fi
-    _last=$(last_nonempty "$T/s13/$_c/out$_run.log")
-    if [ "$_last" != "  bob doctor: 0" ]; then
+    _last=$(setup_status "$T/s13/$_c/out$_run.log")
+    if [ "$_last" != "  setup tools: 0" ]; then
       die_passo 13 \
-        "caso $_c, execução $_run: a última linha não é \"  bob doctor: 0\""
+        "caso $_c, execução $_run: a última linha não é \"  setup tools: 0\""
     fi
     case "$_c" in
       a|b|c)
@@ -2063,9 +2073,8 @@ run_blocks() {
 
 install_state() {
   manifest "$2" "$3" > "$1" || return 1
-  run_bob 14 "$2" "$3" "$4" "" "$4/doctor.out" "$4/doctor.err" doctor
-  _rc=$?
-  printf 'doctor\t%s\n' "$_rc" >> "$1"
+  run_bob 14 "$2" "$3" "$4" "" "$4/doctor.out" "$4/doctor.err" \
+    doctor "$T/s14/doctor-bin:$(tool_path)" || return 1
   run_bob 14 "$2" "$3" "$4" "" "$4/version.out" "$4/version.err" \
     --version || return 1
   cat "$4/version.out" >> "$1" || return 1
@@ -2079,7 +2088,17 @@ step_14() {
   release_pair
   rm -rf "$T/s14"
   mkdir -p "$T/s14/h" "$T/s14/a-tmp" "$T/s14/b-tmp" "$T/s14/blocks" \
+    "$T/s14/doctor-bin" \
     "$T/npm-cache" || die_passo 14 "não consegui criar o projeto"
+  cat > "$T/s14/doctor-bin/uvx" <<'SH'
+#!/bin/sh
+[ "$1" = --from ] && [ "$3" = semgrep ] && [ "$4" = --version ] || exit 1
+case "$2" in
+  semgrep==*) printf '%s\n' "${2#semgrep==}" ;;
+  *) exit 1 ;;
+esac
+SH
+  chmod +x "$T/s14/doctor-bin/uvx" || die_passo 14 "não consegui criar o uvx de teste"
   new_project "$T/s14/p" || die_passo 14 "não consegui criar o projeto"
   _h=$T/s14/h
   _p=$T/s14/p
@@ -2092,9 +2111,9 @@ step_14() {
   if [ "$_rc" -ne 0 ]; then
     die_passo 14 "a instalação A saiu $_rc; veja $T/s14/a-out.log"
   fi
-  _last=$(last_nonempty "$T/s14/a-out.log")
-  if [ "$_last" != "  bob doctor: 0" ]; then
-    die_passo 14 "a instalação A não terminou com \"  bob doctor: 0\""
+  _last=$(setup_status "$T/s14/a-out.log")
+  if [ "$_last" != "  setup tools: 0" ]; then
+    die_passo 14 "a instalação A não terminou com \"  setup tools: 0\""
   fi
   install_state "$T/s14/a.txt" "$_h" "$_p" "$T/s14/a-tmp" \
     || die_passo 14 "não consegui ler o estado da instalação A"
@@ -2113,7 +2132,7 @@ step_14() {
     die_passo 14 "o bloco $BLOCK_FAILED saiu $_rc; veja $T/s14/b-err.log"
   fi
   _last=$(last_nonempty "$T/s14/b-out.log")
-  _ok="bob-prompt: verificação: ok (bob $X, bob doctor 0)"
+  _ok="bob-prompt: verificação: ok (bob $X, bob setup 0)"
   if [ "$_last" != "$_ok" ]; then
     die_passo 14 "a instalação B não terminou com a linha do verificação"
   fi
