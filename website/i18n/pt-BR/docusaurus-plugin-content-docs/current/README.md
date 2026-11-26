@@ -10,7 +10,7 @@ As páginas pt-BR do site público ficam em `website/i18n/pt-BR/`. Os arquivos d
 
 - [Release no GitHub](https://github.com/fazedordecodigo/bob/releases/tag/v0.1.0) — instalador, wheel e checksums
 - [Changelog](changelog.md) — mudanças ainda não lançadas e a entrada da v0.1.0
-- [Registro de verificação da release](release-checks/v0.1.0.md) e [modelo](release-checks/TEMPLATE.md)
+- [Registro de verificação da release](release-checks/v0.1.0.md) — execuções E0 e E1 e resultados nas quatro plataformas; veja também o [modelo](release-checks/TEMPLATE.md)
 
 ## Por que usar o bob
 

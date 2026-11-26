@@ -6,11 +6,11 @@ O changelog é o [CHANGELOG.md](https://github.com/fazedordecodigo/bob/blob/main
 
 ## Unreleased
 
-Consulte [Unreleased](https://github.com/fazedordecodigo/bob/blob/main/CHANGELOG.md#unreleased) para ver as mudanças que não fazem parte de uma release versionada.
+Consulte [Unreleased](https://github.com/fazedordecodigo/bob/blob/main/CHANGELOG.md#unreleased) para ver as mudanças feitas depois da tag que ainda não foram lançadas.
 
 ## v0.1.0
 
-A [release estável v0.1.0](https://github.com/fazedordecodigo/bob/releases/tag/v0.1.0) tem uma [entrada no changelog](https://github.com/fazedordecodigo/bob/blob/main/CHANGELOG.md#v010) e um [registro de verificação da release](release-checks/v0.1.0.md).
+Para a [release estável v0.1.0](https://github.com/fazedordecodigo/bob/releases/tag/v0.1.0), consulte as [mudanças incluídas na tag](https://github.com/fazedordecodigo/bob/blob/main/CHANGELOG.md#v010) e o [registro de verificação da release](release-checks/v0.1.0.md).
 
 ## Site de documentação
 

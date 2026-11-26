@@ -6,11 +6,11 @@ The changelog is [CHANGELOG.md](https://github.com/fazedordecodigo/bob/blob/main
 
 ## Unreleased
 
-See [Unreleased](https://github.com/fazedordecodigo/bob/blob/main/CHANGELOG.md#unreleased) for changes not part of a versioned release.
+See [Unreleased](https://github.com/fazedordecodigo/bob/blob/main/CHANGELOG.md#unreleased) for changes made after the release tag that have not been released yet.
 
 ## v0.1.0
 
-The [stable v0.1.0 release](https://github.com/fazedordecodigo/bob/releases/tag/v0.1.0) has a [versioned changelog entry](https://github.com/fazedordecodigo/bob/blob/main/CHANGELOG.md#v010) and a [release verification record](release-checks/v0.1.0.md).
+For the [stable v0.1.0 release](https://github.com/fazedordecodigo/bob/releases/tag/v0.1.0), see the [changes included in the tag](https://github.com/fazedordecodigo/bob/blob/main/CHANGELOG.md#v010) and the [release verification record](release-checks/v0.1.0.md).
 
 ## Documentation site
 

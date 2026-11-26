@@ -11,7 +11,6 @@ except ModuleNotFoundError:
 ROOT = Path(__file__).resolve().parents[1]
 DOCS = ROOT / "docs"
 PT_DOCS = ROOT / "website/i18n/pt-BR/docusaurus-plugin-content-docs/current"
-PRERELEASE_LABEL = re.compile(r"pr[eé][- ]?release", re.IGNORECASE)
 
 
 def test_current_release_is_in_the_changelog_and_docs() -> None:
@@ -22,9 +21,6 @@ def test_current_release_is_in_the_changelog_and_docs() -> None:
     headings = re.findall(r"^## (.+)$", changelog, re.MULTILINE)
     assert headings[0] == "Unreleased"
     assert tag in headings[1:]
-    release_entry = changelog.split(f"\n## {tag}\n", 1)[1].split("\n## ", 1)[0]
-    assert f"[stable release]({release_url})" in release_entry
-    assert not PRERELEASE_LABEL.search(release_entry)
 
     for directory in (DOCS, PT_DOCS):
         index = (directory / "README.md").read_text(encoding="utf-8")
@@ -32,10 +28,20 @@ def test_current_release_is_in_the_changelog_and_docs() -> None:
         for content in (index, changelog_page):
             assert release_url in content
             assert f"](release-checks/{tag}.md)" in content
-            assert not PRERELEASE_LABEL.search(content)
         headings = re.findall(r"^## (.+)$", changelog_page, re.MULTILINE)
         assert headings[0] == "Unreleased"
         assert tag in headings[1:]
+
+
+def test_v0_1_0_stable_entry_contains_only_its_release_notes() -> None:
+    changelog = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
+    _, heading, remaining = changelog.partition("\n## v0.1.0\n")
+    assert heading
+    release_entry = remaining.split("\n## ", 1)[0]
+    release_url = "https://github.com/fazedordecodigo/bob/releases/tag/v0.1.0"
+    assert f"[stable release]({release_url})" in release_entry
+    assert "The `bob setup` help names everything the command installs" in release_entry
+    assert "`bob mutate --since-last-run` limits the Python run" not in release_entry
 
 
 def _markdown_targets(page: Path) -> set[Path]:

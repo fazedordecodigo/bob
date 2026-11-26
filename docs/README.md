@@ -10,7 +10,7 @@ The pt-BR pages of the public site live in `website/i18n/pt-BR/`. These files ar
 
 - [GitHub release](https://github.com/fazedordecodigo/bob/releases/tag/v0.1.0) — installer, wheel, and checksums
 - [Changelog](changelog.md) — unreleased changes and the v0.1.0 entry
-- [Release verification record](release-checks/v0.1.0.md) and [template](release-checks/TEMPLATE.md)
+- [Release verification record](release-checks/v0.1.0.md) — E0 and E1 workflow runs and results for all four platforms; see also the [template](release-checks/TEMPLATE.md)
 
 ## Why bob
 
