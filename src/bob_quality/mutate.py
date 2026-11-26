@@ -738,7 +738,7 @@ def _write_json(path: Path, payload: dict[str, object]) -> None:
 
 
 def waivable_targets(out_dir: Path) -> frozenset[str]:
-    """Alvos que o `bob waive` aceita: os sobreviventes do último relatório Python e TypeScript."""
+    """Alvos de mutação dos sobreviventes do último relatório Python e TypeScript."""
     mutants = [
         *_read_mutants(out_dir / CACHE_NAME, _cache_mutants),
         *_read_mutants(out_dir / STRYKER_MUTANTS_NAME, _cached_mutants),

@@ -11,7 +11,7 @@ bob dry --base origin/main
 bob deps --base origin/main
 bob mutate --base origin/main
 bob report
-bob waive <file::function|Target> --reason "one line of text"
+bob waive <target> --reason "one line of text"
 bob doctor
 bob setup
 bob update
@@ -83,14 +83,14 @@ Pins, in code order: lizard 1.24.1, deptry 0.25.1, coverage.py 7.16.2, node `>=2
 ## bob waive
 
 ```bash
-bob waive <file::function|Target> --reason "one line"
+bob waive <target> --reason "one line"
 ```
 
 Writes or replaces one row in `.bob/waivers.yaml` and exits `0`. It does not write `report.md`. The fields are in [Configuration](../guides/configuration.md#bobwaiversyaml).
 
-The target is `file::function`, which waives every survivor of the function, or the Target column of the last mutation report, which waives one survivor. The command reads survivors from `.bob/mutation-cache.json` and `.bob/stryker-mutants.json`. Run mutation first.
+For mutation, the target is `file::function`, which waives every survivor of the function, or the Target column of the last mutation report, which waives one survivor. The command reads survivors from `.bob/mutation-cache.json` and `.bob/stryker-mutants.json`. Run mutation first. For other gates, use the complete prefixed id from [Gates and waivers](../guides/gates-and-waivers.md) without running mutation.
 
-`--reason` is required in practice. A missing reason, an empty string, or a newline raises `WaiverError` and the process exits `4`. That message follows the resolved language. An empty target exits `4`. A target no survivor has, such as the mutant id or a bare function name, exits `4` and writes nothing.
+`--reason` is required in practice. A missing reason, an empty string, or a newline raises `WaiverError` and the process exits `4`. That message follows the resolved language. An empty target, an unsupported prefix, or an unrecognized mutation target such as the mutant id or a bare function name exits `4` and writes nothing.
 
 A `.bob/waivers.yaml` that is already invalid is rejected first, in English on stderr, also with `4`, and the file is not rewritten.
 

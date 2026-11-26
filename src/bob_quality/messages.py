@@ -59,7 +59,10 @@ _EN: dict[str, str] = {
     "cli.mutate": "Mutate the changed functions with mutmut or Stryker",
     "cli.since_last_run": "Reuse the cache; already the default behavior",
     "cli.waive": "Record a waiver with a one-line reason",
-    "cli.waive_target": "file::function, or a Target from the mutation report",
+    "cli.waive_target": (
+        "file::function, or a Target from the mutation report; "
+        "for other gates use a prefixed waiver ID (e.g. coverage:file:line)"
+    ),
     "cli.doctor": "Check the pinned tools and the installed versions",
     "cli.report": "Render report.json from a directory as Markdown",
     "cli.install": "Install the npm tools with npm ci in the package (or in a user cache)",
@@ -523,7 +526,10 @@ _PT_BR: dict[str, str] = {
     "cli.mutate": "Muta funções alteradas com mutmut ou Stryker",
     "cli.since_last_run": "Reusa o cache; já é o comportamento padrão",
     "cli.waive": "Registra um waiver com motivo de uma linha",
-    "cli.waive_target": "arquivo::função, ou um Alvo do relatório de mutação",
+    "cli.waive_target": (
+        "arquivo::função, ou um Alvo do relatório de mutação; "
+        "para outros gates, use um id de waiver com prefixo (ex.: coverage:arquivo:linha)"
+    ),
     "cli.doctor": "Verifica as ferramentas pinadas e as versões instaladas",
     "cli.report": "Renderiza o report.json de uma pasta como Markdown",
     "cli.install": "Instala as ferramentas npm com npm ci no pacote (ou num cache do usuário)",

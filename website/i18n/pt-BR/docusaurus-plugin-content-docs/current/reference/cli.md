@@ -11,7 +11,7 @@ bob dry --base origin/main
 bob deps --base origin/main
 bob mutate --base origin/main
 bob report
-bob waive <file::function|Target> --reason "one line of text"
+bob waive <target> --reason "one line of text"
 bob doctor
 bob setup
 bob update
@@ -83,14 +83,14 @@ Pins, na ordem do código: lizard 1.24.1, deptry 0.25.1, coverage.py 7.16.2, nod
 ## bob waive
 
 ```bash
-bob waive <file::function|Target> --reason "one line"
+bob waive <target> --reason "one line"
 ```
 
 Grava ou substitui uma linha em `.bob/waivers.yaml` e sai com `0`. Não grava `report.md`. Os campos estão em [Configuração](../guides/configuration.md#bobwaiversyaml).
 
-O alvo é `file::function`, que dispensa todo sobrevivente da função, ou a coluna Target do último relatório de mutação, que dispensa um sobrevivente. O comando lê sobreviventes de `.bob/mutation-cache.json` e `.bob/stryker-mutants.json`. Rode a mutação primeiro.
+Para mutação, o alvo é `file::function`, que dispensa todo sobrevivente da função, ou a coluna Target do último relatório de mutação, que dispensa um sobrevivente. O comando lê sobreviventes de `.bob/mutation-cache.json` e `.bob/stryker-mutants.json`. Rode a mutação primeiro. Para outros gates, use o id completo com prefixo de [Gates e waivers](../guides/gates-and-waivers.md) sem rodar a mutação.
 
-`--reason` é obrigatório na prática. Um motivo ausente, uma string vazia ou uma quebra de linha levanta `WaiverError` e o processo sai com `4`. Essa mensagem segue o idioma resolvido. Um alvo vazio sai com `4`. Um alvo que nenhum sobrevivente tem, como o id do mutante ou um nome de função nu, sai com `4` e não grava nada.
+`--reason` é obrigatório na prática. Um motivo ausente, uma string vazia ou uma quebra de linha levanta `WaiverError` e o processo sai com `4`. Essa mensagem segue o idioma resolvido. Um alvo vazio, um prefixo não aceito ou um alvo de mutação não reconhecido, como o id do mutante ou um nome de função nu, sai com `4` e não grava nada.
 
 Um `.bob/waivers.yaml` que já está inválido é recusado primeiro, em inglês no stderr, também com `4`, e o arquivo não é reescrito.
 
