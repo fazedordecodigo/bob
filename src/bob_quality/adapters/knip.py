@@ -115,7 +115,7 @@ def _scoped_files(
 
 
 def _include_root(path: Path) -> Path:
-    prefix = Path(path.anchor)
+    prefix = Path(path.anchor).resolve()
     for part in path.parts[1:]:
         if part == "..":
             prefix = (prefix.resolve() if prefix.is_symlink() else prefix).parent

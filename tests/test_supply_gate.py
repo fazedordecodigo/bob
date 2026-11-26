@@ -341,6 +341,7 @@ def test_run_supply_gate_scopes_knip_imports_to_configured_paths(tmp_path: Path)
         path = repo / file
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text("import 'unlisted-package'\n")
+    (repo / "scripts/nested").mkdir()
     _commit(repo, "head")
     issues = [
         {"file": str(file), "unlisted": [{"name": "unlisted-package", "line": 1}]}
@@ -360,7 +361,7 @@ def test_run_supply_gate_scopes_knip_imports_to_configured_paths(tmp_path: Path)
         repo,
         Config(
             languages=("typescript",),
-            include=("./packages/app/src/", single),
+            include=("./packages/app/src/", f"/{repo}/scripts/nested/../build.ts"),
             exclude=("./packages/app/src/generated/", "tests", ""),
         ),
         _diff(repo),
@@ -376,6 +377,38 @@ def test_run_supply_gate_scopes_knip_imports_to_configured_paths(tmp_path: Path)
         RowBlock(UndeclaredImport(file, "unlisted-package", 1))
         for file in (kept, single, generated_sibling)
     )
+
+
+def test_run_supply_gate_does_not_treat_symlink_alias_as_a_changed_file(tmp_path: Path) -> None:
+    repo = _repo(tmp_path)
+    (repo / "src").mkdir()
+    (repo / "linked").symlink_to("src", target_is_directory=True)
+    (repo / "package.json").write_text("{}\n")
+    source = repo / "src/app.ts"
+    source.write_text("export const ready = true\n")
+    _commit(repo, "base")
+    _git(repo, "checkout", "-b", "head")
+    source.write_text("import 'unlisted-package'\n")
+    _commit(repo, "head")
+    issues = [
+        {"file": file, "unlisted": [{"name": "unlisted-package", "line": 1}]}
+        for file in ("linked/app.ts", "src/app.ts")
+    ]
+    diff = _diff(repo)
+    assert diff == {"src/app.ts": {1}}
+
+    result, code, _, supply = run_supply_gate(
+        repo,
+        Config(languages=("typescript",), include=("linked",)),
+        diff,
+        "main",
+        _knip(json.dumps({"issues": issues})),
+        _status(200),
+    )
+
+    assert code == 0
+    assert result.status == "passed"
+    assert supply.rows == ()
 
 
 def test_run_supply_gate_warns_for_a_waived_blocker_beside_a_moderate_advisory(
