@@ -199,3 +199,48 @@ def test_a_path_with_brackets_takes_only_its_own_local_edits(tmp_path: Path) -> 
     (repo / plain).write_text("# note\ndef f(n):\n    return n > 0\n")
 
     assert worktree_lines(repo, changed_lines(repo, "main")) == {pattern: {2}}
+
+
+def test_an_edited_last_line_whose_old_text_reappears_below_takes_the_whole_block(
+    tmp_path: Path,
+) -> None:
+    repo = _branch(
+        tmp_path,
+        "def f(n):\n    return n > 0",
+        "def f(n):\n    return n > 1",
+        "def f(n):\n    return n > 2\n\n\ndef g(n):\n    return n > 1\n",
+    )
+
+    assert _projected(repo) == {2, 3, 4, 5, 6}
+
+
+@pytest.mark.parametrize(
+    "mode",
+    ["GIT_LITERAL_PATHSPECS", "GIT_GLOB_PATHSPECS", "GIT_NOGLOB_PATHSPECS", "GIT_ICASE_PATHSPECS"],
+)
+def test_a_pathspec_mode_in_the_environment_does_not_change_the_projection(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, mode: str
+) -> None:
+    repo = init_python_repo(tmp_path / "repo")
+    pattern, plain = "src/[ab]/app/flow.py", "src/a/app/flow.py"
+    commit_on_main(repo, pattern, "def f(n):\n    return n > 0\n", "pattern")
+    commit_on_main(repo, plain, "def f(n):\n    return n > 0\n", "plain")
+    commit_on_branch(repo, "work", pattern, "def f(n):\n    return n > 1\n", "branch")
+    commit_on_branch(repo, "work", FILE, "def f(n):\n    return n > 1\n", "flow")
+    (repo / plain).write_text("# note\ndef f(n):\n    return n > 0\n")
+    (repo / FILE).write_text("# one\n# two\ndef f(n):\n    return n > 1\n")
+    lines = changed_lines(repo, "main")
+    monkeypatch.setenv(mode, "1")
+
+    assert worktree_lines(repo, lines) == {pattern: {2}, FILE: {3, 4}}
+
+
+def test_a_diff_with_more_paths_than_fit_in_a_command_line_is_still_projected(
+    tmp_path: Path,
+) -> None:
+    repo = _branch(tmp_path, None, "a = 1\nb = 2\n", "# note\na = 1\nb = 2\n")
+    lines = {f"docs/{'x' * 200}/{index}.md": {1} for index in range(20_000)}
+
+    projected = worktree_lines(repo, {**lines, FILE: {2}})
+
+    assert projected[FILE] == {3}

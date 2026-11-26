@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import re
 import subprocess
 from collections.abc import Mapping, Set
@@ -10,6 +11,8 @@ from pathlib import Path
 
 HUNK_RE = re.compile(r"^@@ -\d+(?:,\d+)? \+(\d+)(?:,(\d+))? @@")
 FULL_HUNK_RE = re.compile(r"^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@")
+_NO_NEWLINE = chr(92)
+_PATHSPEC_MODES = ("GIT_GLOB_PATHSPECS", "GIT_NOGLOB_PATHSPECS", "GIT_ICASE_PATHSPECS")
 
 
 class GitError(Exception):
@@ -38,28 +41,25 @@ class _Hunk:
     removed: int
     new: int
     added: int
-    same: dict[int, int] = field(default_factory=dict)
+    old_text: list[str] = field(default_factory=list)
+    new_text: list[str] = field(default_factory=list)
+    old_lacks_newline: bool = False
 
 
 def worktree_lines(cwd: Path, lines: dict[str, set[int]]) -> dict[str, set[int]]:
     """Leva as linhas do diff de HEAD para a árvore de trabalho, que é onde o gate mede.
 
-    Uma linha fora dos hunks locais só se move. Dentro de um hunk, ela vai para a linha nova de
-    mesmo texto; sem uma, vale o bloco novo inteiro. Uma linha apagada localmente sai do escopo,
-    a não ser que marque uma remoção do commit: aí a âncora vai para a linha anterior que sobrou.
+    Uma linha fora dos hunks locais só se move. Uma linha que um hunk local substitui vale o
+    bloco novo inteiro, a não ser que seja a última do arquivo e só tenha ganhado a quebra
+    final. Uma linha apagada localmente sai do escopo, a não ser que marque uma remoção do
+    commit: aí a âncora vai para a linha anterior que sobrou.
     """
-    changed = _git_raw(
-        cwd, "diff", "--name-only", "-z", "--no-renames", "HEAD", "--", *map(_literal, lines)
-    ).split(b"\0")
-    edited = {name.decode(errors="surrogateescape") for name in changed}
+    names = _git_raw(cwd, "diff", "--name-only", "-z", "--no-renames", "HEAD").split(b"\0")
+    edited = {name.decode(errors="surrogateescape") for name in names}
     return {
         file: _shift(touched, _local_hunks(cwd, file)) if file in edited else touched
         for file, touched in lines.items()
     }
-
-
-def _literal(file: str) -> str:
-    return f":(literal){file}"
 
 
 def _local_hunks(cwd: Path, file: str) -> list[_Hunk]:
@@ -74,37 +74,41 @@ def _local_hunks(cwd: Path, file: str) -> list[_Hunk]:
         "--no-renames",
         "HEAD",
         "--",
-        _literal(file),
+        file,
     ).decode(errors="surrogateescape")
     hunks: list[_Hunk] = []
-    removed: list[str] = []
-    added: list[str] = []
+    previous = ""
     for line in patch.split("\n"):
         if match := FULL_HUNK_RE.match(line):
             old, old_count, new, new_count = (int(group or "1") for group in match.groups())
             hunks.append(_Hunk(old, old_count, new, new_count))
-            removed, added = [], []
         elif hunks and line[:1] in ("+", "-"):
-            (added if line[0] == "+" else removed).append(line[1:])
-            hunks[-1].same = _same_text(removed, added)
+            (hunks[-1].new_text if line[0] == "+" else hunks[-1].old_text).append(line[1:])
+        elif hunks and line.startswith(_NO_NEWLINE) and previous[:1] == "-":
+            hunks[-1].old_lacks_newline = True
+        previous = line
     return hunks
 
 
-def _same_text(removed: list[str], added: list[str]) -> dict[int, int]:
-    """Cada linha removida vai para a próxima linha nova de mesmo texto, na ordem do hunk."""
-    pairs: dict[int, int] = {}
-    start = 0
-    for index, text in enumerate(removed):
-        if text in added[start:]:
-            start = added.index(text, start)
-            pairs[index] = start
-            start += 1
-    return pairs
+def _gained_newline(index: int, hunk: _Hunk) -> bool:
+    """A última linha de HEAD, sem quebra final, que segue com o mesmo texto na mesma posição."""
+    return (
+        hunk.old_lacks_newline
+        and index == len(hunk.old_text) - 1
+        and hunk.new_text[index : index + 1] == hunk.old_text[index:]
+    )
 
 
 def _git_raw(cwd: Path, *args: str) -> bytes:
+    env = {key: value for key, value in os.environ.items() if key not in _PATHSPEC_MODES}
     try:
-        return subprocess.run(["git", *args], cwd=cwd, check=True, capture_output=True).stdout
+        return subprocess.run(
+            ["git", "--literal-pathspecs", *args],
+            cwd=cwd,
+            check=True,
+            capture_output=True,
+            env=env,
+        ).stdout
     except (OSError, subprocess.CalledProcessError) as exc:
         raise GitError(str(exc)) from exc
 
@@ -129,8 +133,8 @@ def _shift_line(line: int, hunks: list[_Hunk], anchor: bool) -> set[int]:
 
 
 def _replaced(index: int, hunk: _Hunk, anchor: bool) -> set[int]:
-    if index in hunk.same:
-        return {hunk.new + hunk.same[index]}
+    if _gained_newline(index, hunk):
+        return {hunk.new + index}
     if hunk.added:
         return set(range(hunk.new, hunk.new + hunk.added))
     return {max(hunk.new, 1)} if anchor else set()
