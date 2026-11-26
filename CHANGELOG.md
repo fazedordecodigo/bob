@@ -8,6 +8,12 @@ Without the flag, Stryker keeps its default concurrency.
 `bob mutate --max-workers N` agora passa `--concurrency N` para o Stryker na mutação de TypeScript.
 Sem a flag, o Stryker mantém a concorrência padrão.
 
+`bob waive` accepts the prefixed IDs for every gate that supports waivers, without hand-editing
+`.bob/waivers.yaml`. Mutation targets still have to match a survivor from the last mutation run.
+
+`bob waive` aceita os IDs com prefixo de todos os gates que oferecem waivers, sem precisar editar
+`.bob/waivers.yaml` à mão. Alvos de mutação ainda precisam casar com um sobrevivente da última execução.
+
 `bob doctor` checks the Semgrep version through the security gate's pinned `uvx` command.
 `bob setup` and `bob doctor --install` still work without uv and check only the setup tools.
 The setup summary labels that check `setup tools` instead of `bob doctor`; scripts should use the exit code.

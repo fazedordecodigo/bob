@@ -20,7 +20,7 @@ Um nome de gate desconhecido é `not_run` e contribui com `0`.
 
 Sem código a medir, `crap` e `coverage` ficam `not_run` com o motivo `nenhum código a medir` e contribuem com `0`. Sem código quer dizer nenhum arquivo `.py`, `.ts`, `.tsx`, `.js`, `.jsx`, `.mjs` ou `.cjs` sob `paths.include` e fora de `paths.exclude`, sem seguir symlinks. Esses dois gates então não rodam ferramenta, e o relatório mostra ⏭️.
 
-`bob waive` com um motivo válido e um alvo de um sobrevivente do último relatório de mutação sai com `0` e só grava `.bob/waivers.yaml`.
+`bob waive` com um motivo válido e um alvo de sobrevivente ou id de gate com prefixo aceito sai com `0` e só grava `.bob/waivers.yaml`.
 
 `bob doctor` sai com `0` quando todo pin casa com a versão encontrada.
 
@@ -89,7 +89,7 @@ Um `duplication` inválido está na mesma barreira que as outras chaves. Stderr 
 
 Uma entrada de `paths.include` que não está no disco está na mesma barreira. O stderr em inglês nomeia o arquivo e cada entrada ausente, como em `bob.yaml: paths.include does not exist: missing-root`. Nada é gravado. Um `paths.include` omitido ou vazio permanece `src` e não é conferido. `run_check` chamado direto, sem a CLI, grava o relatório precoce com esse motivo e o mesmo exit `4`.
 
-Um `--reason` ausente em `bob waive` também é `4`, e essa frase segue o idioma da CLI, porque acontece dentro do comando waive depois da barreira do arquivo. Um alvo que nenhum sobrevivente em `.bob/mutation-cache.json` ou `.bob/stryker-mutants.json` tem também sai com `4`, no idioma da CLI, e `waivers.yaml` não muda.
+Um `--reason` ausente em `bob waive` também é `4`, e essa frase segue o idioma da CLI, porque acontece dentro do comando waive depois da barreira do arquivo. Um alvo de mutação desconhecido ou um prefixo de gate não aceito também sai com `4`, no idioma da CLI, e `waivers.yaml` não muda.
 
 ### Durante a medição, com relatório
 

@@ -239,6 +239,29 @@ def test_a_file_waiver_passes_at_100(tmp_path: Path) -> None:
     assert payload["diff_coverage"] == {"python": 100.0, "uncovered": []}
 
 
+@pytest.mark.parametrize("via_cli", [True, False], ids=["cli", "hand-written"])
+def test_a_waiver_with_a_superscript_suffix_does_not_abort_coverage(
+    tmp_path: Path, via_cli: bool
+) -> None:
+    repo = _python_gap(tmp_path, GAP_75, GAP_75_TEST)
+    target = "coverage:src/app/gap.py:²"
+    if via_cli:
+        saved = run_bob(repo, "waive", target, "--reason", "platform fallback")
+        assert saved.returncode == 0, saved.stderr
+    else:
+        _waive(repo, target)
+
+    result = run_bob(repo, "check", "--base", "main", "--gates", "coverage")
+    payload, _markdown = _payload(repo)
+
+    assert result.returncode == 1, result.stderr
+    assert _coverage(payload)["status"] == "failed"
+    assert payload["diff_coverage"] == {
+        "python": 75.0,
+        "uncovered": [{"file": "src/app/gap.py", "line": 5}],
+    }
+
+
 def test_a_pure_deletion_passes_at_100(tmp_path: Path) -> None:
     repo = init_python_repo(tmp_path / "repo")
     commit_on_main(repo, "src/app/kept.py", KEPT, "kept")
