@@ -341,6 +341,24 @@ def test_functions_with_survivors_are_remutated_even_when_the_hash_matches(
     assert payload["survivors"] == []
 
 
+def test_since_last_run_reuses_the_cached_survivors_of_an_unchanged_function(
+    tmp_path: Path,
+) -> None:
+    repo = _repo_with_surviving_mutant(tmp_path)
+
+    first = run_bob(repo, "mutate", "--base", "main")
+    first_payload = json.loads((repo / ".bob" / "report.json").read_text())
+    second = run_bob(repo, "mutate", "--base", "main", "--since-last-run")
+    payload = json.loads((repo / ".bob" / "report.json").read_text())
+
+    assert first.returncode == 3
+    assert second.returncode == 3
+    assert payload["mutation"]["remutated"] == []
+    assert payload["mutation"]["reused"] == ["src/app/weak.py::classify"]
+    assert payload["survivors"] == first_payload["survivors"]
+    assert payload["reproduce"] == "bob mutate --base main --since-last-run"
+
+
 def test_hand_written_waiver_without_author_is_rejected(tmp_path: Path) -> None:
     repo = init_python_repo(tmp_path / "repo")
     bob = repo / ".bob"

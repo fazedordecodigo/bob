@@ -12,7 +12,7 @@ from bob_quality.config import Config, ConfigError, reject_config_types, resolve
 from bob_quality.doctor import run_doctor
 from bob_quality.exit_codes import CONFIG_OR_TOOL, PASSED
 from bob_quality.messages import DEFAULT_LANGUAGE, Language, reason, render, t
-from bob_quality.mutate import untested_targets, waivable_targets
+from bob_quality.mutate import since_last_run, untested_targets, waivable_targets
 from bob_quality.report import write_saved_markdown
 from bob_quality.setup_cmd import run_setup
 from bob_quality.update import run_update, version_lines
@@ -463,17 +463,18 @@ def _run_mutate(
     config_path: Path | None,
     lang: Language,
 ) -> int:
-    return run_check(
-        cwd=cwd,
-        base=args.base,
-        gates=["mutate"],
-        config_path=config_path,
-        out_dir=out_dir,
-        fmt="both",
-        max_workers=args.max_workers,
-        reproduce=_reproduce("mutate", args),
-        lang=lang,
-    )
+    with since_last_run(args.since_last_run):
+        return run_check(
+            cwd=cwd,
+            base=args.base,
+            gates=["mutate"],
+            config_path=config_path,
+            out_dir=out_dir,
+            fmt="both",
+            max_workers=args.max_workers,
+            reproduce=_reproduce("mutate", args),
+            lang=lang,
+        )
 
 
 def _reproduce(command: str, args: argparse.Namespace) -> str:
