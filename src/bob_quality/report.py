@@ -1322,7 +1322,10 @@ def _focus_rows(value: object, path: Path) -> list[FocusRow]:
     rows = _dicts(value, path)
     for row in rows:
         _text(row.get("file"), path)
+        # Saved reports may use text risk labels; the published schema describes numeric scores.
         if "risk" not in row:
+            raise _invalid_saved(path)
+        if "clone" in row and not isinstance(row["clone"], bool):
             raise _invalid_saved(path)
     return rows  # type: ignore[return-value]
 

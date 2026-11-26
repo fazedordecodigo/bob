@@ -32,6 +32,7 @@ from bob_quality.models import (
     SecurityReport,
     SupplyReport,
     TestSmell,
+    WaiverRow,
 )
 from bob_quality.mutate import MutationOutcome, focus_with_survivors
 from bob_quality.mutate_gate import run_mutate_gate
@@ -148,7 +149,7 @@ class _Measured:
     exit_code: int = PASSED
     mutation: MutationOutcome | None = None
     secrets: SecretLedger | None = None
-    loaded_waivers: list[dict[str, object]] = field(default_factory=list)
+    loaded_waivers: list[WaiverRow] = field(default_factory=list)
     baseline: int | None = None
     diff_coverage: DiffCoverage | None = None
     test_smells: tuple[TestSmell, ...] | None = None
@@ -390,7 +391,7 @@ def _assemble(
         clones=measured.clones,
         reproduce=command,
         exit_code=measured.exit_code,
-        waivers=waivers,  # type: ignore[arg-type]
+        waivers=waivers,
         survivors=survivors,
         mutation=summary,
         diff_coverage=measured.diff_coverage,
@@ -410,7 +411,7 @@ def _load_idle_waivers(
     base: str,
     command: str,
     gates: list[str],
-) -> list[dict[str, object]] | Report:
+) -> list[WaiverRow] | Report:
     try:
         return [item.as_dict() for item in load_waivers(cwd)]
     except WaiverError as exc:
