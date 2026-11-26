@@ -272,10 +272,8 @@ def test_max_workers_and_mutation_fields_reach_the_report(
         out_dir: Path,
         max_workers: int | None,
         baseline: int | None,
-        since_last_run: bool,
     ) -> MutationOutcome:
         seen["max_workers"] = max_workers
-        seen["since_last_run"] = since_last_run
         return MutationOutcome(
             result=GateResult("mutate", "failed", "survivor"),
             exit_code=3,
@@ -312,7 +310,6 @@ def test_max_workers_and_mutation_fields_reach_the_report(
 
     payload = _payload(repo)
     assert seen["max_workers"] == 3
-    assert seen["since_last_run"] is False
     assert payload["exit_code"] == 3
     assert payload["tool_versions"] == {"mutmut": "3.8.0"}
     assert payload["mutation"] == {

@@ -240,7 +240,6 @@ def test_run_check_threads_the_defaults_and_the_overrides(
     assert defaults["measure"][8] == 3
     assert defaults["measure"][9] is False
     assert defaults["measure"][10] is None
-    assert defaults["measure_kwargs"] == {"since_last_run": False}
     assert defaults["waivers"] == (tmp_path, "trunk", "bob check", list(DEFAULT_GATES))
     assert defaults["state"].loaded_waivers == [{"id": "w"}]
     assert defaults["assemble"][1:] == (
@@ -270,11 +269,9 @@ def test_run_check_threads_the_defaults_and_the_overrides(
         lang="en",
         dry_fail=True,
         max_new_clones=0,
-        since_last_run=True,
     )
 
     assert code == 0
-    assert forced["measure_kwargs"] == {"since_last_run": True}
     assert forced["open"] == (
         tmp_path,
         "origin",
@@ -318,9 +315,8 @@ def _drive(
         seen["open"] = args
         return config, "trunk", 8.0, "abc", diff
 
-    def measured(*args: object, **kwargs: object) -> _Measured:
+    def measured(*args: object) -> _Measured:
         seen["measure"] = args
-        seen["measure_kwargs"] = kwargs
         return state
 
     def waivers(*args: object) -> list[dict[str, object]] | Report:

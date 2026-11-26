@@ -11,6 +11,7 @@ from pathlib import Path
 import pytest
 
 from bob_quality.cli import _stop_code, main
+from bob_quality.mutate import _SINCE_LAST_RUN
 from helpers import init_python_repo, run_bob
 
 _COMMAND_GROUP = re.compile(r"\{([^{}]+)\}")
@@ -475,8 +476,38 @@ def test_since_last_run_is_a_flag(tmp_path: Path) -> None:
 def test_since_last_run_reaches_the_gate_only_when_passed(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    assert _dispatched(tmp_path, monkeypatch, "mutate", "--since-last-run")["since_last_run"] is True
-    assert _dispatched(tmp_path, monkeypatch, "mutate")["since_last_run"] is False
+    seen: list[bool] = []
+
+    def fake(**_kwargs: object) -> int:
+        seen.append(_SINCE_LAST_RUN.get())
+        return 0
+
+    monkeypatch.setattr("bob_quality.cli.run_check", fake)
+
+    assert _invoke(tmp_path, "mutate", "--since-last-run").returncode == 0
+    assert _invoke(tmp_path, "mutate").returncode == 0
+    assert seen == [True, False]
+
+
+def test_mutate_dispatches_every_run_check_argument(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    config = tmp_path / "c.yaml"
+    config.write_text("base: main\n")
+
+    seen = _dispatched(tmp_path, monkeypatch, "mutate", "--base", "trunk", "--config", str(config))
+
+    assert seen == {
+        "cwd": tmp_path,
+        "base": "trunk",
+        "gates": ["mutate"],
+        "config_path": config,
+        "out_dir": tmp_path / ".bob",
+        "fmt": "both",
+        "max_workers": None,
+        "reproduce": f"bob mutate --base trunk --config {config}",
+        "lang": "en",
+    }
 
 
 def test_doctor_speaks_the_selected_language(tmp_path: Path) -> None:

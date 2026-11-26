@@ -6,7 +6,9 @@ import hashlib
 import json
 import os
 import tempfile
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
+from contextlib import contextmanager
+from contextvars import ContextVar
 from dataclasses import dataclass, replace
 from pathlib import Path
 
@@ -65,6 +67,19 @@ class MutationOutcome:
     summary: dict[str, object]
 
 
+_SINCE_LAST_RUN: ContextVar[bool] = ContextVar("since_last_run", default=False)
+
+
+@contextmanager
+def since_last_run(enabled: bool) -> Iterator[None]:
+    """Com `enabled`, o cache vale para toda função cujo texto não mudou, sobreviventes inclusive."""
+    token = _SINCE_LAST_RUN.set(enabled)
+    try:
+        yield
+    finally:
+        _SINCE_LAST_RUN.reset(token)
+
+
 def run_mutation_gate(
     cwd: Path,
     config: Config,
@@ -72,14 +87,9 @@ def run_mutation_gate(
     out_dir: Path,
     max_workers: int | None = None,
     baseline: int | None = None,
-    since_last_run: bool = False,
 ) -> MutationOutcome:
-    """`baseline` é o exit do pytest que o gate crap já rodou. Sem ele, o gate roda o pytest.
-
-    `since_last_run` reusa o resultado guardado de toda função cujo texto não mudou desde a
-    última corrida, sobreviventes inclusive.
-    """
-    prepared = _prepare_mutation(cwd, config, diff_lines, out_dir, since_last_run)
+    """`baseline` é o exit do pytest que o gate crap já rodou. Sem ele, o gate roda o pytest."""
+    prepared = _prepare_mutation(cwd, config, diff_lines, out_dir)
     if isinstance(prepared, MutationOutcome):
         return prepared
     versions, waivers, waiver_rows, cache, plan = prepared
@@ -143,7 +153,6 @@ def _prepare_mutation(
     config: Config,
     diff_lines: dict[str, set[int]],
     out_dir: Path,
-    since_last_run: bool,
 ) -> MutationOutcome | tuple[dict[str, str], list[Waiver], list[dict[str, object]], _Cache, _Plan]:
     versions, missing = _mutmut_versions()
     if missing is not None:
@@ -163,7 +172,7 @@ def _prepare_mutation(
     if broken is not None:
         return broken
     return versions, waivers, waiver_rows, cache, _plan_functions(
-        measured, diff_lines, cached, cwd, waivers, since_last_run
+        measured, diff_lines, cached, cwd, waivers
     )
 
 
@@ -228,9 +237,8 @@ def _plan_functions(
     view: _CacheView,
     cwd: Path,
     waivers: list[Waiver],
-    since_last_run: bool,
 ) -> _Plan:
-    remutate, reuse = _split_functions(measured, diff_lines, view, cwd, waivers, since_last_run)
+    remutate, reuse = _split_functions(measured, diff_lines, view, cwd, waivers)
     by_key = {f"{item.file}::{item.name}": item for item in measured}
     return _Plan(
         remutate=remutate,
@@ -368,7 +376,6 @@ def _split_functions(
     view: _CacheView,
     cwd: Path,
     waivers: list[Waiver],
-    since_last_run: bool,
 ) -> tuple[list[CyclomaticFunction], list[tuple[str, dict[str, object]]]]:
     by_key = {f"{item.file}::{item.name}": item for item in measured}
     survivor_keys = frozenset(
@@ -381,7 +388,7 @@ def _split_functions(
         item = by_key[key]
         entry = _reusable_entry(view, key)
         digest = _function_hash(cwd, item.file, item.start_line, item.end_line)
-        if entry is not None and not _needs_remutation(entry, digest, waivers, since_last_run):
+        if entry is not None and not _needs_remutation(entry, digest, waivers):
             reuse.append((key, entry))
         else:
             remutate.append(item)
@@ -409,12 +416,10 @@ def _candidate_keys(
     return keys
 
 
-def _needs_remutation(
-    entry: dict[str, object], digest: str, waivers: list[Waiver], since_last_run: bool
-) -> bool:
+def _needs_remutation(entry: dict[str, object], digest: str, waivers: list[Waiver]) -> bool:
     if entry.get("hash") != digest:
         return True
-    return not since_last_run and _has_unwaived_survivor(entry, waivers)
+    return not _SINCE_LAST_RUN.get() and _has_unwaived_survivor(entry, waivers)
 
 
 def _has_unwaived_survivor(entry: dict[str, object], waivers: list[Waiver]) -> bool:

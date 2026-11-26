@@ -592,18 +592,8 @@ def test_run_check_forwards_threshold_workers_and_the_command(
         max_workers: int | None,
         dry_fail: bool,
         max_new_clones: int | None,
-        *,
-        since_last_run: bool,
     ) -> check_mod._Measured:
-        seen["measure"] = (
-            base,
-            max_crap,
-            coverage_file,
-            max_workers,
-            dry_fail,
-            max_new_clones,
-            since_last_run,
-        )
+        seen["measure"] = (base, max_crap, coverage_file, max_workers, dry_fail, max_new_clones)
         return check_mod._Measured()
 
     monkeypatch.setattr(check_mod, "_open", fake_open)
@@ -620,7 +610,7 @@ def test_run_check_forwards_threshold_workers_and_the_command(
 
     assert code == 0
     assert seen["open"] == (12.5, "bob check --gates crap", ("crap", "dry", "deps"))
-    assert seen["measure"] == ("main", 12.5, coverage, 3, False, None, False)
+    assert seen["measure"] == ("main", 12.5, coverage, 3, False, None)
 
 
 def test_a_missing_base_keeps_the_reproduce_command(tmp_path: Path) -> None:

@@ -81,15 +81,10 @@ def runs(monkeypatch: pytest.MonkeyPatch) -> list[tuple[Path, list[str], int | N
 def _gate(
     repo: Path, baseline: int | None = 0, since_last_run: bool = False
 ) -> mutate.MutationOutcome:
-    return run_mutation_gate(
-        repo,
-        CONFIG,
-        changed_lines(repo, "main"),
-        repo / ".bob",
-        max_workers=2,
-        baseline=baseline,
-        since_last_run=since_last_run,
-    )
+    with mutate.since_last_run(since_last_run):
+        return run_mutation_gate(
+            repo, CONFIG, changed_lines(repo, "main"), repo / ".bob", max_workers=2, baseline=baseline
+        )
 
 
 def test_a_fresh_run_mutates_in_the_workdir_and_caches_what_it_found(
@@ -161,6 +156,13 @@ def test_since_last_run_reuses_an_unchanged_survivor_and_remutates_an_edited_one
     assert len(runs) == 3
     assert edited.summary["remutated"] == ["src/app/weak.py::classify"]
     assert edited.summary["reused"] == []
+
+
+def test_since_last_run_only_holds_inside_its_block() -> None:
+    with mutate.since_last_run(True):
+        assert mutate._SINCE_LAST_RUN.get() is True
+
+    assert mutate._SINCE_LAST_RUN.get() is False
 
 
 def test_a_mutmut_failure_keeps_the_versions_and_the_waivers(

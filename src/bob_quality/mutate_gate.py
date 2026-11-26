@@ -18,7 +18,6 @@ def run_mutate_gate(
     out_dir: Path,
     max_workers: int | None = None,
     baseline: int | None = None,
-    since_last_run: bool = False,
 ) -> MutationOutcome:
     python = None
     if "python" in config.languages:
@@ -29,7 +28,6 @@ def run_mutate_gate(
             out_dir,
             max_workers=max_workers,
             baseline=baseline,
-            since_last_run=since_last_run,
         )
     typescript = None
     skip = None

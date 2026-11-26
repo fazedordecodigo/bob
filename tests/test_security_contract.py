@@ -658,10 +658,7 @@ def test_run_check_pins_arguments_and_the_waiver_report(
         max_workers: int | None,
         dry_fail: bool,
         max_new_clones: int | None,
-        *,
-        since_last_run: bool,
     ) -> check_mod._Measured:
-        assert since_last_run is False
         measures.append(
             (
                 cwd,
