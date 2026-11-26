@@ -522,7 +522,7 @@ def _reuse_start(
 
 def _file_shift(entry: dict[str, object], current: CyclomaticFunction | None) -> int | None:
     recorded = entry.get("start_line")
-    if current is None or current.start_line <= 0 or not isinstance(recorded, int) or recorded <= 0:
+    if current is None or not isinstance(recorded, int) or min(current.start_line, recorded) <= 0:
         return None
     return current.start_line - recorded + 1
 

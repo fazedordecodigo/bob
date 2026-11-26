@@ -7,8 +7,8 @@ import subprocess
 from collections.abc import Mapping, Set
 from dataclasses import dataclass, field
 from difflib import SequenceMatcher
-from functools import lru_cache
 from pathlib import Path
+from typing import Any
 
 HUNK_RE = re.compile(r"^@@ -\d+(?:,\d+)? \+(\d+)(?:,(\d+))? @@")
 FULL_HUNK_RE = re.compile(r"^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@")
@@ -34,21 +34,17 @@ class ChangedLines(set[int]):
     anchors: frozenset[int] = frozenset()
 
 
-_SIMILAR = 0.6
-_MAX_PAIRS = 10_000
-
-
 def worktree_lines(cwd: Path, lines: dict[str, set[int]]) -> dict[str, set[int]]:
     """Leva as linhas do diff de HEAD para a árvore de trabalho, que é onde o gate mede.
 
     Uma linha fora dos hunks locais só se move. Dentro de um hunk, ela vai para a linha de
-    mesmo texto ou, numa troca, para a nova linha parecida o bastante. Sem par confiável, vale
-    o bloco novo inteiro. Uma linha apagada localmente sai do escopo, a não ser que marque
-    uma remoção do commit: aí a âncora vai para a linha anterior que sobrou.
+    mesmo texto. Sem linha igual, a correspondência é ambígua e vale o bloco novo inteiro.
+    Uma linha apagada localmente sai do escopo, a não ser que marque uma remoção do commit:
+    aí a âncora vai para a linha anterior que sobrou.
     """
     if not lines:
         return lines
-    patch = _git(
+    patch = _git_raw(
         cwd,
         "diff",
         "--unified=0",
@@ -56,54 +52,58 @@ def worktree_lines(cwd: Path, lines: dict[str, set[int]]) -> dict[str, set[int]]
         "--no-color",
         "--no-ext-diff",
         "--no-textconv",
-        "--src-prefix=a/",
         "--dst-prefix=b/",
         "HEAD",
-        "--",
-        *sorted(lines),
-        errors="surrogateescape",
-    )
+    ).decode("utf-8", "surrogateescape")
     hunks = _local_hunks(patch)
-    return {file: _shift(touched, hunks.get(file, ())) for file, touched in lines.items()}
-
-
-@dataclass(frozen=True)
-class _Hunk:
-    old: int
-    new: int
-    removed: tuple[str, ...] = ()
-    added: tuple[str, ...] = ()
+    return {file: _shift(touched, hunks.get(file, [])) for file, touched in lines.items()}
 
 
 @dataclass
-class _Parsed:
+class _Hunk:
     old: int
     new: int
     removed: list[str] = field(default_factory=list)
     added: list[str] = field(default_factory=list)
+    targets: list[set[int]] = field(default_factory=list)
 
 
-def _local_hunks(patch: str) -> dict[str, tuple[_Hunk, ...]]:
-    parsed: dict[str, list[_Parsed]] = {}
-    current: list[_Parsed] = []
-    in_header = True
+def _local_hunks(patch: str) -> dict[str, list[_Hunk]]:
+    hunks: dict[str, list[_Hunk]] = {}
+    current: list[_Hunk] = []
+    pending = 0
     for line in patch.split("\n"):
-        if line.startswith("diff --git "):
-            in_header = True
-        elif in_header and line.startswith("+++ "):
-            current = parsed.setdefault(line[4:].removeprefix("b/"), [])
+        if line.startswith("\\"):
+            continue
+        if pending:
+            pending -= 1
+            (current[-1].added if line.startswith("+") else current[-1].removed).append(line[1:])
+        elif line.startswith("+++ "):
+            current = hunks.setdefault(line[4:].removeprefix("b/"), [])
         elif match := FULL_HUNK_RE.match(line):
-            in_header = False
-            current.append(_Parsed(int(match.group(1)), int(match.group(3))))
-        elif not in_header and current and line[:1] in ("+", "-"):
-            (current[-1].added if line[0] == "+" else current[-1].removed).append(line[1:])
-    return {
-        file: tuple(_Hunk(h.old, h.new, tuple(h.removed), tuple(h.added)) for h in found)
-        for file, found in parsed.items()
-    }
+            old, old_count, new, new_count = (int(group or "1") for group in match.groups())
+            current.append(_Hunk(old, new))
+            pending = old_count + new_count
+    for found in hunks.values():
+        for hunk in found:
+            hunk.targets = _targets(hunk)
+    return hunks
 
 
-def _shift(touched: set[int], hunks: tuple[_Hunk, ...]) -> set[int]:
+def _targets(hunk: _Hunk) -> list[set[int]]:
+    """Para cada linha removida: as linhas novas que a substituem, ou nenhuma se foi apagada."""
+    targets: list[set[int]] = []
+    matcher = SequenceMatcher(None, hunk.removed, hunk.added, autojunk=False)
+    for tag, i1, i2, j1, j2 in matcher.get_opcodes():
+        if tag == "equal":
+            targets.extend({hunk.new + j1 + k} for k in range(i2 - i1))
+        elif tag != "insert":
+            block = set(range(hunk.new + j1, hunk.new + j2))
+            targets.extend(set(block) for _ in range(i1, i2))
+    return targets
+
+
+def _shift(touched: set[int], hunks: list[_Hunk]) -> set[int]:
     anchors = getattr(touched, "anchors", frozenset())
     moved: set[int] = set()
     for line in touched:
@@ -111,52 +111,23 @@ def _shift(touched: set[int], hunks: tuple[_Hunk, ...]) -> set[int]:
     return moved
 
 
-def _shift_line(line: int, hunks: tuple[_Hunk, ...], anchor: bool) -> set[int]:
+def _shift_line(line: int, hunks: list[_Hunk], anchor: bool) -> set[int]:
     delta = 0
     for hunk in hunks:
-        if not hunk.removed:
-            if line <= hunk.old:
-                break
-            delta += len(hunk.added)
-            continue
-        if line < hunk.old:
+        removed = len(hunk.removed)
+        if line < hunk.old + (removed == 0):
             break
-        if line < hunk.old + len(hunk.removed):
-            target, before = _targets(hunk)[line - hunk.old]
-            return target or ({before} if anchor else set())
-        delta += len(hunk.added) - len(hunk.removed)
+        if line < hunk.old + removed:
+            return hunk.targets[line - hunk.old] or _anchor(line, hunk, anchor)
+        delta += len(hunk.added) - removed
     return {line + delta}
 
 
-@lru_cache(maxsize=256)
-def _targets(hunk: _Hunk) -> tuple[tuple[frozenset[int], int], ...]:
-    """Para cada linha removida do hunk: as linhas novas que a substituem e a anterior que sobrou."""
-    rows: list[tuple[frozenset[int], int]] = []
-    matcher = SequenceMatcher(None, hunk.removed, hunk.added, autojunk=False)
-    for tag, i1, i2, j1, j2 in matcher.get_opcodes():
-        before = max(hunk.new + j1 - 1, 1) if hunk.added else max(hunk.new, 1)
-        if tag == "equal":
-            rows.extend((frozenset({hunk.new + j1 + k}), before) for k in range(i2 - i1))
-        elif tag == "delete":
-            rows.extend((frozenset(), before) for _ in range(i1, i2))
-        elif tag == "replace":
-            rows.extend((target, before) for target in _pair(hunk, i1, i2, j1, j2))
-    return tuple(rows)
-
-
-def _pair(hunk: _Hunk, i1: int, i2: int, j1: int, j2: int) -> list[frozenset[int]]:
-    block = frozenset(range(hunk.new + j1, hunk.new + j2))
-    if (i2 - i1) * (j2 - j1) > _MAX_PAIRS:
-        return [block] * (i2 - i1)
-    paired: list[frozenset[int]] = []
-    for old in hunk.removed[i1:i2]:
-        best, score = -1, _SIMILAR
-        for j in range(j1, j2):
-            ratio = SequenceMatcher(None, old, hunk.added[j], autojunk=False)
-            if ratio.real_quick_ratio() >= score and ratio.quick_ratio() >= score and ratio.ratio() >= score:
-                best, score = j, ratio.ratio()
-        paired.append(frozenset({hunk.new + best}) if best >= 0 else block)
-    return paired
+def _anchor(line: int, hunk: _Hunk, anchor: bool) -> set[int]:
+    if not anchor:
+        return set()
+    survivors = [target for target in hunk.targets[: line - hunk.old] if target]
+    return {max(survivors[-1])} if survivors else {max(hunk.new - bool(hunk.added), 1)}
 
 
 def parse_unified_diff(patch: str) -> dict[str, set[int]]:
@@ -229,16 +200,17 @@ def as_diff_path(cwd: Path, raw: str) -> str | None:
     return relative.as_posix()
 
 
-def _git(cwd: Path, *args: str, errors: str = "strict") -> str:
+def _git(cwd: Path, *args: str) -> str:
+    return _run_git(cwd, args, text=True)
+
+
+def _git_raw(cwd: Path, *args: str) -> bytes:
+    return _run_git(cwd, args, text=False)
+
+
+def _run_git(cwd: Path, args: tuple[str, ...], text: bool) -> Any:
     try:
-        completed = subprocess.run(
-            ["git", *args],
-            cwd=cwd,
-            check=True,
-            capture_output=True,
-            text=True,
-            errors=errors,
-        )
+        completed = subprocess.run(["git", *args], cwd=cwd, check=True, capture_output=True, text=text)
     except (OSError, subprocess.CalledProcessError) as exc:
         raise GitError(str(exc)) from exc
     return completed.stdout

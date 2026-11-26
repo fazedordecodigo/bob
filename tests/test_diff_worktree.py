@@ -28,6 +28,7 @@ def _projected(repo: Path) -> set[int]:
 
 def test_an_insertion_above_moves_the_branch_lines_down(tmp_path: Path) -> None:
     repo = _branch(tmp_path, None, "a = 1\nb = 2\n", "# note\na = 1\nb = 2\n")
+    subprocess.run(["git", "add", FILE], cwd=repo, check=True)
 
     assert _projected(repo) == {2, 3}
     assert worktree_lines(repo, {}) == {}
@@ -40,12 +41,14 @@ def test_a_clean_tree_keeps_the_branch_lines(tmp_path: Path) -> None:
     assert _projected(repo) == {5}
 
 
-def test_a_local_edit_next_to_a_committed_one_stays_out_of_scope(tmp_path: Path) -> None:
+def test_a_local_edit_next_to_a_committed_one_widens_the_scope_to_the_new_block(
+    tmp_path: Path,
+) -> None:
     branch = FLOW.replace("# positive", "# above zero")
     local = FLOW.replace("# positive", "# strictly above zero").replace("x > 0", "x > 1")
     repo = _branch(tmp_path, FLOW, branch, local)
 
-    assert _projected(repo) == {4}
+    assert _projected(repo) == {4, 5}
 
 
 def test_a_changed_function_swapped_with_a_comment_follows_the_function(tmp_path: Path) -> None:
@@ -56,7 +59,7 @@ def test_a_changed_function_swapped_with_a_comment_follows_the_function(tmp_path
         "# a brand new note\ndef f(): return 3\n",
     )
 
-    assert _projected(repo) == {2}
+    assert _projected(repo) == {1, 2}
 
 
 def test_an_ambiguous_replacement_keeps_the_whole_new_block(tmp_path: Path) -> None:
@@ -104,3 +107,35 @@ def test_a_latin1_edit_outside_python_does_not_break_the_projection(tmp_path: Pa
     (repo / "docs" / "notes.txt").write_bytes("café\n".encode("latin-1"))
 
     assert worktree_lines(repo, changed_lines(repo, "main")) == {"docs/notes.txt": {1}, FILE: {1}}
+
+
+def test_a_moved_line_inside_a_hunk_keeps_its_own_position(tmp_path: Path) -> None:
+    main = "a = 1\nb = 2\nc = 3\nd = 4\n"
+    repo = _branch(tmp_path, main, main.replace("c = 3", "c = 30"), "x = 0\nb = 2\nc = 30\n")
+
+    assert _projected(repo) == {3}
+
+
+def test_deleted_lines_after_a_kept_one_anchor_on_it(tmp_path: Path) -> None:
+    main = "a = 1\nb = 2\nc = 3\nd = 4\ne = 5\n"
+    repo = _branch(tmp_path, main, main.replace("d = 4\n", ""), "a = 1\nz = 9\nc = 3\n")
+
+    assert changed_lines(repo, "main") == {FILE: {3}}
+    assert _projected(repo) == {3}
+    repo_two = _branch(tmp_path / "two", main, main.replace("e = 5\n", ""), "a = 1\nb = 2\nz = 9\n")
+    assert _projected(repo_two) == {3}
+
+
+def test_hostile_git_config_does_not_change_the_projection(tmp_path: Path) -> None:
+    repo = _branch(tmp_path, None, "a = 1\nb = 2\n", "# note\na = 1\nb = 2\n")
+    branch = changed_lines(repo, "main")
+    for key, value in {
+        "color.diff": "always",
+        "diff.noprefix": "true",
+        "diff.external": "false",
+        "diff.top.textconv": "sh -c 'echo top; cat \"$1\"' -",
+    }.items():
+        subprocess.run(["git", "config", key, value], cwd=repo, check=True)
+    (repo / ".gitattributes").write_text("*.py diff=top\n")
+
+    assert worktree_lines(repo, branch) == {FILE: {2, 3}}

@@ -295,3 +295,15 @@ def test_a_branch_function_deleted_locally_does_not_mutate_its_neighbour(
 
     assert runs == []
     assert outcome.exit_code == 0
+
+
+def test_a_waived_function_carried_under_the_same_key_is_reused_back_in_scope(
+    repo: Path, runs: list[tuple[Path, list[str], int | None]]
+) -> None:
+    _gate(repo)
+    with mutate.since_last_run(True):
+        run_mutation_gate(repo, CONFIG, {}, repo / ".bob", max_workers=2, baseline=0)
+    back = _gate(repo, since_last_run=True)
+
+    assert len(runs) == 1
+    assert back.summary["remutated"] == []
