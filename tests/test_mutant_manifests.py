@@ -276,7 +276,9 @@ def test_manifests_walk_included_directories_and_skip_excluded_ones(tmp_path: Pa
     )
 
 
-def test_manifests_normalize_include_roots_and_skip_external_paths(tmp_path: Path) -> None:
+def test_manifests_normalize_include_roots_and_skip_external_paths(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     repo = tmp_path / "repo"
     (repo / "src/nested").mkdir(parents=True)
     (repo / "src/package.json").write_text("{}\n")
@@ -287,6 +289,8 @@ def test_manifests_normalize_include_roots_and_skip_external_paths(tmp_path: Pat
     roots = (f"/{repo}/src/nested/..", str(outside))
 
     assert _manifests(repo, "npm", roots, ()) == (repo / "src/package.json",)
+    monkeypatch.chdir(repo)
+    assert _manifests(Path("."), "npm", ("src/nested/..",), ()) == (Path("src/package.json"),)
 
 
 def test_keep_drops_a_directory_and_a_repeated_file(tmp_path: Path) -> None:
