@@ -6,7 +6,9 @@ import hashlib
 import json
 import os
 import tempfile
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
+from contextlib import contextmanager
+from contextvars import ContextVar
 from dataclasses import dataclass, replace
 from pathlib import Path
 
@@ -63,6 +65,19 @@ class MutationOutcome:
     waivers: list[dict[str, object]]
     survivors: list[dict[str, object]]
     summary: dict[str, object]
+
+
+_SINCE_LAST_RUN: ContextVar[bool] = ContextVar("since_last_run", default=False)
+
+
+@contextmanager
+def since_last_run(enabled: bool) -> Iterator[None]:
+    """Com `enabled`, o cache vale para toda função cujo texto não mudou, sobreviventes inclusive."""
+    token = _SINCE_LAST_RUN.set(enabled)
+    try:
+        yield
+    finally:
+        _SINCE_LAST_RUN.reset(token)
 
 
 def run_mutation_gate(
@@ -404,7 +419,7 @@ def _candidate_keys(
 def _needs_remutation(entry: dict[str, object], digest: str, waivers: list[Waiver]) -> bool:
     if entry.get("hash") != digest:
         return True
-    return _has_unwaived_survivor(entry, waivers)
+    return not _SINCE_LAST_RUN.get() and _has_unwaived_survivor(entry, waivers)
 
 
 def _has_unwaived_survivor(entry: dict[str, object], waivers: list[Waiver]) -> bool:

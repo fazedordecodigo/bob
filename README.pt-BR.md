@@ -124,7 +124,7 @@ Cada comando aceita estas flags:
 | `bob crap` | `--base`, `--config`, `--out`, `--threshold`, `--coverage-file` |
 | `bob dry` | `--base`, `--config`, `--out`, `--dry-fail`, `--max-new-clones` |
 | `bob deps` | `--base`, `--config`, `--out` |
-| `bob mutate` | `--base`, `--config`, `--out`, `--max-workers`, `--since-last-run` (reusa o cache, que já é o padrão) |
+| `bob mutate` | `--base`, `--config`, `--out`, `--max-workers`, `--since-last-run` (remuta só funções cujo texto mudou desde a última execução registrada) |
 | `bob waive` | `arquivo::função` ou um Alvo do relatório de mutação, ou um id de gate com prefixo, `--reason` |
 | `bob doctor` | `--install` |
 
