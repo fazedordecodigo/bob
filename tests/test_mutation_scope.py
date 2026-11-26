@@ -130,6 +130,18 @@ def test_python_gate_scopes_mutation_to_runtime_edits(
             False,
         ),
         (
+            _FUTURE,
+            "class C:\n    def f(self, x: int): return x",
+            "class D:\n    def f(self, x: str): return x",
+            True,
+        ),
+        (
+            _FUTURE,
+            "if True:\n    def f(x: int): return x",
+            "if False:\n    def f(x: str): return x",
+            True,
+        ),
+        (
             "",
             "def f(x):\n    item: int\n    return x",
             "def f(x):\n    item: str\n    return x",

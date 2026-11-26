@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import ast
 from collections.abc import Iterator
+from copy import copy
 from pathlib import Path
 from typing import TypeVar
 
@@ -12,6 +13,8 @@ from bob_quality.diff import GitError, _git
 _Function = ast.FunctionDef | ast.AsyncFunctionDef
 _FUNCTIONS = (ast.FunctionDef, ast.AsyncFunctionDef)
 _Node = TypeVar("_Node", bound=ast.AST)
+_SUITES = ("body", "orelse", "finalbody", "handlers", "cases")
+_Position = tuple[tuple[str, str, int], ...]
 
 
 def mutation_lines(cwd: Path, base: str, lines: dict[str, set[int]]) -> dict[str, set[int]]:
@@ -141,27 +144,34 @@ def _typing_statements(tree: ast.Module, node: ast.stmt) -> set[ast.stmt]:
     return set(guards)
 
 
-def _definitions(
-    node: ast.AST, path: tuple[int, ...] = ()
-) -> Iterator[tuple[tuple[int, ...], _Function]]:
-    for index, child in enumerate(ast.iter_child_nodes(node)):
-        position = (*path, index)
-        if isinstance(child, _FUNCTIONS):
-            yield position, child
-        yield from _definitions(child, position)
+def _header(node: ast.AST) -> str:
+    shell = copy(node)
+    for field in _SUITES:
+        if hasattr(shell, field):
+            setattr(shell, field, [])
+    return ast.dump(shell)
 
 
-def _normalize(tree: ast.Module, deferred: bool) -> dict[tuple[int, ...], tuple[str, _Function]]:
+def _definitions(node: ast.AST, path: _Position = ()) -> Iterator[tuple[_Position, _Function]]:
+    for field in _SUITES:
+        for index, child in enumerate(getattr(node, field, ())):
+            position = (*path, (_header(node), field, index))
+            if isinstance(child, _FUNCTIONS):
+                yield position, child
+            yield from _definitions(child, position)
+
+
+def _normalize(tree: ast.Module, deferred: bool) -> dict[_Position, tuple[str, _Function]]:
     typing = set().union(*(_typing_statements(tree, node) for node in tree.body))
     tree.body = [node for node in tree.body if node not in typing]
-    definitions = {path: (ast.dump(node), node) for path, node in _definitions(tree)}
+    original = {id(node): ast.dump(node) for node in ast.walk(tree) if isinstance(node, _FUNCTIONS)}
     _WithoutAnnotations(deferred).visit(tree)
-    return definitions
+    return {path: (original[id(node)], node) for path, node in _definitions(tree)}
 
 
 def _annotation_lines(
-    before: dict[tuple[int, ...], tuple[str, _Function]],
-    after: dict[tuple[int, ...], tuple[str, _Function]],
+    before: dict[_Position, tuple[str, _Function]],
+    after: dict[_Position, tuple[str, _Function]],
 ) -> Iterator[int]:
     for path in before.keys() & after.keys():
         old, old_node = before[path]
