@@ -261,3 +261,37 @@ def test_a_removal_whose_anchor_was_deleted_locally_still_mutates_the_function(
     _gate(repo)
 
     assert len(runs) == 1
+
+
+def test_a_changed_function_swapped_with_a_comment_locally_is_still_mutated(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    runs: list[tuple[Path, list[str], int | None]],
+) -> None:
+    monkeypatch.setattr(mutate, "mutmut_version", lambda: VERSIONS["mutmut"])
+    repo = init_python_repo(tmp_path / "repo")
+    commit_on_main(repo, "src/app/flow.py", "def f():\n    return 1\n# old note\n", "add f")
+    commit_on_branch(repo, "work", "src/app/flow.py", "def f():\n    return 2\n# old note\n", "f=2")
+    (repo / "src" / "app" / "flow.py").write_text("# a brand new note\ndef f():\n    return 3\n")
+
+    _gate(repo)
+
+    assert len(runs) == 1
+
+
+def test_a_branch_function_deleted_locally_does_not_mutate_its_neighbour(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    runs: list[tuple[Path, list[str], int | None]],
+) -> None:
+    monkeypatch.setattr(mutate, "mutmut_version", lambda: VERSIONS["mutmut"])
+    repo = init_python_repo(tmp_path / "repo")
+    old = "def old():\n    return 1\n"
+    commit_on_main(repo, "src/app/flow.py", old, "add old")
+    commit_on_branch(repo, "work", "src/app/flow.py", old + "\n\ndef new():\n    return 2\n", "add new")
+    (repo / "src" / "app" / "flow.py").write_text(old)
+
+    outcome = _gate(repo)
+
+    assert runs == []
+    assert outcome.exit_code == 0
