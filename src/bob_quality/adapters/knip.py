@@ -115,12 +115,13 @@ def _scoped_files(
 
 
 def _include_root(path: Path) -> Path:
-    parts = path.parts
-    parents = [index for index, part in enumerate(parts) if part == ".."]
-    if not parents:
-        return path
-    split = parents[-1] + 1
-    return Path(*parts[:split]).resolve().joinpath(*parts[split:])
+    prefix = Path(path.anchor)
+    for part in path.parts[1:]:
+        if part == "..":
+            prefix = (prefix.resolve() if prefix.is_symlink() else prefix).parent
+        else:
+            prefix /= part
+    return prefix
 
 
 def _normalized_excludes(exclude: tuple[str, ...]) -> tuple[str, ...]:

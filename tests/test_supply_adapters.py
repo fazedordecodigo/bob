@@ -147,6 +147,8 @@ def test_run_knip_returns_exit_1_without_an_include_filter(tmp_path: Path) -> No
         ("src/app.ts", ("deep/..",), (), ()),
         ("real/alias/app.ts", ("deep/../alias",), (), ("real/alias/app.ts",)),
         ("src/app.ts", ("deep/../alias",), (), ()),
+        ("linked/app.ts", ("linked/subdir/..",), (), ("linked/app.ts",)),
+        ("src/app.ts", ("linked/subdir/..",), (), ()),
         ("external/app.ts", (".",), (), ()),
         ("src/../linked/app.ts", (".",), (), ()),
         ("", (".",), (), ()),
@@ -162,6 +164,7 @@ def test_run_knip_scopes_the_reported_path_without_following_aliases(
     repo = tmp_path / "repo"
     (repo / "src").mkdir(parents=True)
     (repo / "src/app.ts").touch()
+    (repo / "src/subdir").mkdir()
     (repo / "linked").symlink_to("src", target_is_directory=True)
     (repo / "real/inner").mkdir(parents=True)
     (repo / "real/app.ts").touch()
