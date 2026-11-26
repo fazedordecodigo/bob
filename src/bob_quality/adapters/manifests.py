@@ -213,7 +213,9 @@ def _manifests(
         _keep(found, seen, cwd, path, exclude)
     for root in include:
         base = cwd / root
-        if base.is_dir():
+        if base.anchor == "//":
+            base = Path("/", *base.parts[1:])
+        if base.is_relative_to(cwd) and base.is_dir():
             _walk(found, seen, cwd, base, index, exclude)
     return tuple(found)
 

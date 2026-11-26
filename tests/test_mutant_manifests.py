@@ -276,6 +276,34 @@ def test_manifests_walk_included_directories_and_skip_excluded_ones(tmp_path: Pa
     )
 
 
+@pytest.mark.parametrize(
+    ("index", "filename", "content", "line"),
+    (
+        ("npm", "package.json", '{"dependencies": {"example-package": "1.0.0"}}\n', 1),
+        ("pypi", "pyproject.toml", '[project]\ndependencies = ["example-package==1.0.0"]\n', 2),
+    ),
+)
+def test_added_packages_accepts_double_slash_without_resolving_parent_paths(
+    tmp_path: Path, index: str, filename: str, content: str, line: int
+) -> None:
+    repo = _repo(tmp_path)
+    (repo / "packages/app/src").mkdir(parents=True)
+    relative = f"packages/app/{filename}"
+    (repo / relative).write_text("")
+    _commit(repo, "base")
+    (repo / relative).write_text(content)
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    (outside / filename).write_text(content)
+    lines = {relative: {line}}
+
+    roots = ("packages/app/src/..", f"/{repo}/packages/app/src/..", str(outside), f"/{outside}")
+    assert added_packages(repo, "main", lines, index, roots, ()) == ()
+    expected = (AddedPackage(index, "example-package", "1.0.0", relative, line),)
+    for root in ("packages/app", f"{repo}/packages/app", f"/{repo}/packages/app"):
+        assert added_packages(repo, "main", lines, index, (root,), ()) == expected
+
+
 def test_keep_drops_a_directory_and_a_repeated_file(tmp_path: Path) -> None:
     found: list[Path] = []
     seen: set[Path] = set()
