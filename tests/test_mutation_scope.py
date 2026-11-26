@@ -9,7 +9,14 @@ import pytest
 import bob_quality.mutate as mutate
 from bob_quality.check import run_check
 from bob_quality.diff import changed_lines
-from bob_quality.mutation_scope import _WithoutAnnotations, _runtime_lines, mutation_lines
+from bob_quality.mutation_scope import (
+    _WithoutAnnotations,
+    _binding_name,
+    _definitions,
+    _runtime_lines,
+    _typing_import,
+    mutation_lines,
+)
 from helpers import commit_on_branch, commit_on_main, init_python_repo
 
 _FILE = "src/app/scope.py"
@@ -202,6 +209,47 @@ def test_guard_must_refer_to_typing_without_shadowing(imports: str) -> None:
     line = len(prefix.splitlines())
 
     assert _runtime_lines(ast.parse(before), ast.parse(prefix), {line}) == {line}
+
+
+@pytest.mark.parametrize(
+    "source",
+    [
+        "import other as t",
+        "from other import TYPE_CHECKING",
+        "from .typing import TYPE_CHECKING",
+        "from typing import cast",
+    ],
+)
+def test_runtime_import_is_not_recognized_as_the_typing_flag(source: str) -> None:
+    assert _typing_import(ast.parse(source).body[0]) is None
+
+
+def test_dotted_import_binds_its_root_unless_aliased() -> None:
+    assert _binding_name(ast.alias(name="package.mod.sub")) == "package"
+    assert _binding_name(ast.alias(name="package.mod.sub", asname="short")) == "short"
+
+
+def test_a_shadowed_typing_flag_is_not_normalized() -> None:
+    after = "import typing as t\nt = runtime\n"
+    before = after + "if t.TYPE_CHECKING:\n    import types\n"
+
+    assert _runtime_lines(ast.parse(before), ast.parse(after), {1}) == {1}
+
+
+def test_a_guard_before_its_import_is_not_normalized() -> None:
+    before = "if typing.TYPE_CHECKING:\n    import types\nimport typing\n"
+
+    assert _runtime_lines(ast.parse(before), ast.parse(""), {1}) == {1}
+
+
+def test_definitions_distinguish_methods_in_different_control_flow_branches() -> None:
+    tree = ast.parse(
+        "if flag:\n    class C:\n        def run(self): pass\n"
+        "else:\n    class C:\n        def run(self): pass\n"
+    )
+    definitions = dict(_definitions(tree))
+
+    assert [node.name for node in definitions.values()] == ["run", "run"]
 
 
 @pytest.mark.parametrize(
