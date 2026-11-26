@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+The supply gate only blocks on undeclared TypeScript imports reported by Knip within
+`paths.include` and outside `paths.exclude`.
+
+O gate supply só bloqueia por imports TypeScript não declarados que o Knip aponta dentro de
+`paths.include` e fora de `paths.exclude`.
+
 The `bob setup` help names everything the command installs (npm tools, gitleaks, skills, `bob.yaml`,
 pre-push hook), and the `bob mutate` help names Stryker next to mutmut; the docs list `setup`,
 `update` and `--version` in the CLI reference and stop saying the wheel lacks the skills.

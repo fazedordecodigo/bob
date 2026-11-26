@@ -25,7 +25,7 @@ These parts work on `main`:
 - The GitHub Action that comments the report on the pull request.
 - `bob doctor`, and the `bob-quality` package ready to distribute. Nothing has been sent to PyPI.
 - `bob report`, which renders a saved `report.json` to Markdown.
-- The opt-in gates `coverage`, `test_smells`, `cognitive`, `supply`, `security`, `typing`, `secrets`, and `dead_code`, requested with `bob check --gates`.
+- The opt-in gates `coverage`, `test_smells`, `cognitive`, `supply`, `security`, `typing`, `secrets`, and `dead_code`, requested with `bob check --gates`. The supply gate applies `paths.include` and `paths.exclude` to undeclared TypeScript imports reported by Knip.
 - The one-line install (`install.sh`), `bob setup`, `bob update`, and `bob --version`, with the `release` workflow that builds the release assets.
 - Plugin manifests for Claude Code, Cursor, Copilot, and Devin, and the skill installer ([#10](https://github.com/fazedordecodigo/bob/issues/10)). Nothing has been sent to a marketplace.
 
