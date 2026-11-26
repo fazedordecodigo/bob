@@ -27,7 +27,7 @@ _ALSO_COPY = (
     "package-lock.json",
     "AGENTS.md",
     "CHANGELOG.md",
-    "aidlc-docs/aidlc-state.md",
+    "aidlc-docs",
     "README.md",
     "README.pt-BR.md",
     "LICENSE",
