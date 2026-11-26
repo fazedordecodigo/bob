@@ -60,7 +60,6 @@ _GIT_TOPLEVEL = ("git", "rev-parse", "--show-toplevel")
 _NODE = "node"
 _NODE_FLAG = "--version"
 _NODE_TIMEOUT = 30
-_DOCTOR_INSTALL = False
 _PKG = "bob-quality"
 _PY_REQUIRES = "Requires-Python"
 _PY_FLOOR_RE = r">=(\d+)\.(\d+)"
@@ -82,8 +81,8 @@ _INSTALLED_LINE = "setup.installed"
 _NOTHING = "setup.nothing"
 _PRESERVED_LINE = "setup.preserved"
 _WARNINGS_LINE = "setup.warnings"
-_DOCTOR_LINE = "setup.doctor"
-_DOCTOR_NOT_RUN = "setup.doctor_not_run"
+_TOOLS_LINE = "setup.tools"
+_TOOLS_NOT_RUN = "setup.tools_not_run"
 _PROFILE_ENV = "BOB_INSTALL_PROFILE"
 _PROFILE_LINE = "setup.profile"
 _PROFILE_ON_PATH = "already-on-path"
@@ -318,7 +317,7 @@ def _run(ctx: SetupContext) -> int:
         installed.extend(result.installed)
         preserved.extend(result.preserved)
         warnings.extend(result.warnings)
-    code = doctor.run_doctor(install=_DOCTOR_INSTALL, lang=ctx.lang)
+    code = doctor.report_setup_pins(ctx.lang)
     _summary(ctx.lang, installed, preserved, warnings, str(code))
     if code == 0:
         return 0
@@ -356,7 +355,7 @@ def _fail(
     warnings: Sequence[Text],
 ) -> None:
     print(t(lang, _ERROR, reason=render(error, lang)), file=sys.stderr)
-    _summary(lang, installed, preserved, warnings, t(lang, _DOCTOR_NOT_RUN))
+    _summary(lang, installed, preserved, warnings, t(lang, _TOOLS_NOT_RUN))
 
 
 def _profile_text(value: str | None) -> Text | None:
@@ -380,7 +379,7 @@ def _summary(
     installed: Sequence[Text],
     preserved: Sequence[Text],
     warnings: Sequence[Text],
-    doctor_code: str,
+    tools_code: str,
 ) -> None:
     print(t(lang, _SUMMARY))
     print(t(lang, _INSTALLED_LINE, items=_items(lang, installed)))
@@ -391,7 +390,7 @@ def _summary(
     profile = _profile_text(os.environ.get(_PROFILE_ENV))
     if profile is not None:
         print(t(lang, _PROFILE_LINE, text=profile))
-    print(t(lang, _DOCTOR_LINE, code=doctor_code))
+    print(t(lang, _TOOLS_LINE, code=tools_code))
 
 
 def _items(lang: Language, installed: Sequence[Text]) -> str:
