@@ -276,21 +276,32 @@ def test_manifests_walk_included_directories_and_skip_excluded_ones(tmp_path: Pa
     )
 
 
-def test_manifests_normalize_include_roots_and_skip_external_paths(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+@pytest.mark.parametrize(
+    ("index", "filename", "content", "line"),
+    (
+        ("npm", "package.json", '{"dependencies": {"example-package": "1.0.0"}}\n', 1),
+        ("pypi", "pyproject.toml", '[project]\ndependencies = ["example-package==1.0.0"]\n', 2),
+    ),
+)
+def test_added_packages_does_not_normalize_include_roots(
+    tmp_path: Path, index: str, filename: str, content: str, line: int
 ) -> None:
-    repo = tmp_path / "repo"
-    (repo / "src/nested").mkdir(parents=True)
-    (repo / "src/package.json").write_text("{}\n")
+    repo = _repo(tmp_path)
+    (repo / "packages/app/src").mkdir(parents=True)
+    relative = f"packages/app/{filename}"
+    (repo / relative).write_text("")
+    _commit(repo, "base")
+    (repo / relative).write_text(content)
     outside = tmp_path / "outside"
     outside.mkdir()
-    (outside / "package.json").write_text("{}\n")
+    (outside / filename).write_text(content)
+    lines = {relative: {line}}
 
-    roots = (f"/{repo}/src/nested/..", str(outside))
-
-    assert _manifests(repo, "npm", roots, ()) == (repo / "src/package.json",)
-    monkeypatch.chdir(repo)
-    assert _manifests(Path("."), "npm", ("src/nested/..",), ()) == (Path("src/package.json"),)
+    roots = ("packages/app/src/..", f"/{repo}/packages/app", str(outside))
+    assert added_packages(repo, "main", lines, index, roots, ()) == ()
+    assert added_packages(repo, "main", lines, index, ("packages/app",), ()) == (
+        AddedPackage(index, "example-package", "1.0.0", relative, line),
+    )
 
 
 def test_keep_drops_a_directory_and_a_repeated_file(tmp_path: Path) -> None:

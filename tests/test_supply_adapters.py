@@ -29,7 +29,7 @@ from bob_quality.adapters.registries import (
     probe_existence,
 )
 from bob_quality.adapters.runner import ProcessExit, ProcessFault
-from bob_quality.diff import changed_lines
+from bob_quality.diff import changed_lines, normalize_include_root
 from bob_quality.messages import msg, render
 
 RAW = Path(__file__).parent / "fixtures" / "raw"
@@ -38,6 +38,10 @@ DEPTRY = (RAW / "deptry.json").read_text()
 KNIP = (RAW / "knip.json").read_text()
 OSV = (RAW / "osv-batch.json").read_bytes()
 _VULN = "https://api.osv.dev/v1/vulns/"
+
+
+def test_normalize_include_root_keeps_relative_paths_relative() -> None:
+    assert normalize_include_root(Path("src/nested/..")) == Path("src")
 
 
 def test_parse_deptry_json_keeps_every_code_and_a_null_line() -> None:
