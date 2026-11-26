@@ -43,13 +43,14 @@ def run_typescript_mutation(
     out_dir: Path,
     *,
     python_measured: bool,
+    max_workers: int | None = None,
 ) -> tuple[MutationOutcome | None, Text | None]:
     if "typescript" not in config.languages:
         return None, None
     missing = _missing_tool()
     if missing is not None:
         return _tool_skipped(missing, python_measured)
-    return _with_loaded_waivers(cwd, config, diff_lines, out_dir)
+    return _with_loaded_waivers(cwd, config, diff_lines, out_dir, max_workers)
 
 
 def _tool_skipped(
@@ -65,12 +66,13 @@ def _with_loaded_waivers(
     config: Config,
     diff_lines: dict[str, set[int]],
     out_dir: Path,
+    max_workers: int | None,
 ) -> tuple[MutationOutcome | None, Text | None]:
     try:
         versions, waivers, waiver_rows = _loaded(cwd)
     except (ToolError, WaiverError) as exc:
         return _not_run(reason(exc), {}), None
-    return _with_spans(cwd, config, diff_lines, out_dir, versions, waivers, waiver_rows)
+    return _with_spans(cwd, config, diff_lines, out_dir, versions, waivers, waiver_rows, max_workers)
 
 
 def _loaded(cwd: Path) -> tuple[dict[str, str], list[Waiver], list[dict[str, object]]]:
@@ -87,6 +89,7 @@ def _with_spans(
     versions: dict[str, str],
     waivers: list[Waiver],
     waiver_rows: list[dict[str, object]],
+    max_workers: int | None = None,
 ) -> tuple[MutationOutcome | None, Text | None]:
     try:
         spans = _changed_spans(cwd, config, diff_lines)
@@ -94,7 +97,7 @@ def _with_spans(
         return _not_run(reason(exc), versions, waiver_rows), None
     if not spans:
         return _finish([], diff_lines, [], [], versions, waiver_rows), None
-    return _with_stryker(cwd, out_dir, spans, diff_lines, versions, waivers, waiver_rows)
+    return _with_stryker(cwd, out_dir, spans, diff_lines, versions, waivers, waiver_rows, max_workers)
 
 
 def _with_stryker(
@@ -105,9 +108,10 @@ def _with_stryker(
     versions: dict[str, str],
     waivers: list[Waiver],
     waiver_rows: list[dict[str, object]],
+    max_workers: int | None = None,
 ) -> tuple[MutationOutcome | None, Text | None]:
     try:
-        return _run(cwd, out_dir, spans, diff_lines, versions, waiver_rows, waivers), None
+        return _run(cwd, out_dir, spans, diff_lines, versions, waiver_rows, waivers, max_workers), None
     except (OSError, json.JSONDecodeError, UnicodeDecodeError, StrykerParseError) as exc:
         return _not_run(reason(exc), versions, waiver_rows), None
 
@@ -170,6 +174,7 @@ def _run(
     versions: dict[str, str],
     waiver_rows: list[dict[str, object]],
     waivers: list[Waiver],
+    max_workers: int | None = None,
 ) -> MutationOutcome:
     out_dir.mkdir(parents=True, exist_ok=True)
     report_path = out_dir / REPORT_NAME
@@ -182,6 +187,7 @@ def _run(
         _relative(cwd, config_path),
         _relative(cwd, incremental_path),
         spans,
+        max_workers,
     )
     return _report_or_retry(
         cwd,
@@ -270,10 +276,11 @@ def _argv(
     config_file: str,
     incremental_file: str,
     spans: list[CyclomaticFunction],
+    max_workers: int | None,
 ) -> list[str]:
     # O commander do core 10.0.0 fica só com o último `--mutate` repetido.
     ranges = ",".join(f"{span.file}:{span.start_line}-{span.end_line}" for span in spans)
-    return [
+    argv = [
         "npx",
         "--prefix",
         str(prefix),
@@ -286,6 +293,9 @@ def _argv(
         "--mutate",
         ranges,
     ]
+    if max_workers is not None:
+        argv.extend(["--concurrency", str(max_workers)])
+    return argv
 
 
 def _invoke(

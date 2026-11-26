@@ -56,7 +56,7 @@ Quando mais de um gate devolve um código, o mais alto vence (`_worse` em `check
 | `bob crap` | `--threshold` substitui `crap.max_per_function` nesta execução. Tem de ser um número finito maior que `0`. `--coverage-file` aponta para um arquivo de cobertura que já existe |
 | `bob dry` | `--dry-fail` e `--max-new-clones`, as mesmas flags de `bob check` |
 | `bob deps` | nenhuma além das flags compartilhadas |
-| `bob mutate` | `--max-workers` vira `--max-children` do mutmut (`src/bob_quality/mutmut_tool.py`). `--since-last-run` não muda a medição: o texto de ajuda diz que reusar o cache já é o padrão. A flag só entra na linha de reprodução do relatório quando foi passada |
+| `bob mutate` | `--max-workers` vira `--max-children` do mutmut para Python e `--concurrency` do Stryker para TypeScript. Sem a flag, os executores mantêm seus padrões. `--since-last-run` não muda a medição: o texto de ajuda diz que reusar o cache já é o padrão. A flag só entra na linha de reprodução do relatório quando foi passada |
 
 `--max-workers` aceita um inteiro de 1 a 64. O teto é `_WORKER_CEILING` em `src/bob_quality/cli.py`. Um valor fora dessa faixa sai com `4`. A última linha do stderr é `bob mutate: error: argument --max-workers: invalid value: '65' (use an integer from 1 to 64)` quando o valor é `65`.
 

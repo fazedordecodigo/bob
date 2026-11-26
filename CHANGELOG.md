@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+`bob mutate --max-workers N` now passes `--concurrency N` to Stryker for TypeScript mutation runs.
+Without the flag, Stryker keeps its default concurrency.
+
+`bob mutate --max-workers N` agora passa `--concurrency N` para o Stryker na mutação de TypeScript.
+Sem a flag, o Stryker mantém a concorrência padrão.
+
 The `bob setup` help names everything the command installs (npm tools, gitleaks, skills, `bob.yaml`,
 pre-push hook), and the `bob mutate` help names Stryker next to mutmut; the docs list `setup`,
 `update` and `--version` in the CLI reference and stop saying the wheel lacks the skills.
