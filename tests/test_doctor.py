@@ -235,6 +235,7 @@ def test_doctor_exits_4_and_prints_install_when_a_tool_is_missing(tmp_path: Path
         ("en", "pinned", 1, 4, "missing", "Install uv if needed"),
         ("en", "uv reports version 1.2.3", 0, 4, "missing", "Install uv if needed"),
         ("en", "\\377", 0, 4, "missing", "Install uv if needed"),
+        ("en", "timeout", 0, 4, "missing", "Install uv if needed"),
     ],
 )
 def test_doctor_reports_semgrep_run_by_uvx(
@@ -254,7 +255,20 @@ def test_doctor_reports_semgrep_run_by_uvx(
     _stub(bin_dir, "gitleaks", "8.30.1")
     _stub(bin_dir, "semgrep", "9.9.9")
     args = f"--from semgrep=={SEMGREP_VERSION} semgrep --version --disable-version-check --metrics=off"
-    if banner is not None:
+    if banner == "timeout":
+        run = subprocess.run
+
+        def timeout(
+            command: list[str], **kwargs: object
+        ) -> subprocess.CompletedProcess[str] | subprocess.CompletedProcess[bytes]:
+            if command[0] != "uvx":
+                return run(command, **kwargs)
+            assert kwargs["timeout"] == 60
+            assert kwargs["stdin"] == subprocess.DEVNULL
+            raise subprocess.TimeoutExpired(command, 60)
+
+        monkeypatch.setattr(doctor.subprocess, "run", timeout)
+    elif banner is not None:
         version = SEMGREP_VERSION if banner == "pinned" else banner
         uvx = bin_dir / "uvx"
         uvx.write_text(
@@ -273,6 +287,7 @@ def test_doctor_reports_semgrep_run_by_uvx(
 
     assert actual_exit == expected_exit, captured
     assert captured.err == ""
+    assert "npm ci" not in captured.out
     version = SEMGREP_VERSION if found == "pinned" else found
     if lang == "en":
         assert f"semgrep expected {SEMGREP_VERSION} found {version}" in captured.out.splitlines()
@@ -283,24 +298,6 @@ def test_doctor_reports_semgrep_run_by_uvx(
         assert f"uvx {args}" in captured.out
     else:
         assert "Install uv" not in captured.out
-        assert doctor._assess_semgrep().npm_missing is False
-
-
-def test_doctor_handles_uvx_timeout(monkeypatch: pytest.MonkeyPatch) -> None:
-    def timeout(
-        command: list[str], **kwargs: object
-    ) -> subprocess.CompletedProcess[str]:
-        assert kwargs["timeout"] == 60
-        assert kwargs["stdin"] == subprocess.DEVNULL
-        raise subprocess.TimeoutExpired(command, 60)
-
-    monkeypatch.setattr(doctor.subprocess, "run", timeout)
-    row = doctor._assess_semgrep()
-    assert row.ok is False
-    assert row.npm_missing is False
-    assert row.line == msg(
-        "doctor.version", name="semgrep", expected=SEMGREP_VERSION, found=msg("doctor.missing")
-    )
 
 
 def test_doctor_follows_language_in_bob_yaml(tmp_path: Path) -> None:

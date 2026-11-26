@@ -120,7 +120,7 @@ class _PinRow:
     line: Text
     ok: bool
     install: Text | None
-    npm_missing: bool
+    npm_missing: bool = False
 
 
 @dataclass(frozen=True)
@@ -356,9 +356,9 @@ def _assess_semgrep() -> _PinRow:
     command = semgrep_command("--version")
     found = _semgrep_version(command)
     line = msg("doctor.version", name="semgrep", expected=SEMGREP_VERSION, found=_shown(found))
-    if found == SEMGREP_VERSION:
-        return _PinRow(line, True, None, False)
-    return _PinRow(line, False, msg("doctor.install_semgrep", command=shlex.join(command)), False)
+    ok = found == SEMGREP_VERSION
+    install = None if ok else msg("doctor.install_semgrep", command=shlex.join(command))
+    return _PinRow(line, ok, install)
 
 
 def _semgrep_version(command: list[str]) -> str | None:
