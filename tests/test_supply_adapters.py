@@ -134,6 +134,34 @@ def test_run_knip_returns_exit_1_without_an_include_filter(tmp_path: Path) -> No
     assert capture.document.files[0].by_type["unlisted"] == (KnipHit("left-pad", 4, 20),)
 
 
+@pytest.mark.parametrize(
+    ("file", "exclude", "expected"),
+    [
+        ("src/app.ts", (".",), ()),
+        ("linked/app.ts", ("./linked/",), ()),
+        ("linked/app.ts", (), ("linked/app.ts",)),
+    ],
+)
+def test_run_knip_scopes_the_reported_path_without_following_aliases(
+    tmp_path: Path, file: str, exclude: tuple[str, ...], expected: tuple[str, ...]
+) -> None:
+    (tmp_path / "src").mkdir()
+    (tmp_path / "src/app.ts").touch()
+    (tmp_path / "linked").symlink_to("src", target_is_directory=True)
+    report = json.dumps({"issues": [{"file": file, "unresolved": [{"name": "left-pad"}]}]})
+
+    def runner(args: list[str], cwd: Path, timeout: int) -> ProcessExit:
+        if args[-1] == "--version":
+            return ProcessExit(0, "6.41.0\n", "")
+        return ProcessExit(1, report, "")
+
+    capture = run_knip(tmp_path, 30, runner, include=(".", "linked"), exclude=exclude)
+
+    assert capture.exit_code == 1
+    assert capture.document is not None
+    assert tuple(item.file for item in capture.document.files) == expected
+
+
 def test_probe_existence_reads_404_200_and_an_undecided_status() -> None:
     def transport(method: str, url: str, body: bytes | None, timeout: int) -> HttpOk:
         assert method == "GET"

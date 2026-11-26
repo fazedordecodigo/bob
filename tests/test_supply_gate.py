@@ -344,7 +344,16 @@ def test_run_supply_gate_scopes_knip_imports_to_configured_paths(tmp_path: Path)
     _commit(repo, "head")
     issues = [
         {"file": str(file), "unlisted": [{"name": "unlisted-package", "line": 1}]}
-        for file in (repo / kept, single, generated, generated_sibling, tests, outside, "../other.ts")
+        for file in (
+            repo / kept,
+            single,
+            generated,
+            generated_sibling,
+            tests,
+            outside,
+            "../other.ts",
+            tmp_path / "other.ts",
+        )
     ]
 
     result, code, versions, supply = run_supply_gate(
@@ -352,7 +361,7 @@ def test_run_supply_gate_scopes_knip_imports_to_configured_paths(tmp_path: Path)
         Config(
             languages=("typescript",),
             include=("./packages/app/src/", single),
-            exclude=("packages/app/src/generated", "tests"),
+            exclude=("./packages/app/src/generated/", "tests", ""),
         ),
         _diff(repo),
         "main",
