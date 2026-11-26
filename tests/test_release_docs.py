@@ -43,14 +43,12 @@ def test_v0_1_0_stable_entry_contains_only_its_release_notes() -> None:
     assert "The `bob setup` help names everything the command installs" in release_entry
 
 
-def test_post_tag_notes_stay_unreleased() -> None:
+def test_post_tag_notes_only_appear_in_newer_entries() -> None:
     changelog = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
     _, unreleased_heading, entries = changelog.partition("\n## Unreleased\n")
     assert unreleased_heading
-    unreleased_entry = entries.split("\n## ", 1)[0]
-    _, release_heading, entries = entries.partition("\n## v0.1.0\n")
+    newer_entries, release_heading, release_and_older_entries = entries.partition("\n## v0.1.0\n")
     assert release_heading
-    release_entry = entries.split("\n## ", 1)[0]
 
     for note in (
         "`bob doctor` checks the Semgrep version",
@@ -58,8 +56,8 @@ def test_post_tag_notes_stay_unreleased() -> None:
         "`bob mutate --since-last-run` limits the Python run",
         "`bob mutate --since-last-run` limita a corrida Python",
     ):
-        assert note in unreleased_entry
-        assert note not in release_entry
+        assert note in newer_entries
+        assert note not in release_and_older_entries
 
 
 def _markdown_targets(page: Path) -> set[Path]:
