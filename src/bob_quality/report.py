@@ -32,6 +32,7 @@ from bob_quality.models import (
     DeadSection,
     DepViolation,
     DiffCoverage,
+    DiffLine,
     Fail,
     Finding,
     FunctionMetric,
@@ -39,6 +40,7 @@ from bob_quality.models import (
     GateStatus,
     Judged,
     KnipKind,
+    LanguageDiff,
     LedgerRow,
     MissingPackage,
     OffDiff,
@@ -938,6 +940,8 @@ def _saved_report(payload: dict[str, object], path: Path) -> Report:
         waivers=_dicts(payload.get("waivers", []), path),
         survivors=_survivor_rows(payload.get("survivors", []), path),
         mutation=_optional_mutation(payload, path),
+        diff_coverage=_saved_diff_coverage(payload, path),
+        test_smells=_saved_test_smells(payload, path),
         dead_code=_dead_section(payload, path),
         secrets=_secrets(payload, path),
         security=_security(payload, path),
@@ -945,6 +949,38 @@ def _saved_report(payload: dict[str, object], path: Path) -> Report:
         supply=_supply(payload, path),
         cognitive=_cognitive(payload, path),
         churn=_churn(payload, path),
+    )
+
+
+def _saved_diff_coverage(payload: dict[str, object], path: Path) -> DiffCoverage | None:
+    if "diff_coverage" not in payload:
+        return None
+    value = _saved_object(payload["diff_coverage"], path)
+    uncovered = tuple(
+        DiffLine(_text(row.get("file"), path), _integer(row.get("line"), path))
+        for row in _dicts(value.get("uncovered"), path)
+    )
+    languages = tuple(
+        LanguageDiff(_one_of(key, _LANGUAGE, path), _number(percent, path), ())
+        for key, percent in value.items()
+        if key != "uncovered"
+    )
+    return DiffCoverage(languages, unattributed=uncovered)
+
+
+def _saved_test_smells(payload: dict[str, object], path: Path) -> tuple[TestSmell, ...] | None:
+    if "test_smells" not in payload:
+        return None
+    return tuple(_saved_smell(row, path) for row in _dicts(payload["test_smells"], path))
+
+
+def _saved_smell(row: dict[str, object], path: Path) -> TestSmell:
+    waiver = row.get("waiver")
+    return TestSmell(
+        _text(row.get("file"), path),
+        _integer(row.get("line"), path),
+        _text(row.get("rule"), path),
+        _text(waiver, path) if waiver is not None else None,
     )
 
 

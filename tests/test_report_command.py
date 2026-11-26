@@ -11,7 +11,7 @@ import pytest
 
 from bob_quality.churn import ChurnUnavailable
 from bob_quality.cli import main
-from bob_quality.report import load_saved_report
+from bob_quality.report import load_saved_report, to_json
 
 
 def _invoke(repo: Path, *args: str) -> subprocess.CompletedProcess[str]:
@@ -179,6 +179,54 @@ def test_report_follows_the_language_flag(tmp_path: Path) -> None:
 
     assert result.returncode == 0
     assert (tmp_path / ".bob" / "report.md").read_text() == _PT
+
+
+def test_report_restores_diff_coverage_and_test_smells(tmp_path: Path) -> None:
+    coverage = {
+        "typescript": 85.5,
+        "python": 100,
+        "uncovered": [{"file": "src/app.ts", "line": 12}],
+    }
+    smells = [
+        {"file": "tests/app.test.ts", "line": 7, "rule": "no-conditional-expect", "waiver": None},
+        {"file": "tests/test_app.py", "line": 10, "rule": "assert-true", "waiver": "legacy test"},
+    ]
+    _save(
+        tmp_path,
+        {
+            **_MINIMAL,
+            "gates": [
+                {"name": "coverage", "status": "passed"},
+                {"name": "test_smells", "status": "warn"},
+            ],
+            "diff_coverage": coverage,
+            "test_smells": smells,
+        },
+    )
+
+    result = _invoke(tmp_path, "report")
+
+    assert result.returncode == 0, result.stderr
+    markdown = (tmp_path / ".bob" / "report.md").read_text()
+    assert "## Diff coverage\n" in markdown
+    assert "| typescript | 85.50% |\n| python | 100.00% |\n- `src/app.ts:12`" in markdown
+    assert "## Diff tests\n" in markdown
+    assert "| `tests:tests/app.test.ts:7:no-conditional-expect` | — |" in markdown
+    assert "| `tests:tests/test_app.py:10:assert-true` | legacy test |" in markdown
+    reserialized = to_json(load_saved_report(tmp_path / ".bob"))
+    assert reserialized["diff_coverage"] == coverage
+    assert reserialized["test_smells"] == smells
+
+
+def test_report_keeps_an_empty_test_smells_section(tmp_path: Path) -> None:
+    _save(tmp_path, {**_MINIMAL, "test_smells": []})
+
+    result = _invoke(tmp_path, "report")
+
+    assert result.returncode == 0, result.stderr
+    assert "## Diff tests\n\nNo smells in the changed tests." in (
+        tmp_path / ".bob" / "report.md"
+    ).read_text()
 
 
 def test_report_language_before_the_command(tmp_path: Path) -> None:
@@ -1140,6 +1188,12 @@ def test_report_renders_an_empty_secrets_list(tmp_path: Path) -> None:
             "survivors": [{"id": "x", "function": "add", "file": 1, "line": 4}],
         },
         {**_MINIMAL, "mutation": {"no_coverage": {"total": 1, "functions": "nope"}}},
+        {**_MINIMAL, "diff_coverage": []},
+        {**_MINIMAL, "diff_coverage": {"python": "85", "uncovered": []}},
+        {**_MINIMAL, "diff_coverage": {"java": 85, "uncovered": []}},
+        {**_MINIMAL, "diff_coverage": {"python": 85, "uncovered": [{"file": "a.py", "line": "2"}]}},
+        {**_MINIMAL, "test_smells": None},
+        {**_MINIMAL, "test_smells": [{"file": "a.py", "line": 2, "rule": "smell", "waiver": 1}]},
         {
             **_MINIMAL,
             "mutation": {
