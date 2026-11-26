@@ -36,6 +36,7 @@ from bob_quality.models import (
 )
 from bob_quality.mutate import MutationOutcome, focus_with_survivors
 from bob_quality.mutate_gate import run_mutate_gate
+from bob_quality.mutation_scope import mutation_lines
 from bob_quality.report import metric_row, violation_rows, write_report
 from bob_quality.secrets_gate import run_secrets_gate
 from bob_quality.security_gate import run_security_gate
@@ -260,7 +261,7 @@ def _absorb(
         mutation = run_mutate_gate(
             cwd=cwd,
             config=config,
-            diff_lines=diff_lines,
+            diff_lines=mutation_lines(cwd, base, diff_lines),
             out_dir=out_dir,
             max_workers=max_workers,
             baseline=state.baseline,
