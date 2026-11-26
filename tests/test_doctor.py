@@ -234,6 +234,7 @@ def test_doctor_exits_4_and_prints_install_when_a_tool_is_missing(tmp_path: Path
         ("en", "9.9.9", 0, 4, "9.9.9", "Install uv if needed"),
         ("en", "pinned", 1, 4, "missing", "Install uv if needed"),
         ("en", "uv reports version 1.2.3", 0, 4, "missing", "Install uv if needed"),
+        ("en", "\\377", 0, 4, "missing", "Install uv if needed"),
     ],
 )
 def test_doctor_reports_semgrep_run_by_uvx(
@@ -256,7 +257,7 @@ def test_doctor_reports_semgrep_run_by_uvx(
         uvx = bin_dir / "uvx"
         uvx.write_text(
             f'#!/bin/sh\n[ "$*" = "{args}" ] || exit 99\n'
-            f"printf '%s\\n' '  {version}  '\nexit {runner_exit}\n"
+            f"printf '  {version}  \\n'\nexit {runner_exit}\n"
         )
         uvx.chmod(0o755)
 
@@ -1106,9 +1107,10 @@ def test_doctor_install_runs_npm_then_gitleaks(monkeypatch: pytest.MonkeyPatch) 
     def install(home: object) -> None:
         order.append(("gitleaks", home))
 
-    def report(lang: str) -> int:
+    def report(lang: str, pins: tuple[doctor.Pin, ...]) -> int:
         order.append("report")
         assert lang == "en"
+        assert pins == tuple(pin for pin in DOCTOR_PINS if not isinstance(pin, doctor.SemgrepSlot))
         return 0
 
     monkeypatch.setattr(doctor, "install_npm_dependencies", npm)

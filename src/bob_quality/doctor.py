@@ -163,7 +163,7 @@ def _install_then_report(lang: Language) -> int:
     except GitleaksError as exc:
         print(t(lang, "doctor.error", reason=reason(exc)), file=sys.stderr)
         return CONFIG_OR_TOOL
-    return _report_pins(lang)
+    return report_setup_pins(lang)
 
 
 def _report_pins(lang: Language, pins: tuple[Pin, ...] = PINS) -> int:
@@ -367,11 +367,11 @@ def _semgrep_version(command: list[str]) -> str | None:
             command,
             check=True,
             capture_output=True,
-            text=True,
+            encoding="utf-8",
             stdin=subprocess.DEVNULL,
             timeout=60,
         )
-    except (OSError, subprocess.SubprocessError):
+    except (OSError, subprocess.SubprocessError, UnicodeDecodeError):
         return None
     version = completed.stdout.strip()
     if _VERSION.fullmatch(version) is None:
