@@ -229,6 +229,7 @@ def test_mutate_keeps_the_baseline_and_the_worker_count(
             "out_dir": out,
             "max_workers": 2,
             "baseline": 7,
+            "since_last_run": True,
         }
         return outcome
 
@@ -247,6 +248,7 @@ def test_mutate_keeps_the_baseline_and_the_worker_count(
         2,
         False,
         None,
+        since_last_run=True,
     )
 
     assert state.mutation is outcome
@@ -549,6 +551,7 @@ def test_absorb_records_each_gate_from_the_arguments_it_received(monkeypatch) ->
         "out_dir": out,
         "max_workers": 2,
         "baseline": 0,
+        "since_last_run": False,
     }
     assert state.mutation == mutation
     assert state.exit_code == 3

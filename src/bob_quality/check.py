@@ -61,6 +61,7 @@ def run_check(
     lang: Language = DEFAULT_LANGUAGE,
     dry_fail: bool = False,
     max_new_clones: int | None = None,
+    since_last_run: bool = False,
 ) -> int:
     chosen_gates = gates or list(DEFAULT_GATES)
     chosen_out = out_dir or (cwd / ".bob")
@@ -82,6 +83,7 @@ def run_check(
             max_workers,
             dry_fail,
             max_new_clones,
+            since_last_run=since_last_run,
         )
     except WaiverError as exc:
         return _written(
@@ -172,6 +174,8 @@ def _measure(
     max_workers: int | None,
     dry_fail: bool,
     max_new_clones: int | None,
+    *,
+    since_last_run: bool = False,
 ) -> _Measured:
     state = _Measured()
     memo = SuiteMemo(want_lcov="coverage" in gates, want_json="crap" in gates)
@@ -193,6 +197,7 @@ def _measure(
                 max_workers,
                 dry_fail,
                 max_new_clones,
+                since_last_run=since_last_run,
             )
     finally:
         memo.close()
@@ -222,6 +227,8 @@ def _absorb(
     max_workers: int | None,
     dry_fail: bool,
     max_new_clones: int | None,
+    *,
+    since_last_run: bool = False,
 ) -> None:
     if gate == "crap":
         result, metrics, code, versions, baseline = run_crap_gate(
@@ -263,6 +270,7 @@ def _absorb(
             out_dir=out_dir,
             max_workers=max_workers,
             baseline=state.baseline,
+            since_last_run=since_last_run,
         )
         state.mutation = mutation
         _record(state, mutation.result, mutation.exit_code, mutation.versions)

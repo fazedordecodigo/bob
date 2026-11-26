@@ -471,6 +471,7 @@ def _run_mutate(
         out_dir=out_dir,
         fmt="both",
         max_workers=args.max_workers,
+        since_last_run=args.since_last_run,
         reproduce=_reproduce("mutate", args),
         lang=lang,
     )

@@ -109,11 +109,13 @@ def test_python_only_forwards_workers_and_does_not_invent_a_skip(
         tmp_path,
         max_workers=3,
         baseline=2,
+        since_last_run=True,
     )
 
     assert got is outcome
     assert seen["max_workers"] == 3
     assert seen["baseline"] == 2
+    assert seen["since_last_run"] is True
     assert seen["typescript"] is None
     assert seen["skip"] is None
 
@@ -481,6 +483,7 @@ def test_absorb_records_every_gate_argument_and_result(
         "out_dir": out,
         "max_workers": 4,
         "baseline": 2,
+        "since_last_run": False,
     }
     assert state.metrics == [metric]
     assert state.baseline == 2
@@ -616,7 +619,10 @@ def test_run_check_forwards_defaults_and_measured_arguments(
         max_workers: int | None,
         dry_fail: bool,
         max_new_clones: int | None,
+        *,
+        since_last_run: bool,
     ) -> _Measured:
+        seen["since_last_run"] = since_last_run
         seen["measure"] = (
             cwd,
             got_config,
@@ -676,6 +682,7 @@ def test_run_check_forwards_defaults_and_measured_arguments(
     assert list(DEFAULT_GATES) == ["crap", "dry", "deps"]
     assert code == 7
     assert seen["open"] == (tmp_path, "origin/main", config_path, 4.0, "bob check", ["crap", "dry", "deps"])
+    assert seen["since_last_run"] is False
     assert seen["measure"] == (
         tmp_path,
         config,

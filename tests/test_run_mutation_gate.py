@@ -78,9 +78,17 @@ def runs(monkeypatch: pytest.MonkeyPatch) -> list[tuple[Path, list[str], int | N
     return seen
 
 
-def _gate(repo: Path, baseline: int | None = 0) -> mutate.MutationOutcome:
+def _gate(
+    repo: Path, baseline: int | None = 0, since_last_run: bool = False
+) -> mutate.MutationOutcome:
     return run_mutation_gate(
-        repo, CONFIG, changed_lines(repo, "main"), repo / ".bob", max_workers=2, baseline=baseline
+        repo,
+        CONFIG,
+        changed_lines(repo, "main"),
+        repo / ".bob",
+        max_workers=2,
+        baseline=baseline,
+        since_last_run=since_last_run,
     )
 
 
@@ -123,6 +131,36 @@ def test_a_waived_unchanged_function_is_reused_without_running_mutmut(
     assert second.summary["remutated"] == []
     assert second.summary["reused"] == ["src/app/weak.py::classify"]
     assert json.loads((repo / ".bob" / CACHE_NAME).read_text()) == json.loads(cached)
+
+
+def test_since_last_run_reuses_an_unchanged_survivor_and_remutates_an_edited_one(
+    repo: Path, runs: list[tuple[Path, list[str], int | None]]
+) -> None:
+    (repo / ".bob" / "waivers.yaml").unlink()
+    first = _gate(repo)
+    default = _gate(repo)
+
+    assert first.exit_code == 3
+    assert default.summary["remutated"] == ["src/app/weak.py::classify"]
+    assert len(runs) == 2
+
+    reused = _gate(repo, since_last_run=True)
+
+    assert len(runs) == 2
+    assert reused.exit_code == 3
+    assert reused.result.status == "failed"
+    assert reused.summary["remutated"] == []
+    assert reused.summary["reused"] == ["src/app/weak.py::classify"]
+    assert [row["id"] for row in reused.survivors] == ["app.weak.x_classify__mutmut_1"]
+    assert reused.survivors[0]["blocking"] is True
+
+    weak = repo / "src" / "app" / "weak.py"
+    weak.write_text(weak.read_text().replace('"pos"', '"positive"'))
+    edited = _gate(repo, since_last_run=True)
+
+    assert len(runs) == 3
+    assert edited.summary["remutated"] == ["src/app/weak.py::classify"]
+    assert edited.summary["reused"] == []
 
 
 def test_a_mutmut_failure_keeps_the_versions_and_the_waivers(

@@ -256,7 +256,7 @@ _SUB_HELP = {
     "mutate": (
         "usage: bob mutate",
         "--since-last-run]",
-        "Reuse the cache; already the default behavior",
+        "Remutate only functions whose text changed since the last recorded run",
         "--max-workers MAX_WORKERS",
     ),
     "report": (
@@ -470,6 +470,13 @@ def test_since_last_run_is_a_flag(tmp_path: Path) -> None:
     assert result.returncode == 4, result.stderr
     assert "usage:" not in result.stderr, result.stderr
     assert "baseline" not in result.stderr.lower()
+
+
+def test_since_last_run_reaches_the_gate_only_when_passed(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    assert _dispatched(tmp_path, monkeypatch, "mutate", "--since-last-run")["since_last_run"] is True
+    assert _dispatched(tmp_path, monkeypatch, "mutate")["since_last_run"] is False
 
 
 def test_doctor_speaks_the_selected_language(tmp_path: Path) -> None:
