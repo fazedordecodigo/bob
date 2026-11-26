@@ -88,11 +88,13 @@ bob --version
 
 ## Installation (development)
 
+The full `bob doctor` check and the TypeScript security gate need [uv](https://docs.astral.sh/uv/getting-started/installation/) with `uvx` on `PATH`. The one-line installation does not need it.
+
 You need Python 3.10 or later and Node 22.18.0, the versions the CI uses. The system Python of a current Ubuntu refuses `pip install` under PEP 668, so install inside a venv. To get Node 22.18.0, run `fnm install 22.18.0` or `nvm install 22.18.0`, or download the `.tar.gz` from <https://nodejs.org/dist/v22.18.0/>. Choose the `.tar.gz` over the `.tar.xz`, because the image may not have `xz`.
 
 ```bash
 python3 -m venv .venv && . .venv/bin/activate
-python -m pip install -e ".[dev]"
+python -m pip install -e ".[dev]" 'uv==0.13.0'
 npm ci
 ```
 
@@ -224,7 +226,7 @@ In CI, set `language: pt-BR` in `bob.yaml`, or `BOB_LANG: pt-BR` in the job `env
 
 `bob doctor` lists each tool with the pinned and the found version. It exits with `0` when all match, and with `4` when a tool is missing or differs, together with the install command. Python and npm tools must match exactly. Node must be `>=22.18.0 <23`, so Node 20, Node 24, or `22.18.0-rc.1` gives `4`. If the package directory is not writable, the message asks for `bob doctor --install`.
 
-`bob doctor --install` runs `npm ci` in the installed package. When npm fails there with `EACCES`, `EPERM` or `EROFS`, it installs into a user cache (`$XDG_CACHE_HOME/bob-quality`, or `~/.cache/bob-quality`). Other npm errors exit with `4` and the exact command. Then it prints the same report.
+`bob doctor --install` runs `npm ci` in the installed package. When npm fails there with `EACCES`, `EPERM` or `EROFS`, it installs into a user cache (`$XDG_CACHE_HOME/bob-quality`, or `~/.cache/bob-quality`). Other npm errors exit with `4` and the exact command. It also ensures gitleaks is installed and checks the setup tools. Run `bob doctor` without `--install` to check Semgrep too.
 
 ### Waivers
 
