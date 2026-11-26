@@ -74,9 +74,11 @@ A spec diz que o hook local roda `crap,dry,deps` e que no CI o check roda todo g
 
 Lista cada pin de `src/bob_quality/doctor.py` com a versão esperada e a versão encontrada. Sai com `0` quando todo pin está satisfeito e com `4` quando um falta ou está fora do pin, e imprime o comando de instalação. Não grava `.bob/report.md`. Um sufixo `-rc` na versão encontrada está fora do pin, e o doctor sai com `4`.
 
-Pins, na ordem do código: lizard 1.24.1, deptry 0.25.1, coverage.py 7.16.2, node `>=22.18.0 <23`, c8 12.0.0, vitest 5.0.5, jscpd 5.4.1, eslint 9.39.5, eslint-plugin-sonarjs 2.0.4, mutmut 3.8.0, complexipy 8.0.1, import-linter 2.15, grimp 3.17, diff-cover 10.6.0, bandit 1.9.4, dependency-cruiser 18.6.0, gitleaks 8.30.1, vulture 2.16, knip 6.41.0, stryker 10.0.0, stryker-vitest-runner 10.0.0. A versão esperada de uma ferramenta Python vem do `Requires-Dist` instalado de `bob-quality`. O Semgrep 1.180.0 não está nessa lista. O gate de segurança chama `uvx --from semgrep==1.180.0`.
+Pins, na ordem do código: lizard 1.24.1, deptry 0.25.1, coverage.py 7.16.2, node `>=22.18.0 <23`, c8 12.0.0, vitest 5.0.5, jscpd 5.4.1, eslint 9.39.5, eslint-plugin-sonarjs 2.0.4, mutmut 3.8.0, complexipy 8.0.1, import-linter 2.15, grimp 3.17, diff-cover 10.6.0, bandit 1.9.4, dependency-cruiser 18.6.0, gitleaks 8.30.1, vulture 2.16, knip 6.41.0, stryker 10.0.0, stryker-vitest-runner 10.0.0, Semgrep 1.180.0. A versão esperada de uma ferramenta Python empacotada vem do `Requires-Dist` instalado de `bob-quality`.
 
-`bob doctor --install` roda `npm ci` no pacote instalado e depois imprime o mesmo relatório. Ver [Instalação](../getting-started/installation.md).
+O doctor consulta o Semgrep com o mesmo comando `uvx` pinado do gate de segurança, sem métricas nem checagem de atualizações. Se o cache do `uvx` estiver vazio, ele pode baixar a ferramenta pinada e suas dependências. Se o executor faltar ou não reportar a versão pinada, o doctor sai com `4`. O `bob setup` confere só as ferramentas que instala ou exige e não precisa de `uvx`.
+
+`bob doctor --install` roda `npm ci` no pacote instalado, garante que o gitleaks esteja instalado e apresenta as ferramentas do setup. Para verificar também o Semgrep, rode `bob doctor` sem `--install`. Ver [Instalação](../getting-started/installation.md).
 
 `doctor` também passa pelo preflight de configuração. Um `bob.yaml` ou `.bob/waivers.yaml` inválido no diretório de trabalho faz o doctor sair com `4` antes do relatório de versões. Ver [Saída 4](../exit-codes.md#saída-4).
 
@@ -114,9 +116,9 @@ Se o arquivo falta, o texto não é JSON, ou a forma é inválida, o comando sai
 bob setup
 ```
 
-Prepara o projeto do diretório de trabalho, que tem de ser a raiz de um repositório git. Os passos rodam na ordem de `STEPS` em `src/bob_quality/setup_cmd.py`: `projeto` (o git e a raiz do repositório), `runtimes` (o piso do Python em `Requires-Python` e a faixa do Node), `npm` (as ferramentas npm pinadas), `gitleaks` (o binário do gitleaks em `BOB_HOME/bin`), `skills` (as três skills em `.agents/skills`), `bob.yaml` (gravado só quando o arquivo falta) e `hook` (o hook pre-push). Um `bob.yaml` que já existe, o `.bob/waivers.yaml` e um hook pre-push que o bob não escreveu são preservados. Depois roda o `bob doctor` e imprime um resumo do que instalou, do que preservou e dos avisos.
+Prepara o projeto do diretório de trabalho, que tem de ser a raiz de um repositório git. Os passos rodam na ordem de `STEPS` em `src/bob_quality/setup_cmd.py`: `projeto` (o git e a raiz do repositório), `runtimes` (o piso do Python em `Requires-Python` e a faixa do Node), `npm` (as ferramentas npm pinadas), `gitleaks` (o binário do gitleaks em `BOB_HOME/bin`), `skills` (as três skills em `.agents/skills`), `bob.yaml` (gravado só quando o arquivo falta) e `hook` (o hook pre-push). Um `bob.yaml` que já existe, o `.bob/waivers.yaml` e um hook pre-push que o bob não escreveu são preservados. Depois verifica as versões das ferramentas gerenciadas pelo setup e imprime um resumo do que instalou, do que preservou e dos avisos.
 
-Um passo que falha para a execução, imprime o passo e o motivo no stderr e sai com `4`. Fora isso, o exit é `0` quando o `bob doctor` sai com `0`, e `4` quando não sai. O comando único de instalação roda este comando. Ver [Instalação](../getting-started/installation.md).
+Um passo que falha para a execução, imprime o passo e o motivo no stderr e sai com `4`. Fora isso, sai com `0` quando as versões das ferramentas do setup batem ou `4` quando não batem. O comando único de instalação roda este comando. Ver [Instalação](../getting-started/installation.md).
 
 ## bob update
 

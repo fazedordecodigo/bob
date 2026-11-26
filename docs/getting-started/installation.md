@@ -40,6 +40,7 @@ The rest of this page installs bob from a clone of <https://github.com/fazedorde
 - Python 3.10 or newer. CI (`.github/workflows/ci.yml`) runs 3.10 and 3.12. `requires-python` in `pyproject.toml` is `>=3.10`.
 - Node `>=22.18.0 <23`. `bob doctor` accepts that range (`NODE` in `src/bob_quality/doctor.py`). Node 20, Node 24, and a `-rc` suffix make `doctor` exit `4`. A prerelease does not match the `X.Y.Z` pattern `_node_version` requires.
 - For the npm tools, `npm ci` at the clone root, or `bob doctor --install` after the package is installed.
+- For `bob doctor` and the TypeScript security gate, [install uv](https://docs.astral.sh/uv/getting-started/installation/) so `uvx` is on `PATH`. Bob does not install uv or require it for `bob setup`.
 
 On a current Ubuntu the system Python refuses `pip install` under PEP 668. Use a venv. For Node, run `fnm install 22.18.0` or `nvm install 22.18.0`, or download the `.tar.gz` from <https://nodejs.org/dist/v22.18.0/>. [AGENTS.md](https://github.com/fazedordecodigo/bob/blob/main/AGENTS.md) prefers the `.tar.gz` over the `.tar.xz` when the image has no `xz`.
 
@@ -60,7 +61,7 @@ In a checkout, for development:
 
 ```bash
 python3 -m venv .venv && . .venv/bin/activate
-python -m pip install -e '.[dev]'
+python -m pip install -e '.[dev]' 'uv==0.13.0'
 npm ci
 bob doctor
 ```

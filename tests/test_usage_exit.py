@@ -236,7 +236,7 @@ _TOP_HELP = (
     "Render report.json from a directory as Markdown",
     "Record a waiver with a one-line reason",
     "Check the pinned tools and the installed versions",
-    "Set up bob in this project (npm tools, gitleaks, skills, bob.yaml, pre-push hook) and run bob doctor",
+    "Set up bob in this project (npm tools, gitleaks, skills, bob.yaml, pre-push hook) and check setup tools",
     "Update bob and this project to the latest published release",
     "Show the bob version and the project skills version",
     "Output language: en or pt-BR (default: en)",

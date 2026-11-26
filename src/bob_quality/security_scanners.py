@@ -100,15 +100,21 @@ def _bandit_argv(ctx: ScanContext) -> list[str]:
     ]
 
 
-def _semgrep_argv(ctx: ScanContext) -> list[str]:
-    argv = [
+def semgrep_command(argument: str) -> list[str]:
+    return [
         SEMGREP_RUNNER,
         "--from",
         f"semgrep=={SEMGREP_VERSION}",
         "semgrep",
-        "scan",
+        argument,
         "--disable-version-check",
         "--metrics=off",
+    ]
+
+
+def _semgrep_argv(ctx: ScanContext) -> list[str]:
+    argv = [
+        *semgrep_command("scan"),
         "--disable-nosem",
         "--error",
         "--quiet",
