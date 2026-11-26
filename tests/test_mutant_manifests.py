@@ -283,7 +283,7 @@ def test_manifests_walk_included_directories_and_skip_excluded_ones(tmp_path: Pa
         ("pypi", "pyproject.toml", '[project]\ndependencies = ["example-package==1.0.0"]\n', 2),
     ),
 )
-def test_added_packages_does_not_normalize_include_roots(
+def test_added_packages_accepts_double_slash_without_resolving_parent_paths(
     tmp_path: Path, index: str, filename: str, content: str, line: int
 ) -> None:
     repo = _repo(tmp_path)
@@ -297,11 +297,11 @@ def test_added_packages_does_not_normalize_include_roots(
     (outside / filename).write_text(content)
     lines = {relative: {line}}
 
-    roots = ("packages/app/src/..", f"/{repo}/packages/app", str(outside))
+    roots = ("packages/app/src/..", f"/{repo}/packages/app/src/..", str(outside), f"/{outside}")
     assert added_packages(repo, "main", lines, index, roots, ()) == ()
-    assert added_packages(repo, "main", lines, index, ("packages/app",), ()) == (
-        AddedPackage(index, "example-package", "1.0.0", relative, line),
-    )
+    expected = (AddedPackage(index, "example-package", "1.0.0", relative, line),)
+    for root in ("packages/app", f"{repo}/packages/app", f"/{repo}/packages/app"):
+        assert added_packages(repo, "main", lines, index, (root,), ()) == expected
 
 
 def test_keep_drops_a_directory_and_a_repeated_file(tmp_path: Path) -> None:
