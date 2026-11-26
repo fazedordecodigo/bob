@@ -1,6 +1,10 @@
 # Changelog
 
-## Unreleased
+## v0.1.0
+
+Published as a [pre-release](https://github.com/fazedordecodigo/bob/releases/tag/v0.1.0) on 2026-11-26. See the [release verification record](docs/release-checks/v0.1.0.md) for the checks and promotion criteria.
+
+Publicada como [pré-release](https://github.com/fazedordecodigo/bob/releases/tag/v0.1.0) em 2026-11-26. Consulte o [registro de verificação da release](docs/release-checks/v0.1.0.md) para ver as verificações e os critérios de promoção.
 
 The `bob setup` help names everything the command installs (npm tools, gitleaks, skills, `bob.yaml`,
 pre-push hook), and the `bob mutate` help names Stryker next to mutmut; the docs list `setup`,

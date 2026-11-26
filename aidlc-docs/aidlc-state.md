@@ -29,8 +29,8 @@
 ### Operação
 - [S] Fora do escopo da POC
 
-- **Current status**: Todos os estágios (1.1–3.7) concluídos e aprovados pelo Emerson; aguardando PR mecânico de sincronização de aidlc-docs/ no repo sobre main 787ea65
+- **Current status**: Todos os estágios (1.1–3.7) concluídos e aprovados pelo Emerson. A sincronização de `aidlc-docs/` foi concluída na `main` no commit [`d45d86f`](https://github.com/fazedordecodigo/bob/commit/d45d86f8bd94e647cefbe4ea8fffe69688421158).
 B1 U2, B2 U1 e B3 U3 aprovadas no checkpoint (U3: 20/10 15:28, PRs #191–#194, main 0b4c6ec). B4 U4 (bob.yaml) aprovada no checkpoint (22/10 08:55, PRs #195–#199, main b142631). B5 U5 (hook) aprovada no checkpoint (22/10 20:48, PRs #200–#202, main 22d461a). B6 U6 (perfil shell) aprovada no checkpoint (23/10 22:16, PRs #204, #205, #207 e T4 #210, main 3ced2ce). B7 U7 (update e versão) aprovada no checkpoint (24/10 07:16, PRs #203, #206, #208, main 4d16033). B8 U8 (docs) aprovada no checkpoint (24/10 12:41, PRs #209, #211, #212, #213, main 1b10792). B9 U9 (release v0.1.0) aprovada no checkpoint (24/10 15:54, PRs #216, #214, #215, main a658abd). 3.6 T1 mergeada no PR #217 (main 55c4de7). 3.6 T2 mergeada no PR #221 (main fae853b). 3.6 T3 mergeada no PR #222 (main 512e7d4); Arquiteto disparando E0 Run 3 (dry_run: true) e consolidando 3.6 e 3.7.
 
 ## Session Resume Point
-Próximo: PR mecânico de sincronização de aidlc-docs/ no repo → merge pelo Emerson → relatório final de 10 linhas.
+Nenhuma ação pendente para a sincronização de `aidlc-docs/`.

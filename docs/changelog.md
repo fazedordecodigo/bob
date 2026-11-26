@@ -4,6 +4,6 @@
 
 The changelog is [CHANGELOG.md](https://github.com/fazedordecodigo/bob/blob/main/CHANGELOG.md) at the repository root. It is the record of behavior changes. Each note is written in English and then in Portuguese.
 
-The current section is `Unreleased`. It includes, among other entries, the DRY fail mode, language detection, the security and secrets gates, the stable mutation waiver id, churn, and the Node range `bob doctor` accepts. Read the file for the exact wording. This page does not copy it.
+The [v0.1.0 pre-release](https://github.com/fazedordecodigo/bob/releases/tag/v0.1.0) has a [versioned changelog entry](https://github.com/fazedordecodigo/bob/blob/main/CHANGELOG.md#v010) and a [release verification record](release-checks/v0.1.0.md).
 
-A version snapshot of the documentation site waits for the `v0.1.0` tag. [ADR 0007](adr/0007-gerador-do-site.md) records the site generator. It does not cut that snapshot.
+The documentation site still follows `main`; the Git tag does not create a site snapshot. [ADR 0007](adr/0007-gerador-do-site.md) describes the site generator and its versioning support.
