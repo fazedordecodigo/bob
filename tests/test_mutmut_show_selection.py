@@ -343,7 +343,7 @@ def test_a_cached_file_line_is_not_shifted_again() -> None:
         "id": "bob_quality.mutate.x_prepare_mutmut_workspace__mutmut_16",
         "function": "prepare_mutmut_workspace",
         "file": "src/bob_quality/mutate.py",
-        "line": 40,
+        "line": 480,
         "operator": "a -> b",
         "status": "killed",
     }
@@ -364,7 +364,7 @@ def test_a_cached_file_line_is_not_shifted_again() -> None:
         "status": "killed",
     }
     file_rows = _mutants_from_cache(
-        [("kept", {"line_base": "file", "start_line": 100, "mutants": [already_file]})],
+        [("kept", {"line_base": "file", "start_line": 474, "mutants": [already_file]})],
         {
             "kept": CyclomaticFunction(
                 file="src/bob_quality/mutate.py",
@@ -399,7 +399,7 @@ def test_a_cached_file_line_is_not_shifted_again() -> None:
             )
         },
     )
-    assert file_rows[0].line == 40
+    assert file_rows[0].line == 480
     assert top_rows[0].line == 4
     assert zero_rows[0].line == 7
     assert mutants[0].line == 480
