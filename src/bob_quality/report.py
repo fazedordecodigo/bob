@@ -6,7 +6,7 @@ import json
 import os
 from datetime import date
 from pathlib import Path
-from typing import get_args
+from typing import cast, get_args
 
 from bob_quality.churn import (
     ChurnMeasured,
@@ -30,16 +30,19 @@ from bob_quality.models import (
     Clone,
     CognitiveFunction,
     DeadSection,
+    DebtRow,
     DepViolation,
     DiffCoverage,
     Fail,
     Finding,
+    FocusRow,
     FunctionMetric,
     GateResult,
     GateStatus,
     Judged,
     KnipKind,
     LedgerRow,
+    MetricRow,
     MissingPackage,
     OffDiff,
     PythonDead,
@@ -62,6 +65,7 @@ from bob_quality.models import (
     VultureKind,
     Warn,
     Waived,
+    WaiverRow,
     flatten_uncovered,
 )
 from bob_quality.test_smells import waiver_id
@@ -252,7 +256,7 @@ def _crap_lines(report: Report) -> list[Text]:
     return lines
 
 
-def _crap_row(fn: dict[str, object]) -> str:
+def _crap_row(fn: MetricRow) -> str:
     loc = f"{fn['file']}:{fn['start_line']}"
     cov = f"{float(fn['coverage']) * 100:.0f}%"
     delta = "—" if fn.get("delta") is None else fn["delta"]
@@ -333,7 +337,7 @@ def _survivor_location(item: dict[str, object]) -> Text:
     return location
 
 
-def _waiver_section(waivers: list[dict[str, object]]) -> list[Text]:
+def _waiver_section(waivers: list[WaiverRow]) -> list[Text]:
     lines: list[Text] = ["## Waivers", ""]
     if not waivers:
         lines.append(msg("report.no_waivers"))
@@ -798,7 +802,7 @@ def violation_row(item: DepViolation) -> dict[str, object]:
     return {"origin": item.origin, "destination": item.destination, "rule": item.rule}
 
 
-def metric_row(metric: FunctionMetric) -> dict[str, object]:
+def metric_row(metric: FunctionMetric) -> MetricRow:
     return {
         "lang": metric.lang,
         "module": metric.module,
@@ -927,15 +931,15 @@ def _saved_report(payload: dict[str, object], path: Path) -> Report:
         generated_at=_text(payload["generated_at"], path),
         tool_versions=_versions(payload["tool_versions"], path),
         gates=_gates(payload["gates"], path),
-        focus=_focus_rows(payload["focus"], path),
-        top_crap=_metric_rows(payload["top_crap"], path),
-        old_debt=_debt_rows(payload.get("old_debt", []), path),
+        focus=cast(list[FocusRow], _focus_rows(payload["focus"], path)),
+        top_crap=cast(list[MetricRow], _metric_rows(payload["top_crap"], path)),
+        old_debt=cast(list[DebtRow], _debt_rows(payload.get("old_debt", []), path)),
         dependencies=_edge_rows(payload.get("dependencies", []), path),
         old_dependencies=_edge_rows(payload.get("old_dependencies", []), path),
         clones=_clones(payload.get("clones", []), path),
         reproduce=_text(payload["reproduce"], path),
         exit_code=_exit_code(payload["exit_code"], path),
-        waivers=_dicts(payload.get("waivers", []), path),
+        waivers=cast(list[WaiverRow], _dicts(payload.get("waivers", []), path)),
         survivors=_survivor_rows(payload.get("survivors", []), path),
         mutation=_optional_mutation(payload, path),
         dead_code=_dead_section(payload, path),

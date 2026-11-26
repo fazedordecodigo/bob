@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from pathlib import PurePosixPath
-from typing import Literal, NewType
+from typing import Literal, NewType, TypedDict
 
 from bob_quality.churn import ChurnSection, ChurnUnavailable
 from bob_quality.messages import Text
@@ -297,6 +297,50 @@ class GateResult:
     reason: Text | None = None
 
 
+class _FocusRequired(TypedDict):
+    file: str
+    risk: float
+
+
+class FocusRow(_FocusRequired, total=False):
+    clone: bool
+
+
+class _MetricLocation(TypedDict):
+    name: str
+    file: str
+    start_line: int
+    crap: float
+
+
+class _MetricDetails(_MetricLocation, total=False):
+    lang: str
+    module: str
+    end_line: int
+    changed: bool
+    delta: float | None
+
+
+class MetricRow(_MetricDetails):
+    cc: int
+    coverage: float
+
+
+class _LegacyDebtRow(_MetricDetails, total=False):
+    cc: int
+    coverage: float
+
+
+DebtRow = MetricRow | _LegacyDebtRow
+
+
+class WaiverRow(TypedDict):
+    id: str
+    reason: str
+    author: str
+    date: str
+
+
 @dataclass
 class Report:
     schema_version: int
@@ -305,15 +349,15 @@ class Report:
     generated_at: str
     tool_versions: dict[str, str]
     gates: list[GateResult]
-    focus: list[dict[str, object]]
-    top_crap: list[dict[str, object]]
-    old_debt: list[dict[str, object]] = field(default_factory=list)
+    focus: list[FocusRow]
+    top_crap: list[MetricRow]
+    old_debt: list[DebtRow] = field(default_factory=list)
     dependencies: list[dict[str, object]] = field(default_factory=list)
     old_dependencies: list[dict[str, object]] = field(default_factory=list)
     clones: list[Clone] = field(default_factory=list)
     reproduce: str = ""
     exit_code: int = 0
-    waivers: list[dict[str, object]] = field(default_factory=list)
+    waivers: list[WaiverRow] = field(default_factory=list)
     survivors: list[dict[str, object]] = field(default_factory=list)
     mutation: dict[str, object] | None = None
     diff_coverage: DiffCoverage | None = None

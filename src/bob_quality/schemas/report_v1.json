@@ -36,9 +36,29 @@
         }
       }
     },
-    "focus": { "type": "array" },
-    "top_crap": { "type": "array" },
-    "old_debt": { "type": "array" },
+    "focus": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["file", "risk"],
+        "properties": {
+          "file": { "type": "string" },
+          "risk": { "type": "number" },
+          "clone": { "type": "boolean" }
+        }
+      }
+    },
+    "top_crap": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/metric",
+        "required": ["cc", "coverage"]
+      }
+    },
+    "old_debt": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/metric" }
+    },
     "old_dependencies": {
       "type": "array",
       "items": {
@@ -115,7 +135,19 @@
         }
       }
     },
-    "waivers": { "type": "array" },
+    "waivers": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "reason", "author", "date"],
+        "properties": {
+          "id": { "type": "string" },
+          "reason": { "type": "string" },
+          "author": { "type": "string" },
+          "date": { "type": "string" }
+        }
+      }
+    },
     "survivors": {
       "type": "array",
       "items": {
@@ -433,5 +465,24 @@
     },
     "reproduce": { "type": "string" },
     "exit_code": { "type": "integer" }
+  },
+  "$defs": {
+    "metric": {
+      "type": "object",
+      "required": ["file", "name", "start_line", "crap"],
+      "properties": {
+        "lang": { "type": "string" },
+        "module": { "type": "string" },
+        "name": { "type": "string" },
+        "file": { "type": "string" },
+        "start_line": { "type": "integer" },
+        "end_line": { "type": "integer" },
+        "cc": { "type": "integer" },
+        "coverage": { "type": "number" },
+        "crap": { "type": "number" },
+        "changed": { "type": "boolean" },
+        "delta": { "type": ["number", "null"] }
+      }
+    }
   }
 }

@@ -12,7 +12,7 @@ from bob_quality.deps_gate import _TS_EXTENSIONS
 from bob_quality.diff import function_is_changed
 from bob_quality.exit_codes import BASELINE_BROKEN, CONFIG_OR_TOOL
 from bob_quality.messages import Text, msg, reason
-from bob_quality.models import CyclomaticFunction, GateResult
+from bob_quality.models import CyclomaticFunction, GateResult, WaiverRow
 from bob_quality.mutate import MutationOutcome, _finish, _outcome, write_stryker_mutants
 from bob_quality.npm_tools import (
     _user_vitest_config,
@@ -73,7 +73,7 @@ def _with_loaded_waivers(
     return _with_spans(cwd, config, diff_lines, out_dir, versions, waivers, waiver_rows)
 
 
-def _loaded(cwd: Path) -> tuple[dict[str, str], list[Waiver], list[dict[str, object]]]:
+def _loaded(cwd: Path) -> tuple[dict[str, str], list[Waiver], list[WaiverRow]]:
     versions = _versions()
     waivers = load_waivers(cwd)
     return versions, waivers, [item.as_dict() for item in waivers]
@@ -86,7 +86,7 @@ def _with_spans(
     out_dir: Path,
     versions: dict[str, str],
     waivers: list[Waiver],
-    waiver_rows: list[dict[str, object]],
+    waiver_rows: list[WaiverRow],
 ) -> tuple[MutationOutcome | None, Text | None]:
     try:
         spans = _changed_spans(cwd, config, diff_lines)
@@ -104,7 +104,7 @@ def _with_stryker(
     diff_lines: dict[str, set[int]],
     versions: dict[str, str],
     waivers: list[Waiver],
-    waiver_rows: list[dict[str, object]],
+    waiver_rows: list[WaiverRow],
 ) -> tuple[MutationOutcome | None, Text | None]:
     try:
         return _run(cwd, out_dir, spans, diff_lines, versions, waiver_rows, waivers), None
@@ -168,7 +168,7 @@ def _run(
     spans: list[CyclomaticFunction],
     diff_lines: dict[str, set[int]],
     versions: dict[str, str],
-    waiver_rows: list[dict[str, object]],
+    waiver_rows: list[WaiverRow],
     waivers: list[Waiver],
 ) -> MutationOutcome:
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -204,7 +204,7 @@ def _report_or_retry(
     spans: list[CyclomaticFunction],
     diff_lines: dict[str, set[int]],
     versions: dict[str, str],
-    waiver_rows: list[dict[str, object]],
+    waiver_rows: list[WaiverRow],
     waivers: list[Waiver],
 ) -> MutationOutcome:
     found = _read_report(cwd, report_path, argv, spans, diff_lines, versions, waiver_rows, waivers)
@@ -227,7 +227,7 @@ def _read_report(
     spans: list[CyclomaticFunction],
     diff_lines: dict[str, set[int]],
     versions: dict[str, str],
-    waiver_rows: list[dict[str, object]],
+    waiver_rows: list[WaiverRow],
     waivers: list[Waiver],
 ) -> MutationOutcome | None:
     completed = _invoke(cwd, report_path, argv)
@@ -321,7 +321,7 @@ def _from_report(
     spans: list[CyclomaticFunction],
     diff_lines: dict[str, set[int]],
     versions: dict[str, str],
-    waiver_rows: list[dict[str, object]],
+    waiver_rows: list[WaiverRow],
     waivers: list[Waiver],
 ) -> MutationOutcome:
     payload = json.loads(report_path.read_bytes().decode())
@@ -334,7 +334,7 @@ def _from_report(
 
 
 def _baseline(
-    versions: dict[str, str], waiver_rows: list[dict[str, object]]
+    versions: dict[str, str], waiver_rows: list[WaiverRow]
 ) -> MutationOutcome:
     return _outcome(
         GateResult("mutate", "not_run", msg("probe.baseline_failed")),
@@ -347,7 +347,7 @@ def _baseline(
 def _not_run(
     why: Text,
     versions: dict[str, str],
-    waiver_rows: list[dict[str, object]] | None = None,
+    waiver_rows: list[WaiverRow] | None = None,
 ) -> MutationOutcome:
     return _outcome(
         GateResult("mutate", "not_run", why),
