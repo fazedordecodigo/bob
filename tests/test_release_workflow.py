@@ -164,6 +164,11 @@ def test_release_builds_the_three_assets() -> None:
     assert isinstance(run, str)
     assert f"'{_dev_pin('build')}'" in run
     assert f"'{_dev_pin('twine')}'" in run
+    assert run.splitlines()[1:4] == [
+        "SOURCE_DATE_EPOCH=$(git log -1 --format=%ct)",
+        "export SOURCE_DATE_EPOCH",
+        "python -m build --wheel --outdir dist",
+    ]
     assert "twine check --strict" in run
     assert "cp scripts/install.sh dist/install.sh" in run
     assert "LC_ALL=C sort -k2 > SHA256SUMS" in run

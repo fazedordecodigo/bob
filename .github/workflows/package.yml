@@ -39,7 +39,10 @@ jobs:
           "$HOME/.local/bin/gitleaks" --version
 
       - name: Build sdist and wheel
-        run: python -m build
+        run: |
+          SOURCE_DATE_EPOCH=$(git log -1 --format=%ct)
+          export SOURCE_DATE_EPOCH
+          python -m build
 
       - name: Check distribution metadata
         run: twine check --strict dist/*

@@ -507,7 +507,9 @@ build_wheel() {
     die_preparo "build do wheel falhou (veja $T/build.log)"
   fi
   mkdir -p "$T/dist" || die_preparo "build do wheel falhou (veja $T/build.log)"
-  if ! "$T/build-venv/bin/python" -m build --wheel --outdir "$T/dist" \
+  _epoch=$(git log -1 --format=%ct 2>>"$T/build.log") \
+    || die_preparo "build do wheel falhou (veja $T/build.log)"
+  if ! SOURCE_DATE_EPOCH="$_epoch" "$T/build-venv/bin/python" -m build --wheel --outdir "$T/dist" \
     >>"$T/build.log" 2>&1; then
     die_preparo "build do wheel falhou (veja $T/build.log)"
   fi

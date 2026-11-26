@@ -27,6 +27,7 @@ def test_sdist_and_wheel_pass_twine_check(tmp_path: Path) -> None:
     build = subprocess.run(
         [sys.executable, "-m", "build", "--outdir", str(dist)],
         cwd=ROOT,
+        env={**os.environ, "SOURCE_DATE_EPOCH": "946684802"},
         capture_output=True,
         text=True,
     )
@@ -35,6 +36,8 @@ def test_sdist_and_wheel_pass_twine_check(tmp_path: Path) -> None:
     names = [path.name for path in artifacts]
     assert any(name.endswith(".tar.gz") for name in names)
     assert any(name.endswith(".whl") for name in names)
+    with zipfile.ZipFile(next(dist.glob("*.whl"))) as wheel:
+        assert {entry.date_time for entry in wheel.infolist()} == {(2000, 1, 1, 0, 0, 2)}
 
     check = subprocess.run(
         [sys.executable, "-m", "twine", "check", "--strict", *(str(path) for path in artifacts)],
@@ -189,6 +192,8 @@ def test_installed_wheel_installs_agents_skills_without_a_clone(tmp_path: Path) 
 def test_package_workflow_checks_the_dist_and_does_not_publish() -> None:
     text = (ROOT / ".github" / "workflows" / "package.yml").read_text()
     assert "python -m build" in text
+    assert "SOURCE_DATE_EPOCH=$(git log -1 --format=%ct)" in text
+    assert "export SOURCE_DATE_EPOCH" in text
     assert "twine check --strict" in text
     for forbidden in (
         "twine upload",
