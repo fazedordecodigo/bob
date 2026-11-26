@@ -96,7 +96,7 @@ def _guard_name(node: ast.stmt, qualified: bool) -> ast.Name | None:
 
 def _binding_name(node: ast.AST) -> str | None:
     if isinstance(node, ast.alias):
-        return node.asname or node.name.split(".", 1)[0]
+        return node.asname or node.name.partition(".")[0]
     if isinstance(node, (ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef, ast.ExceptHandler)):
         return node.name
     if isinstance(node, ast.arg):
@@ -105,23 +105,31 @@ def _binding_name(node: ast.AST) -> str | None:
         return node.name
     if isinstance(node, ast.MatchMapping):
         return node.rest
-    return _writes_name(node)
-
-
-def _writes_name(node: ast.AST) -> str | None:
     if isinstance(node, ast.Name) and not isinstance(node.ctx, ast.Load):
         return node.id
-    if isinstance(node, ast.Attribute) and not isinstance(node.ctx, ast.Load):
-        if node.attr == "TYPE_CHECKING" and isinstance(node.value, ast.Name):
-            return node.value.id
     return None
 
 
-def _guard_uses(tree: ast.Module, start: int, qualified: bool, name: str) -> dict[ast.stmt, ast.Name]:
+def _writes_typing_flag(node: ast.AST) -> bool:
+    return (
+        isinstance(node, ast.Attribute)
+        and node.attr == "TYPE_CHECKING"
+        and not isinstance(node.ctx, ast.Load)
+    )
+
+
+def _guard_binding_is_stable(tree: ast.Module, name: str, alias: ast.alias) -> bool:
+    return not any(
+        _writes_typing_flag(part) or _binding_name(part) == name
+        for part in ast.walk(tree)
+        if part is not alias
+    )
+
+
+def _guard_uses(body: list[ast.stmt], qualified: bool, name: str) -> dict[ast.stmt, ast.Name]:
     return {
         stmt: guard
-        for stmt in tree.body
-        if stmt.lineno > start
+        for stmt in body
         if (guard := _guard_name(stmt, qualified)) is not None and guard.id == name
     }
 
@@ -136,9 +144,9 @@ def _typing_statements(tree: ast.Module, node: ast.stmt) -> set[ast.stmt]:
     if imported is None:
         return set()
     name, qualified, alias = imported
-    if any(part is not alias and _binding_name(part) == name for part in ast.walk(tree)):
+    if not _guard_binding_is_stable(tree, name, alias):
         return set()
-    guards = _guard_uses(tree, node.lineno, qualified, name)
+    guards = _guard_uses(tree.body[tree.body.index(node) + 1 :], qualified, name)
     if guards and _only_guard_uses(tree, name, set(guards.values())):
         return {node, *guards}
     return set(guards)
@@ -148,7 +156,7 @@ def _header(node: ast.AST) -> str:
     shell = copy(node)
     for field in _SUITES:
         if hasattr(shell, field):
-            setattr(shell, field, [])
+            delattr(shell, field)
     return ast.dump(shell)
 
 
@@ -184,7 +192,7 @@ def _annotation_lines(
 class _WithoutAnnotations(ast.NodeTransformer):
     def __init__(self, deferred: bool) -> None:
         self.deferred = deferred
-        self.local = False
+        self.scopes: list[ast.AST] = []
 
     def _annotation(self, node: ast.expr | None) -> ast.expr | None:
         if self.deferred or isinstance(node, ast.Constant) and isinstance(node.value, str):
@@ -197,24 +205,23 @@ class _WithoutAnnotations(ast.NodeTransformer):
 
     def _function(self, node: _Function) -> _Function:
         node.returns = self._annotation(node.returns)
-        return self._with_scope(node, local=True)
+        return self._with_scope(node)
 
     visit_FunctionDef = _function
     visit_AsyncFunctionDef = _function
 
-    def visit_ClassDef(self, node: ast.ClassDef) -> ast.ClassDef:
-        return self._with_scope(node, local=False)
-
-    def _with_scope(self, node: _Node, *, local: bool) -> _Node:
-        outer, self.local = self.local, local
+    def _with_scope(self, node: _Node) -> _Node:
+        self.scopes.append(node)
         self.generic_visit(node)
-        self.local = outer
+        self.scopes.pop()
         return node
 
+    visit_ClassDef = _with_scope
+
     def visit_AnnAssign(self, node: ast.AnnAssign) -> ast.stmt:
-        if not self.local:
+        if not self.scopes or not isinstance(self.scopes[-1], _FUNCTIONS):
             return node
         if node.simple and node.value is not None:
-            return ast.Assign(targets=[node.target], value=node.value, type_comment=None)
-        node.annotation = ast.Constant(None)
+            return ast.Assign(targets=[node.target], value=node.value)
+        del node.annotation
         return node

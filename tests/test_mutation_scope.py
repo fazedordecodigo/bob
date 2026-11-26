@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import ast
 import json
 from pathlib import Path
 
@@ -8,7 +9,7 @@ import pytest
 import bob_quality.mutate as mutate
 from bob_quality.check import run_check
 from bob_quality.diff import changed_lines
-from bob_quality.mutation_scope import mutation_lines
+from bob_quality.mutation_scope import _WithoutAnnotations, _runtime_lines, mutation_lines
 from helpers import commit_on_branch, commit_on_main, init_python_repo
 
 _FILE = "src/app/scope.py"
@@ -181,3 +182,112 @@ def test_filter_keeps_original_scope_for_new_files_dirty_sources_and_typescript(
     assert mutation_lines(repo, "main", raw) == raw
     assert mutation_lines(repo, "unresolvable", raw) == raw
     assert mutation_lines(repo, "main", {"src/app/app.ts": {1}}) == {"src/app/app.ts": {1}}
+
+
+@pytest.mark.parametrize(
+    "imports",
+    [
+        "import other as t\n",
+        "from other import TYPE_CHECKING as t\n",
+        "from .typing import TYPE_CHECKING as t\n",
+        "from typing import cast as t\n",
+        "import typing as t\nimport other as t\n",
+        "import typing as t\nimport t.sub.child\n",
+    ],
+)
+def test_guard_must_refer_to_typing_without_shadowing(imports: str) -> None:
+    prefix = imports + "def f(): return 1\n"
+    condition = "t" if imports.startswith("from") else "t.TYPE_CHECKING"
+    before = prefix + f"if {condition}:\n    import types\n"
+    line = len(prefix.splitlines())
+
+    assert _runtime_lines(ast.parse(before), ast.parse(prefix), {line}) == {line}
+
+
+@pytest.mark.parametrize(
+    ("context", "condition", "kept"),
+    [
+        ("", "t", {2}),
+        ("", "t.Any", {2}),
+        ("t.Any = object()\n", "t.TYPE_CHECKING", set()),
+        ("factory().TYPE_CHECKING = True\n", "t.TYPE_CHECKING", {2}),
+    ],
+)
+def test_qualified_guard_only_accepts_type_checking(
+    context: str, condition: str, kept: set[int]
+) -> None:
+    prefix = "import typing as t\n" + context
+    before = prefix + f"if {condition}:\n    import types\n"
+    after = prefix if context.startswith("t.") else context
+
+    assert _runtime_lines(ast.parse(before), ast.parse(after), {2}) == kept
+
+
+def test_bare_guard_does_not_normalize_an_attribute() -> None:
+    prefix = "from typing import TYPE_CHECKING\n"
+    before = prefix + "if flag.TYPE_CHECKING:\n    import types\n"
+
+    assert _runtime_lines(ast.parse(before), ast.parse(prefix), {2}) == {2}
+
+
+def test_typing_import_stays_if_used_at_runtime() -> None:
+    before = "import typing as t\nif t.TYPE_CHECKING:\n    import types\nresult = t\n"
+    after = "result = t\n"
+
+    assert _runtime_lines(ast.parse(before), ast.parse(after), {1}) == {1}
+
+
+def test_typing_guard_immediately_after_its_import_is_ignored() -> None:
+    before = "import typing\nif typing.TYPE_CHECKING:\n    import types\n"
+
+    assert _runtime_lines(ast.parse(before), ast.parse(""), {1}) == set()
+
+
+def test_evaluated_parameter_annotations_stay_in_scope() -> None:
+    before = "def f(x: factory()):\n    return x\n"
+    after = "def f(x: other()):\n    return x\n"
+
+    assert _runtime_lines(ast.parse(before), ast.parse(after), {1}) == {1}
+
+
+def test_module_annotations_are_not_erased() -> None:
+    before = _FUTURE + "label: int = 1\n"
+    after = _FUTURE + "label: str = 1\n"
+
+    assert _runtime_lines(ast.parse(before), ast.parse(after), {2}) == {2}
+
+
+def test_local_annotations_do_not_erase_target_evaluation() -> None:
+    before = _FUTURE + "def f(obj):\n    obj.value: int\n    return obj\n"
+    after = _FUTURE + "def f(obj):\n    obj.value: str = 0\n    return obj\n"
+
+    assert _runtime_lines(ast.parse(before), ast.parse(after), {3}) == {3}
+
+
+def test_bare_annotation_preserves_the_declaration_without_an_assignment() -> None:
+    tree = ast.parse("def f():\n    value: str\n    return value\n")
+    function = tree.body[0]
+    assert isinstance(function, ast.FunctionDef)
+
+    _WithoutAnnotations(deferred=True).visit(tree)
+
+    assert isinstance(function.body[0], ast.AnnAssign)
+    assert function.body[0].value is None
+
+
+def test_filter_keeps_changed_lines_on_each_side_of_an_annotation_only_method() -> None:
+    before = _FUTURE + (
+        "class Parent:\n"
+        "    before = 1\n"
+        "    def f(self):\n"
+        "        class Inner:\n"
+        "            field: int\n"
+        "        value: int = 0\n"
+        "        return value\n"
+        "    after = 2\n"
+    )
+    after = before.replace("before = 1", "before = 3").replace("after = 2", "after = 4").replace(
+        "value: int", "value: str"
+    )
+
+    assert _runtime_lines(ast.parse(before), ast.parse(after), {3, 7, 9}) == {3, 9}
