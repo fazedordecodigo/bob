@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import json
+from importlib.metadata import distribution
 from pathlib import Path
+from runpy import run_path
 
 import pytest
 from helpers import in_both
@@ -204,7 +206,8 @@ def _document(item: dict[str, object]) -> str:
     return json.dumps({"results": [item]})
 
 
+@pytest.mark.filterwarnings("error::DeprecationWarning")
 def test_bandit_exclude_matches_the_pinned_constant() -> None:
-    from bandit.core.constants import EXCLUDE
-
-    assert tuple(EXCLUDE) == _BANDIT_EXCLUDE
+    # Importar o pacote Bandit inicializa os plugins.
+    constants = distribution("bandit").locate_file("bandit/core/constants.py")
+    assert tuple(run_path(str(constants))["EXCLUDE"]) == _BANDIT_EXCLUDE

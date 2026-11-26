@@ -2,8 +2,9 @@
 
 Modelo do registro de cada release (CT13). Copie para `docs/release-checks/vX.Y.Z.md`, troque `vX.Y.Z` pela tag e preencha durante o fluxo E0–E6. O workflow `release` publica esse arquivo como notas da release.
 
-- Commit: `<sha>`
-- Run do release.yml: `<url>`
+- Commit (SHA do build de E0): `<sha>`
+- Ensaio E0: `<url>`
+- Publicação E1: `<url>`
 - Comando de Verificação: `<passou|falhou>` (`<url do run>`)
 
 ## Comando de Verificação na matriz (automático)
@@ -39,6 +40,19 @@ Um agente de IA real recebe `docs/install-prompt.<idioma>.md` num projeto novo e
 
 ## Fluxo
 
+- E0: na `main`, dispare o ensaio e aguarde todos os jobs de verificação passarem:
+
+  ```sh
+  gh workflow run release.yml --repo fazedordecodigo/bob --ref main -f tag=vX.Y.Z -f dry_run=true
+  ```
+
+  Registre o SHA completo da linha `release: SHA do build:` no passo **Selecionar o commit da release** e guarde o `SHA256SUMS` do artefato `release-assets`.
+- E1: antes de disparar, faça merge na `main` do registro com as evidências de E0. As notas saem do commit que disparou E1; os assets e a tag usam o SHA aprovado em E0. Passe esse SHA como `E0_SHA`, mesmo que a `main` já tenha avançado:
+
+  ```sh
+  gh workflow run release.yml --repo fazedordecodigo/bob --ref main -f tag=vX.Y.Z -f dry_run=false -f prerelease=true -f sha="$E0_SHA"
+  ```
+
 - E2 antes de promover (`releases/latest` HTTP): `<código>`
 - Promovida por: `<nome>`, em `<data UTC-3>`
-- E6 depois de promover: `tag_name` = `<tag>`; `sha256sum -c SHA256SUMS`: `<OK|falhou>`
+- E6 depois de promover: `tag_name` = `<tag>`; `sha256sum -c SHA256SUMS`: `<OK|falhou>`; `cmp` entre o `SHA256SUMS` publicado e o de E0: `<idênticos|diferentes>`

@@ -6,6 +6,12 @@ O pacote pip é `bob-quality`. O comando é `bob`. As listagens de marketplace u
 
 As páginas pt-BR do site público ficam em `website/i18n/pt-BR/`. Os arquivos de `docs/` são a fonte em inglês.
 
+## Release estável v0.1.0
+
+- [Release no GitHub](https://github.com/fazedordecodigo/bob/releases/tag/v0.1.0) — instalador, wheel e checksums
+- [Changelog](changelog.md) — mudanças ainda não lançadas e a entrada da v0.1.0
+- [Registro de verificação da release](release-checks/v0.1.0.md) — execuções E0 e E1 e resultados nas quatro plataformas; veja também o [modelo](release-checks/TEMPLATE.md)
+
 ## Por que usar o bob
 
 [Por que usar o bob](why-bob.md) expõe o problema que os gates resolvem e o que um comando acrescenta a rodar cada ferramenta por conta própria.
@@ -17,6 +23,7 @@ As páginas pt-BR do site público ficam em `website/i18n/pt-BR/`. Os arquivos d
 | [Instalação](getting-started/installation.md) | Python, Node, o pacote `bob-quality` e o `bob doctor` |
 | [Primeiro check](getting-started/first-check.md) | O primeiro `bob check` e como ler o código de saída |
 | [Agentes](getting-started/agents.md) | Cursor, Claude Code, Codex, Devin e GitHub Copilot |
+| Prompts de instalação ([English](install-prompt.en.md), [Português (Brasil)](install-prompt.pt-BR.md)) | Alternativa passo a passo para um agente de IA |
 
 ## Guias
 

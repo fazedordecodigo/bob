@@ -143,7 +143,7 @@ O id do waiver é `tests:<file>:<line>:<rule>`. Uma linha com waiver mantém a l
 
 Um nome direto conta quando o manifesto em `HEAD` o declara, o mesmo manifesto na base não declara, e a linha da declaração está no lado novo. Um bump de versão de um nome que a base já tem não conta. Imports não declarados são procurados sob `paths.include`. O pin direto permanece no manifesto da raiz (`pyproject.toml`, `requirements*.txt`, `package.json`), mesmo quando essa raiz está fora de `paths.include`. Um lockfile não acrescenta um nome.
 
-Python usa deptry 0.25.1. `DEP001` e `DEP003` são imports não declarados. `DEP002`, `DEP004` e `DEP005` ficam de fora. TypeScript usa knip 6.41.0, achados `unlisted` e `unresolved`. Um especificador que começa com `.` ou `/` não conta.
+Python usa deptry 0.25.1. `DEP001` e `DEP003` são imports não declarados. `DEP002`, `DEP004` e `DEP005` ficam de fora. TypeScript usa knip 6.41.0, achados `unlisted` e `unresolved`. O Bob só mantém achados do Knip em arquivos dentro de `paths.include` e fora de `paths.exclude`, sem mudar a configuração do Knip no projeto. Um especificador não resolvido que começa com `.` ou `/` não conta.
 
 O id do advisory vem de `POST https://api.osv.dev/v1/querybatch`. A severidade vem de `GET https://api.osv.dev/v1/vulns/{id}`, com o mesmo `supply.timeout_seconds`. Uma falha desse GET, ou um documento sem severidade publicada, avisa e permanece não verificado. osv-scanner não é executado.
 

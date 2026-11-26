@@ -14,7 +14,8 @@ from bob_quality.adapters.runner import (
     banner_version,
     default_runner,
 )
-from bob_quality.diff import as_diff_path
+from bob_quality.config import _excluded
+from bob_quality.diff import as_diff_path, normalize_include_root
 from bob_quality.messages import Text, msg
 from bob_quality.models import KnipKind, TypeScriptDead
 from bob_quality.npm_tools import npm_prefix
@@ -71,6 +72,9 @@ def run_knip(
     cwd: Path,
     timeout_seconds: int,
     runner: Runner = default_runner,
+    *,
+    include: tuple[str, ...],
+    exclude: tuple[str, ...],
 ) -> KnipCapture:
     try:
         prefix = str(npm_prefix())
@@ -85,7 +89,40 @@ def run_knip(
     files = parse_knip_json(result.stdout)
     if files is None:
         return KnipCapture(result.code, False, None, msg("supply.knip_json"))
-    return KnipCapture(result.code, True, KnipDocument(version, files), "")
+    scoped = _scoped_files(cwd, files, include, exclude)
+    return KnipCapture(result.code, True, KnipDocument(version, scoped), "")
+
+
+def _scoped_files(
+    cwd: Path,
+    files: tuple[KnipFile, ...],
+    include: tuple[str, ...],
+    exclude: tuple[str, ...],
+) -> tuple[KnipFile, ...]:
+    root = cwd.absolute()
+    roots = tuple(normalize_include_root(root / name) for name in include)
+    excluded = _normalized_excludes(exclude)
+    if "." in excluded:
+        return ()
+    scoped: list[KnipFile] = []
+    for item in files:
+        relative = _reported_path(root, item.file)
+        if relative is None or _excluded(relative, excluded):
+            continue
+        if any((root / relative).is_relative_to(allowed) for allowed in roots):
+            scoped.append(KnipFile(relative.as_posix(), item.by_type))
+    return tuple(scoped)
+
+
+def _normalized_excludes(exclude: tuple[str, ...]) -> tuple[str, ...]:
+    return tuple(Path(name).as_posix() for name in exclude if name)
+
+
+def _reported_path(root: Path, raw: str) -> Path | None:
+    path = root / raw
+    if path.is_relative_to(root) and as_diff_path(root, raw) is not None:
+        return path.relative_to(root)
+    return None
 
 
 def _version(cwd: Path, timeout: int, runner: Runner, prefix: str) -> str:

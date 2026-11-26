@@ -1183,3 +1183,37 @@ def test_build_wheel_uses_verify_dist(tmp_path: Path, case: str) -> None:
     assert checked.returncode != 0
     needle = "VERIFY_DIST sem bob_quality-0.1.0-py3-none-any.whl"
     assert needle in checked.stderr
+
+
+def test_build_wheel_uses_checkout_commit_time(tmp_path: Path) -> None:
+    bin_dir = tmp_path / "build-venv" / "bin"
+    bin_dir.mkdir(parents=True)
+    for tool in ("python3", "pip"):
+        target = bin_dir / tool
+        target.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+        target.chmod(0o755)
+    python = bin_dir / "python"
+    python.write_text(
+        '#!/bin/sh\nprintf "%s\\n" "$SOURCE_DATE_EPOCH" > "$5/bob_quality-0.1.0-py3-none-any.whl"\n',
+        encoding="utf-8",
+    )
+    python.chmod(0o755)
+    script = (
+        "read_meta() { printf '%s\\n' 0.1.0 'build==1.6.1'; }\n"
+        "git() { [ \"$*\" = 'log -1 --format=%ct' ] && printf '%s\\n' 946684802; }\n"
+        + _body("die_preparo")
+        + "\n"
+        + _body("build_wheel")
+        + "\nbuild_wheel\n"
+    )
+    checked = _sh(
+        script,
+        env={
+            "PATH": "/usr/bin:/bin",
+            "T": str(tmp_path),
+            "PY_DIR": str(bin_dir),
+            "SOURCE_DATE_EPOCH": "946684800",
+        },
+    )
+    assert checked.returncode == 0, checked.stderr
+    assert (tmp_path / "dist" / "bob_quality-0.1.0-py3-none-any.whl").read_bytes() == b"946684802\n"

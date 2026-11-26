@@ -25,7 +25,7 @@ Estas partes funcionam na `main`:
 - A GitHub Action que comenta o relatório no pull request.
 - `bob doctor`, e o pacote `bob-quality` pronto para distribuir. Nada foi enviado ao PyPI.
 - `bob report`, que renderiza um `report.json` já gravado como Markdown.
-- Os gates opcionais `coverage`, `test_smells`, `cognitive`, `supply`, `security`, `typing`, `secrets` e `dead_code`, pedidos com `bob check --gates`.
+- Os gates opcionais `coverage`, `test_smells`, `cognitive`, `supply`, `security`, `typing`, `secrets` e `dead_code`, pedidos com `bob check --gates`. O gate supply aplica `paths.include` e `paths.exclude` aos imports TypeScript não declarados que o Knip aponta.
 - O comando único de instalação (`install.sh`), `bob setup`, `bob update` e `bob --version`, com o workflow `release` que gera os assets da release.
 - Os manifestos de plugin para Claude Code, Cursor, Copilot e Devin, e o instalador de skills ([#10](https://github.com/fazedordecodigo/bob/issues/10)). Nada foi enviado a marketplace.
 
@@ -126,7 +126,7 @@ Cada comando aceita estas flags:
 | `bob crap` | `--base`, `--config`, `--out`, `--threshold`, `--coverage-file` |
 | `bob dry` | `--base`, `--config`, `--out`, `--dry-fail`, `--max-new-clones` |
 | `bob deps` | `--base`, `--config`, `--out` |
-| `bob mutate` | `--base`, `--config`, `--out`, `--max-workers`, `--since-last-run` (remuta só funções cujo texto, ou o código de produção em volta, mudou desde a última execução registrada) |
+| `bob mutate` | `--base`, `--config`, `--out`, `--max-workers` (define `--max-children` no mutmut para Python e `--concurrency` no Stryker para TypeScript), `--since-last-run` (remuta só funções cujo texto, ou o código de produção em volta, mudou desde a última execução registrada) |
 | `bob waive` | `arquivo::função` ou um Alvo do relatório de mutação, ou um id de gate com prefixo, `--reason` |
 | `bob doctor` | `--install` |
 

@@ -29,7 +29,7 @@ from bob_quality.adapters.registries import (
     probe_existence,
 )
 from bob_quality.adapters.runner import ProcessExit, ProcessFault
-from bob_quality.diff import changed_lines
+from bob_quality.diff import changed_lines, normalize_include_root
 from bob_quality.messages import msg, render
 
 RAW = Path(__file__).parent / "fixtures" / "raw"
@@ -38,6 +38,10 @@ DEPTRY = (RAW / "deptry.json").read_text()
 KNIP = (RAW / "knip.json").read_text()
 OSV = (RAW / "osv-batch.json").read_bytes()
 _VULN = "https://api.osv.dev/v1/vulns/"
+
+
+def test_normalize_include_root_keeps_relative_paths_relative() -> None:
+    assert normalize_include_root(Path("src/nested/..")) == Path("src")
 
 
 def test_parse_deptry_json_keeps_every_code_and_a_null_line() -> None:
@@ -125,13 +129,65 @@ def test_run_knip_returns_exit_1_without_an_include_filter(tmp_path: Path) -> No
         assert args[-2:] == ["--reporter", "json"]
         return ProcessExit(1, KNIP, "")
 
-    capture = run_knip(tmp_path, 30, runner)
+    capture = run_knip(tmp_path, 30, runner, include=("src",), exclude=())
 
     assert capture.exit_code == 1
     assert capture.parsed is True
     assert capture.document is not None
     assert capture.document.version == "6.41.0"
     assert capture.document.files[0].by_type["unlisted"] == (KnipHit("left-pad", 4, 20),)
+
+
+@pytest.mark.parametrize(
+    ("file", "include", "exclude", "expected"),
+    [
+        ("src/app.ts", (".",), (".",), ()),
+        ("linked/app.ts", ("linked",), ("./linked/",), ()),
+        ("linked/app.ts", ("linked",), (), ("linked/app.ts",)),
+        ("src/app.ts", ("linked",), (), ()),
+        ("linked/app.ts", ("src",), (), ()),
+        ("src/app.ts", ("linked/..",), (), ("src/app.ts",)),
+        ("real/app.ts", ("deep/..",), (), ("real/app.ts",)),
+        ("src/app.ts", ("deep/..",), (), ()),
+        ("real/alias/app.ts", ("deep/../alias",), (), ("real/alias/app.ts",)),
+        ("src/app.ts", ("deep/../alias",), (), ()),
+        ("linked/app.ts", ("linked/subdir/..",), (), ("linked/app.ts",)),
+        ("src/app.ts", ("linked/subdir/..",), (), ()),
+        ("external/app.ts", (".",), (), ()),
+        ("src/../linked/app.ts", (".",), (), ()),
+        ("", (".",), (), ()),
+    ],
+)
+def test_run_knip_scopes_the_reported_path_without_following_aliases(
+    tmp_path: Path,
+    file: str,
+    include: tuple[str, ...],
+    exclude: tuple[str, ...],
+    expected: tuple[str, ...],
+) -> None:
+    repo = tmp_path / "repo"
+    (repo / "src").mkdir(parents=True)
+    (repo / "src/app.ts").touch()
+    (repo / "src/subdir").mkdir()
+    (repo / "linked").symlink_to("src", target_is_directory=True)
+    (repo / "real/inner").mkdir(parents=True)
+    (repo / "real/app.ts").touch()
+    (repo / "real/alias").symlink_to("../src", target_is_directory=True)
+    (repo / "deep").symlink_to("real/inner", target_is_directory=True)
+    (repo / "external").symlink_to(tmp_path, target_is_directory=True)
+    (tmp_path / "app.ts").touch()
+    report = json.dumps({"issues": [{"file": file, "unresolved": [{"name": "left-pad"}]}]})
+
+    def runner(args: list[str], cwd: Path, timeout: int) -> ProcessExit:
+        if args[-1] == "--version":
+            return ProcessExit(0, "6.41.0\n", "")
+        return ProcessExit(1, report, "")
+
+    capture = run_knip(repo, 30, runner, include=include, exclude=exclude)
+
+    assert capture.exit_code == 1
+    assert capture.document is not None
+    assert tuple(item.file for item in capture.document.files) == expected
 
 
 def test_probe_existence_reads_404_200_and_an_undecided_status() -> None:

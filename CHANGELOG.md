@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+`bob mutate --max-workers N` now passes `--concurrency N` to Stryker for TypeScript mutation runs.
+Without the flag, Stryker keeps its default concurrency.
+
+`bob mutate --max-workers N` agora passa `--concurrency N` para o Stryker na mutação de TypeScript.
+Sem a flag, o Stryker mantém a concorrência padrão.
+
 `bob waive` accepts the prefixed IDs for every gate that supports waivers, without hand-editing
 `.bob/waivers.yaml`. Mutation targets still have to match a survivor from the last mutation run.
 
@@ -26,6 +32,12 @@ execução registrada: uma função em cache com o mesmo hash, a mesma versão d
 impressão da suíte é reusada, sobreviventes inclusive enquanto nenhum arquivo Python fora da suíte
 mudar, em vez de ser remutada. Antes, a flag só chegava à linha de reprodução.
 Um mutante reusado continua apontando para as linhas atuais da função depois que o código acima dela se move.
+
+## v0.1.0
+
+Promoted to a [stable release](https://github.com/fazedordecodigo/bob/releases/tag/v0.1.0) on 2026-11-26. The release includes the installer, wheel, and checksums. See the [release verification record](docs/release-checks/v0.1.0.md) for the promotion and asset checks.
+
+Promovida a [release estável](https://github.com/fazedordecodigo/bob/releases/tag/v0.1.0) em 2026-11-26. A release inclui o instalador, o wheel e os checksums. Consulte o [registro de verificação da release](docs/release-checks/v0.1.0.md) para ver a promoção e as verificações dos assets.
 
 The `bob setup` help names everything the command installs (npm tools, gitleaks, skills, `bob.yaml`,
 pre-push hook), and the `bob mutate` help names Stryker next to mutmut; the docs list `setup`,
@@ -298,3 +310,9 @@ Um valor com tipo errado no `bob.yaml`, e um erro de sintaxe YAML em `.bob/waive
 bob ships only `bob-check`, `harden`, and `review-report`. The 27 Matt Pocock skills are gone from the repository and from both plugin manifests. `review-report` states its own Summary / Evidence / Merge Danger template. A later install deletes one of those folders only when its `NOTICE` is a regular file with the bytes the old installer copied from the vendored pin `49dd158d1076134a641b33efb035946536778336`. A symlink `NOTICE` does not count, even when it points at a copy of that file. A file, a symlink, or a folder that only shares the name stays, and the installer warns on stderr. It copies `LICENSE` and does not copy `NOTICE`. A second run leaves the same tree and the same warnings.
 
 O bob traz só `bob-check`, `harden` e `review-report`. As 27 skills do Matt Pocock saíram do repositório e dos dois manifestos. A `review-report` traz o próprio molde Summary / Evidence / Merge Danger. Uma instalação seguinte apaga uma dessas pastas só quando o `NOTICE` dela é um arquivo regular com os bytes que o instalador antigo copiava do pin `49dd158d1076134a641b33efb035946536778336`. Um `NOTICE` que é link simbólico não conta, mesmo quando aponta para uma cópia desse arquivo. Um arquivo, um link simbólico ou uma pasta que só divide o nome ficam, e o instalador avisa no stderr. Ele copia o `LICENSE` e não copia o `NOTICE`. Uma segunda execução deixa a mesma árvore e os mesmos avisos.
+
+Knip's undeclared TypeScript imports now respect `paths.include` and `paths.exclude` in the
+supply gate.
+
+Os imports TypeScript não declarados que o Knip aponta agora respeitam `paths.include` e
+`paths.exclude` no gate supply.
