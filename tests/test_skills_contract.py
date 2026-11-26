@@ -15,7 +15,7 @@ SPEC_CLI_LINES = [
     "bob deps",
     "bob mutate  [--base REF] [--since-last-run] [--max-workers N]",
     "bob report  [--in .bob/] [--out .bob/report.md]",
-    'bob waive   <target> --reason "texto de uma linha"',
+    'bob waive   <file::function|Target> --reason "texto de uma linha"',
     "bob doctor  # verifica ferramentas e versões instaladas",
     "bob <comando> [--lang en|pt-BR]  # idioma da saída (padrão: en)",
 ]
