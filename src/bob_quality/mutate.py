@@ -192,7 +192,6 @@ def _prepare_mutation(
     cached, broken = _safe_cache(cache, versions, waiver_rows)
     if broken is not None:
         return broken
-    cached = replace(cached, source=_source_or_none(cwd))
     return versions, waivers, waiver_rows, cache, _plan_functions(
         measured, diff_lines, cached, cwd, waivers
     )
@@ -260,6 +259,7 @@ def _plan_functions(
     cwd: Path,
     waivers: list[Waiver],
 ) -> _Plan:
+    view = replace(view, source=_source_or_none(cwd))
     remutate, reuse = _split_functions(measured, diff_lines, view, cwd, waivers)
     by_key = {f"{item.file}::{item.name}": item for item in measured}
     return _Plan(

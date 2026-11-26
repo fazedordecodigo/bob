@@ -5,7 +5,9 @@ from __future__ import annotations
 import subprocess
 from pathlib import Path
 
-from bob_quality.diff import changed_lines, worktree_lines
+import pytest
+
+from bob_quality.diff import GitError, changed_lines, worktree_lines
 from helpers import commit_on_branch, commit_on_main, init_python_repo
 
 FILE = "src/app/flow.py"
@@ -157,3 +159,21 @@ def test_a_deleted_first_line_anchor_falls_back_to_line_one(tmp_path: Path) -> N
 
     assert changed_lines(repo, "main") == {FILE: {1}}
     assert _projected(repo) == {1}
+
+
+def test_a_plain_set_is_projected_like_changed_lines(tmp_path: Path) -> None:
+    repo = _branch(tmp_path, None, "a = 1\nb = 2\n", "# note\na = 1\nb = 2\n")
+
+    assert worktree_lines(repo, {FILE: {2}}) == {FILE: {3}}
+
+
+def test_a_branch_file_deleted_locally_leaves_the_scope(tmp_path: Path) -> None:
+    repo = _branch(tmp_path, None, "a = 1\nb = 2\n", "")
+    (repo / FILE).unlink()
+
+    assert _projected(repo) == set()
+
+
+def test_outside_a_repository_the_projection_fails_with_the_git_command(tmp_path: Path) -> None:
+    with pytest.raises(GitError, match="'diff'"):
+        worktree_lines(tmp_path, {FILE: {1}})

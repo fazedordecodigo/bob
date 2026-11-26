@@ -5,8 +5,6 @@ from __future__ import annotations
 import re
 import subprocess
 from collections.abc import Mapping, Set
-from dataclasses import dataclass, field
-from difflib import SequenceMatcher
 from pathlib import Path
 
 HUNK_RE = re.compile(r"^@@ -\d+(?:,\d+)? \+(\d+)(?:,(\d+))? @@")
@@ -36,13 +34,16 @@ class ChangedLines(set[int]):
 def worktree_lines(cwd: Path, lines: dict[str, set[int]]) -> dict[str, set[int]]:
     """Leva as linhas do diff de HEAD para a árvore de trabalho, que é onde o gate mede.
 
-    Uma linha fora dos hunks locais só se move. Dentro de um hunk, ela vai para a linha de
-    mesmo texto. Sem linha igual, a correspondência é ambígua e vale o bloco novo inteiro.
-    Uma linha apagada localmente sai do escopo, a não ser que marque uma remoção do commit:
-    aí a âncora vai para a linha anterior que sobrou.
+    Uma linha fora dos hunks locais só se move. Uma linha que um hunk local substitui vale o
+    bloco novo inteiro, porque o Git não diz qual linha nova corresponde a qual. Uma linha
+    apagada localmente sai do escopo, a não ser que marque uma remoção do commit: aí a âncora
+    vai para a linha anterior que sobrou.
     """
-    if not lines:
-        return lines
+    return {file: _shift(touched, _local_hunks(cwd, file)) for file, touched in lines.items()}
+
+
+def _local_hunks(cwd: Path, file: str) -> list[tuple[int, ...]]:
+    """Os cabeçalhos `@@` do diff local de um arquivo: nenhuma linha de conteúdo começa com `@`."""
     patch = _git_raw(
         cwd,
         "diff",
@@ -51,14 +52,15 @@ def worktree_lines(cwd: Path, lines: dict[str, set[int]]) -> dict[str, set[int]]
         "--no-color",
         "--no-ext-diff",
         "--no-textconv",
-        "--dst-prefix=b/",
         "HEAD",
-    ).decode("utf-8", "surrogateescape")
-    hunks = _local_hunks(patch) if patch else {}
-    return {
-        file: _shift(touched, hunks[file]) if file in hunks else touched
-        for file, touched in lines.items()
-    }
+        "--",
+        file,
+    ).decode(errors="surrogateescape")
+    return [
+        tuple(int(group or "1") for group in match.groups())
+        for match in map(FULL_HUNK_RE.match, patch.split("\n"))
+        if match
+    ]
 
 
 def _git_raw(cwd: Path, *args: str) -> bytes:
@@ -68,72 +70,25 @@ def _git_raw(cwd: Path, *args: str) -> bytes:
         raise GitError(str(exc)) from exc
 
 
-@dataclass
-class _Hunk:
-    old: int
-    new: int
-    removed: list[str] = field(default_factory=list)
-    added: list[str] = field(default_factory=list)
-    targets: list[set[int]] = field(default_factory=list)
-
-
-def _local_hunks(patch: str) -> dict[str, list[_Hunk]]:
-    hunks: dict[str, list[_Hunk]] = {}
-    current: list[_Hunk] = []
-    pending = 0
-    for line in patch.split("\n"):
-        if pending and not line.startswith("\\"):
-            pending -= 1
-            (current[-1].added if line.startswith("+") else current[-1].removed).append(line[1:])
-        elif line.startswith("+++ "):
-            current = hunks.setdefault(line[4:].removeprefix("b/"), [])
-        elif match := FULL_HUNK_RE.match(line):
-            old, old_count, new, new_count = (int(group or "1") for group in match.groups())
-            current.append(_Hunk(old, new))
-            pending = old_count + new_count
-    return hunks
-
-
-def _targets(hunk: _Hunk) -> list[set[int]]:
-    """Para cada linha removida: as linhas novas que a substituem, ou nenhuma se foi apagada."""
-    targets: list[set[int]] = []
-    matcher = SequenceMatcher(None, hunk.removed, hunk.added, autojunk=False)
-    for tag, i1, i2, j1, j2 in matcher.get_opcodes():
-        if tag == "equal":
-            targets.extend({hunk.new + j1 + k} for k in range(i2 - i1))
-        elif tag != "insert":
-            block = set(range(hunk.new + j1, hunk.new + j2))
-            targets.extend(set(block) for _ in range(i1, i2))
-    return targets
-
-
-def _shift(touched: set[int], hunks: list[_Hunk]) -> set[int]:
+def _shift(touched: set[int], hunks: list[tuple[int, ...]]) -> set[int]:
     anchors = getattr(touched, "anchors", frozenset())
-    for hunk in hunks:
-        hunk.targets = _targets(hunk)
     moved: set[int] = set()
     for line in touched:
         moved.update(_shift_line(line, hunks, line in anchors))
     return moved
 
 
-def _shift_line(line: int, hunks: list[_Hunk], anchor: bool) -> set[int]:
+def _shift_line(line: int, hunks: list[tuple[int, ...]], anchor: bool) -> set[int]:
     delta = 0
-    for hunk in hunks:
-        removed = len(hunk.removed)
-        if line < hunk.old + (removed == 0):
+    for old, removed, new, added in hunks:
+        if line < old + (removed == 0):
             break
-        if line < hunk.old + removed:
-            return hunk.targets[line - hunk.old] or _anchor(line, hunk, anchor)
-        delta += len(hunk.added) - removed
+        if line < old + removed:
+            if added:
+                return set(range(new, new + added))
+            return {max(new, 1)} if anchor else set()
+        delta += added - removed
     return {line + delta}
-
-
-def _anchor(line: int, hunk: _Hunk, anchor: bool) -> set[int]:
-    if not anchor:
-        return set()
-    survivors = [target for target in hunk.targets[: line - hunk.old] if target]
-    return {max(survivors[-1])} if survivors else {max(hunk.new - bool(hunk.added), 1)}
 
 
 def parse_unified_diff(patch: str) -> dict[str, set[int]]:

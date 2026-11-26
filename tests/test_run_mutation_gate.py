@@ -307,3 +307,76 @@ def test_a_waived_function_carried_under_the_same_key_is_reused_back_in_scope(
 
     assert len(runs) == 1
     assert back.summary["remutated"] == []
+
+
+def test_a_function_inserted_above_locally_does_not_take_the_branch_scope(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    runs: list[tuple[Path, list[str], int | None]],
+) -> None:
+    monkeypatch.setattr(mutate, "mutmut_version", lambda: VERSIONS["mutmut"])
+    repo = init_python_repo(tmp_path / "repo")
+    commit_on_main(repo, "src/app/flow.py", "def f(n):\n    return n > 0\n", "add f")
+    commit_on_branch(repo, "work", "src/app/flow.py", "def f(n):\n    return n > 1\n", "f>1")
+    (repo / "src" / "app" / "flow.py").write_text(
+        "def g(n):\n    return n < 0\n\n\ndef f(n):\n    return n > 1\n"
+    )
+
+    _gate(repo)
+
+    patterns = " ".join(runs[0][1])
+    assert "x_f" in patterns
+    assert "x_g" not in patterns
+
+
+def test_the_baseline_runs_in_the_repo_when_no_exit_is_given(
+    repo: Path, monkeypatch: pytest.MonkeyPatch, runs: list[tuple[Path, list[str], int | None]]
+) -> None:
+    seen: list[Path] = []
+    monkeypatch.setattr(mutate, "pytest_exit_code", lambda cwd: seen.append(cwd) or 0)
+
+    _gate(repo, baseline=None)
+
+    assert seen == [repo]
+
+
+def test_a_baseline_that_cannot_run_keeps_versions_and_waivers(
+    repo: Path, monkeypatch: pytest.MonkeyPatch, runs: list[tuple[Path, list[str], int | None]]
+) -> None:
+    def broken(_cwd: Path) -> int:
+        raise ToolError("pytest is gone")
+
+    monkeypatch.setattr(mutate, "pytest_exit_code", broken)
+
+    outcome = _gate(repo, baseline=None)
+
+    assert outcome.exit_code == 4
+    assert outcome.versions == VERSIONS
+    assert [row["id"] for row in outcome.waivers] == [WAIVER["id"]]
+
+
+def test_a_mutmut_failure_keeps_versions_and_waivers(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def broken(_cwd: Path, _patterns: list[str], _workers: int | None) -> None:
+        raise ToolError("mutmut is gone")
+
+    monkeypatch.setattr(mutate, "run_mutmut", broken)
+
+    outcome = _gate(repo)
+
+    assert outcome.exit_code == 4
+    assert outcome.versions == VERSIONS
+    assert [row["id"] for row in outcome.waivers] == [WAIVER["id"]]
+
+
+def test_a_waived_function_that_no_longer_exists_leaves_the_cache(
+    repo: Path, runs: list[tuple[Path, list[str], int | None]]
+) -> None:
+    _gate(repo)
+    (repo / "src" / "app" / "weak.py").unlink()
+
+    run_mutation_gate(repo, CONFIG, {}, repo / ".bob", max_workers=2, baseline=0)
+
+    cache = json.loads((repo / ".bob" / CACHE_NAME).read_text())
+    assert "src/app/weak.py::classify" not in cache["functions"]
