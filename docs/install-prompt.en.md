@@ -387,7 +387,9 @@ BOB_HOME="${BOB_HOME:-$D/bob-quality}"
 case "$BOB_HOME" in /*) ;; *) fail "launcher: BOB_HOME=$BOB_HOME must be absolute" ;; esac
 W="${TMPDIR:-/tmp}/bob-install-$(id -u)"
 [ "$(pwd -P)" = "$(cat "$W/project")" ] || fail "setup: run this block in the project root $(cat "$W/project")"
+rm -f "$W/setup.ok"
 BOB_INSTALL_PROFILE="$(cat "$W/profile")" "$BOB_HOME/bin/bob" setup --lang "${BOB_LANG:-en}" || fail "setup: bob setup exited $?; see the output above"
+: > "$W/setup.ok"
 ```
 
 ## 14. verificação
@@ -400,14 +402,13 @@ BOB_HOME="${BOB_HOME:-$D/bob-quality}"
 case "$BOB_HOME" in /*) ;; *) fail "launcher: BOB_HOME=$BOB_HOME must be absolute" ;; esac
 W="${TMPDIR:-/tmp}/bob-install-$(id -u)"
 V=$(cat "$W/version"); X=${V#v}
-if "$BOB_HOME/bin/bob" doctor; then d=0; else d=$?; fi
+[ -f "$W/setup.ok" ] || fail "verificação: run the setup block first"
 BOB_LANG=en "$BOB_HOME/bin/bob" --version > "$W/version.out" || fail "verificação: bob --version failed"
 cat "$W/version.out"
-[ "$d" -eq 0 ] || fail "verificação: bob doctor exited $d, expected 0"
 [ "$(sed -n 1p "$W/version.out")" = "bob $X" ] || fail "verificação: bob --version does not show bob $X"
 [ "$(sed -n 2p "$W/version.out")" = "project skills: $X (.agents/skills)" ] || fail "verificação: project skills are not at $X"
 rm -rf "$W"
-echo "bob-prompt: verificação: ok (bob $X, bob doctor 0)"
+echo "bob-prompt: verificação: ok (bob $X, bob setup 0)"
 ```
 
 > Tests/release-check only: BOB_VERSION=vX.Y.Z pins the tag (e.g. a pre-release in the release-check). Otherwise, do not set it; the prompt installs the latest published release.

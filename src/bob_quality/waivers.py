@@ -35,6 +35,9 @@ class Waiver:
 
 
 _ENTRY_KEYS = frozenset(item.name for item in fields(Waiver))
+_GATE_WAIVER_NAMESPACES = frozenset(
+    {"cognitive", "coverage", "tests", "supply", "sast", "typing", "secret", "dead"}
+)
 
 
 def waivers_path(cwd: Path) -> Path:
@@ -158,6 +161,11 @@ def _item_field(index: int, key: str | None = None) -> str:
     return f"{field}.{key}"
 
 
+def _gate_waiver_id(target: str) -> bool:
+    namespace, _, detail = target.partition(":")
+    return namespace in _GATE_WAIVER_NAMESPACES and bool(detail) and not detail.startswith(":")
+
+
 def add_waiver(
     cwd: Path,
     target: str,
@@ -175,7 +183,7 @@ def add_waiver(
         raise WaiverError(msg("waiver.no_target"))
     if wanted not in known and wanted in untested:
         raise WaiverError(msg("waiver.not_a_test", target=wanted))
-    if wanted not in known:
+    if wanted not in known and not _gate_waiver_id(wanted):
         raise WaiverError(msg("waiver.unknown_target", target=wanted))
     waiver = Waiver(
         id=wanted,

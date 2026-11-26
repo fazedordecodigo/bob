@@ -24,7 +24,7 @@ bob crap    [--base REF] [--threshold N] [--coverage-file PATH]
 bob dry     [--base REF] [--dry-fail] [--max-new-clones N]
 bob deps
 bob mutate  [--base REF] [--since-last-run] [--max-workers N]
-bob waive   <file::function|Target> --reason "texto de uma linha"
+bob waive   <target> --reason "texto de uma linha"
 bob doctor  # verifica ferramentas e versões instaladas
 ```
 

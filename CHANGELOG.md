@@ -2,6 +2,20 @@
 
 ## Unreleased
 
+`bob waive` accepts the prefixed IDs for every gate that supports waivers, without hand-editing
+`.bob/waivers.yaml`. Mutation targets still have to match a survivor from the last mutation run.
+
+`bob waive` aceita os IDs com prefixo de todos os gates que oferecem waivers, sem precisar editar
+`.bob/waivers.yaml` à mão. Alvos de mutação ainda precisam casar com um sobrevivente da última execução.
+
+`bob doctor` checks the Semgrep version through the security gate's pinned `uvx` command.
+`bob setup` and `bob doctor --install` still work without uv and check only the setup tools.
+The setup summary labels that check `setup tools` instead of `bob doctor`; scripts should use the exit code.
+
+O `bob doctor` verifica a versão do Semgrep pelo comando `uvx` fixado no gate de segurança.
+`bob setup` e `bob doctor --install` continuam funcionando sem uv e verificam apenas as ferramentas do setup.
+O resumo identifica essa checagem como `ferramentas do setup`, não `bob doctor`; scripts devem usar o código de saída.
+
 `bob mutate --since-last-run` limits the Python run to functions whose text changed since the last
 recorded run: a cached function with the same hash, mutmut version and suite fingerprint is reused,
 survivors included while no Python file outside the suite changed, instead of being remutated. Before, the flag only reached the reproduce line.

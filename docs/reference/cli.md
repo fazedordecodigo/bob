@@ -11,7 +11,7 @@ bob dry --base origin/main
 bob deps --base origin/main
 bob mutate --base origin/main
 bob report
-bob waive <file::function|Target> --reason "one line of text"
+bob waive <target> --reason "one line of text"
 bob doctor
 bob setup
 bob update
@@ -74,23 +74,25 @@ The spec says the local hook runs `crap,dry,deps` and that in CI the check runs 
 
 Lists each pin in `src/bob_quality/doctor.py` with the expected version and the found version. It exits `0` when every pin is satisfied and `4` when one is missing or outside the pin, and it prints the install command. It does not write `.bob/report.md`. A `-rc` suffix on the found version is outside the pin, and doctor exits `4`.
 
-Pins, in code order: lizard 1.24.1, deptry 0.25.1, coverage.py 7.16.2, node `>=22.18.0 <23`, c8 12.0.0, vitest 5.0.5, jscpd 5.4.1, eslint 9.39.5, eslint-plugin-sonarjs 2.0.4, mutmut 3.8.0, complexipy 8.0.1, import-linter 2.15, grimp 3.17, diff-cover 10.6.0, bandit 1.9.4, dependency-cruiser 18.6.0, gitleaks 8.30.1, vulture 2.16, knip 6.41.0, stryker 10.0.0, stryker-vitest-runner 10.0.0. The expected version of a Python tool comes from the installed `Requires-Dist` of `bob-quality`. Semgrep 1.180.0 is not in that list. The security gate calls `uvx --from semgrep==1.180.0`.
+Pins, in code order: lizard 1.24.1, deptry 0.25.1, coverage.py 7.16.2, node `>=22.18.0 <23`, c8 12.0.0, vitest 5.0.5, jscpd 5.4.1, eslint 9.39.5, eslint-plugin-sonarjs 2.0.4, mutmut 3.8.0, complexipy 8.0.1, import-linter 2.15, grimp 3.17, diff-cover 10.6.0, bandit 1.9.4, dependency-cruiser 18.6.0, gitleaks 8.30.1, vulture 2.16, knip 6.41.0, stryker 10.0.0, stryker-vitest-runner 10.0.0, Semgrep 1.180.0. The expected version of a packaged Python tool comes from the installed `Requires-Dist` of `bob-quality`.
 
-`bob doctor --install` runs `npm ci` in the installed package and then prints the same report. See [Installation](../getting-started/installation.md).
+Doctor probes Semgrep with the same pinned `uvx` runner as the security gate, with metrics and version checks disabled. A cold `uvx` cache may download the pinned tool and its dependencies. If the runner is missing or cannot report the pinned version, doctor exits `4`. `bob setup` checks only the tools it installs or requires, so it does not need `uvx`.
+
+`bob doctor --install` runs `npm ci` in the installed package, ensures gitleaks is installed, and reports the setup tools. Run `bob doctor` without `--install` to also check Semgrep. See [Installation](../getting-started/installation.md).
 
 `doctor` also passes through the configuration preflight. An invalid `bob.yaml` or `.bob/waivers.yaml` in the working directory makes doctor exit `4` before the version report. See [Exit 4](../exit-codes.md#exit-4).
 
 ## bob waive
 
 ```bash
-bob waive <file::function|Target> --reason "one line"
+bob waive <target> --reason "one line"
 ```
 
 Writes or replaces one row in `.bob/waivers.yaml` and exits `0`. It does not write `report.md`. The fields are in [Configuration](../guides/configuration.md#bobwaiversyaml).
 
-The target is `file::function`, which waives every survivor of the function, or the Target column of the last mutation report, which waives one survivor. The command reads survivors from `.bob/mutation-cache.json` and `.bob/stryker-mutants.json`. Run mutation first.
+For mutation, the target is `file::function`, which waives every survivor of the function, or the Target column of the last mutation report, which waives one survivor. The command reads survivors from `.bob/mutation-cache.json` and `.bob/stryker-mutants.json`. Run mutation first. For other gates, use the complete prefixed id from [Gates and waivers](../guides/gates-and-waivers.md) without running mutation.
 
-`--reason` is required in practice. A missing reason, an empty string, or a newline raises `WaiverError` and the process exits `4`. That message follows the resolved language. An empty target exits `4`. A target no survivor has, such as the mutant id or a bare function name, exits `4` and writes nothing.
+`--reason` is required in practice. A missing reason, an empty string, or a newline raises `WaiverError` and the process exits `4`. That message follows the resolved language. An empty target, an unsupported prefix, or an unrecognized mutation target such as the mutant id or a bare function name exits `4` and writes nothing.
 
 A `.bob/waivers.yaml` that is already invalid is rejected first, in English on stderr, also with `4`, and the file is not rewritten.
 
@@ -114,9 +116,9 @@ If the file is missing, the text is not JSON, or the shape is invalid, the comma
 bob setup
 ```
 
-Prepares the project in the working directory, which has to be the root of a git repository. The steps run in the order of `STEPS` in `src/bob_quality/setup_cmd.py`: `projeto` (git and the repository root), `runtimes` (the Python floor from `Requires-Python` and the Node range), `npm` (the pinned npm tools), `gitleaks` (the gitleaks binary in `BOB_HOME/bin`), `skills` (the three skills in `.agents/skills`), `bob.yaml` (written only when the file is missing), and `hook` (the pre-push hook). An existing `bob.yaml`, `.bob/waivers.yaml`, and a pre-push hook that bob did not write are preserved. Then it runs `bob doctor` and prints a summary of what it installed, what it preserved, and the warnings.
+Prepares the project in the working directory, which has to be the root of a git repository. The steps run in the order of `STEPS` in `src/bob_quality/setup_cmd.py`: `projeto` (git and the repository root), `runtimes` (the Python floor from `Requires-Python` and the Node range), `npm` (the pinned npm tools), `gitleaks` (the gitleaks binary in `BOB_HOME/bin`), `skills` (the three skills in `.agents/skills`), `bob.yaml` (written only when the file is missing), and `hook` (the pre-push hook). An existing `bob.yaml`, `.bob/waivers.yaml`, and a pre-push hook that bob did not write are preserved. Then it checks the setup-managed tool versions and prints a summary of what it installed, what it preserved, and the warnings.
 
-A failed step stops the run, prints the step and the reason on stderr, and exits `4`. Otherwise the exit is `0` when `bob doctor` exits `0`, and `4` when it does not. The one-line install runs this command. See [Installation](../getting-started/installation.md).
+A failed step stops the run, prints the step and the reason on stderr, and exits `4`. Otherwise it exits `0` when the setup tool versions match, or `4` when they do not. The one-line install runs this command. See [Installation](../getting-started/installation.md).
 
 ## bob update
 

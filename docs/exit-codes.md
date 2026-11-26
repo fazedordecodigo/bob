@@ -20,7 +20,7 @@ An unknown gate name is `not_run` and contributes `0`.
 
 With no code to measure, `crap` and `coverage` are `not_run` with the reason `no code to measure` and contribute `0`. No code means no `.py`, `.ts`, `.tsx`, `.js`, `.jsx`, `.mjs`, or `.cjs` file under `paths.include` and outside `paths.exclude`, without following symlinks. Those two gates then run no tool, and the report shows ⏭️.
 
-`bob waive` with a valid reason and a target of a survivor from the last mutation report exits `0` and only writes `.bob/waivers.yaml`.
+`bob waive` with a valid reason and a survivor target or supported prefixed gate id exits `0` and only writes `.bob/waivers.yaml`.
 
 `bob doctor` exits `0` when every pin matches the found version.
 
@@ -89,7 +89,7 @@ An invalid `duplication` is in the same barrier as the other keys. English stder
 
 A `paths.include` entry that is not on disk is in the same barrier. English stderr names the file and each missing entry, as in `bob.yaml: paths.include does not exist: missing-root`. Nothing is written. An omitted or empty `paths.include` stays `src` and is not checked. `run_check` called directly, without the CLI, writes the early report with that reason and the same exit `4`.
 
-A missing `--reason` on `bob waive` is also `4`, and that sentence follows the CLI language, because it happens inside the waive command after the file barrier. A target that no survivor in `.bob/mutation-cache.json` or `.bob/stryker-mutants.json` has also exits `4`, in the CLI language, and `waivers.yaml` does not change.
+A missing `--reason` on `bob waive` is also `4`, and that sentence follows the CLI language, because it happens inside the waive command after the file barrier. An unknown mutation target or unsupported gate prefix also exits `4`, in the CLI language, and `waivers.yaml` does not change.
 
 ### During measurement, with a report
 

@@ -230,10 +230,11 @@ class LanguageDiff:
 @dataclass(frozen=True)
 class DiffCoverage:
     languages: tuple[LanguageDiff, ...]
+    unattributed: tuple[DiffLine, ...] = ()
 
 
 def flatten_uncovered(coverage: DiffCoverage) -> tuple[DiffLine, ...]:
-    rows: list[DiffLine] = []
+    rows = list(coverage.unattributed)
     for item in coverage.languages:
         rows.extend(item.uncovered)
     return tuple(sorted(rows, key=lambda row: (row.file, row.line)))
