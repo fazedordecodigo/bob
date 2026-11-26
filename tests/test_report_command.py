@@ -1188,17 +1188,44 @@ def test_report_renders_an_empty_secrets_list(tmp_path: Path) -> None:
             "survivors": [{"id": "x", "function": "add", "file": 1, "line": 4}],
         },
         {**_MINIMAL, "mutation": {"no_coverage": {"total": 1, "functions": "nope"}}},
-        {**_MINIMAL, "diff_coverage": []},
-        {**_MINIMAL, "diff_coverage": {"python": "85", "uncovered": []}},
-        {**_MINIMAL, "diff_coverage": {"java": 85, "uncovered": []}},
-        {**_MINIMAL, "diff_coverage": {"python": 85, "uncovered": None}},
-        {**_MINIMAL, "diff_coverage": {"python": 85, "uncovered": [{"file": 1, "line": 2}]}},
-        {**_MINIMAL, "diff_coverage": {"python": 85, "uncovered": [{"file": "a.py", "line": "2"}]}},
-        {**_MINIMAL, "test_smells": None},
-        {**_MINIMAL, "test_smells": [{"file": 1, "line": 2, "rule": "smell", "waiver": None}]},
-        {**_MINIMAL, "test_smells": [{"file": "a.py", "line": "2", "rule": "smell", "waiver": None}]},
-        {**_MINIMAL, "test_smells": [{"file": "a.py", "line": 2, "rule": None, "waiver": None}]},
-        {**_MINIMAL, "test_smells": [{"file": "a.py", "line": 2, "rule": "smell", "waiver": 1}]},
+        pytest.param({**_MINIMAL, "diff_coverage": []}, id="diff-coverage-object"),
+        pytest.param(
+            {**_MINIMAL, "diff_coverage": {"python": "85", "uncovered": []}},
+            id="diff-coverage-percent",
+        ),
+        pytest.param(
+            {**_MINIMAL, "diff_coverage": {"java": 85, "uncovered": []}},
+            id="diff-coverage-language",
+        ),
+        pytest.param(
+            {**_MINIMAL, "diff_coverage": {"python": 85, "uncovered": None}},
+            id="diff-coverage-uncovered-list",
+        ),
+        pytest.param(
+            {**_MINIMAL, "diff_coverage": {"python": 85, "uncovered": [{"file": 1, "line": 2}]}},
+            id="diff-coverage-uncovered-file",
+        ),
+        pytest.param(
+            {**_MINIMAL, "diff_coverage": {"python": 85, "uncovered": [{"file": "a.py", "line": "2"}]}},
+            id="diff-coverage-uncovered-line",
+        ),
+        pytest.param({**_MINIMAL, "test_smells": None}, id="test-smells-list"),
+        pytest.param(
+            {**_MINIMAL, "test_smells": [{"file": 1, "line": 2, "rule": "smell", "waiver": None}]},
+            id="test-smell-file",
+        ),
+        pytest.param(
+            {**_MINIMAL, "test_smells": [{"file": "a.py", "line": "2", "rule": "smell", "waiver": None}]},
+            id="test-smell-line",
+        ),
+        pytest.param(
+            {**_MINIMAL, "test_smells": [{"file": "a.py", "line": 2, "rule": None, "waiver": None}]},
+            id="test-smell-rule",
+        ),
+        pytest.param(
+            {**_MINIMAL, "test_smells": [{"file": "a.py", "line": 2, "rule": "smell", "waiver": 1}]},
+            id="test-smell-waiver",
+        ),
         {
             **_MINIMAL,
             "mutation": {
