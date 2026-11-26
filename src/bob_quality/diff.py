@@ -8,7 +8,6 @@ from collections.abc import Mapping, Set
 from dataclasses import dataclass, field
 from difflib import SequenceMatcher
 from pathlib import Path
-from typing import Any
 
 HUNK_RE = re.compile(r"^@@ -\d+(?:,\d+)? \+(\d+)(?:,(\d+))? @@")
 FULL_HUNK_RE = re.compile(r"^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@")
@@ -55,8 +54,11 @@ def worktree_lines(cwd: Path, lines: dict[str, set[int]]) -> dict[str, set[int]]
         "--dst-prefix=b/",
         "HEAD",
     ).decode("utf-8", "surrogateescape")
-    hunks = _local_hunks(patch)
-    return {file: _shift(touched, hunks.get(file, [])) for file, touched in lines.items()}
+    hunks = _local_hunks(patch) if patch else {}
+    return {
+        file: _shift(touched, hunks[file]) if file in hunks else touched
+        for file, touched in lines.items()
+    }
 
 
 @dataclass
@@ -73,9 +75,7 @@ def _local_hunks(patch: str) -> dict[str, list[_Hunk]]:
     current: list[_Hunk] = []
     pending = 0
     for line in patch.split("\n"):
-        if line.startswith("\\"):
-            continue
-        if pending:
+        if pending and not line.startswith("\\"):
             pending -= 1
             (current[-1].added if line.startswith("+") else current[-1].removed).append(line[1:])
         elif line.startswith("+++ "):
@@ -84,9 +84,6 @@ def _local_hunks(patch: str) -> dict[str, list[_Hunk]]:
             old, old_count, new, new_count = (int(group or "1") for group in match.groups())
             current.append(_Hunk(old, new))
             pending = old_count + new_count
-    for found in hunks.values():
-        for hunk in found:
-            hunk.targets = _targets(hunk)
     return hunks
 
 
@@ -105,6 +102,8 @@ def _targets(hunk: _Hunk) -> list[set[int]]:
 
 def _shift(touched: set[int], hunks: list[_Hunk]) -> set[int]:
     anchors = getattr(touched, "anchors", frozenset())
+    for hunk in hunks:
+        hunk.targets = _targets(hunk)
     moved: set[int] = set()
     for line in touched:
         moved.update(_shift_line(line, hunks, line in anchors))
@@ -201,16 +200,21 @@ def as_diff_path(cwd: Path, raw: str) -> str | None:
 
 
 def _git(cwd: Path, *args: str) -> str:
-    return _run_git(cwd, args, text=True)
-
-
-def _git_raw(cwd: Path, *args: str) -> bytes:
-    return _run_git(cwd, args, text=False)
-
-
-def _run_git(cwd: Path, args: tuple[str, ...], text: bool) -> Any:
     try:
-        completed = subprocess.run(["git", *args], cwd=cwd, check=True, capture_output=True, text=text)
+        completed = subprocess.run(
+            ["git", *args],
+            cwd=cwd,
+            check=True,
+            capture_output=True,
+            text=True,
+        )
     except (OSError, subprocess.CalledProcessError) as exc:
         raise GitError(str(exc)) from exc
     return completed.stdout
+
+
+def _git_raw(cwd: Path, *args: str) -> bytes:
+    try:
+        return subprocess.run(["git", *args], cwd=cwd, check=True, capture_output=True).stdout
+    except (OSError, subprocess.CalledProcessError) as exc:
+        raise GitError(str(exc)) from exc
