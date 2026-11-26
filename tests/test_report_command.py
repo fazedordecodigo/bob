@@ -1191,8 +1191,13 @@ def test_report_renders_an_empty_secrets_list(tmp_path: Path) -> None:
         {**_MINIMAL, "diff_coverage": []},
         {**_MINIMAL, "diff_coverage": {"python": "85", "uncovered": []}},
         {**_MINIMAL, "diff_coverage": {"java": 85, "uncovered": []}},
+        {**_MINIMAL, "diff_coverage": {"python": 85, "uncovered": None}},
+        {**_MINIMAL, "diff_coverage": {"python": 85, "uncovered": [{"file": 1, "line": 2}]}},
         {**_MINIMAL, "diff_coverage": {"python": 85, "uncovered": [{"file": "a.py", "line": "2"}]}},
         {**_MINIMAL, "test_smells": None},
+        {**_MINIMAL, "test_smells": [{"file": 1, "line": 2, "rule": "smell", "waiver": None}]},
+        {**_MINIMAL, "test_smells": [{"file": "a.py", "line": "2", "rule": "smell", "waiver": None}]},
+        {**_MINIMAL, "test_smells": [{"file": "a.py", "line": 2, "rule": None, "waiver": None}]},
         {**_MINIMAL, "test_smells": [{"file": "a.py", "line": 2, "rule": "smell", "waiver": 1}]},
         {
             **_MINIMAL,
