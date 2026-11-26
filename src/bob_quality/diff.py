@@ -63,6 +63,18 @@ def line_is_changed(file: str, line: int, changed: Mapping[str, Set[int]]) -> bo
     return line in changed.get(file, ())
 
 
+def normalize_include_root(path: Path) -> Path:
+    anchor = Path(path.anchor)
+    prefix = Path("/") if path.anchor == "//" else anchor
+    for part in path.relative_to(anchor).parts:
+        if part == "..":
+            # Resolve only the symlink being popped, not aliases left in the path.
+            prefix = (prefix.resolve() if prefix.is_symlink() else prefix).parent
+        else:
+            prefix /= part
+    return prefix
+
+
 def as_diff_path(cwd: Path, raw: str) -> str | None:
     if raw == "":
         return None

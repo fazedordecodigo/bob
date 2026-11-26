@@ -276,6 +276,19 @@ def test_manifests_walk_included_directories_and_skip_excluded_ones(tmp_path: Pa
     )
 
 
+def test_manifests_normalize_include_roots_and_skip_external_paths(tmp_path: Path) -> None:
+    repo = tmp_path / "repo"
+    (repo / "src/nested").mkdir(parents=True)
+    (repo / "src/package.json").write_text("{}\n")
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    (outside / "package.json").write_text("{}\n")
+
+    roots = (f"/{repo}/src/nested/..", str(outside))
+
+    assert _manifests(repo, "npm", roots, ()) == (repo / "src/package.json",)
+
+
 def test_keep_drops_a_directory_and_a_repeated_file(tmp_path: Path) -> None:
     found: list[Path] = []
     seen: set[Path] = set()

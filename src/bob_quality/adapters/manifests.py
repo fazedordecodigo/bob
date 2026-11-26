@@ -8,6 +8,7 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
 
+from bob_quality.diff import normalize_include_root
 from bob_quality.models import SupplyIndex
 
 _NAME = re.compile(r"[A-Za-z0-9](?:[A-Za-z0-9._-]*[A-Za-z0-9])?")
@@ -212,8 +213,8 @@ def _manifests(
     for path in _root_manifests(cwd, index):
         _keep(found, seen, cwd, path, exclude)
     for root in include:
-        base = cwd / root
-        if base.is_dir():
+        base = normalize_include_root(cwd / root)
+        if base.is_relative_to(cwd) and base.is_dir():
             _walk(found, seen, cwd, base, index, exclude)
     return tuple(found)
 

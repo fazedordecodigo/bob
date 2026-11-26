@@ -15,7 +15,7 @@ from bob_quality.adapters.runner import (
     default_runner,
 )
 from bob_quality.config import _excluded
-from bob_quality.diff import as_diff_path
+from bob_quality.diff import as_diff_path, normalize_include_root
 from bob_quality.messages import Text, msg
 from bob_quality.models import KnipKind, TypeScriptDead
 from bob_quality.npm_tools import npm_prefix
@@ -100,7 +100,7 @@ def _scoped_files(
     exclude: tuple[str, ...],
 ) -> tuple[KnipFile, ...]:
     root = cwd.absolute()
-    roots = tuple(_include_root(root / name) for name in include)
+    roots = tuple(normalize_include_root(root / name) for name in include)
     excluded = _normalized_excludes(exclude)
     if "." in excluded:
         return ()
@@ -112,16 +112,6 @@ def _scoped_files(
         if any((root / relative).is_relative_to(allowed) for allowed in roots):
             scoped.append(KnipFile(relative.as_posix(), item.by_type))
     return tuple(scoped)
-
-
-def _include_root(path: Path) -> Path:
-    prefix = Path(path.anchor).resolve()
-    for part in path.parts[1:]:
-        if part == "..":
-            prefix = (prefix.resolve() if prefix.is_symlink() else prefix).parent
-        else:
-            prefix /= part
-    return prefix
 
 
 def _normalized_excludes(exclude: tuple[str, ...]) -> tuple[str, ...]:

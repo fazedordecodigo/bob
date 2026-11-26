@@ -330,6 +330,7 @@ def test_run_supply_gate_scopes_knip_imports_to_configured_paths(tmp_path: Path)
     repo = _repo(tmp_path)
     kept = "packages/app/src/app.ts"
     single = "scripts/build.ts"
+    absolute = "tools/task.ts"
     generated = "packages/app/src/generated/app.ts"
     generated_sibling = "packages/app/src/generated-client/app.ts"
     tests = "packages/app/src/sub/tests/app.ts"
@@ -337,17 +338,18 @@ def test_run_supply_gate_scopes_knip_imports_to_configured_paths(tmp_path: Path)
     (repo / "package.json").write_text("{}\n")
     _commit(repo, "base")
     _git(repo, "checkout", "-b", "head")
-    for file in (kept, single, generated, generated_sibling, tests, outside):
+    for file in (kept, single, absolute, generated, generated_sibling, tests, outside):
         path = repo / file
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text("import 'unlisted-package'\n")
-    (repo / "scripts/nested").mkdir()
+    (repo / "tools/nested").mkdir()
     _commit(repo, "head")
     issues = [
         {"file": str(file), "unlisted": [{"name": "unlisted-package", "line": 1}]}
         for file in (
             repo / kept,
             single,
+            absolute,
             generated,
             generated_sibling,
             tests,
@@ -361,7 +363,7 @@ def test_run_supply_gate_scopes_knip_imports_to_configured_paths(tmp_path: Path)
         repo,
         Config(
             languages=("typescript",),
-            include=("./packages/app/src/", f"/{repo}/scripts/nested/../build.ts"),
+            include=("./packages/app/src/", single, f"/{repo}/tools/nested/.."),
             exclude=("./packages/app/src/generated/", "tests", ""),
         ),
         _diff(repo),
@@ -375,7 +377,7 @@ def test_run_supply_gate_scopes_knip_imports_to_configured_paths(tmp_path: Path)
     assert versions == {"knip": "6.41.0"}
     assert supply.rows == tuple(
         RowBlock(UndeclaredImport(file, "unlisted-package", 1))
-        for file in (kept, single, generated_sibling)
+        for file in (kept, single, absolute, generated_sibling)
     )
 
 
