@@ -408,7 +408,7 @@ cat "$W/version.out"
 [ "$(sed -n 1p "$W/version.out")" = "bob $X" ] || fail "verificação: bob --version does not show bob $X"
 [ "$(sed -n 2p "$W/version.out")" = "project skills: $X (.agents/skills)" ] || fail "verificação: project skills are not at $X"
 rm -rf "$W"
-echo "bob-prompt: verificação: ok (bob $X, bob doctor 0)"
+echo "bob-prompt: verificação: ok (bob $X, bob setup 0)"
 ```
 
 > Tests/release-check only: BOB_VERSION=vX.Y.Z pins the tag (e.g. a pre-release in the release-check). Otherwise, do not set it; the prompt installs the latest published release.

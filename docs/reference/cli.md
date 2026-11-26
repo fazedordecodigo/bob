@@ -78,7 +78,7 @@ Pins, in code order: lizard 1.24.1, deptry 0.25.1, coverage.py 7.16.2, node `>=2
 
 Doctor probes Semgrep with the same pinned `uvx` runner as the security gate, with metrics and version checks disabled. A cold `uvx` cache may download the pinned tool and its dependencies. If the runner is missing or cannot report the pinned version, doctor exits `4`. `bob setup` checks only the tools it installs or requires, so it does not need `uvx`.
 
-`bob doctor --install` runs `npm ci` in the installed package and then prints the same report. See [Installation](../getting-started/installation.md).
+`bob doctor --install` runs `npm ci` in the installed package, ensures gitleaks is installed, and reports the setup tools. Run `bob doctor` without `--install` to also check Semgrep. See [Installation](../getting-started/installation.md).
 
 `doctor` also passes through the configuration preflight. An invalid `bob.yaml` or `.bob/waivers.yaml` in the working directory makes doctor exit `4` before the version report. See [Exit 4](../exit-codes.md#exit-4).
 
@@ -116,9 +116,9 @@ If the file is missing, the text is not JSON, or the shape is invalid, the comma
 bob setup
 ```
 
-Prepares the project in the working directory, which has to be the root of a git repository. The steps run in the order of `STEPS` in `src/bob_quality/setup_cmd.py`: `projeto` (git and the repository root), `runtimes` (the Python floor from `Requires-Python` and the Node range), `npm` (the pinned npm tools), `gitleaks` (the gitleaks binary in `BOB_HOME/bin`), `skills` (the three skills in `.agents/skills`), `bob.yaml` (written only when the file is missing), and `hook` (the pre-push hook). An existing `bob.yaml`, `.bob/waivers.yaml`, and a pre-push hook that bob did not write are preserved. Then it runs `bob doctor` and prints a summary of what it installed, what it preserved, and the warnings.
+Prepares the project in the working directory, which has to be the root of a git repository. The steps run in the order of `STEPS` in `src/bob_quality/setup_cmd.py`: `projeto` (git and the repository root), `runtimes` (the Python floor from `Requires-Python` and the Node range), `npm` (the pinned npm tools), `gitleaks` (the gitleaks binary in `BOB_HOME/bin`), `skills` (the three skills in `.agents/skills`), `bob.yaml` (written only when the file is missing), and `hook` (the pre-push hook). An existing `bob.yaml`, `.bob/waivers.yaml`, and a pre-push hook that bob did not write are preserved. Then it checks the setup-managed tool versions and prints a summary of what it installed, what it preserved, and the warnings.
 
-A failed step stops the run, prints the step and the reason on stderr, and exits `4`. Otherwise the exit is `0` when `bob doctor` exits `0`, and `4` when it does not. The one-line install runs this command. See [Installation](../getting-started/installation.md).
+A failed step stops the run, prints the step and the reason on stderr, and exits `4`. Otherwise it exits `0` when the setup tool versions match, or `4` when they do not. The one-line install runs this command. See [Installation](../getting-started/installation.md).
 
 ## bob update
 

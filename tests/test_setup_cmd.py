@@ -73,8 +73,8 @@ _SAMPLES = {
 _MESSAGES = (
     (
         "cli.setup",
-        "Set up bob in this project (npm tools, gitleaks, skills, bob.yaml, pre-push hook) and run bob doctor",
-        "Prepara o bob neste projeto (ferramentas npm, gitleaks, skills, bob.yaml, hook pre-push) e roda o bob doctor",
+        "Set up bob in this project (npm tools, gitleaks, skills, bob.yaml, pre-push hook) and check setup tools",
+        "Prepara o bob neste projeto (ferramentas npm, gitleaks, skills, bob.yaml, hook pre-push) e verifica as ferramentas do setup",
     ),
     ("setup.step_ok", "bob setup: {step}: ok", "bob setup: {step}: ok"),
     (
@@ -88,8 +88,8 @@ _MESSAGES = (
     ("setup.nothing", "nothing", "nada"),
     ("setup.preserved", "  preserved: {item}", "  preservado: {item}"),
     ("setup.warnings", "  warnings: {text}", "  avisos: {text}"),
-    ("setup.doctor", "  bob doctor: {code}", "  bob doctor: {code}"),
-    ("setup.doctor_not_run", "not run", "não rodou"),
+    ("setup.tools", "  setup tools: {code}", "  ferramentas do setup: {code}"),
+    ("setup.tools_not_run", "not run", "não rodou"),
     (
         "setup.internal_error",
         "{step}: internal error ({kind}). Open an issue.",
@@ -451,7 +451,7 @@ def test_all_steps_pass_and_doctor_0_exits_0(
         "DOCTOR\n"
         "bob setup: summary\n"
         "  installed: npm tools\n"
-        "  bob doctor: 0\n"
+        "  setup tools: 0\n"
     )
     assert captured.err == ""
     assert seen[0].project == project.resolve()
@@ -477,10 +477,10 @@ def test_doctor_4_makes_setup_exit_4(
     monkeypatch.setattr(setup_cmd, "STEPS", (("a", fake_step(StepResult("unchanged"))),))
     monkeypatch.setattr(doctor, "report_setup_pins", _pass_doctor(4))
     assert run_setup(project, "en") == 4
-    assert capsys.readouterr().out.splitlines()[-1] == "  bob doctor: 4"
+    assert capsys.readouterr().out.splitlines()[-1] == "  setup tools: 4"
     monkeypatch.setattr(doctor, "report_setup_pins", _pass_doctor(1))
     assert run_setup(project, "en") == 4
-    assert capsys.readouterr().out.splitlines()[-1] == "  bob doctor: 1"
+    assert capsys.readouterr().out.splitlines()[-1] == "  setup tools: 1"
 
 
 @pytest.mark.parametrize("lang", ["en", "pt-BR"])
@@ -518,7 +518,7 @@ def test_first_failed_step_stops_and_prints_a_partial_summary(
         [
             t(lang, "setup.summary"),
             t(lang, "setup.installed", items=t(lang, "setup.item_npm")),
-            t(lang, "setup.doctor", code=t(lang, "setup.doctor_not_run")),
+            t(lang, "setup.tools", code=t(lang, "setup.tools_not_run")),
         ]
     )
     assert captured.out.endswith(tail + "\n")
@@ -591,7 +591,7 @@ def test_preserved_and_warnings_lines_follow_the_ct3_order(
         "  warnings: found a copy of bob in .claude/skills/harden. "
         "bob now uses only .agents/skills; delete .claude/skills/harden "
         "if you do not need it.\n"
-        "  bob doctor: 0\n"
+        "  setup tools: 0\n"
     )
     assert run_setup(project, "pt-BR") == 0
     assert "bob setup: a: aviso: " in capsys.readouterr().out
@@ -617,7 +617,7 @@ def test_relative_bob_home_fails_before_any_step(
     captured = capsys.readouterr()
     reason_line = t(lang, "setup.bob_home_relative", value="rel")
     assert captured.err == t(lang, "setup.error", reason=reason_line) + "\n"
-    last = t(lang, "setup.doctor", code=t(lang, "setup.doctor_not_run"))
+    last = t(lang, "setup.tools", code=t(lang, "setup.tools_not_run"))
     assert captured.out.splitlines()[-1] == last
 
 
@@ -1041,7 +1041,7 @@ def test_profile_text_maps_each_value(
     ],
     ids=["en", "pt-BR"],
 )
-def test_profile_line_sits_before_the_doctor_line(
+def test_profile_line_sits_before_the_setup_tools_line(
     lang: Language,
     line: str,
     monkeypatch: pytest.MonkeyPatch,
@@ -1051,7 +1051,7 @@ def test_profile_line_sits_before_the_doctor_line(
     setup_cmd._summary(lang, [], [], [msg("setup.warn_no_code")], "0")
     lines = capsys.readouterr().out.splitlines()
     warning = t(lang, "setup.warnings", text=t(lang, "setup.warn_no_code"))
-    assert lines[-3:] == [warning, line, "  bob doctor: 0"]
+    assert lines[-3:] == [warning, line, t(lang, "setup.tools", code="0")]
     assert lines.count(line) == 1
 
 
@@ -1068,7 +1068,7 @@ def test_profile_line_is_absent_without_the_variable(
     setup_cmd._summary("en", [], [], [], "0")
     lines = capsys.readouterr().out.splitlines()
     assert all("shell profile" not in line for line in lines)
-    assert lines[-1] == "  bob doctor: 0"
+    assert lines[-1] == "  setup tools: 0"
 
 
 def test_profile_line_is_in_the_partial_summary(
@@ -1080,7 +1080,7 @@ def test_profile_line_is_in_the_partial_summary(
     lines = capsys.readouterr().out.splitlines()
     assert lines[-2:] == [
         "  shell profile: /h/.bashrc already has the bob line; nothing changed",
-        "  bob doctor: not run",
+        "  setup tools: not run",
     ]
 
 
@@ -1223,7 +1223,7 @@ def test_gitleaks_step_failure_stops_setup(
     assert "gitleaks" in line
     assert "sha256" in line
     assert captured.out.splitlines()[-1] == t(
-        lang, "setup.doctor", code=t(lang, "setup.doctor_not_run")
+        lang, "setup.tools", code=t(lang, "setup.tools_not_run")
     )
 
 
@@ -1440,8 +1440,8 @@ def test_bob_yaml_step_failure_stops_setup(
     assert line in captured.err.splitlines()
     assert captured.out.splitlines()[-1] == t(
         lang,
-        "setup.doctor",
-        code=t(lang, "setup.doctor_not_run"),
+        "setup.tools",
+        code=t(lang, "setup.tools_not_run"),
     )
 
 
@@ -1710,8 +1710,8 @@ def test_hook_step_failure_stops_setup(
     assert line in captured.err.splitlines()
     assert captured.out.splitlines()[-1] == t(
         lang,
-        "setup.doctor",
-        code=t(lang, "setup.doctor_not_run"),
+        "setup.tools",
+        code=t(lang, "setup.tools_not_run"),
     )
 
 
