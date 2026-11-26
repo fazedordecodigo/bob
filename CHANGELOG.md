@@ -25,6 +25,12 @@ execução registrada: uma função em cache com o mesmo hash, a mesma versão d
 impressão da suíte é reusada, sobreviventes inclusive, em vez de ser remutada. Antes, a flag só
 chegava à linha de reprodução.
 
+## v0.1.0
+
+Promoted to a [stable release](https://github.com/fazedordecodigo/bob/releases/tag/v0.1.0) on 2026-11-26. The release includes the installer, wheel, and checksums. See the [release verification record](docs/release-checks/v0.1.0.md) for the promotion and asset checks.
+
+Promovida a [release estável](https://github.com/fazedordecodigo/bob/releases/tag/v0.1.0) em 2026-11-26. A release inclui o instalador, o wheel e os checksums. Consulte o [registro de verificação da release](docs/release-checks/v0.1.0.md) para ver a promoção e as verificações dos assets.
+
 The `bob setup` help names everything the command installs (npm tools, gitleaks, skills, `bob.yaml`,
 pre-push hook), and the `bob mutate` help names Stryker next to mutmut; the docs list `setup`,
 `update` and `--version` in the CLI reference and stop saying the wheel lacks the skills.
