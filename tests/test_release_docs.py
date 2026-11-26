@@ -10,6 +10,8 @@ except ModuleNotFoundError:
 
 ROOT = Path(__file__).resolve().parents[1]
 DOCS = ROOT / "docs"
+PT_DOCS = ROOT / "website/i18n/pt-BR/docusaurus-plugin-content-docs/current"
+PRERELEASE_LABEL = re.compile(r"pr[eé][- ]?release", re.IGNORECASE)
 
 
 def test_current_release_is_in_the_changelog_and_docs() -> None:
@@ -17,13 +19,23 @@ def test_current_release_is_in_the_changelog_and_docs() -> None:
     tag = f"v{project['project']['version']}"
     release_url = f"https://github.com/fazedordecodigo/bob/releases/tag/{tag}"
     changelog = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
-    assert f"## {tag}" in changelog.splitlines()
-    assert f"[pre-release]({release_url})" in changelog
+    headings = re.findall(r"^## (.+)$", changelog, re.MULTILINE)
+    assert headings[0] == "Unreleased"
+    assert tag in headings[1:]
+    release_entry = changelog.split(f"\n## {tag}\n", 1)[1].split("\n## ", 1)[0]
+    assert f"[stable release]({release_url})" in release_entry
+    assert not PRERELEASE_LABEL.search(release_entry)
 
-    for page in ("README.md", "changelog.md"):
-        content = (DOCS / page).read_text(encoding="utf-8")
-        assert release_url in content
-        assert f"](release-checks/{tag}.md)" in content
+    for directory in (DOCS, PT_DOCS):
+        index = (directory / "README.md").read_text(encoding="utf-8")
+        changelog_page = (directory / "changelog.md").read_text(encoding="utf-8")
+        for content in (index, changelog_page):
+            assert release_url in content
+            assert f"](release-checks/{tag}.md)" in content
+            assert not PRERELEASE_LABEL.search(content)
+        headings = re.findall(r"^## (.+)$", changelog_page, re.MULTILINE)
+        assert headings[0] == "Unreleased"
+        assert tag in headings[1:]
 
 
 def _markdown_targets(page: Path) -> set[Path]:

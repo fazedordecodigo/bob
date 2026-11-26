@@ -6,10 +6,10 @@ O pacote pip é `bob-quality`. O comando é `bob`. As listagens de marketplace u
 
 As páginas pt-BR do site público ficam em `website/i18n/pt-BR/`. Os arquivos de `docs/` são a fonte em inglês.
 
-## Pré-release v0.1.0
+## Release estável v0.1.0
 
-- [Pré-release no GitHub](https://github.com/fazedordecodigo/bob/releases/tag/v0.1.0) — instalador, wheel e checksums
-- [Changelog](changelog.md) — mudanças incluídas na v0.1.0
+- [Release no GitHub](https://github.com/fazedordecodigo/bob/releases/tag/v0.1.0) — instalador, wheel e checksums
+- [Changelog](changelog.md) — mudanças ainda não lançadas e a entrada da v0.1.0
 - [Registro de verificação da release](release-checks/v0.1.0.md) e [modelo](release-checks/TEMPLATE.md)
 
 ## Por que usar o bob

@@ -6,10 +6,10 @@ The pip package is `bob-quality`. The command is `bob`. Marketplace listings use
 
 The pt-BR pages of the public site live in `website/i18n/pt-BR/`. These files are the English source.
 
-## v0.1.0 pre-release
+## v0.1.0 stable release
 
-- [GitHub pre-release](https://github.com/fazedordecodigo/bob/releases/tag/v0.1.0) — installer, wheel, and checksums
-- [Changelog](changelog.md) — changes included in v0.1.0
+- [GitHub release](https://github.com/fazedordecodigo/bob/releases/tag/v0.1.0) — installer, wheel, and checksums
+- [Changelog](changelog.md) — unreleased changes and the v0.1.0 entry
 - [Release verification record](release-checks/v0.1.0.md) and [template](release-checks/TEMPLATE.md)
 
 ## Why bob
