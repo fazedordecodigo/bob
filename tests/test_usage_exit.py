@@ -12,6 +12,7 @@ import pytest
 
 from bob_quality.cli import _stop_code, main
 from bob_quality.mutate import _SINCE_LAST_RUN
+from bob_quality.waivers import load_waivers
 from helpers import init_python_repo, run_bob
 
 _COMMAND_GROUP = re.compile(r"\{([^{}]+)\}")
@@ -271,6 +272,7 @@ _SUB_HELP = {
         "--reason REASON",
         "target",
         "file::function, or a Target from the mutation report",
+        "for other gates use a prefixed waiver ID",
     ),
     "doctor": (
         "usage: bob doctor",
@@ -565,6 +567,41 @@ def test_waive_records_a_reported_target_and_refuses_an_unknown_one(tmp_path: Pa
     assert saved.returncode == 0, saved.stderr
     text = (bob / "waivers.yaml").read_text()
     assert "- id: src/app/weak.py::classify\n  reason: because\n" in text
+
+
+@pytest.mark.parametrize(
+    "target",
+    [
+        "cognitive:src/app.py:Example::run",
+        "coverage:src/app.py",
+        "coverage:src/app.py:12",
+        "tests:tests/test_app.py:12:assertion-roulette",
+        "supply:missing:pypi:example",
+        "supply:undeclared:src/app.py:example",
+        "supply:osv:PYSEC-2024-1",
+        "sast:bandit:B101",
+        "sast:bandit:B101:src/app.py:12",
+        "typing:src/app.py:12:type: ignore",
+        "secret:example-rule:src/app.py:12",
+        "dead:src/app.py:12:unused",
+    ],
+)
+def test_waive_records_gate_ids_without_a_mutation_report(tmp_path: Path, target: str) -> None:
+    saved = _invoke(tmp_path, "waive", target, "--reason", "because")
+
+    assert saved.returncode == 0, saved.stderr
+    (waiver,) = load_waivers(tmp_path)
+    assert waiver.id == target
+    assert waiver.reason == "because"
+
+
+@pytest.mark.parametrize("target", ["unknown:src/app.py:12", "coverage:", "coverage::run"])
+def test_waive_rejects_an_unsupported_gate_target(tmp_path: Path, target: str) -> None:
+    result = _invoke(tmp_path, "waive", target, "--reason", "because")
+
+    assert result.returncode == 4
+    assert target in result.stderr
+    assert not (tmp_path / ".bob" / "waivers.yaml").exists()
 
 
 def test_waive_of_a_file_label_is_not_a_test_when_the_row_has_no_file(tmp_path: Path) -> None:

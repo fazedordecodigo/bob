@@ -51,9 +51,10 @@ The path is always `<cwd>/.bob/waivers.yaml`. `bob waive` creates the directory 
 
 ```bash
 bob waive 'src/app/billing.py::charge::if total > limit: -> if total >= limit:' --reason "equivalent; the inclusive limit does not change the contract"
+bob waive 'coverage:src/app/billing.py:42' --reason "platform-specific fallback"
 ```
 
-`bob waive` accepts only a target of a survivor from the last mutation run, read from `.bob/mutation-cache.json` (Python) and `.bob/stryker-mutants.json` (TypeScript). Run mutation first. The target is `file::function`, which waives every survivor of that function, or the Target column of the survivor table, which waives one survivor. The mutant id, a bare function name, and `file:function` exit `4` and write nothing.
+For mutation, run mutation first. The target is `file::function`, which waives every survivor of that function, or the Target column of the survivor table, which waives one survivor. The command checks the target against the last mutation run in `.bob/mutation-cache.json` (Python) and `.bob/stryker-mutants.json` (TypeScript). The mutant id, a bare function name, and `file:function` exit `4` and write nothing.
 
 The command writes these fields:
 
@@ -66,7 +67,7 @@ The command writes these fields:
 
 A missing `--reason`, an empty reason, or a reason with a newline exits `4`. That message follows the output language. An id that already appears once is replaced and the command exits `0`. A file that already contains two rows with one id exits `4` and the bytes stay.
 
-Hand-written ids for the other gates use the prefixes in [Gates and waivers](gates-and-waivers.md). `bob waive` itself only stores a mutation survivor target. The other ids are edited into the same file. `load_waivers` does not check that an id matches a survivor. An id that matches nothing leaves the finding unwaived.
+For other gates, pass the complete id as described in [Gates and waivers](gates-and-waivers.md). The supported prefixes are `cognitive:`, `coverage:`, `tests:`, `supply:`, `sast:`, `typing:`, `secret:`, and `dead:`. The command checks the prefix, not whether the id matches a finding; these ids do not need a mutation run. An id that matches nothing leaves the finding unwaived.
 
 A `waivers.yaml` that is valid YAML with the wrong shape exits `4`. English stderr names `.bob/waivers.yaml` and the field, as in `.bob/waivers.yaml: waivers[0].reason must be a string`. A YAML syntax error names the file and the parser error. A repeated key names the key and the line, as in `invalid YAML in .bob/waivers.yaml: found duplicate key 'id' on line 3`. The run writes no `report.md` and no `report.json`, and the file stays as it is. `check`, `doctor`, `waive`, and `report` share this preflight, including when `--lang` is `pt-BR`.
 
