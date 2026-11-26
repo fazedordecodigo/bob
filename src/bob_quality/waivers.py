@@ -15,7 +15,7 @@ from typing import NamedTuple
 import yaml
 
 from bob_quality.messages import msg
-from bob_quality.models import Mutant, WaiverRow
+from bob_quality.models import Mutant
 from bob_quality.yaml_text import parse_yaml
 
 
@@ -30,8 +30,8 @@ class Waiver:
     author: str
     date: str
 
-    def as_dict(self) -> WaiverRow:
-        return {"id": self.id, "reason": self.reason, "author": self.author, "date": self.date}
+    def as_dict(self) -> dict[str, str]:
+        return {item.name: getattr(self, item.name) for item in fields(Waiver)}
 
 
 _ENTRY_KEYS = frozenset(item.name for item in fields(Waiver))

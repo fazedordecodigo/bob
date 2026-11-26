@@ -29,14 +29,7 @@ from bob_quality.exit_codes import (
     pytest_passed,
 )
 from bob_quality.messages import Text, msg, reason
-from bob_quality.models import (
-    CyclomaticFunction,
-    FocusRow,
-    GateResult,
-    Mutant,
-    MutantStatus,
-    WaiverRow,
-)
+from bob_quality.models import CyclomaticFunction, FocusRow, GateResult, Mutant, MutantStatus
 from bob_quality.mutmut_tool import (
     mutmut_results,
     mutmut_show,
@@ -67,7 +60,7 @@ class MutationOutcome:
     result: GateResult
     exit_code: int
     versions: dict[str, str]
-    waivers: list[WaiverRow]
+    waivers: list[dict[str, object]]
     survivors: list[dict[str, object]]
     summary: dict[str, object]
 
@@ -145,7 +138,7 @@ def _prepare_mutation(
     config: Config,
     diff_lines: dict[str, set[int]],
     out_dir: Path,
-) -> MutationOutcome | tuple[dict[str, str], list[Waiver], list[WaiverRow], _Cache, _Plan]:
+) -> MutationOutcome | tuple[dict[str, str], list[Waiver], list[dict[str, object]], _Cache, _Plan]:
     versions, missing = _mutmut_versions()
     if missing is not None:
         return missing
@@ -194,7 +187,7 @@ def _safe_measured(
     cwd: Path,
     config: Config,
     versions: dict[str, str],
-    waiver_rows: list[WaiverRow],
+    waiver_rows: list[dict[str, object]],
 ) -> tuple[list[CyclomaticFunction], MutationOutcome | None]:
     try:
         return _measured_functions(cwd, config), None
@@ -203,7 +196,7 @@ def _safe_measured(
 
 
 def _safe_fingerprint(
-    cwd: Path, versions: dict[str, str], waiver_rows: list[WaiverRow]
+    cwd: Path, versions: dict[str, str], waiver_rows: list[dict[str, object]]
 ) -> str | MutationOutcome:
     try:
         return suite_fingerprint(cwd)
@@ -214,7 +207,7 @@ def _safe_fingerprint(
 def _safe_cache(
     cache: _Cache,
     versions: dict[str, str],
-    waiver_rows: list[WaiverRow],
+    waiver_rows: list[dict[str, object]],
 ) -> tuple[_CacheView, MutationOutcome | None]:
     try:
         return _read_cache(cache), None
@@ -258,7 +251,7 @@ def _baseline_outcome(
     cwd: Path,
     baseline: int | None,
     versions: dict[str, str],
-    waiver_rows: list[WaiverRow],
+    waiver_rows: list[dict[str, object]],
 ) -> MutationOutcome | None:
     try:
         code = pytest_exit_code(cwd) if baseline is None else baseline
@@ -281,7 +274,7 @@ def _collect_fresh(
     remutate: list[CyclomaticFunction],
     max_workers: int | None,
     versions: dict[str, str],
-    waiver_rows: list[WaiverRow],
+    waiver_rows: list[dict[str, object]],
     waivers: list[Waiver],
 ) -> list[Mutant] | MutationOutcome:
     try:
@@ -300,7 +293,7 @@ def _run_and_parse(
     remutate: list[CyclomaticFunction],
     max_workers: int | None,
     versions: dict[str, str],
-    waiver_rows: list[WaiverRow],
+    waiver_rows: list[dict[str, object]],
 ) -> tuple[list[Mutant], MutationOutcome | None]:
     patterns = [
         pattern for item in remutate for pattern in mutmut_run_patterns(item.file, item.name)
@@ -355,7 +348,7 @@ def _one_show(cwd: Path, mutant_id: str) -> str | None:
 
 
 def _tool_outcome(
-    why: Text, versions: dict[str, str], waiver_rows: list[WaiverRow]
+    why: Text, versions: dict[str, str], waiver_rows: list[dict[str, object]]
 ) -> MutationOutcome:
     return _outcome(
         GateResult("mutate", "not_run", why), CONFIG_OR_TOOL, versions, waivers=waiver_rows
@@ -545,7 +538,7 @@ def _finish(
     remutated: list[str],
     reused: list[str],
     versions: dict[str, str],
-    waiver_rows: list[WaiverRow],
+    waiver_rows: list[dict[str, object]],
 ) -> MutationOutcome:
     visible = [item for item in mutants if item.status == "survived"]
     targets = survivor_targets(mutants)
@@ -899,7 +892,7 @@ def _outcome(
     result: GateResult,
     exit_code: int,
     versions: dict[str, str],
-    waivers: list[WaiverRow] | None = None,
+    waivers: list[dict[str, object]] | None = None,
     survivors: list[dict[str, object]] | None = None,
     summary: dict[str, object] | None = None,
 ) -> MutationOutcome:
