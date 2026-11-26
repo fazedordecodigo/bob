@@ -142,6 +142,11 @@ def test_run_knip_returns_exit_1_without_an_include_filter(tmp_path: Path) -> No
         ("linked/app.ts", ("linked",), (), ("linked/app.ts",)),
         ("src/app.ts", ("linked",), (), ()),
         ("linked/app.ts", ("src",), (), ()),
+        ("src/app.ts", ("linked/..",), (), ("src/app.ts",)),
+        ("real/app.ts", ("deep/..",), (), ("real/app.ts",)),
+        ("src/app.ts", ("deep/..",), (), ()),
+        ("real/alias/app.ts", ("deep/../alias",), (), ("real/alias/app.ts",)),
+        ("src/app.ts", ("deep/../alias",), (), ()),
         ("external/app.ts", (".",), (), ()),
         ("src/../linked/app.ts", (".",), (), ()),
         ("", (".",), (), ()),
@@ -158,6 +163,10 @@ def test_run_knip_scopes_the_reported_path_without_following_aliases(
     (repo / "src").mkdir(parents=True)
     (repo / "src/app.ts").touch()
     (repo / "linked").symlink_to("src", target_is_directory=True)
+    (repo / "real/inner").mkdir(parents=True)
+    (repo / "real/app.ts").touch()
+    (repo / "real/alias").symlink_to("../src", target_is_directory=True)
+    (repo / "deep").symlink_to("real/inner", target_is_directory=True)
     (repo / "external").symlink_to(tmp_path, target_is_directory=True)
     (tmp_path / "app.ts").touch()
     report = json.dumps({"issues": [{"file": file, "unresolved": [{"name": "left-pad"}]}]})

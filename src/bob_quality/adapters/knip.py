@@ -4,7 +4,6 @@ import json
 import re
 from collections.abc import Mapping
 from dataclasses import dataclass
-from os.path import abspath
 from pathlib import Path
 from typing import get_args
 
@@ -101,7 +100,7 @@ def _scoped_files(
     exclude: tuple[str, ...],
 ) -> tuple[KnipFile, ...]:
     root = cwd.absolute()
-    roots = tuple(Path(abspath(root / name)) for name in include)
+    roots = tuple(_include_root(root / name) for name in include)
     excluded = _normalized_excludes(exclude)
     if "." in excluded:
         return ()
@@ -113,6 +112,15 @@ def _scoped_files(
         if any((root / relative).is_relative_to(allowed) for allowed in roots):
             scoped.append(KnipFile(relative.as_posix(), item.by_type))
     return tuple(scoped)
+
+
+def _include_root(path: Path) -> Path:
+    parts = path.parts
+    parents = [index for index, part in enumerate(parts) if part == ".."]
+    if not parents:
+        return path
+    split = parents[-1] + 1
+    return Path(*parts[:split]).resolve().joinpath(*parts[split:])
 
 
 def _normalized_excludes(exclude: tuple[str, ...]) -> tuple[str, ...]:
