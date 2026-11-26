@@ -182,15 +182,18 @@ def test_release_selects_a_main_commit(
     assert f"release: SHA do build: {sha}" in checked.stdout
 
 
-def test_release_downstream_checkouts_use_the_selected_commit() -> None:
+def test_release_verify_checks_out_e0_and_publish_reads_notes_from_e1() -> None:
     jobs = _jobs(_load())
     assert jobs["check"]["outputs"]["sha"] == "${{ steps.source.outputs.sha }}"
-    for job in ("verify", "publish"):
+    for job, ref in (
+        ("verify", "${{ needs.check.outputs.sha }}"),
+        ("publish", "${{ github.sha }}"),
+    ):
         checkout = next(
             step for step in _steps(jobs[job])
             if "actions/checkout@" in str(step.get("uses", ""))
         )
-        assert checkout["with"]["ref"] == "${{ needs.check.outputs.sha }}"
+        assert checkout["with"]["ref"] == ref
 
 
 def test_release_jobs_and_permissions() -> None:

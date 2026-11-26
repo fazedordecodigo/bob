@@ -52,15 +52,26 @@ def test_sdist_and_wheel_pass_twine_check(tmp_path: Path) -> None:
 
 def test_wheel_builds_have_the_same_sha256(tmp_path: Path) -> None:
     _skip_under_mutmut()
+    sha = subprocess.check_output(
+        ["git", "rev-parse", "HEAD"], cwd=ROOT, text=True,
+    ).strip()
     epoch = subprocess.check_output(
-        ["git", "log", "-1", "--format=%ct"], cwd=ROOT, text=True,
+        ["git", "log", "-1", "--format=%ct", sha], cwd=ROOT, text=True,
     ).strip()
     digests = []
     for index in range(2):
-        dist = tmp_path / str(index)
+        source = tmp_path / f"source-{index}"
+        dist = tmp_path / f"dist-{index}"
+        subprocess.run(
+            ["git", "clone", "--quiet", "--no-checkout", "--", str(ROOT), str(source)],
+            check=True,
+        )
+        subprocess.run(
+            ["git", "checkout", "--quiet", "--detach", sha], cwd=source, check=True,
+        )
         build = subprocess.run(
             [sys.executable, "-m", "build", "--wheel", "--outdir", str(dist)],
-            cwd=ROOT,
+            cwd=source,
             env={**os.environ, "SOURCE_DATE_EPOCH": epoch},
             capture_output=True,
             text=True,
