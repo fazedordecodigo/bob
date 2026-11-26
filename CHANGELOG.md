@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+`bob mutate --max-workers N` now passes `--concurrency N` to Stryker for TypeScript mutation runs.
+Without the flag, Stryker keeps its default concurrency.
+
+`bob mutate --max-workers N` agora passa `--concurrency N` para o Stryker na mutação de TypeScript.
+Sem a flag, o Stryker mantém a concorrência padrão.
+
 `bob waive` accepts the prefixed IDs for every gate that supports waivers, without hand-editing
 `.bob/waivers.yaml`. Mutation targets still have to match a survivor from the last mutation run.
 

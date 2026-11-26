@@ -38,6 +38,7 @@ def run_mutate_gate(
             diff_lines,
             out_dir,
             python_measured="python" in config.languages,
+            max_workers=max_workers,
         )
     return _merge(python, typescript, skip)
 

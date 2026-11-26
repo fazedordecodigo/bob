@@ -31,7 +31,7 @@ from bob_quality.mutate_gate import _coverage_exit, _has_unwaived
 from bob_quality.stryker_gate import _from_report
 from bob_quality.tools import ToolError
 from bob_quality.waivers import Waiver, WaiverError
-from helpers import in_both
+from helpers import commit_on_branch, in_both, init_ts_repo, run_bob
 
 _WAIVER = {
     "id": "src/safe.ts:9",
@@ -116,6 +116,55 @@ def test_python_only_forwards_workers_and_does_not_invent_a_skip(
     assert seen["baseline"] == 2
     assert seen["typescript"] is None
     assert seen["skip"] is None
+
+
+@pytest.mark.parametrize("workers", [None, "3"])
+def test_mutate_cli_sets_stryker_concurrency_only_when_requested(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, workers: str | None
+) -> None:
+    from bob_quality import stryker_gate
+
+    repo = init_ts_repo(tmp_path / "repo")
+    commit_on_branch(
+        repo,
+        "change",
+        "src/safe.ts",
+        "export function add(a: number, b: number): number {\n  return a + b + 1;\n}\n",
+        "change add",
+    )
+    commands: list[list[str]] = []
+    waiver = Waiver("src/safe.ts::add", "known equivalent mutant", "test", "2026-10-12")
+    mutant = {
+        "id": "0",
+        "mutatorName": "ArithmeticOperator",
+        "status": "Survived",
+        "location": {
+            "start": {"line": 2, "column": 10},
+            "end": {"line": 2, "column": 11},
+        },
+    }
+
+    def invoke(cwd: Path, report: Path, argv: list[str]) -> subprocess.CompletedProcess[str]:
+        commands.append(argv)
+        report.write_text(json.dumps({"files": {"src/safe.ts": {"mutants": [mutant]}}}))
+        return subprocess.CompletedProcess(argv, 0, "", "")
+
+    monkeypatch.setattr(stryker_gate, "_missing_tool", lambda: None)
+    monkeypatch.setattr(stryker_gate, "_versions", lambda: _VERSIONS)
+    monkeypatch.setattr(stryker_gate, "load_waivers", lambda _cwd: [waiver])
+    monkeypatch.setattr(stryker_gate, "npm_prefix", lambda: tmp_path)
+    monkeypatch.setattr(stryker_gate, "_invoke", invoke)
+
+    args = () if workers is None else ("--max-workers", workers)
+    result = run_bob(repo, "mutate", "--base", "main", *args)
+
+    assert result.returncode == 0, result.stderr
+    report = json.loads((repo / ".bob" / "report.json").read_text())
+    (survivor,) = report["survivors"]
+    assert survivor["waiver"] == waiver.reason
+    (argv,) = commands
+    concurrency = [argv[i + 1] for i, arg in enumerate(argv) if arg == "--concurrency"]
+    assert concurrency == ([] if workers is None else [workers])
 
 
 def test_merge_keeps_the_worse_exit_and_both_sides() -> None:

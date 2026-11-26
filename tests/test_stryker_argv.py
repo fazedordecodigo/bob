@@ -171,11 +171,11 @@ def test_incremental_argv_deletes_a_stale_report_and_ignores_exit_1(
         ".bob/stryker-incremental.json",
         "--mutate",
         "src/safe.ts:1-5,src/safe.ts:5-7",
+        "--concurrency",
+        "7",
     ]
     assert "--force" not in args
-    assert "--concurrency" not in args
     assert "--maxConcurrentTestRunners" not in args
-    assert "7" not in args
     assert json.loads((Path(prefix) / "package.json").read_text())["name"] == "bob-quality-tools"
     written = (repo / ".bob" / "stryker.config.json").read_text()
     assert written == json.dumps(json.loads(written), indent=2) + "\n"
