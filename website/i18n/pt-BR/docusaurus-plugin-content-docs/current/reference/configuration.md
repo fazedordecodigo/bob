@@ -26,6 +26,7 @@ Estes valores valem quando a chave é omitida. `language: en` em prosa é o resu
 | `coverage.min_percent` | número finito de 0 a 100 | `80` | Piso do gate de cobertura do diff. Um percentual igual ao piso passa. `null` é recusado. |
 | `dependencies.python` | string | `.importlinter` | Caminho da config do import-linter. |
 | `dependencies.typescript` | string | `.dependency-cruiser.cjs` | Caminho da config do dependency-cruiser. |
+| `mutation.runtime_annotation_globs` | lista de strings | `[]` | Caminhos Python cujo diff completo fica no escopo da mutação. Casa padrões de shell sensíveis a maiúsculas e minúsculas com caminhos relativos à raiz; `null` é recusado. |
 | `test_smells` | só `true` | `true` | O loader aceita `true`. O gate não lê o campo. |
 | `typing` | mapeamento sem filhos | não definido | Aceito e ignorado. Não liga o gate de typing. |
 | `secrets` | mapeamento sem filhos | não definido | Sem limiar e sem filhos. Não liga o gate de secrets. |
@@ -73,7 +74,7 @@ Os membros de `security.fail_severities` têm de estar no vocabulário do scanne
 
 `_reject_unknown` recusa toda chave que não está na tabela acima. Estas três aparecem em notas antigas e são recusadas:
 
-- `mutation`, inclusive `require_zero_unwaived_survivors`, `scope` ou `differential`. O erro é `bob.yaml: unknown key mutation`.
+- `mutation.require_zero_unwaived_survivors`, `mutation.scope` e `mutation.differential`. O erro nomeia a chave desconhecida.
 - `duplication.tool`. O erro é `bob.yaml: unknown key duplication.tool`.
 - `dependencies.violation`. O erro é `bob.yaml: unknown key dependencies.violation`.
 

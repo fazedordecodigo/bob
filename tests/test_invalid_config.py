@@ -272,7 +272,7 @@ _BAD_WAIVER_SHAPE = (
 _HUGE_THRESHOLD = "1" + "0" * 400
 
 _SEMANTIC_YAML = (
-    ("mutation: {}\n", "bob.yaml: unknown key mutation\n"),
+    ("mutation: {typo: []}\n", "bob.yaml: unknown key mutation.typo\n"),
     ("duplication:\n  tool: jscpd\n", "bob.yaml: unknown key duplication.tool\n"),
     ("dependencies:\n  violation: fail\n", "bob.yaml: unknown key dependencies.violation\n"),
     ("crap:\n  max_per_functon: 10\n", "bob.yaml: unknown key crap.max_per_functon\n"),

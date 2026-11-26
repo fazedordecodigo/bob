@@ -14,8 +14,7 @@ from bob_quality.adapters.runner import (
     banner_version,
     default_runner,
 )
-from bob_quality.config import _excluded
-from bob_quality.diff import as_diff_path, normalize_include_root
+from bob_quality.diff import as_diff_path, normalize_include_root, path_is_excluded
 from bob_quality.messages import Text, msg
 from bob_quality.models import KnipKind, TypeScriptDead
 from bob_quality.npm_tools import npm_prefix
@@ -107,7 +106,7 @@ def _scoped_files(
     scoped: list[KnipFile] = []
     for item in files:
         relative = _reported_path(root, item.file)
-        if relative is None or _excluded(relative, excluded):
+        if relative is None or path_is_excluded(relative, excluded):
             continue
         if any((root / relative).is_relative_to(allowed) for allowed in roots):
             scoped.append(KnipFile(relative.as_posix(), item.by_type))

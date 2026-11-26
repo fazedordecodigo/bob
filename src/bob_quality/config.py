@@ -8,6 +8,7 @@ from typing import Any, Callable, Literal, TypeGuard
 
 import yaml
 
+from bob_quality.diff import path_is_excluded
 from bob_quality.messages import DEFAULT_LANGUAGE, LANGUAGES, Language, msg
 from bob_quality.security_scanners import severity_vocabulary
 from bob_quality.yaml_text import parse_yaml
@@ -410,7 +411,7 @@ def _scan(
 ) -> None:
     if base.is_symlink():
         return
-    if _excluded(_inside(base, cwd), exclude):
+    if path_is_excluded(_inside(base, cwd), exclude):
         return
     if base.is_file():
         _note(base, found)
@@ -433,17 +434,6 @@ def _note(path: Path, found: set[SourceLanguage]) -> None:
     if suffix not in _SUFFIX_LANGUAGE:
         return
     found.add(_SUFFIX_LANGUAGE[suffix])
-
-
-def _excluded(relative: Path, exclude: tuple[str, ...]) -> bool:
-    text = relative.as_posix()
-    for item in exclude:
-        pattern = item.strip("/")
-        if text == pattern or text.startswith(pattern + "/"):
-            return True
-        if pattern in relative.parts:
-            return True
-    return False
 
 
 def _reject_missing_include(include: object, label: str, cwd: Path) -> None:

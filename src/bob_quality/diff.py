@@ -78,6 +78,17 @@ def line_is_changed(file: str, line: int, changed: Mapping[str, Set[int]]) -> bo
     return line in changed.get(file, ())
 
 
+def path_is_excluded(relative: Path, exclude: tuple[str, ...]) -> bool:
+    text = relative.as_posix()
+    for item in exclude:
+        pattern = item.strip("/")
+        if text == pattern or text.startswith(pattern + "/"):
+            return True
+        if pattern in relative.parts:
+            return True
+    return False
+
+
 def normalize_include_root(path: Path) -> Path:
     anchor = Path(path.anchor)
     prefix = Path("/") if path.anchor == "//" else anchor
