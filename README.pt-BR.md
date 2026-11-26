@@ -114,7 +114,7 @@ bob crap --base main
 bob dry --base main
 bob deps --base main
 bob mutate --base main
-bob waive <file::function|Target> --reason "texto de uma linha"
+bob waive <target> --reason "texto de uma linha"
 bob doctor
 ```
 
@@ -127,7 +127,7 @@ Cada comando aceita estas flags:
 | `bob dry` | `--base`, `--config`, `--out`, `--dry-fail`, `--max-new-clones` |
 | `bob deps` | `--base`, `--config`, `--out` |
 | `bob mutate` | `--base`, `--config`, `--out`, `--max-workers`, `--since-last-run` (remuta só funções cujo texto mudou desde a última execução registrada) |
-| `bob waive` | `arquivo::função` ou um Alvo do relatório de mutação, `--reason` |
+| `bob waive` | `arquivo::função` ou um Alvo do relatório de mutação, ou um id de gate com prefixo, `--reason` |
 | `bob doctor` | `--install` |
 
 Todo comando aceita também `--lang en|pt-BR`, antes ou depois do nome do comando. Ver [Idioma da saída](#idioma-da-saída).
@@ -237,7 +237,7 @@ Os waivers ficam em `.bob/waivers.yaml`, versionado junto com o código. `bob wa
 - `author`, de `git config user.name`, ou `$USER`.
 - `date`, a data em UTC.
 
-Um waiver sem motivo de uma linha é rejeitado com exit `4`. `bob waive` de um id que já aparece uma vez substitui essa linha e sai com 0. Um arquivo que já contém duas linhas com o mesmo id sai com 4 e os bytes permanecem. A descrição é o operador do mutante, sem espaço nas pontas. No Python é o diff do `mutmut show`. No TypeScript é `{mutatorName}@{linha}:{coluna}-{linha}:{coluna}`, mais ` -> {replacement}` quando o Stryker traz o texto. A forma exata só existe quando nenhum outro sobrevivente da função tem a mesma descrição. A coluna Alvo da tabela de sobreviventes a mostra, ou mostra `—` quando ela não existe. `bob waive` só aceita o alvo de um sobrevivente da última mutação, lido de `.bob/mutation-cache.json` e `.bob/stryker-mutants.json`. Outro alvo, como o id do mutante ou o nome nu da função, sai com `4` e não grava nada. Um id editado à mão que não casa com nenhum sobrevivente deixa o sobrevivente sem waiver. No TypeScript, uma linha inserida acima do mutante muda a descrição, então o waiver antigo deixa de casar e o gate sai com `3`. Ver a [ADR 0006](docs/adr/0006-chave-estavel-do-waiver.md). Um `waivers.yaml` que é YAML válido com formato errado sai com `4`. A mensagem fica em inglês no stderr e cita `.bob/waivers.yaml` e o campo, como em `.bob/waivers.yaml: waivers[0].reason must be a string`. Uma lista no topo, um `waivers` que não é lista, um item que não é mapeamento e um campo ausente fazem isso. A execução não grava `report.md` nem `report.json`, e o arquivo permanece como está. `check`, `doctor` e `waive` fazem isso do mesmo jeito, mesmo quando `--lang` é `pt-BR`. Um erro de sintaxe YAML também sai com `4`. Essa mensagem cita `.bob/waivers.yaml` e o erro do parser. O agente grava o waiver, e o humano o aprova no review do pull request. Todo waiver aparece no topo do relatório.
+Um waiver sem motivo de uma linha é rejeitado com exit `4`. `bob waive` de um id que já aparece uma vez substitui essa linha e sai com 0. Um arquivo que já contém duas linhas com o mesmo id sai com 4 e os bytes permanecem. A descrição é o operador do mutante, sem espaço nas pontas. No Python é o diff do `mutmut show`. No TypeScript é `{mutatorName}@{linha}:{coluna}-{linha}:{coluna}`, mais ` -> {replacement}` quando o Stryker traz o texto. A forma exata só existe quando nenhum outro sobrevivente da função tem a mesma descrição. A coluna Alvo da tabela de sobreviventes a mostra, ou mostra `—` quando ela não existe. Para mutação, `bob waive` exige o alvo de um sobrevivente da última mutação, lido de `.bob/mutation-cache.json` e `.bob/stryker-mutants.json`. Um alvo de mutação inválido, como o id do mutante ou o nome nu da função, sai com `4` e não grava nada. Para outros gates, passe um id com prefixo, conforme [Gates e waivers](docs/guides/gates-and-waivers.md). Um id editado à mão que não casa com nenhum sobrevivente deixa o sobrevivente sem waiver. No TypeScript, uma linha inserida acima do mutante muda a descrição, então o waiver antigo deixa de casar e o gate sai com `3`. Ver a [ADR 0006](docs/adr/0006-chave-estavel-do-waiver.md). Um `waivers.yaml` que é YAML válido com formato errado sai com `4`. A mensagem fica em inglês no stderr e cita `.bob/waivers.yaml` e o campo, como em `.bob/waivers.yaml: waivers[0].reason must be a string`. Uma lista no topo, um `waivers` que não é lista, um item que não é mapeamento e um campo ausente fazem isso. A execução não grava `report.md` nem `report.json`, e o arquivo permanece como está. `check`, `doctor` e `waive` fazem isso do mesmo jeito, mesmo quando `--lang` é `pt-BR`. Um erro de sintaxe YAML também sai com `4`. Essa mensagem cita `.bob/waivers.yaml` e o erro do parser. O agente grava o waiver, e o humano o aprova no review do pull request. Todo waiver aparece no topo do relatório.
 
 ### O relatório
 

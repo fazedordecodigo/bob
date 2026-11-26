@@ -317,7 +317,10 @@ def _coverage_drops(waivers: Sequence[Waiver]) -> tuple[Drop, ...]:
 def _drop(rest: str) -> Drop:
     head, sep, tail = rest.rpartition(":")
     if sep and head and tail.isdigit():
-        return DroppedLine(head, int(tail))
+        try:
+            return DroppedLine(head, int(tail))
+        except ValueError:
+            pass
     return DroppedFile(rest)
 
 
