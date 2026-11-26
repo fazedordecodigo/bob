@@ -8,6 +8,7 @@ from collections.abc import Mapping, Set
 from pathlib import Path
 
 HUNK_RE = re.compile(r"^@@ -\d+(?:,\d+)? \+(\d+)(?:,(\d+))? @@")
+FULL_HUNK_RE = re.compile(r"^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@")
 
 
 class GitError(Exception):
@@ -22,6 +23,52 @@ def changed_lines(cwd: Path, base: str) -> dict[str, set[int]]:
     """Linhas do lado novo por arquivo relativo ao root."""
     patch = _git(cwd, "diff", "--unified=0", f"{base}...HEAD")
     return parse_unified_diff(patch)
+
+
+def worktree_lines(cwd: Path, lines: dict[str, set[int]]) -> dict[str, set[int]]:
+    """Leva as linhas do diff de HEAD para a árvore de trabalho, que é onde o gate mede."""
+    if not lines:
+        return lines
+    patch = _git(cwd, "diff", "--unified=0", "HEAD", "--", *sorted(lines))
+    hunks = _local_hunks(patch)
+    return {file: _shift(touched, hunks.get(file, [])) for file, touched in lines.items()}
+
+
+def _local_hunks(patch: str) -> dict[str, list[tuple[int, int, int, int]]]:
+    hunks: dict[str, list[tuple[int, int, int, int]]] = {}
+    current: list[tuple[int, int, int, int]] = []
+    for line in patch.splitlines():
+        if line.startswith("+++ "):
+            current = hunks.setdefault(line[4:].strip().removeprefix("b/"), [])
+            continue
+        match = FULL_HUNK_RE.match(line)
+        if match:
+            old, old_count, new, new_count = match.groups()
+            current.append((int(old), int(old_count or "1"), int(new), int(new_count or "1")))
+    return hunks
+
+
+def _shift(touched: set[int], hunks: list[tuple[int, int, int, int]]) -> set[int]:
+    moved: set[int] = set()
+    for line in touched:
+        moved.update(_shift_line(line, hunks))
+    return moved
+
+
+def _shift_line(line: int, hunks: list[tuple[int, int, int, int]]) -> set[int]:
+    delta = 0
+    for old, old_count, new, new_count in hunks:
+        if old_count == 0:
+            if line <= old:
+                break
+            delta += new_count
+            continue
+        if line < old:
+            break
+        if line < old + old_count:
+            return set(range(new, new + new_count))
+        delta += new_count - old_count
+    return {line + delta}
 
 
 def parse_unified_diff(patch: str) -> dict[str, set[int]]:

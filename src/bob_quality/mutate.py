@@ -22,7 +22,7 @@ from bob_quality.adapters.mutmut import (
     mutmut_run_patterns,
 )
 from bob_quality.config import Config
-from bob_quality.diff import function_is_changed
+from bob_quality.diff import GitError, function_is_changed, worktree_lines
 from bob_quality.exit_codes import (
     BASELINE_BROKEN,
     CONFIG_OR_TOOL,
@@ -92,6 +92,7 @@ def run_mutation_gate(
     baseline: int | None = None,
 ) -> MutationOutcome:
     """`baseline` é o exit do pytest que o gate crap já rodou. Sem ele, o gate roda o pytest."""
+    diff_lines = _local_diff(cwd, diff_lines)
     prepared = _prepare_mutation(cwd, config, diff_lines, out_dir)
     if isinstance(prepared, MutationOutcome):
         return prepared
@@ -135,7 +136,7 @@ class _Cache:
 class _CacheView:
     held: dict[str, dict[str, object]]
     may_reuse: bool
-    source: str = ""
+    source: str | None = None
 
 
 class _CacheLineError(ValueError):
@@ -150,7 +151,22 @@ class _Plan:
     remutated_labels: list[str]
     reused_labels: list[str]
     carried: dict[str, dict[str, object]]
-    source: str = ""
+    source: str | None = None
+
+
+def _local_diff(cwd: Path, diff_lines: dict[str, set[int]]) -> dict[str, set[int]]:
+    try:
+        return worktree_lines(cwd, diff_lines)
+    except GitError:
+        return diff_lines
+
+
+def _source_or_none(cwd: Path) -> str | None:
+    """Sem a impressão, nenhum sobrevivente é reusado por ela: o gate mede de novo."""
+    try:
+        return source_fingerprint(cwd)
+    except (ToolError, OSError):
+        return None
 
 
 def _prepare_mutation(
@@ -176,10 +192,7 @@ def _prepare_mutation(
     cached, broken = _safe_cache(cache, versions, waiver_rows)
     if broken is not None:
         return broken
-    source = _safe_fingerprint(cwd, versions, waiver_rows, source_fingerprint)
-    if isinstance(source, MutationOutcome):
-        return source
-    cached = replace(cached, source=source)
+    cached = replace(cached, source=_source_or_none(cwd))
     return versions, waivers, waiver_rows, cache, _plan_functions(
         measured, diff_lines, cached, cwd, waivers
     )
@@ -220,13 +233,10 @@ def _safe_measured(
 
 
 def _safe_fingerprint(
-    cwd: Path,
-    versions: dict[str, str],
-    waiver_rows: list[dict[str, object]],
-    fingerprint: Callable[[Path], str] = suite_fingerprint,
+    cwd: Path, versions: dict[str, str], waiver_rows: list[dict[str, object]]
 ) -> str | MutationOutcome:
     try:
-        return fingerprint(cwd)
+        return suite_fingerprint(cwd)
     except ToolError as exc:
         return _tool_outcome(reason(exc), versions, waiver_rows)
 
@@ -430,13 +440,13 @@ def _candidate_keys(
 
 
 def _needs_remutation(
-    entry: dict[str, object], digest: str, waivers: list[Waiver], source: str
+    entry: dict[str, object], digest: str, waivers: list[Waiver], source: str | None
 ) -> bool:
     if entry.get("hash") != digest or entry.get("stale") is True:
         return True
     if not _has_unwaived_survivor(entry, waivers):
         return False
-    return not _SINCE_LAST_RUN.get() or entry.get("source") != source
+    return not _SINCE_LAST_RUN.get() or source is None or entry.get("source") != source
 
 
 def _has_unwaived_survivor(entry: dict[str, object], waivers: list[Waiver]) -> bool:
@@ -718,7 +728,7 @@ def _belongs(mutant: Mutant, functions: list[CyclomaticFunction]) -> bool:
 
 
 def _cache_body(
-    cwd: Path, functions: list[CyclomaticFunction], mutants: list[Mutant], source: str = ""
+    cwd: Path, functions: list[CyclomaticFunction], mutants: list[Mutant], source: str | None = None
 ) -> dict[str, object]:
     body: dict[str, object] = {}
     for item in functions:

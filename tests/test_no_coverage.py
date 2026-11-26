@@ -562,7 +562,7 @@ def test_cache_body_stores_each_function_and_skips_a_longer_name(tmp_path: Path)
         "start_line": 1,
         "end_line": 2,
         "line_base": "file",
-        "source": "",
+        "source": None,
         "mutants": [
             {
                 "id": own.id,

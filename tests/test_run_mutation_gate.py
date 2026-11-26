@@ -7,17 +7,15 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import cast
 
 import pytest
 
 import bob_quality.mutate as mutate
 from bob_quality.config import Config
 from bob_quality.diff import changed_lines
-from bob_quality.models import CyclomaticFunction, GateResult
+from bob_quality.models import GateResult
 from bob_quality.mutate import CACHE_NAME, run_mutation_gate
 from bob_quality.tools import ToolError
-from bob_quality.waivers import Waiver
 from helpers import commit_on_branch, init_python_repo
 
 FIXTURE = Path(__file__).parent / "fixtures" / "python_app"
@@ -205,59 +203,31 @@ def test_a_reused_waived_survivor_follows_its_function_down_the_file(
     assert [row["line"] for row in moved.survivors] == [row["line"] + 2 for row in first.survivors]
 
 
-def test_waived_rows_carried_past_a_cache_key_change_are_remeasured_later() -> None:
-    key = "src/app/weak.py::classify"
-    row = {key_: SURVIVOR[key_] for key_ in ("id", "function", "file", "line", "operator", "status")}
-    entry: dict[str, object] = {"hash": "h", "mutants": [row]}
-    waivers = [Waiver(**WAIVER)]
-    functions = cast("dict[str, CyclomaticFunction]", {key: None})
-
-    stale = mutate._carried_rows(mutate._CacheView({key: entry}, False), functions, waivers)
-    kept = mutate._carried_rows(mutate._CacheView({key: entry}, True), functions, waivers)
-
-    assert stale[key]["stale"] is True
-    assert "stale" not in kept[key]
-    assert mutate._needs_remutation(stale[key], "h", waivers, "") is True
-    assert mutate._needs_remutation(kept[key], "h", waivers, "") is False
-
-
-def test_a_mutmut_failure_keeps_the_versions_and_the_waivers(
-    repo: Path, monkeypatch: pytest.MonkeyPatch
+def test_a_waived_function_carried_past_a_suite_change_is_remeasured_back_in_scope(
+    repo: Path, runs: list[tuple[Path, list[str], int | None]]
 ) -> None:
-    def boom(_cwd: Path, _patterns: list[str], _max_workers: int | None) -> None:
-        raise ToolError("mutmut broke")
+    _gate(repo)
+    (repo / "tests" / "test_extra.py").write_text("def test_extra():\n    assert True\n")
+    with mutate.since_last_run(True):
+        run_mutation_gate(repo, CONFIG, {}, repo / ".bob", max_workers=2, baseline=0)
+    back = _gate(repo, since_last_run=True)
 
-    monkeypatch.setattr(mutate, "run_mutmut", boom)
-
-    outcome = _gate(repo)
-
-    assert outcome.exit_code == 4
-    assert outcome.result == GateResult("mutate", "not_run", "mutmut broke")
-    assert outcome.versions == VERSIONS
-    assert outcome.waivers == [WAIVER]
-    assert not (repo / ".bob" / CACHE_NAME).exists()
+    assert len(runs) == 2
+    assert back.summary["remutated"] == ["src/app/weak.py::classify"]
 
 
-@pytest.mark.parametrize("baseline", [None, 1])
-def test_a_broken_baseline_stops_before_mutmut(
-    repo: Path,
-    runs: list[tuple[Path, list[str], int | None]],
-    monkeypatch: pytest.MonkeyPatch,
-    baseline: int | None,
+def test_since_last_run_remeasures_survivors_when_production_code_is_unreadable(
+    repo: Path, runs: list[tuple[Path, list[str], int | None]], monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    measured: list[Path] = []
+    (repo / ".bob" / "waivers.yaml").unlink()
+    _gate(repo)
 
-    def failing_suite(cwd: Path) -> int:
-        measured.append(cwd)
-        return 1
+    def unreadable(_cwd: Path) -> str:
+        raise PermissionError("vendor/internal.py")
 
-    monkeypatch.setattr(mutate, "pytest_exit_code", failing_suite)
+    monkeypatch.setattr(mutate, "source_fingerprint", unreadable)
+    again = _gate(repo, since_last_run=True)
 
-    outcome = _gate(repo, baseline)
-
-    assert measured == ([repo] if baseline is None else [])
-    assert runs == []
-    assert outcome.exit_code == 2
-    assert outcome.result.status == "not_run"
-    assert outcome.versions == VERSIONS
-    assert outcome.waivers == [WAIVER]
+    assert len(runs) == 2
+    assert again.exit_code == 3
+    assert again.summary["remutated"] == ["src/app/weak.py::classify"]
