@@ -125,7 +125,7 @@ def test_run_knip_returns_exit_1_without_an_include_filter(tmp_path: Path) -> No
         assert args[-2:] == ["--reporter", "json"]
         return ProcessExit(1, KNIP, "")
 
-    capture = run_knip(tmp_path, 30, runner)
+    capture = run_knip(tmp_path, 30, runner, include=("src",), exclude=())
 
     assert capture.exit_code == 1
     assert capture.parsed is True

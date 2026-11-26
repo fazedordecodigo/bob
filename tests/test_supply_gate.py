@@ -326,6 +326,49 @@ def test_run_supply_gate_binds_a_null_knip_line_and_drops_relative_specifiers(
     assert supply.rows == (RowBlock(UndeclaredImport("src/app.ts", "lodash", 2)),)
 
 
+def test_run_supply_gate_scopes_knip_imports_to_configured_paths(tmp_path: Path) -> None:
+    repo = _repo(tmp_path)
+    kept = "packages/app/src/app.ts"
+    single = "scripts/build.ts"
+    generated = "packages/app/src/generated/app.ts"
+    generated_sibling = "packages/app/src/generated-client/app.ts"
+    tests = "packages/app/src/sub/tests/app.ts"
+    outside = "packages/app/src-other/app.ts"
+    (repo / "package.json").write_text("{}\n")
+    _commit(repo, "base")
+    _git(repo, "checkout", "-b", "head")
+    for file in (kept, single, generated, generated_sibling, tests, outside):
+        path = repo / file
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text("import 'unlisted-package'\n")
+    _commit(repo, "head")
+    issues = [
+        {"file": str(file), "unlisted": [{"name": "unlisted-package", "line": 1}]}
+        for file in (repo / kept, single, generated, generated_sibling, tests, outside, "../other.ts")
+    ]
+
+    result, code, versions, supply = run_supply_gate(
+        repo,
+        Config(
+            languages=("typescript",),
+            include=("./packages/app/src/", single),
+            exclude=("packages/app/src/generated", "tests"),
+        ),
+        _diff(repo),
+        "main",
+        _knip(json.dumps({"issues": issues})),
+        _status(200),
+    )
+
+    assert code == 1
+    assert result.status == "failed"
+    assert versions == {"knip": "6.41.0"}
+    assert supply.rows == tuple(
+        RowBlock(UndeclaredImport(file, "unlisted-package", 1))
+        for file in (kept, single, generated_sibling)
+    )
+
+
 def test_run_supply_gate_warns_for_a_waived_blocker_beside_a_moderate_advisory(
     tmp_path: Path,
 ) -> None:

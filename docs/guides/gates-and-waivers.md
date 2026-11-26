@@ -143,7 +143,7 @@ The waiver id is `tests:<file>:<line>:<rule>`. A waived row keeps the line in th
 
 A direct name counts when the manifest at `HEAD` declares it, the same manifest at the base does not, and the declaration's line is on the new side. A version bump of a name the base already has does not count. Undeclared imports are looked up under `paths.include`. The direct pin stays in the root manifest (`pyproject.toml`, `requirements*.txt`, `package.json`), even when that root is outside `paths.include`. A lockfile does not add a name.
 
-Python uses deptry 0.25.1. `DEP001` and `DEP003` are undeclared imports. `DEP002`, `DEP004`, and `DEP005` are left out. TypeScript uses knip 6.41.0, findings `unlisted` and `unresolved`. A specifier that starts with `.` or `/` does not count.
+Python uses deptry 0.25.1. `DEP001` and `DEP003` are undeclared imports. `DEP002`, `DEP004`, and `DEP005` are left out. TypeScript uses knip 6.41.0, findings `unlisted` and `unresolved`. Bob keeps Knip findings only from files within `paths.include` and outside `paths.exclude`, without changing the project's Knip configuration. An unresolved specifier that starts with `.` or `/` does not count.
 
 The advisory id comes from `POST https://api.osv.dev/v1/querybatch`. The severity comes from `GET https://api.osv.dev/v1/vulns/{id}`, with the same `supply.timeout_seconds`. A failure of that GET, or a document with no published severity, warns and stays unverified. osv-scanner is not executed.
 
