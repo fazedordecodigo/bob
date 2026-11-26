@@ -8,6 +8,15 @@ supply gate.
 Os imports TypeScript não declarados que o Knip aponta agora respeitam `paths.include` e
 `paths.exclude` no gate supply.
 
+`bob mutate --since-last-run` limits the Python run to functions whose text changed since the last
+recorded run: a cached function with the same hash, mutmut version and suite fingerprint is reused,
+survivors included, instead of being remutated. Before, the flag only reached the reproduce line.
+
+`bob mutate --since-last-run` limita a corrida Python às funções cujo texto mudou desde a última
+execução registrada: uma função em cache com o mesmo hash, a mesma versão do mutmut e a mesma
+impressão da suíte é reusada, sobreviventes inclusive, em vez de ser remutada. Antes, a flag só
+chegava à linha de reprodução.
+
 The `bob setup` help names everything the command installs (npm tools, gitleaks, skills, `bob.yaml`,
 pre-push hook), and the `bob mutate` help names Stryker next to mutmut; the docs list `setup`,
 `update` and `--version` in the CLI reference and stop saying the wheel lacks the skills.
