@@ -133,14 +133,25 @@ def test_mutate_cli_sets_stryker_concurrency_only_when_requested(
         "change add",
     )
     commands: list[list[str]] = []
+    waiver = Waiver("src/safe.ts::add", "known equivalent mutant", "test", "2026-10-12")
+    mutant = {
+        "id": "0",
+        "mutatorName": "ArithmeticOperator",
+        "status": "Survived",
+        "location": {
+            "start": {"line": 2, "column": 10},
+            "end": {"line": 2, "column": 11},
+        },
+    }
 
     def invoke(cwd: Path, report: Path, argv: list[str]) -> subprocess.CompletedProcess[str]:
         commands.append(argv)
-        report.write_text('{"files": {}}\n')
+        report.write_text(json.dumps({"files": {"src/safe.ts": {"mutants": [mutant]}}}))
         return subprocess.CompletedProcess(argv, 0, "", "")
 
     monkeypatch.setattr(stryker_gate, "_missing_tool", lambda: None)
     monkeypatch.setattr(stryker_gate, "_versions", lambda: _VERSIONS)
+    monkeypatch.setattr(stryker_gate, "load_waivers", lambda _cwd: [waiver])
     monkeypatch.setattr(stryker_gate, "npm_prefix", lambda: tmp_path)
     monkeypatch.setattr(stryker_gate, "_invoke", invoke)
 
@@ -148,6 +159,9 @@ def test_mutate_cli_sets_stryker_concurrency_only_when_requested(
     result = run_bob(repo, "mutate", "--base", "main", *args)
 
     assert result.returncode == 0, result.stderr
+    report = json.loads((repo / ".bob" / "report.json").read_text())
+    (survivor,) = report["survivors"]
+    assert survivor["waiver"] == waiver.reason
     (argv,) = commands
     concurrency = [argv[i + 1] for i, arg in enumerate(argv) if arg == "--concurrency"]
     assert concurrency == ([] if workers is None else [workers])
