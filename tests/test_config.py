@@ -960,9 +960,9 @@ def test_bad_yaml_language_fails_even_when_the_flag_wins(
     ("text", "english", "portuguese"),
     [
         (
-            "mutation: {}\n",
-            "bob.yaml: unknown key mutation",
-            "bob.yaml: chave desconhecida mutation",
+            "mutation: {typo: []}\n",
+            "bob.yaml: unknown key mutation.typo",
+            "bob.yaml: chave desconhecida mutation.typo",
         ),
         (
             "duplication:\n  tool: jscpd\n",

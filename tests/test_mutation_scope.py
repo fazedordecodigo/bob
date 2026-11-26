@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import ast
 import json
 from pathlib import Path
 
@@ -8,19 +7,38 @@ import pytest
 
 import bob_quality.mutate as mutate
 from bob_quality.check import run_check
-from bob_quality.diff import changed_lines
-from bob_quality.mutation_scope import (
-    _WithoutAnnotations,
-    _binding_name,
-    _definitions,
-    _runtime_lines,
-    _typing_import,
-    mutation_lines,
-)
-from helpers import commit_on_branch, commit_on_main, init_python_repo
+from helpers import commit_on_branch, commit_on_main, init_python_repo, run_bob
 
 _FILE = "src/app/scope.py"
 _FUTURE = "from __future__ import annotations\n"
+
+
+@pytest.fixture
+def scope_repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+    repo = init_python_repo(tmp_path / "repo")
+    monkeypatch.setattr(mutate, "mutmut_version", lambda: "3.8.0")
+    monkeypatch.setattr(mutate, "pytest_exit_code", lambda _cwd: 0)
+    monkeypatch.setattr(mutate, "run_mutmut", lambda _cwd, _patterns, _workers: None)
+    monkeypatch.setattr(mutate, "mutmut_results", lambda _cwd: "")
+    return repo
+
+
+def _commit_edit(repo: Path, before: str, after: str) -> None:
+    commit_on_main(repo, _FILE, before, "base")
+    commit_on_branch(repo, "edit", _FILE, after, "edit")
+
+
+def _report(repo: Path) -> dict:
+    return json.loads((repo / ".bob" / "report.json").read_text())
+
+
+def _report_after_check(repo: Path) -> dict:
+    assert run_check(repo, base="main", gates=["mutate"]) == 0
+    return _report(repo)
+
+
+def _selected(repo: Path) -> list[str]:
+    return [key.removeprefix(f"{_FILE}::") for key in _report_after_check(repo)["mutation"]["remutated"]]
 
 
 @pytest.mark.parametrize(
@@ -93,249 +111,200 @@ def test_python_gate_scopes_mutation_to_runtime_edits(
 
 
 @pytest.mark.parametrize(
-    ("prefix", "before", "after", "selected"),
+    ("before", "after", "expected"),
     [
-        ("", "def f() -> 'int': return 1", "def f() -> 'str': return 1", False),
-        ("", "def f() -> int: return 1", "def f() -> int(): return 1", True),
-        ("", "def f() -> int: return 1", _FUTURE + "def f() -> str: return 1", True),
-        ("", "def f(): return 1", "def f(): return 1  # touched", True),
-        (
-            "",
-            "from typing import TYPE_CHECKING\n"
-            "def f(): return 1\n"
-            "if TYPE_CHECKING:\n    from types import NoneType",
-            "def f(): return 1",
-            False,
-        ),
-        (
-            "",
-            "import typing as t\ndef f(): return 1\nif t.TYPE_CHECKING:\n    import types",
-            "def f(): return 1",
-            False,
-        ),
-        (
-            "import typing\ntyping.TYPE_CHECKING = True\n",
-            "def f(): return 1\nif typing.TYPE_CHECKING:\n    import types",
-            "def f(): return 1",
-            True,
-        ),
-        (
-            "from typing import TYPE_CHECKING\n",
-            "def f(): return 1\nif TYPE_CHECKING:\n    import types\nelse:\n    import os",
-            "def f(): return 1",
-            True,
-        ),
-        (
-            _FUTURE,
-            "async def f(x: int) -> int: return x",
-            "async def f(x: str) -> str: return x",
-            False,
-        ),
-        (
-            _FUTURE,
-            "class C:\n    def f(self, x: int): return x",
-            "class C:\n    def f(self, x: str): return x",
-            False,
-        ),
-        (
-            _FUTURE,
-            "class C:\n    def f(self, x: int): return x",
-            "class D:\n    def f(self, x: str): return x",
-            True,
-        ),
-        (
-            _FUTURE,
-            "if True:\n    def f(x: int): return x",
-            "if False:\n    def f(x: str): return x",
-            True,
-        ),
-        (
-            "",
-            "def f(x):\n    item: int\n    return x",
-            "def f(x):\n    item: str\n    return x",
-            False,
-        ),
-        (
-            _FUTURE,
-            "def f(x: int): return x",
-            "def f(x: str): return (",
-            True,
-        ),
+        ("def f() -> 'int':\n    return 1\n", "def f() -> 'str':\n    return 1\n", []),
+        ("def f() -> int:\n    return 1\n", "def f() -> int():\n    return 1\n", ["f"]),
+        ("def f() -> int:\n    return 1\n", _FUTURE + "def f() -> str:\n    return 1\n", ["f"]),
+        ("def f():\n    return 1\n", "def f():\n    return 1  # touched\n", ["f"]),
+        (_FUTURE + "async def f(x: int):\n    return x\n",
+         _FUTURE + "async def f(x: str):\n    return x\n", []),
+        (_FUTURE + "class C:\n    def f(self, x: int):\n        return x\n",
+         _FUTURE + "class D:\n    def f(self, x: str):\n        return x\n", ["D.f"]),
+        (_FUTURE + "if True:\n    def f(x: int):\n        return x\n",
+         _FUTURE + "if False:\n    def f(x: str):\n        return x\n", ["f"]),
+        ("def f(x):\n    item: int\n    return x\n", "def f(x):\n    item: str\n    return x\n", []),
+        (_FUTURE + "def f(obj):\n    obj.value: int\n    return obj\n",
+         _FUTURE + "def f(obj):\n    obj.value: str = 0\n    return obj\n", ["f"]),
+        (_FUTURE + "def f(x: int):\n    return x\n", _FUTURE + "def f(x):\n    return x\n", []),
     ],
 )
-def test_filter_preserves_changes_it_cannot_prove_type_only(
-    tmp_path: Path, prefix: str, before: str, after: str, selected: bool
+def test_gate_keeps_changes_that_are_not_proven_type_only(
+    scope_repo: Path, before: str, after: str, expected: list[str]
 ) -> None:
-    repo = init_python_repo(tmp_path / "repo")
-    commit_on_main(repo, _FILE, prefix + before + "\n", "base")
-    commit_on_branch(repo, "edit", _FILE, prefix + after + "\n", "edit")
-    raw = changed_lines(repo, "main")
+    _commit_edit(scope_repo, before, after)
 
-    assert raw[_FILE]
-    assert mutation_lines(repo, "main", raw)[_FILE] == (raw[_FILE] if selected else set())
-
-
-def test_filter_keeps_original_scope_for_new_files_dirty_sources_and_typescript(
-    tmp_path: Path,
-) -> None:
-    repo = init_python_repo(tmp_path / "repo")
-    commit_on_main(repo, _FILE, _FUTURE + "def f(x: int): return x\n", "base")
-    commit_on_branch(repo, "edit", _FILE, _FUTURE + "def f(x: str): return x\n", "type")
-    commit_on_branch(repo, "edit", "src/app/new.py", "def new(): return 1\n", "new")
-    commit_on_branch(repo, "edit", "src/app/app.ts", "export const n = 1;\n", "ts")
-    (repo / _FILE).write_text(_FUTURE + "def f(x: str): return x + 1\n")
-    raw = changed_lines(repo, "main")
-
-    assert mutation_lines(repo, "main", raw) == raw
-    assert mutation_lines(repo, "unresolvable", raw) == raw
-    assert mutation_lines(repo, "main", {"src/app/app.ts": {1}}) == {"src/app/app.ts": {1}}
+    assert _selected(scope_repo) == expected
 
 
 @pytest.mark.parametrize(
-    "imports",
+    ("imports", "guard", "remaining_imports", "expected"),
     [
-        "import other as t\n",
-        "from other import TYPE_CHECKING as t\n",
-        "from .typing import TYPE_CHECKING as t\n",
-        "from typing import cast as t\n",
-        "import typing as t\nimport other as t\n",
-        "import typing as t\nimport t.sub.child\n",
+        ("from typing import TYPE_CHECKING\n", "TYPE_CHECKING", "", []),
+        ("import typing as t\n", "t.TYPE_CHECKING", "", []),
+        ("import other as t\n", "t.TYPE_CHECKING", "", ["f"]),
+        ("from other import TYPE_CHECKING as t\n", "t", "", ["f"]),
+        ("from .typing import TYPE_CHECKING as t\n", "t", "", ["f"]),
+        ("from typing import cast as t\n", "t", "", ["f"]),
+        ("import typing as t\nimport other as t\n", "t.TYPE_CHECKING", "import other as t\n", ["f"]),
+        ("import typing as t\nimport t.sub.child\n", "t.TYPE_CHECKING", "import t.sub.child\n", ["f"]),
+        ("import typing as t\nt = runtime\n", "t.TYPE_CHECKING", "t = runtime\n", ["f"]),
+        ("import typing as t\nfactory().TYPE_CHECKING = True\n", "t.TYPE_CHECKING",
+         "factory().TYPE_CHECKING = True\n", ["f"]),
+        ("import typing as t\nt.Any = object()\n", "t.TYPE_CHECKING", "import typing as t\nt.Any = object()\n", []),
+        ("import typing as t\n", "t", "", ["f"]),
+        ("import typing as t\n", "t.Any", "", ["f"]),
     ],
 )
-def test_guard_must_refer_to_typing_without_shadowing(imports: str) -> None:
-    prefix = imports + "def f(): return 1\n"
-    condition = "t" if imports.startswith("from") else "t.TYPE_CHECKING"
-    before = prefix + f"if {condition}:\n    import types\n"
-    line = len(prefix.splitlines())
-
-    assert _runtime_lines(ast.parse(before), ast.parse(prefix), {line}) == {line}
-
-
-@pytest.mark.parametrize(
-    "source",
-    [
-        "import other as t",
-        "from other import TYPE_CHECKING",
-        "from .typing import TYPE_CHECKING",
-        "from typing import cast",
-    ],
-)
-def test_runtime_import_is_not_recognized_as_the_typing_flag(source: str) -> None:
-    assert _typing_import(ast.parse(source).body[0]) is None
-
-
-def test_dotted_import_binds_its_root_unless_aliased() -> None:
-    assert _binding_name(ast.alias(name="package.mod.sub")) == "package"
-    assert _binding_name(ast.alias(name="package.mod.sub", asname="short")) == "short"
-
-
-def test_a_shadowed_typing_flag_is_not_normalized() -> None:
-    after = "import typing as t\nt = runtime\n"
-    before = after + "if t.TYPE_CHECKING:\n    import types\n"
-
-    assert _runtime_lines(ast.parse(before), ast.parse(after), {1}) == {1}
-
-
-def test_a_guard_before_its_import_is_not_normalized() -> None:
-    before = "if typing.TYPE_CHECKING:\n    import types\nimport typing\n"
-
-    assert _runtime_lines(ast.parse(before), ast.parse(""), {1}) == {1}
-
-
-def test_definitions_distinguish_methods_in_different_control_flow_branches() -> None:
-    tree = ast.parse(
-        "if flag:\n    class C:\n        def run(self): pass\n"
-        "else:\n    class C:\n        def run(self): pass\n"
+def test_gate_skips_deleted_typing_guards_only_when_binding_is_proven(
+    scope_repo: Path, imports: str, guard: str, remaining_imports: str, expected: list[str]
+) -> None:
+    stable = "def f():\n    return 1\n"
+    _commit_edit(
+        scope_repo, imports + stable + f"if {guard}:\n    import types\n", remaining_imports + stable
     )
-    definitions = dict(_definitions(tree))
 
-    assert [node.name for node in definitions.values()] == ["run", "run"]
+    assert _selected(scope_repo) == expected
 
 
-@pytest.mark.parametrize(
-    ("context", "condition", "kept"),
-    [
-        ("", "t", {2}),
-        ("", "t.Any", {2}),
-        ("t.Any = object()\n", "t.TYPE_CHECKING", set()),
-        ("factory().TYPE_CHECKING = True\n", "t.TYPE_CHECKING", {2}),
-    ],
-)
-def test_qualified_guard_only_accepts_type_checking(
-    context: str, condition: str, kept: set[int]
+def test_gate_reports_an_unparseable_edited_file(scope_repo: Path) -> None:
+    before = _FUTURE + "def f(x: int):\n    return x\n"
+    _commit_edit(scope_repo, before, _FUTURE + "def f(x: str):\n    return (\n")
+
+    assert run_check(scope_repo, base="main", gates=["mutate"]) == 4
+    assert "cannot parse src/app/scope.py:3" in _report(scope_repo)["gates"][0]["reason"]
+
+
+def test_gate_keeps_a_deleted_guard_before_its_import(scope_repo: Path) -> None:
+    stable = "def f():\n    return 1\n"
+    _commit_edit(
+        scope_repo,
+        stable + "if typing.TYPE_CHECKING:\n    import types\nimport typing\n",
+        stable + "import typing\n",
+    )
+
+    assert _selected(scope_repo) == ["f"]
+
+
+def test_gate_keeps_runtime_use_of_the_typing_import(scope_repo: Path) -> None:
+    stable = "import typing\ndef f():\n    return typing.Any\n"
+    after = stable.removeprefix("import typing\n")
+    _commit_edit(scope_repo, stable + "if typing.TYPE_CHECKING:\n    import types\n", after)
+
+    assert _selected(scope_repo) == ["f"]
+
+
+def test_gate_skips_an_import_immediately_followed_by_its_typing_guard(scope_repo: Path) -> None:
+    after = "def f():\n    return 1\n"
+    _commit_edit(scope_repo, after + "import typing\nif typing.TYPE_CHECKING:\n    import types\n", after)
+
+    assert _selected(scope_repo) == []
+
+
+def test_gate_keeps_deleted_outer_body_anchored_inside_annotation_only_inner(
+    scope_repo: Path,
 ) -> None:
-    prefix = "import typing as t\n" + context
-    before = prefix + f"if {condition}:\n    import types\n"
-    after = prefix if context.startswith("t.") else context
-
-    assert _runtime_lines(ast.parse(before), ast.parse(after), {2}) == kept
-
-
-def test_bare_guard_does_not_normalize_an_attribute() -> None:
-    prefix = "from typing import TYPE_CHECKING\n"
-    before = prefix + "if flag.TYPE_CHECKING:\n    import types\n"
-
-    assert _runtime_lines(ast.parse(before), ast.parse(prefix), {2}) == {2}
-
-
-def test_typing_import_stays_if_used_at_runtime() -> None:
-    before = "import typing as t\nif t.TYPE_CHECKING:\n    import types\nresult = t\n"
-    after = "result = t\n"
-
-    assert _runtime_lines(ast.parse(before), ast.parse(after), {1}) == {1}
-
-
-def test_typing_guard_immediately_after_its_import_is_ignored() -> None:
-    before = "import typing\nif typing.TYPE_CHECKING:\n    import types\n"
-
-    assert _runtime_lines(ast.parse(before), ast.parse(""), {1}) == set()
-
-
-def test_evaluated_parameter_annotations_stay_in_scope() -> None:
-    before = "def f(x: factory()):\n    return x\n"
-    after = "def f(x: other()):\n    return x\n"
-
-    assert _runtime_lines(ast.parse(before), ast.parse(after), {1}) == {1}
-
-
-def test_module_annotations_are_not_erased() -> None:
-    before = _FUTURE + "label: int = 1\n"
-    after = _FUTURE + "label: str = 1\n"
-
-    assert _runtime_lines(ast.parse(before), ast.parse(after), {2}) == {2}
-
-
-def test_local_annotations_do_not_erase_target_evaluation() -> None:
-    before = _FUTURE + "def f(obj):\n    obj.value: int\n    return obj\n"
-    after = _FUTURE + "def f(obj):\n    obj.value: str = 0\n    return obj\n"
-
-    assert _runtime_lines(ast.parse(before), ast.parse(after), {3}) == {3}
-
-
-def test_bare_annotation_preserves_the_declaration_without_an_assignment() -> None:
-    tree = ast.parse("def f():\n    value: str\n    return value\n")
-    function = tree.body[0]
-    assert isinstance(function, ast.FunctionDef)
-
-    _WithoutAnnotations(deferred=True).visit(tree)
-
-    assert isinstance(function.body[0], ast.AnnAssign)
-    assert function.body[0].value is None
-
-
-def test_filter_keeps_changed_lines_on_each_side_of_an_annotation_only_method() -> None:
     before = _FUTURE + (
-        "class Parent:\n"
-        "    before = 1\n"
-        "    def f(self):\n"
-        "        class Inner:\n"
-        "            field: int\n"
-        "        value: int = 0\n"
-        "        return value\n"
-        "    after = 2\n"
+        "def outer():\n"
+        "    def inner(x: int):\n"
+        "        return x\n"
+        "    record()\n"
+        "    return inner\n"
     )
-    after = before.replace("before = 1", "before = 3").replace("after = 2", "after = 4").replace(
-        "value: int", "value: str"
-    )
+    _commit_edit(scope_repo, before, before.replace("x: int", "x: str").replace("    record()\n", ""))
 
-    assert _runtime_lines(ast.parse(before), ast.parse(after), {3, 7, 9}) == {3, 9}
+    assert "outer" in _selected(scope_repo)
+
+
+def test_gate_skips_deletion_of_an_annotation_in_a_mixed_diff(scope_repo: Path) -> None:
+    before = _FUTURE + (
+        "def type_only(\n"
+        "    x\n"
+        "    : int\n"
+        "):\n"
+        "    return x\n\n"
+        "def changed():\n"
+        "    return 1\n"
+    )
+    _commit_edit(scope_repo, before, before.replace("    : int\n", "").replace("return 1", "return 2"))
+
+    assert _selected(scope_repo) == ["changed"]
+
+
+def test_gate_preserves_annotation_read_by_a_decorator(scope_repo: Path) -> None:
+    before = _FUTURE + (
+        "from typing import get_type_hints\n\n"
+        "def convert(fn):\n"
+        "    decode = get_type_hints(fn)['item_id']\n"
+        "    return lambda value: fn(decode(value))\n\n"
+        "@convert\n"
+        "def item(item_id: int) -> int:\n"
+        "    return item_id\n"
+    )
+    after = before.replace("item_id: int", "item_id: str").replace("-> int", "-> str")
+    _commit_edit(scope_repo, before, after)
+
+    for source, value in ((before, 42), (after, "42")):
+        namespace = {}
+        exec(source, namespace)
+        assert namespace["item"]("42") == value
+    assert _selected(scope_repo) == ["item"]
+
+
+@pytest.mark.parametrize(("glob", "expected"), [("src/app/*.py", ["f"]), ("other/*.py", [])])
+def test_gate_can_keep_runtime_read_annotations_in_matching_modules(
+    scope_repo: Path, glob: str, expected: list[str]
+) -> None:
+    before = _FUTURE + "def f(x: int):\n    return x\n"
+    _commit_edit(scope_repo, before, before.replace("x: int", "x: str"))
+    (scope_repo / "bob.yaml").write_text(f"mutation:\n  runtime_annotation_globs: ['{glob}']\n")
+
+    assert _selected(scope_repo) == expected
+
+
+@pytest.mark.parametrize("wrong", ["true", "null", "src/app/*.py", "[1]"])
+def test_bad_runtime_annotation_globs_exit_four(scope_repo: Path, wrong: str) -> None:
+    (scope_repo / "bob.yaml").write_text(f"mutation:\n  runtime_annotation_globs: {wrong}\n")
+
+    result = run_bob(scope_repo, "mutate", "--base", "main")
+
+    assert result.returncode == 4
+    assert "bob.yaml: mutation.runtime_annotation_globs must be a list of strings" in result.stderr
+    assert not (scope_repo / ".bob" / "report.json").exists()
+
+
+@pytest.mark.parametrize("flags", [(), ("--since-last-run",)])
+def test_annotation_edit_remutates_a_cached_unwaived_survivor(
+    scope_repo: Path, monkeypatch: pytest.MonkeyPatch, flags: tuple[str, ...]
+) -> None:
+    before = _FUTURE + "def f(x: int):\n    return x + 1\n"
+    _commit_edit(scope_repo, before.replace("+ 1", "+ 0"), before)
+    monkeypatch.setattr(
+        mutate, "mutmut_results", lambda _cwd: "    app.scope.x_f__mutmut_1: survived\n"
+    )
+    monkeypatch.setattr(
+        mutate, "mutmut_show",
+        lambda _cwd, _id: f"--- {_FILE}\n+++ {_FILE}\n@@ -2 +2 @@\n"
+        "-    return x + 1\n+    return x - 1\n",
+    )
+    assert run_check(scope_repo, base="main", gates=["mutate"]) == 3
+    assert _report(scope_repo)["survivors"][0]["status"] == "survived"
+
+    commit_on_branch(scope_repo, "annotation", _FILE, before.replace("x: int", "x: str"), "type")
+    assert run_bob(scope_repo, "mutate", "--base", "edit", *flags).returncode == 0
+
+    report = _report(scope_repo)
+    assert report["mutation"]["remutated"] == [f"{_FILE}::f"]
+    assert report["mutation"]["reused"] == []
+    assert report["survivors"][0]["blocking"] is False
+
+
+def test_gate_keeps_original_scope_for_new_and_dirty_sources(scope_repo: Path) -> None:
+    before = _FUTURE + "def f(x: int):\n    return x\n"
+    _commit_edit(scope_repo, before, before.replace("x: int", "x: str"))
+    commit_on_branch(scope_repo, "edit", "src/app/new.py", "def new():\n    return 1\n", "new")
+    (scope_repo / _FILE).write_text(before.replace("return x", "return x + 1"))
+
+    assert _report_after_check(scope_repo)["mutation"]["remutated"] == [
+        "src/app/new.py::new", f"{_FILE}::f",
+    ]

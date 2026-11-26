@@ -152,6 +152,8 @@ Um gate sem nada a medir não aumenta o exit code. Sem código sob `paths.includ
 
 `bob check` local não roda mutação. `bob check --gates mutate` e `bob mutate` rodam, só nas funções alteradas e nas funções que ainda têm sobreviventes.
 
+A mutação Python ignora mudanças do diff que só afetam a tipagem, mas mantém anotações de assinatura em funções decoradas. Para módulos que leem anotações em execução, mantenha o diff completo com `mutation.runtime_annotation_globs` no `bob.yaml`. Uma edição só de anotação ainda remuta uma função com sobrevivente sem waiver no cache, mesmo com `--since-last-run`. Veja [Gates e waivers](docs/guides/gates-and-waivers.md).
+
 ## Como funciona
 
 ### Só o diff bloqueia

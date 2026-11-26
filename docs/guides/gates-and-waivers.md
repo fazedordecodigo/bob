@@ -83,6 +83,16 @@ The baseline runs first. If `crap` already measured pytest in the same run, that
 
 The run mutates changed functions and cached functions that still have an unwaived survivor. The cache is `.bob/mutation-cache.json`. Each function stores a sha256 of its text, the mutmut version, and the suite fingerprint. If the mutmut version or the suite fingerprint differs from the file's key, the cache is not reused. `--since-last-run` limits mutation to what changed since the last recorded run. A cached function whose hash still matches is reused even when it has an unwaived survivor, and the survivor is reported again. Functions whose text changed, or that are not in a reusable cache, are remutated. The flag only changes the Python run. It appears on the report's reproduce line when it was passed.
 
+In Python, changing only deferred parameter or return annotations, local variable annotations, or typing-only module imports under `typing.TYPE_CHECKING` does not select a function from the diff. Runtime changes, including deleted body code and signature annotations on decorated functions, stay in scope. For modules whose annotations are read at runtime outside decorators, set `mutation.runtime_annotation_globs` in `bob.yaml`. It takes a list of case-sensitive shell patterns matched against repository-relative paths with `/` separators; matching Python files keep their full diff scope. For example:
+
+```yaml
+mutation:
+  runtime_annotation_globs:
+    - "src/app/api/*.py"
+```
+
+A function with an unwaived cached survivor is still remutated after an annotation-only edit, even with `--since-last-run`, because the edit changes the function's text hash. None of these rules change the scope of other gates.
+
 A survivor blocks when it is `survived`, has no waiver, and its line is on the new side of the diff. A survivor with no file, or with a line at or below zero, also blocks. Either case exits `3`. An unwaived survivor on a line the diff did not change stays in the table, marked outside the diff, and does not change the exit. `killed` and `timeout` do not block. A waiver does not cover `no_coverage`. `no_coverage` on a changed function also exits `3`.
 
 The waiver id is `file::function` for every survivor of that function, or `file::function::<description>` for one survivor. The description is the mutant's operator with the outer spaces stripped. For Python it is the `mutmut show` diff. For TypeScript it is `{mutatorName}@{line}:{column}-{line}:{column}`, plus ` -> {replacement}` when Stryker reports one. The exact form exists only when no other survivor of the function has the same description. See [ADR 0006](../adr/0006-chave-estavel-do-waiver.md).

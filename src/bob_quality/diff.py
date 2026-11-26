@@ -6,8 +6,18 @@ import re
 import subprocess
 from collections.abc import Mapping, Set
 from pathlib import Path
+from typing import NamedTuple
 
-HUNK_RE = re.compile(r"^@@ -\d+(?:,\d+)? \+(\d+)(?:,(\d+))? @@")
+HUNK_RE = re.compile(r"^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@")
+
+
+class DiffHunk(NamedTuple):
+    old: range
+    new: range
+
+    @property
+    def new_lines(self) -> range:
+        return self.new or range(self.new.start, self.new.start + 1)
 
 
 class GitError(Exception):
@@ -25,7 +35,14 @@ def changed_lines(cwd: Path, base: str) -> dict[str, set[int]]:
 
 
 def parse_unified_diff(patch: str) -> dict[str, set[int]]:
-    files: dict[str, set[int]] = {}
+    return {
+        file: {line for hunk in hunks for line in hunk.new_lines}
+        for file, hunks in parse_diff_hunks(patch).items()
+    }
+
+
+def parse_diff_hunks(patch: str) -> dict[str, list[DiffHunk]]:
+    files: dict[str, list[DiffHunk]] = {}
     current: str | None = None
     for line in patch.splitlines():
         if line.startswith("+++ "):
@@ -42,13 +59,11 @@ def parse_unified_diff(patch: str) -> dict[str, set[int]]:
         match = HUNK_RE.match(line)
         if not match:
             continue
-        start = int(match.group(1))
-        count = int(match.group(2) or "1")
-        touched = files.setdefault(current, set())
-        if count == 0:
-            touched.add(start)
-            continue
-        touched.update(range(start, start + count))
+        old_start, old_count, new_start, new_count = match.groups()
+        old = range(int(old_start), int(old_start) + int(old_count or "1"))
+        anchor = int(new_start)
+        new = range(anchor, anchor + int(new_count or "1"))
+        files.setdefault(current, []).append(DiffHunk(old, new))
     return files
 
 

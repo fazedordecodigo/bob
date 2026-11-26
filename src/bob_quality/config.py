@@ -132,6 +132,19 @@ _SCHEMA = _Node(
             ),
         ),
         _Node(
+            "mutation",
+            "",
+            (),
+            children=(
+                _Node(
+                    "runtime_annotation_globs",
+                    "runtime_annotation_globs",
+                    (_Check("string_list"),),
+                    null_is_default=False,
+                ),
+            ),
+        ),
+        _Node(
             "cognitive",
             "",
             (),
@@ -295,9 +308,17 @@ class Config:
     osv_fail_severities: tuple[str, ...] = FAIL_SEVERITIES
     supply_timeout_seconds: int = 30
     fail_severities: tuple[str, ...] = ("HIGH", "CRITICAL", "ERROR")
+    runtime_annotation_globs: tuple[str, ...] = ()
 
     def __post_init__(self) -> None:
-        for name in ("languages", "include", "exclude", "osv_fail_severities", "fail_severities"):
+        for name in (
+            "languages",
+            "include",
+            "exclude",
+            "osv_fail_severities",
+            "fail_severities",
+            "runtime_annotation_globs",
+        ):
             value = getattr(self, name)
             if isinstance(value, list):
                 object.__setattr__(self, name, tuple(value))
