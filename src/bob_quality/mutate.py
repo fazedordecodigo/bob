@@ -31,7 +31,7 @@ from bob_quality.exit_codes import (
     pytest_passed,
 )
 from bob_quality.messages import Text, msg, reason
-from bob_quality.models import CyclomaticFunction, GateResult, Mutant, MutantStatus
+from bob_quality.models import CyclomaticFunction, FocusRow, GateResult, Mutant, MutantStatus, WaiverRow
 from bob_quality.mutmut_tool import (
     mutmut_results,
     mutmut_show,
@@ -62,7 +62,7 @@ class MutationOutcome:
     result: GateResult
     exit_code: int
     versions: dict[str, str]
-    waivers: list[dict[str, object]]
+    waivers: list[WaiverRow]
     survivors: list[dict[str, object]]
     summary: dict[str, object]
 
@@ -153,7 +153,7 @@ def _prepare_mutation(
     config: Config,
     diff_lines: dict[str, set[int]],
     out_dir: Path,
-) -> MutationOutcome | tuple[dict[str, str], list[Waiver], list[dict[str, object]], _Cache, _Plan]:
+) -> MutationOutcome | tuple[dict[str, str], list[Waiver], list[WaiverRow], _Cache, _Plan]:
     versions, missing = _mutmut_versions()
     if missing is not None:
         return missing
@@ -202,7 +202,7 @@ def _safe_measured(
     cwd: Path,
     config: Config,
     versions: dict[str, str],
-    waiver_rows: list[dict[str, object]],
+    waiver_rows: list[WaiverRow],
 ) -> tuple[list[CyclomaticFunction], MutationOutcome | None]:
     try:
         return _measured_functions(cwd, config), None
@@ -211,7 +211,7 @@ def _safe_measured(
 
 
 def _safe_fingerprint(
-    cwd: Path, versions: dict[str, str], waiver_rows: list[dict[str, object]]
+    cwd: Path, versions: dict[str, str], waiver_rows: list[WaiverRow]
 ) -> str | MutationOutcome:
     try:
         return suite_fingerprint(cwd)
@@ -222,7 +222,7 @@ def _safe_fingerprint(
 def _safe_cache(
     cache: _Cache,
     versions: dict[str, str],
-    waiver_rows: list[dict[str, object]],
+    waiver_rows: list[WaiverRow],
 ) -> tuple[_CacheView, MutationOutcome | None]:
     try:
         return _read_cache(cache), None
@@ -266,7 +266,7 @@ def _baseline_outcome(
     cwd: Path,
     baseline: int | None,
     versions: dict[str, str],
-    waiver_rows: list[dict[str, object]],
+    waiver_rows: list[WaiverRow],
 ) -> MutationOutcome | None:
     try:
         code = pytest_exit_code(cwd) if baseline is None else baseline
@@ -289,7 +289,7 @@ def _collect_fresh(
     remutate: list[CyclomaticFunction],
     max_workers: int | None,
     versions: dict[str, str],
-    waiver_rows: list[dict[str, object]],
+    waiver_rows: list[WaiverRow],
     waivers: list[Waiver],
 ) -> list[Mutant] | MutationOutcome:
     try:
@@ -308,7 +308,7 @@ def _run_and_parse(
     remutate: list[CyclomaticFunction],
     max_workers: int | None,
     versions: dict[str, str],
-    waiver_rows: list[dict[str, object]],
+    waiver_rows: list[WaiverRow],
 ) -> tuple[list[Mutant], MutationOutcome | None]:
     patterns = [
         pattern for item in remutate for pattern in mutmut_run_patterns(item.file, item.name)
@@ -363,7 +363,7 @@ def _one_show(cwd: Path, mutant_id: str) -> str | None:
 
 
 def _tool_outcome(
-    why: Text, versions: dict[str, str], waiver_rows: list[dict[str, object]]
+    why: Text, versions: dict[str, str], waiver_rows: list[WaiverRow]
 ) -> MutationOutcome:
     return _outcome(
         GateResult("mutate", "not_run", why), CONFIG_OR_TOOL, versions, waivers=waiver_rows
@@ -553,7 +553,7 @@ def _finish(
     remutated: list[str],
     reused: list[str],
     versions: dict[str, str],
-    waiver_rows: list[dict[str, object]],
+    waiver_rows: list[WaiverRow],
 ) -> MutationOutcome:
     visible = [item for item in mutants if item.status == "survived"]
     targets = survivor_targets(mutants)
@@ -631,8 +631,8 @@ def _passing_result(uncovered: int) -> GateResult:
 
 
 def focus_with_survivors(
-    focus: list[dict[str, object]], survivors: list[dict[str, object]]
-) -> list[dict[str, object]]:
+    focus: list[FocusRow], survivors: list[dict[str, object]]
+) -> list[FocusRow]:
     scores: dict[str, float] = {str(item["file"]): float(item["risk"]) for item in focus}
     for item in survivors:
         if not item.get("blocking"):
@@ -643,9 +643,9 @@ def focus_with_survivors(
         scores[file] = scores.get(file, 0.0) + 100.0
     ordered = sorted(scores.items(), key=lambda pair: pair[1], reverse=True)
     extras = {str(item["file"]): item for item in focus}
-    rows: list[dict[str, object]] = []
+    rows: list[FocusRow] = []
     for file, risk in ordered:
-        row: dict[str, object] = {"file": file, "risk": risk}
+        row: FocusRow = {"file": file, "risk": risk}
         source = extras.get(file)
         if source is not None and source.get("clone"):
             row["clone"] = True
@@ -907,7 +907,7 @@ def _outcome(
     result: GateResult,
     exit_code: int,
     versions: dict[str, str],
-    waivers: list[dict[str, object]] | None = None,
+    waivers: list[WaiverRow] | None = None,
     survivors: list[dict[str, object]] | None = None,
     summary: dict[str, object] | None = None,
 ) -> MutationOutcome:

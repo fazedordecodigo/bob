@@ -15,6 +15,7 @@ from bob_quality.models import (
     CyclomaticFunction,
     DepViolation,
     FileCoverage,
+    FocusRow,
     FunctionMetric,
     GateResult,
 )
@@ -124,7 +125,7 @@ def files_by_risk(
     metrics: list[FunctionMetric],
     clones: list[Clone],
     changed_files: set[str],
-) -> list[dict[str, object]]:
+) -> list[FocusRow]:
     by_file: dict[str, float] = {}
     for item in metrics:
         if item.changed:
@@ -145,8 +146,8 @@ def _clone_files_in_diff(clones: list[Clone], changed_files: set[str]) -> set[st
     return found
 
 
-def _focus_row(file: str, risk: float, cloned: bool) -> dict[str, object]:
-    row: dict[str, object] = {"file": file, "risk": risk}
+def _focus_row(file: str, risk: float, cloned: bool) -> FocusRow:
+    row: FocusRow = {"file": file, "risk": risk}
     if cloned:
         row["clone"] = True
     return row

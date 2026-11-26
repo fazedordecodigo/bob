@@ -30,11 +30,13 @@ from bob_quality.models import (
     Clone,
     CognitiveFunction,
     DeadSection,
+    DebtRow,
     DepViolation,
     DiffCoverage,
     DiffLine,
     Fail,
     Finding,
+    FocusRow,
     FunctionMetric,
     GateResult,
     GateStatus,
@@ -42,6 +44,7 @@ from bob_quality.models import (
     KnipKind,
     LanguageDiff,
     LedgerRow,
+    MetricRow,
     MissingPackage,
     OffDiff,
     PythonDead,
@@ -64,6 +67,7 @@ from bob_quality.models import (
     VultureKind,
     Warn,
     Waived,
+    WaiverRow,
     flatten_uncovered,
 )
 from bob_quality.test_smells import waiver_id
@@ -254,7 +258,7 @@ def _crap_lines(report: Report) -> list[Text]:
     return lines
 
 
-def _crap_row(fn: dict[str, object]) -> str:
+def _crap_row(fn: MetricRow) -> str:
     loc = f"{fn['file']}:{fn['start_line']}"
     cov = f"{float(fn['coverage']) * 100:.0f}%"
     delta = "—" if fn.get("delta") is None else fn["delta"]
@@ -335,7 +339,7 @@ def _survivor_location(item: dict[str, object]) -> Text:
     return location
 
 
-def _waiver_section(waivers: list[dict[str, object]]) -> list[Text]:
+def _waiver_section(waivers: list[WaiverRow]) -> list[Text]:
     lines: list[Text] = ["## Waivers", ""]
     if not waivers:
         lines.append(msg("report.no_waivers"))
@@ -800,7 +804,7 @@ def violation_row(item: DepViolation) -> dict[str, object]:
     return {"origin": item.origin, "destination": item.destination, "rule": item.rule}
 
 
-def metric_row(metric: FunctionMetric) -> dict[str, object]:
+def metric_row(metric: FunctionMetric) -> MetricRow:
     return {
         "lang": metric.lang,
         "module": metric.module,
@@ -937,7 +941,7 @@ def _saved_report(payload: dict[str, object], path: Path) -> Report:
         clones=_clones(payload.get("clones", []), path),
         reproduce=_text(payload["reproduce"], path),
         exit_code=_exit_code(payload["exit_code"], path),
-        waivers=_dicts(payload.get("waivers", []), path),
+        waivers=_dicts(payload.get("waivers", []), path),  # type: ignore[arg-type]
         survivors=_survivor_rows(payload.get("survivors", []), path),
         mutation=_optional_mutation(payload, path),
         diff_coverage=_saved_diff_coverage(payload, path),
@@ -1358,20 +1362,23 @@ def _status(value: object, path: Path) -> GateStatus:
     raise _invalid_saved(path)
 
 
-def _focus_rows(value: object, path: Path) -> list[dict[str, object]]:
+def _focus_rows(value: object, path: Path) -> list[FocusRow]:
     rows = _dicts(value, path)
     for row in rows:
         _text(row.get("file"), path)
+        # Saved reports may use text risk labels; the published schema describes numeric scores.
         if "risk" not in row:
             raise _invalid_saved(path)
-    return rows
+        if "clone" in row and not isinstance(row["clone"], bool):
+            raise _invalid_saved(path)
+    return rows  # type: ignore[return-value]
 
 
-def _metric_rows(value: object, path: Path) -> list[dict[str, object]]:
+def _metric_rows(value: object, path: Path) -> list[MetricRow]:
     rows = _dicts(value, path)
     for row in rows:
         _metric_row(row, path)
-    return rows
+    return rows  # type: ignore[return-value]
 
 
 def _metric_row(row: dict[str, object], path: Path) -> None:
@@ -1385,14 +1392,14 @@ def _metric_row(row: dict[str, object], path: Path) -> None:
         _number(row["delta"], path)
 
 
-def _debt_rows(value: object, path: Path) -> list[dict[str, object]]:
+def _debt_rows(value: object, path: Path) -> list[DebtRow]:
     rows = _dicts(value, path)
     for row in rows:
         _text(row.get("name"), path)
         _text(row.get("file"), path)
         _integer(row.get("start_line"), path)
         _number(row.get("crap"), path)
-    return rows
+    return rows  # type: ignore[return-value]
 
 
 def _edge_rows(value: object, path: Path) -> list[dict[str, object]]:

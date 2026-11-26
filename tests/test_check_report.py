@@ -6,12 +6,18 @@ from datetime import date
 from pathlib import Path
 
 import pytest
+from jsonschema import Draft202012Validator
 
 from bob_quality.check import _Measured, _assemble, run_check
 from bob_quality.churn import ChurnMeasured, ChurnWindow, FileChurn, Hotspot
 from bob_quality.models import Clone, DepViolation, FunctionMetric, GateResult
 from bob_quality.mutate import MutationOutcome
 from bob_quality.report import to_json
+from bob_quality.waivers import Waiver, write_waivers
+
+REPORT_SCHEMA = json.loads(
+    (Path(__file__).resolve().parents[1] / "src/bob_quality/schemas/report_v1.json").read_text()
+)
 
 
 def test_omitted_gates_and_reproduce_use_the_defaults(tmp_path: Path) -> None:
@@ -31,10 +37,20 @@ def test_omitted_gates_and_reproduce_use_the_defaults(tmp_path: Path) -> None:
 
 def test_threshold_is_the_crap_limit_for_changed_and_old_functions(tmp_path: Path) -> None:
     repo, base, tip = _function_repo(tmp_path)
+    write_waivers(repo, [Waiver("src/new.py::fresh", "equivalent", "ada", "2020-01-02")])
 
     assert run_check(repo, base=base, threshold=1.0, gates=["crap"]) == 1
 
     payload = _payload(repo)
+    Draft202012Validator(REPORT_SCHEMA).validate(payload)
+    assert payload["waivers"] == [
+        {
+            "id": "src/new.py::fresh",
+            "reason": "equivalent",
+            "author": "ada",
+            "date": "2020-01-02",
+        }
+    ]
     assert payload["schema_version"] == 1
     assert payload["commit"] == tip
     assert payload["base"] == base
@@ -91,6 +107,22 @@ def test_threshold_is_the_crap_limit_for_changed_and_old_functions(tmp_path: Pat
             "hotspot": 2,
         }
     ]
+
+
+@pytest.mark.parametrize(
+    "section,row",
+    [
+        ("focus", {"file": "src/new.py", "risk": "high"}),
+        ("focus", {"file": "src/new.py", "risk": 2, "clone": "true"}),
+        ("top_crap", {"file": "src/new.py", "name": "fresh", "start_line": 1, "crap": 2}),
+        ("old_debt", {"file": "src/old.py", "name": "old", "start_line": 1, "crap": True}),
+        ("waivers", {"id": "src/new.py::fresh", "reason": "equivalent", "author": "ada"}),
+    ],
+)
+def test_report_schema_rejects_malformed_rows(section: str, row: dict[str, object]) -> None:
+    validator = Draft202012Validator({**REPORT_SCHEMA, "required": []})
+
+    assert not validator.is_valid({section: [row]})
 
 
 def test_a_missing_coverage_file_stays_a_tool_failure(tmp_path: Path) -> None:

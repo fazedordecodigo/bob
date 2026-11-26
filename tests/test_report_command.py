@@ -284,6 +284,23 @@ def test_report_returns_the_stored_exit_code(tmp_path: Path, code: int) -> None:
     assert (tmp_path / ".bob" / "report.md").read_text().startswith("# bob report\n")
 
 
+def test_report_renders_legacy_focus_risk_labels(tmp_path: Path) -> None:
+    payload = {
+        **_MINIMAL,
+        "focus": [
+            {"file": "first.py", "risk": "high", "clone": False},
+            {"file": "second.py", "risk": "low"},
+        ],
+    }
+    _save(tmp_path, payload)
+
+    assert _invoke(tmp_path, "report").returncode == 0
+
+    markdown = (tmp_path / ".bob" / "report.md").read_text()
+    assert "- `first.py` (risk high)\n" in markdown
+    assert "- `second.py` (risk low)\n" in markdown
+
+
 def test_report_renders_a_failed_gate_a_clone_and_a_metric(tmp_path: Path) -> None:
     payload = dict(_MINIMAL)
     payload["exit_code"] = 1
@@ -1043,6 +1060,9 @@ def test_report_renders_an_empty_secrets_list(tmp_path: Path) -> None:
         {**_MINIMAL, "old_debt": [{"name": "legacy"}]},
         {**_MINIMAL, "survivors": [{"id": "x"}]},
         {**_MINIMAL, "focus": [{"file": "app.py"}]},
+        {**_MINIMAL, "focus": [{"file": "app.py", "risk": 12, "clone": "false"}]},
+        {**_MINIMAL, "focus": [{"file": "app.py", "risk": 12, "clone": 0}]},
+        {**_MINIMAL, "focus": [{"file": "app.py", "risk": 12, "clone": None}]},
         {**_MINIMAL, "gates": [{"name": "crap", "status": "passed", "reason": 1}]},
         {**_MINIMAL, "gates": [1]},
         {**_MINIMAL, "top_crap": [_metric(coverage=True)]},
