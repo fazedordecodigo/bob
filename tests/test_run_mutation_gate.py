@@ -16,7 +16,7 @@ from bob_quality.diff import changed_lines
 from bob_quality.models import GateResult
 from bob_quality.mutate import CACHE_NAME, run_mutation_gate
 from bob_quality.tools import ToolError
-from helpers import commit_on_branch, init_python_repo
+from helpers import commit_on_branch, commit_on_main, init_python_repo
 
 FIXTURE = Path(__file__).parent / "fixtures" / "python_app"
 CLASSIFY = (FIXTURE / "cases" / "survive_classify.py").read_text()
@@ -231,3 +231,33 @@ def test_since_last_run_remeasures_survivors_when_production_code_is_unreadable(
     assert len(runs) == 2
     assert again.exit_code == 3
     assert again.summary["remutated"] == ["src/app/weak.py::classify"]
+
+
+def test_a_latin1_local_edit_outside_python_still_reaches_a_verdict(
+    repo: Path, runs: list[tuple[Path, list[str], int | None]]
+) -> None:
+    (repo / ".bob" / "waivers.yaml").unlink()
+    commit_on_branch(repo, "weak", "docs/notes.txt", "cafe\n", "notes")
+    (repo / "docs" / "notes.txt").write_bytes("café\n".encode("latin-1"))
+
+    outcome = _gate(repo)
+
+    assert len(runs) == 1
+    assert outcome.exit_code == 3
+
+
+def test_a_removal_whose_anchor_was_deleted_locally_still_mutates_the_function(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    runs: list[tuple[Path, list[str], int | None]],
+) -> None:
+    monkeypatch.setattr(mutate, "mutmut_version", lambda: VERSIONS["mutmut"])
+    repo = init_python_repo(tmp_path / "repo")
+    flow = "def flow(n: int) -> bool:\n    x = n\n    print(x)\n    return x > 0\n"
+    commit_on_main(repo, "src/app/flow.py", flow, "add flow")
+    commit_on_branch(repo, "work", "src/app/flow.py", flow.replace("    print(x)\n", ""), "drop print")
+    (repo / "src" / "app" / "flow.py").write_text("def flow(n: int) -> bool:\n    return n > 0\n")
+
+    _gate(repo)
+
+    assert len(runs) == 1

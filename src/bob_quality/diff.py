@@ -5,6 +5,8 @@ from __future__ import annotations
 import re
 import subprocess
 from collections.abc import Mapping, Set
+from dataclasses import dataclass, field
+from difflib import SequenceMatcher
 from pathlib import Path
 
 HUNK_RE = re.compile(r"^@@ -\d+(?:,\d+)? \+(\d+)(?:,(\d+))? @@")
@@ -26,49 +28,81 @@ def changed_lines(cwd: Path, base: str) -> dict[str, set[int]]:
 
 
 def worktree_lines(cwd: Path, lines: dict[str, set[int]]) -> dict[str, set[int]]:
-    """Leva as linhas do diff de HEAD para a árvore de trabalho, que é onde o gate mede."""
+    """Leva as linhas do diff de HEAD para a árvore de trabalho, que é onde o gate mede.
+
+    Uma linha que só se moveu vai para a posição nova. Dentro de um hunk local, a linha
+    casada por conteúdo, ou de uma troca de N linhas por N, vai para a correspondente. Numa
+    troca de N por M, a correspondência é ambígua e vale o bloco novo inteiro. Uma linha
+    apagada localmente vira âncora na linha anterior que sobrou, como faz o diff da branch.
+    """
     if not lines:
         return lines
-    patch = _git(cwd, "diff", "--unified=0", "HEAD", "--", *sorted(lines))
+    patch = _git(cwd, "diff", "--unified=0", "HEAD", "--", *sorted(lines), errors="surrogateescape")
     hunks = _local_hunks(patch)
     return {file: _shift(touched, hunks.get(file, [])) for file, touched in lines.items()}
 
 
-def _local_hunks(patch: str) -> dict[str, list[tuple[int, int, int, int]]]:
-    hunks: dict[str, list[tuple[int, int, int, int]]] = {}
-    current: list[tuple[int, int, int, int]] = []
+@dataclass(frozen=True)
+class _Hunk:
+    old: int
+    new: int
+    removed: list[str] = field(default_factory=list)
+    added: list[str] = field(default_factory=list)
+
+
+def _local_hunks(patch: str) -> dict[str, list[_Hunk]]:
+    hunks: dict[str, list[_Hunk]] = {}
+    current: list[_Hunk] = []
+    in_header = True
     for line in patch.splitlines():
-        if line.startswith("+++ "):
+        if line.startswith("diff --git "):
+            in_header = True
+        elif in_header and line.startswith("+++ "):
             current = hunks.setdefault(line[4:].strip().removeprefix("b/"), [])
-            continue
-        match = FULL_HUNK_RE.match(line)
-        if match:
-            old, old_count, new, new_count = match.groups()
-            current.append((int(old), int(old_count or "1"), int(new), int(new_count or "1")))
+        elif match := FULL_HUNK_RE.match(line):
+            in_header = False
+            current.append(_Hunk(int(match.group(1)), int(match.group(3))))
+        elif not in_header and current and line[:1] in "+-" and line:
+            (current[-1].added if line[0] == "+" else current[-1].removed).append(line[1:])
     return hunks
 
 
-def _shift(touched: set[int], hunks: list[tuple[int, int, int, int]]) -> set[int]:
+def _shift(touched: set[int], hunks: list[_Hunk]) -> set[int]:
     moved: set[int] = set()
     for line in touched:
         moved.update(_shift_line(line, hunks))
     return moved
 
 
-def _shift_line(line: int, hunks: list[tuple[int, int, int, int]]) -> set[int]:
+def _shift_line(line: int, hunks: list[_Hunk]) -> set[int]:
     delta = 0
-    for old, old_count, new, new_count in hunks:
-        if old_count == 0:
-            if line <= old:
+    for hunk in hunks:
+        if not hunk.removed:
+            if line <= hunk.old:
                 break
-            delta += new_count
+            delta += len(hunk.added)
             continue
-        if line < old:
+        if line < hunk.old:
             break
-        if line < old + old_count:
-            return set(range(new, new + new_count))
-        delta += new_count - old_count
+        if line < hunk.old + len(hunk.removed):
+            return _inside(line - hunk.old, hunk)
+        delta += len(hunk.added) - len(hunk.removed)
     return {line + delta}
+
+
+def _inside(offset: int, hunk: _Hunk) -> set[int]:
+    if not hunk.added:
+        return {max(hunk.new, 1)}
+    matcher = SequenceMatcher(None, hunk.removed, hunk.added, autojunk=False)
+    for tag, i1, i2, j1, j2 in matcher.get_opcodes():
+        if not i1 <= offset < i2:
+            continue
+        if tag == "delete":
+            return {max(hunk.new + j1 - 1, 1)}
+        if tag == "equal" or i2 - i1 == j2 - j1:
+            return {hunk.new + j1 + offset - i1}
+        return set(range(hunk.new + j1, hunk.new + j2))
+    return set()
 
 
 def parse_unified_diff(patch: str) -> dict[str, set[int]]:
@@ -140,7 +174,7 @@ def as_diff_path(cwd: Path, raw: str) -> str | None:
     return relative.as_posix()
 
 
-def _git(cwd: Path, *args: str) -> str:
+def _git(cwd: Path, *args: str, errors: str = "strict") -> str:
     try:
         completed = subprocess.run(
             ["git", *args],
@@ -148,6 +182,7 @@ def _git(cwd: Path, *args: str) -> str:
             check=True,
             capture_output=True,
             text=True,
+            errors=errors,
         )
     except (OSError, subprocess.CalledProcessError) as exc:
         raise GitError(str(exc)) from exc
