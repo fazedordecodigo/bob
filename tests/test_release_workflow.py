@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
+import os
 import re
+import subprocess
 from pathlib import Path
 
+import pytest
 import yaml
 
 try:
@@ -98,6 +101,7 @@ def test_release_runs_only_by_hand_on_main() -> None:
     tag = inputs["tag"]
     prerelease = inputs["prerelease"]
     dry_run = inputs["dry_run"]
+    sha = inputs["sha"]
     assert isinstance(tag, dict)
     assert isinstance(prerelease, dict)
     assert isinstance(dry_run, dict)
@@ -107,11 +111,86 @@ def test_release_runs_only_by_hand_on_main() -> None:
     assert prerelease["default"] is True
     assert dry_run["type"] == "boolean"
     assert dry_run["default"] is False
+    assert sha == {
+        "description": "SHA completo de main verificado em E0 (obrigatório para publicar)",
+        "required": False,
+        "type": "string",
+    }
     first = _steps(_jobs(doc)["check"])[0]
     run = first["run"]
     assert isinstance(run, str)
     assert "refs/heads/main" in run
     assert "exit 1" in run
+
+
+@pytest.mark.parametrize(
+    ("dry_run", "requested", "selected"),
+    [
+        ("true", "", "main"),
+        ("false", "e0", "e0"),
+        ("false", "", None),
+        ("false", "other", None),
+        ("false", "HEAD", None),
+    ],
+)
+def test_release_selects_a_main_commit(
+    tmp_path: Path, dry_run: str, requested: str, selected: str | None,
+) -> None:
+    def git(*args: str) -> str:
+        return subprocess.check_output(
+            ["git", "-c", "user.name=Release Test", "-c", "user.email=release@example.com",
+             "-c", "commit.gpgsign=false", *args],
+            cwd=tmp_path, stderr=subprocess.PIPE, text=True,
+        ).strip()
+
+    git("init", "-b", "main")
+    git("commit", "--allow-empty", "-m", "E0")
+    e0 = git("rev-parse", "HEAD")
+    git("commit", "--allow-empty", "-m", "Main advanced")
+    main = git("rev-parse", "HEAD")
+    git("checkout", "--detach", e0)
+    git("commit", "--allow-empty", "-m", "Not on main")
+    other = git("rev-parse", "HEAD")
+    git("checkout", "--detach", main)
+
+    jobs = _jobs(_load())
+    steps = _steps(jobs["check"])
+    source = next(step for step in steps if step.get("id") == "source")
+    index = steps.index(source)
+    assert steps[index - 1]["with"]["fetch-depth"] == 0
+    assert source["env"] == {"SHA": "${{ inputs.sha }}", "DRY_RUN": "${{ inputs.dry_run }}"}
+    run = source["run"]
+    assert isinstance(run, str)
+    output = tmp_path / "outputs"
+    refs = {"e0": e0, "main": main, "other": other}
+    checked = subprocess.run(
+        ["bash", "-e", "-o", "pipefail", "-c", run],
+        cwd=tmp_path,
+        env={**os.environ, "SHA": refs.get(requested, requested), "DRY_RUN": dry_run,
+             "GITHUB_SHA": main, "GITHUB_OUTPUT": str(output)},
+        capture_output=True, text=True, check=False,
+    )
+    if selected is None:
+        assert checked.returncode == 1
+        assert not output.exists()
+        assert git("rev-parse", "HEAD") == main
+        return
+    assert checked.returncode == 0, checked.stderr
+    sha = refs[selected]
+    assert git("rev-parse", "HEAD") == sha
+    assert output.read_text() == f"sha={sha}\n"
+    assert f"release: SHA do build: {sha}" in checked.stdout
+
+
+def test_release_downstream_checkouts_use_the_selected_commit() -> None:
+    jobs = _jobs(_load())
+    assert jobs["check"]["outputs"]["sha"] == "${{ steps.source.outputs.sha }}"
+    for job in ("verify", "publish"):
+        checkout = next(
+            step for step in _steps(jobs[job])
+            if "actions/checkout@" in str(step.get("uses", ""))
+        )
+        assert checkout["with"]["ref"] == "${{ needs.check.outputs.sha }}"
 
 
 def test_release_jobs_and_permissions() -> None:
@@ -211,7 +290,7 @@ def test_release_publish_creates_the_release_from_the_notes() -> None:
     run = create["run"]
     assert isinstance(run, str)
     assert "gh release create" in run
-    assert '--target "$GITHUB_SHA"' in run
+    assert '--target "$SHA"' in run
     assert "--notes-file" in run
     assert "docs/release-checks/$TAG.md" in run
     assert "--prerelease --latest=false" in run
@@ -220,6 +299,7 @@ def test_release_publish_creates_the_release_from_the_notes() -> None:
     env = create["env"]
     assert isinstance(env, dict)
     assert env["GH_TOKEN"] == "${{ github.token }}"
+    assert env["SHA"] == "${{ needs.check.outputs.sha }}"
 
 
 def test_release_pins_actions_like_ci() -> None:

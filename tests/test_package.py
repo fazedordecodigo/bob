@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import subprocess
 import sys
+import time
 import zipfile
 from pathlib import Path
 
@@ -46,6 +48,29 @@ def test_sdist_and_wheel_pass_twine_check(tmp_path: Path) -> None:
         text=True,
     )
     assert check.returncode == 0, check.stdout + check.stderr
+
+
+def test_wheel_builds_have_the_same_sha256(tmp_path: Path) -> None:
+    _skip_under_mutmut()
+    epoch = subprocess.check_output(
+        ["git", "log", "-1", "--format=%ct"], cwd=ROOT, text=True,
+    ).strip()
+    digests = []
+    for index in range(2):
+        dist = tmp_path / str(index)
+        build = subprocess.run(
+            [sys.executable, "-m", "build", "--wheel", "--outdir", str(dist)],
+            cwd=ROOT,
+            env={**os.environ, "SOURCE_DATE_EPOCH": epoch},
+            capture_output=True,
+            text=True,
+        )
+        assert build.returncode == 0, build.stdout + build.stderr
+        [wheel] = dist.glob("*.whl")
+        digests.append(hashlib.sha256(wheel.read_bytes()).hexdigest())
+        if index == 0:
+            time.sleep(3)
+    assert digests[0] == digests[1]
 
 
 def test_wheel_ships_npm_manifest_and_install_can_find_it(tmp_path: Path) -> None:
