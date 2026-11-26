@@ -6,7 +6,7 @@ import json
 import os
 from datetime import date
 from pathlib import Path
-from typing import cast, get_args
+from typing import get_args
 
 from bob_quality.churn import (
     ChurnMeasured,
@@ -931,15 +931,15 @@ def _saved_report(payload: dict[str, object], path: Path) -> Report:
         generated_at=_text(payload["generated_at"], path),
         tool_versions=_versions(payload["tool_versions"], path),
         gates=_gates(payload["gates"], path),
-        focus=cast(list[FocusRow], _focus_rows(payload["focus"], path)),
-        top_crap=cast(list[MetricRow], _metric_rows(payload["top_crap"], path)),
-        old_debt=cast(list[DebtRow], _debt_rows(payload.get("old_debt", []), path)),
+        focus=_focus_rows(payload["focus"], path),
+        top_crap=_metric_rows(payload["top_crap"], path),
+        old_debt=_debt_rows(payload.get("old_debt", []), path),
         dependencies=_edge_rows(payload.get("dependencies", []), path),
         old_dependencies=_edge_rows(payload.get("old_dependencies", []), path),
         clones=_clones(payload.get("clones", []), path),
         reproduce=_text(payload["reproduce"], path),
         exit_code=_exit_code(payload["exit_code"], path),
-        waivers=cast(list[WaiverRow], _dicts(payload.get("waivers", []), path)),
+        waivers=_dicts(payload.get("waivers", []), path),  # type: ignore[arg-type]
         survivors=_survivor_rows(payload.get("survivors", []), path),
         mutation=_optional_mutation(payload, path),
         dead_code=_dead_section(payload, path),
@@ -1318,20 +1318,20 @@ def _status(value: object, path: Path) -> GateStatus:
     raise _invalid_saved(path)
 
 
-def _focus_rows(value: object, path: Path) -> list[dict[str, object]]:
+def _focus_rows(value: object, path: Path) -> list[FocusRow]:
     rows = _dicts(value, path)
     for row in rows:
         _text(row.get("file"), path)
         if "risk" not in row:
             raise _invalid_saved(path)
-    return rows
+    return rows  # type: ignore[return-value]
 
 
-def _metric_rows(value: object, path: Path) -> list[dict[str, object]]:
+def _metric_rows(value: object, path: Path) -> list[MetricRow]:
     rows = _dicts(value, path)
     for row in rows:
         _metric_row(row, path)
-    return rows
+    return rows  # type: ignore[return-value]
 
 
 def _metric_row(row: dict[str, object], path: Path) -> None:
@@ -1345,14 +1345,14 @@ def _metric_row(row: dict[str, object], path: Path) -> None:
         _number(row["delta"], path)
 
 
-def _debt_rows(value: object, path: Path) -> list[dict[str, object]]:
+def _debt_rows(value: object, path: Path) -> list[DebtRow]:
     rows = _dicts(value, path)
     for row in rows:
         _text(row.get("name"), path)
         _text(row.get("file"), path)
         _integer(row.get("start_line"), path)
         _number(row.get("crap"), path)
-    return rows
+    return rows  # type: ignore[return-value]
 
 
 def _edge_rows(value: object, path: Path) -> list[dict[str, object]]:
