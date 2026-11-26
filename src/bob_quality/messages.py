@@ -57,13 +57,16 @@ _EN: dict[str, str] = {
     "cli.max_new_clones_negative": "--max-new-clones must be at least 0",
     "cli.deps": "Check dependency cycles and rules",
     "cli.mutate": "Mutate the changed functions with mutmut or Stryker",
-    "cli.since_last_run": "Reuse the cache; already the default behavior",
+    "cli.since_last_run": "Remutate only functions whose text changed since the last recorded run",
     "cli.waive": "Record a waiver with a one-line reason",
-    "cli.waive_target": "file::function, or a Target from the mutation report",
+    "cli.waive_target": (
+        "file::function, or a Target from the mutation report; "
+        "for other gates use a prefixed waiver ID (e.g. coverage:file:line)"
+    ),
     "cli.doctor": "Check the pinned tools and the installed versions",
     "cli.report": "Render report.json from a directory as Markdown",
     "cli.install": "Install the npm tools with npm ci in the package (or in a user cache)",
-    "cli.setup": "Set up bob in this project (npm tools, gitleaks, skills, bob.yaml, pre-push hook) and run bob doctor",
+    "cli.setup": "Set up bob in this project (npm tools, gitleaks, skills, bob.yaml, pre-push hook) and check setup tools",
     "cli.update": "Update bob and this project to the latest published release",
     "cli.version": "Show the bob version and the project skills version",
     "config.not_found": "config file not found: {path}",
@@ -220,6 +223,7 @@ _EN: dict[str, str] = {
     "doctor.missing": "missing",
     "doctor.install_node": "Install Node.js {version} ({url})",
     "doctor.install_gitleaks": "install gitleaks {version} from {url} (sha256 {sha256})",
+    "doctor.install_semgrep": "Install uv if needed (https://docs.astral.sh/uv/getting-started/installation/), then run: {command}",
     "doctor.error": "bob doctor: {reason}",
     "doctor.bob_home_relative": "BOB_HOME={value} must be absolute. Use an absolute path.",
     "version.skills": "project skills: {state}",
@@ -433,8 +437,8 @@ _EN: dict[str, str] = {
     "setup.nothing": "nothing",
     "setup.preserved": "  preserved: {item}",
     "setup.warnings": "  warnings: {text}",
-    "setup.doctor": "  bob doctor: {code}",
-    "setup.doctor_not_run": "not run",
+    "setup.tools": "  setup tools: {code}",
+    "setup.tools_not_run": "not run",
     "setup.profile": "  shell profile: {text}",
     "setup.profile_added": (
         "added ~/.local/bin to PATH in {path}. Open a new terminal or run: . {path}"
@@ -521,13 +525,16 @@ _PT_BR: dict[str, str] = {
     "cli.max_new_clones_negative": "--max-new-clones deve ser no mínimo 0",
     "cli.deps": "Verifica ciclos e regras de dependência",
     "cli.mutate": "Muta funções alteradas com mutmut ou Stryker",
-    "cli.since_last_run": "Reusa o cache; já é o comportamento padrão",
+    "cli.since_last_run": "Remuta só funções cujo texto mudou desde a última execução registrada",
     "cli.waive": "Registra um waiver com motivo de uma linha",
-    "cli.waive_target": "arquivo::função, ou um Alvo do relatório de mutação",
+    "cli.waive_target": (
+        "arquivo::função, ou um Alvo do relatório de mutação; "
+        "para outros gates, use um id de waiver com prefixo (ex.: coverage:arquivo:linha)"
+    ),
     "cli.doctor": "Verifica as ferramentas pinadas e as versões instaladas",
     "cli.report": "Renderiza o report.json de uma pasta como Markdown",
     "cli.install": "Instala as ferramentas npm com npm ci no pacote (ou num cache do usuário)",
-    "cli.setup": "Prepara o bob neste projeto (ferramentas npm, gitleaks, skills, bob.yaml, hook pre-push) e roda o bob doctor",
+    "cli.setup": "Prepara o bob neste projeto (ferramentas npm, gitleaks, skills, bob.yaml, hook pre-push) e verifica as ferramentas do setup",
     "cli.update": "Atualiza o bob e este projeto para a última release publicada",
     "cli.version": "Mostra a versão do bob e a das skills do projeto",
     "config.not_found": "arquivo de configuração não encontrado: {path}",
@@ -687,6 +694,7 @@ _PT_BR: dict[str, str] = {
     "doctor.missing": "ausente",
     "doctor.install_node": "Instale Node.js {version} ({url})",
     "doctor.install_gitleaks": "instale o gitleaks {version} em {url} (sha256 {sha256})",
+    "doctor.install_semgrep": "Instale o uv se necessário (https://docs.astral.sh/uv/getting-started/installation/), depois rode: {command}",
     "doctor.error": "bob doctor: {reason}",
     "doctor.bob_home_relative": "BOB_HOME={value} precisa ser absoluto. Use um caminho absoluto.",
     "version.skills": "skills do projeto: {state}",
@@ -897,8 +905,8 @@ _PT_BR: dict[str, str] = {
     "setup.nothing": "nada",
     "setup.preserved": "  preservado: {item}",
     "setup.warnings": "  avisos: {text}",
-    "setup.doctor": "  bob doctor: {code}",
-    "setup.doctor_not_run": "não rodou",
+    "setup.tools": "  ferramentas do setup: {code}",
+    "setup.tools_not_run": "não rodou",
     "setup.profile": "  perfil do shell: {text}",
     "setup.profile_added": (
         "acrescentei ~/.local/bin ao PATH em {path}. Abra um terminal novo ou rode: . {path}"

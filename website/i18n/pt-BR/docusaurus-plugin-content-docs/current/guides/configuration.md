@@ -51,9 +51,10 @@ O caminho é sempre `<cwd>/.bob/waivers.yaml`. `bob waive` cria o diretório qua
 
 ```bash
 bob waive 'src/app/billing.py::charge::if total > limit: -> if total >= limit:' --reason "equivalent; the inclusive limit does not change the contract"
+bob waive 'coverage:src/app/billing.py:42' --reason "fallback específico da plataforma"
 ```
 
-`bob waive` aceita só um alvo de um sobrevivente da última execução de mutação, lido de `.bob/mutation-cache.json` (Python) e `.bob/stryker-mutants.json` (TypeScript). Rode a mutação primeiro. O alvo é `file::function`, que dispensa todo sobrevivente dessa função, ou a coluna Target da tabela de sobreviventes, que dispensa um sobrevivente. O id do mutante, um nome de função nu e `file:function` saem com `4` e não gravam nada.
+Para mutação, rode a mutação primeiro. O alvo é `file::function`, que dispensa todo sobrevivente dessa função, ou a coluna Target da tabela de sobreviventes, que dispensa um sobrevivente. O comando confere o alvo na última execução de mutação em `.bob/mutation-cache.json` (Python) e `.bob/stryker-mutants.json` (TypeScript). O id do mutante, um nome de função nu e `file:function` saem com `4` e não gravam nada.
 
 O comando grava estes campos:
 
@@ -66,7 +67,7 @@ O comando grava estes campos:
 
 Um `--reason` ausente, um motivo vazio ou um motivo com quebra de linha sai com `4`. Essa mensagem segue o idioma da saída. Um id que já aparece uma vez é substituído e o comando sai com `0`. Um arquivo que já contém duas linhas com um id sai com `4` e os bytes permanecem.
 
-Ids escritos à mão para os outros gates usam os prefixos de [Gates e waivers](gates-and-waivers.md). O próprio `bob waive` só guarda um alvo de sobrevivente de mutação. Os outros ids são editados no mesmo arquivo. `load_waivers` não confere que um id casa com um sobrevivente. Um id que não casa com nada deixa o achado sem waiver.
+Para outros gates, passe o id completo, conforme [Gates e waivers](gates-and-waivers.md). Os prefixos aceitos são `cognitive:`, `coverage:`, `tests:`, `supply:`, `sast:`, `typing:`, `secret:` e `dead:`. O comando confere o prefixo, não se o id casa com um achado; esses ids não exigem uma execução de mutação. Um id que não casa com nada deixa o achado sem waiver.
 
 Um `waivers.yaml` que é YAML válido com o formato errado sai com `4`. O stderr em inglês nomeia `.bob/waivers.yaml` e o campo, como em `.bob/waivers.yaml: waivers[0].reason must be a string`. Um erro de sintaxe YAML nomeia o arquivo e o erro do parser. Uma chave repetida nomeia a chave e a linha, como em `invalid YAML in .bob/waivers.yaml: found duplicate key 'id' on line 3`. A execução não grava `report.md` nem `report.json`, e o arquivo permanece como está. `check`, `doctor`, `waive` e `report` compartilham este preflight, inclusive quando `--lang` é `pt-BR`.
 

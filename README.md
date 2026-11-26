@@ -25,7 +25,7 @@ These parts work on `main`:
 - The GitHub Action that comments the report on the pull request.
 - `bob doctor`, and the `bob-quality` package ready to distribute. Nothing has been sent to PyPI.
 - `bob report`, which renders a saved `report.json` to Markdown.
-- The opt-in gates `coverage`, `test_smells`, `cognitive`, `supply`, `security`, `typing`, `secrets`, and `dead_code`, requested with `bob check --gates`.
+- The opt-in gates `coverage`, `test_smells`, `cognitive`, `supply`, `security`, `typing`, `secrets`, and `dead_code`, requested with `bob check --gates`. The supply gate applies `paths.include` and `paths.exclude` to undeclared TypeScript imports reported by Knip.
 - The one-line install (`install.sh`), `bob setup`, `bob update`, and `bob --version`, with the `release` workflow that builds the release assets.
 - Plugin manifests for Claude Code, Cursor, Copilot, and Devin, and the skill installer ([#10](https://github.com/fazedordecodigo/bob/issues/10)). Nothing has been sent to a marketplace.
 
@@ -88,11 +88,13 @@ bob --version
 
 ## Installation (development)
 
+The full `bob doctor` check and the TypeScript security gate need [uv](https://docs.astral.sh/uv/getting-started/installation/) with `uvx` on `PATH`. The one-line installation does not need it.
+
 You need Python 3.10 or later and Node 22.18.0, the versions the CI uses. The system Python of a current Ubuntu refuses `pip install` under PEP 668, so install inside a venv. To get Node 22.18.0, run `fnm install 22.18.0` or `nvm install 22.18.0`, or download the `.tar.gz` from <https://nodejs.org/dist/v22.18.0/>. Choose the `.tar.gz` over the `.tar.xz`, because the image may not have `xz`.
 
 ```bash
 python3 -m venv .venv && . .venv/bin/activate
-python -m pip install -e ".[dev]"
+python -m pip install -e ".[dev]" 'uv==0.13.0'
 npm ci
 ```
 
@@ -112,7 +114,7 @@ bob crap --base main
 bob dry --base main
 bob deps --base main
 bob mutate --base main
-bob waive <file::function|Target> --reason "texto de uma linha"
+bob waive <target> --reason "texto de uma linha"
 bob doctor
 ```
 
@@ -124,8 +126,8 @@ Each command accepts these flags:
 | `bob crap` | `--base`, `--config`, `--out`, `--threshold`, `--coverage-file` |
 | `bob dry` | `--base`, `--config`, `--out`, `--dry-fail`, `--max-new-clones` |
 | `bob deps` | `--base`, `--config`, `--out` |
-| `bob mutate` | `--base`, `--config`, `--out`, `--max-workers`, `--since-last-run` (reuses the cache, which is already the default) |
-| `bob waive` | `file::function` or a Target from the mutation report, `--reason` |
+| `bob mutate` | `--base`, `--config`, `--out`, `--max-workers` (sets mutmut's `--max-children` for Python and Stryker's `--concurrency` for TypeScript), `--since-last-run` (remutates only functions whose text changed since the last recorded run) |
+| `bob waive` | `file::function` or a Target from the mutation report, or a prefixed gate id, `--reason` |
 | `bob doctor` | `--install` |
 
 Every command also accepts `--lang en|pt-BR`, before or after the command name. See [Output language](#output-language).
@@ -224,7 +226,7 @@ In CI, set `language: pt-BR` in `bob.yaml`, or `BOB_LANG: pt-BR` in the job `env
 
 `bob doctor` lists each tool with the pinned and the found version. It exits with `0` when all match, and with `4` when a tool is missing or differs, together with the install command. Python and npm tools must match exactly. Node must be `>=22.18.0 <23`, so Node 20, Node 24, or `22.18.0-rc.1` gives `4`. If the package directory is not writable, the message asks for `bob doctor --install`.
 
-`bob doctor --install` runs `npm ci` in the installed package. When npm fails there with `EACCES`, `EPERM` or `EROFS`, it installs into a user cache (`$XDG_CACHE_HOME/bob-quality`, or `~/.cache/bob-quality`). Other npm errors exit with `4` and the exact command. Then it prints the same report.
+`bob doctor --install` runs `npm ci` in the installed package. When npm fails there with `EACCES`, `EPERM` or `EROFS`, it installs into a user cache (`$XDG_CACHE_HOME/bob-quality`, or `~/.cache/bob-quality`). Other npm errors exit with `4` and the exact command. It also ensures gitleaks is installed and checks the setup tools. Run `bob doctor` without `--install` to check Semgrep too.
 
 ### Waivers
 
@@ -235,7 +237,7 @@ Waivers live in `.bob/waivers.yaml`, which you commit with the code. `bob waive`
 - `author`, from `git config user.name`, or `$USER`.
 - `date`, the UTC date.
 
-A waiver without a one-line reason is rejected with exit `4`. `bob waive` of an id that already appears once replaces that row and exits 0. A file that already contains two rows with one id exits 4 and the bytes stay. The description is the mutant's operator with the outer spaces stripped. For Python it is the `mutmut show` diff. For TypeScript it is `{mutatorName}@{line}:{column}-{line}:{column}`, plus ` -> {replacement}` when Stryker reports one. The exact form exists only when no other survivor of the function has the same description. The Target column of the survivor table shows it, or `—` when it does not exist. `bob waive` accepts only a target of a survivor in the last mutation run, read from `.bob/mutation-cache.json` and `.bob/stryker-mutants.json`. Any other target, such as the mutant id or a bare function name, exits `4` and writes nothing. A hand-edited id that matches no survivor leaves the survivor unwaived. In TypeScript, a line inserted above the mutant changes its description, so the old waiver stops matching and the gate exits `3`. See [ADR 0006](docs/adr/0006-chave-estavel-do-waiver.md). A `waivers.yaml` that is valid YAML with the wrong shape exits with `4`. The message is English on stderr and names `.bob/waivers.yaml` and the field, as in `.bob/waivers.yaml: waivers[0].reason must be a string`. A top-level list, a `waivers` value that is not a list, an item that is not a mapping, and a missing field all do this. The run writes no `report.md` and no `report.json`, and the file stays as it is. `check`, `doctor`, and `waive` do this the same way, even when `--lang` is `pt-BR`. A YAML syntax error also exits with `4`. That message names `.bob/waivers.yaml` and the parser error. The agent writes the waiver, and the human approves it in the pull request review. Every waiver appears at the top of the report.
+A waiver without a one-line reason is rejected with exit `4`. `bob waive` of an id that already appears once replaces that row and exits 0. A file that already contains two rows with one id exits 4 and the bytes stay. The description is the mutant's operator with the outer spaces stripped. For Python it is the `mutmut show` diff. For TypeScript it is `{mutatorName}@{line}:{column}-{line}:{column}`, plus ` -> {replacement}` when Stryker reports one. The exact form exists only when no other survivor of the function has the same description. The Target column of the survivor table shows it, or `—` when it does not exist. For mutation, `bob waive` requires a target of a survivor in the last mutation run, read from `.bob/mutation-cache.json` and `.bob/stryker-mutants.json`. An invalid mutation target, such as the mutant id or a bare function name, exits `4` and writes nothing. For other gates, pass a prefixed id as described in [Gates and waivers](docs/guides/gates-and-waivers.md). A hand-edited id that matches no survivor leaves the survivor unwaived. In TypeScript, a line inserted above the mutant changes its description, so the old waiver stops matching and the gate exits `3`. See [ADR 0006](docs/adr/0006-chave-estavel-do-waiver.md). A `waivers.yaml` that is valid YAML with the wrong shape exits with `4`. The message is English on stderr and names `.bob/waivers.yaml` and the field, as in `.bob/waivers.yaml: waivers[0].reason must be a string`. A top-level list, a `waivers` value that is not a list, an item that is not a mapping, and a missing field all do this. The run writes no `report.md` and no `report.json`, and the file stays as it is. `check`, `doctor`, and `waive` do this the same way, even when `--lang` is `pt-BR`. A YAML syntax error also exits with `4`. That message names `.bob/waivers.yaml` and the parser error. The agent writes the waiver, and the human approves it in the pull request review. Every waiver appears at the top of the report.
 
 ### The report
 

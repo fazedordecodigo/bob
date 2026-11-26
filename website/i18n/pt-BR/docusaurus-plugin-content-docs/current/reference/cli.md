@@ -11,7 +11,7 @@ bob dry --base origin/main
 bob deps --base origin/main
 bob mutate --base origin/main
 bob report
-bob waive <file::function|Target> --reason "one line of text"
+bob waive <target> --reason "one line of text"
 bob doctor
 bob setup
 bob update
@@ -56,7 +56,7 @@ Quando mais de um gate devolve um código, o mais alto vence (`_worse` em `check
 | `bob crap` | `--threshold` substitui `crap.max_per_function` nesta execução. Tem de ser um número finito maior que `0`. `--coverage-file` aponta para um arquivo de cobertura que já existe |
 | `bob dry` | `--dry-fail` e `--max-new-clones`, as mesmas flags de `bob check` |
 | `bob deps` | nenhuma além das flags compartilhadas |
-| `bob mutate` | `--max-workers` vira `--max-children` do mutmut (`src/bob_quality/mutmut_tool.py`). `--since-last-run` não muda a medição: o texto de ajuda diz que reusar o cache já é o padrão. A flag só entra na linha de reprodução do relatório quando foi passada |
+| `bob mutate` | `--max-workers` vira `--max-children` do mutmut (`src/bob_quality/mutmut_tool.py`) para Python e `--concurrency` do Stryker para TypeScript. Sem `--max-workers`, os executores mantêm seus padrões. `--since-last-run` limita a corrida Python às funções cujo texto mudou desde a última execução registrada: uma função em cache com o mesmo hash, a mesma versão do mutmut e a mesma impressão da suíte é reusada, sobreviventes inclusive. O TypeScript já usa o `--incremental` do Stryker. `--since-last-run` só entra na linha de reprodução do relatório quando foi passada |
 
 `--max-workers` aceita um inteiro de 1 a 64. O teto é `_WORKER_CEILING` em `src/bob_quality/cli.py`. Um valor fora dessa faixa sai com `4`. A última linha do stderr é `bob mutate: error: argument --max-workers: invalid value: '65' (use an integer from 1 to 64)` quando o valor é `65`.
 
@@ -74,23 +74,25 @@ A spec diz que o hook local roda `crap,dry,deps` e que no CI o check roda todo g
 
 Lista cada pin de `src/bob_quality/doctor.py` com a versão esperada e a versão encontrada. Sai com `0` quando todo pin está satisfeito e com `4` quando um falta ou está fora do pin, e imprime o comando de instalação. Não grava `.bob/report.md`. Um sufixo `-rc` na versão encontrada está fora do pin, e o doctor sai com `4`.
 
-Pins, na ordem do código: lizard 1.24.1, deptry 0.25.1, coverage.py 7.16.2, node `>=22.18.0 <23`, c8 12.0.0, vitest 5.0.5, jscpd 5.4.1, eslint 9.39.5, eslint-plugin-sonarjs 2.0.4, mutmut 3.8.0, complexipy 8.0.1, import-linter 2.15, grimp 3.17, diff-cover 10.6.0, bandit 1.9.4, dependency-cruiser 18.6.0, gitleaks 8.30.1, vulture 2.16, knip 6.41.0, stryker 10.0.0, stryker-vitest-runner 10.0.0. A versão esperada de uma ferramenta Python vem do `Requires-Dist` instalado de `bob-quality`. O Semgrep 1.180.0 não está nessa lista. O gate de segurança chama `uvx --from semgrep==1.180.0`.
+Pins, na ordem do código: lizard 1.24.1, deptry 0.25.1, coverage.py 7.16.2, node `>=22.18.0 <23`, c8 12.0.0, vitest 5.0.5, jscpd 5.4.1, eslint 9.39.5, eslint-plugin-sonarjs 2.0.4, mutmut 3.8.0, complexipy 8.0.1, import-linter 2.15, grimp 3.17, diff-cover 10.6.0, bandit 1.9.4, dependency-cruiser 18.6.0, gitleaks 8.30.1, vulture 2.16, knip 6.41.0, stryker 10.0.0, stryker-vitest-runner 10.0.0, Semgrep 1.180.0. A versão esperada de uma ferramenta Python empacotada vem do `Requires-Dist` instalado de `bob-quality`.
 
-`bob doctor --install` roda `npm ci` no pacote instalado e depois imprime o mesmo relatório. Ver [Instalação](../getting-started/installation.md).
+O doctor consulta o Semgrep com o mesmo comando `uvx` pinado do gate de segurança, sem métricas nem checagem de atualizações. Se o cache do `uvx` estiver vazio, ele pode baixar a ferramenta pinada e suas dependências. Se o executor faltar ou não reportar a versão pinada, o doctor sai com `4`. O `bob setup` confere só as ferramentas que instala ou exige e não precisa de `uvx`.
+
+`bob doctor --install` roda `npm ci` no pacote instalado, garante que o gitleaks esteja instalado e apresenta as ferramentas do setup. Para verificar também o Semgrep, rode `bob doctor` sem `--install`. Ver [Instalação](../getting-started/installation.md).
 
 `doctor` também passa pelo preflight de configuração. Um `bob.yaml` ou `.bob/waivers.yaml` inválido no diretório de trabalho faz o doctor sair com `4` antes do relatório de versões. Ver [Saída 4](../exit-codes.md#saída-4).
 
 ## bob waive
 
 ```bash
-bob waive <file::function|Target> --reason "one line"
+bob waive <target> --reason "one line"
 ```
 
 Grava ou substitui uma linha em `.bob/waivers.yaml` e sai com `0`. Não grava `report.md`. Os campos estão em [Configuração](../guides/configuration.md#bobwaiversyaml).
 
-O alvo é `file::function`, que dispensa todo sobrevivente da função, ou a coluna Target do último relatório de mutação, que dispensa um sobrevivente. O comando lê sobreviventes de `.bob/mutation-cache.json` e `.bob/stryker-mutants.json`. Rode a mutação primeiro.
+Para mutação, o alvo é `file::function`, que dispensa todo sobrevivente da função, ou a coluna Target do último relatório de mutação, que dispensa um sobrevivente. O comando lê sobreviventes de `.bob/mutation-cache.json` e `.bob/stryker-mutants.json`. Rode a mutação primeiro. Para outros gates, use o id completo com prefixo de [Gates e waivers](../guides/gates-and-waivers.md) sem rodar a mutação.
 
-`--reason` é obrigatório na prática. Um motivo ausente, uma string vazia ou uma quebra de linha levanta `WaiverError` e o processo sai com `4`. Essa mensagem segue o idioma resolvido. Um alvo vazio sai com `4`. Um alvo que nenhum sobrevivente tem, como o id do mutante ou um nome de função nu, sai com `4` e não grava nada.
+`--reason` é obrigatório na prática. Um motivo ausente, uma string vazia ou uma quebra de linha levanta `WaiverError` e o processo sai com `4`. Essa mensagem segue o idioma resolvido. Um alvo vazio, um prefixo não aceito ou um alvo de mutação não reconhecido, como o id do mutante ou um nome de função nu, sai com `4` e não grava nada.
 
 Um `.bob/waivers.yaml` que já está inválido é recusado primeiro, em inglês no stderr, também com `4`, e o arquivo não é reescrito.
 
@@ -114,9 +116,9 @@ Se o arquivo falta, o texto não é JSON, ou a forma é inválida, o comando sai
 bob setup
 ```
 
-Prepara o projeto do diretório de trabalho, que tem de ser a raiz de um repositório git. Os passos rodam na ordem de `STEPS` em `src/bob_quality/setup_cmd.py`: `projeto` (o git e a raiz do repositório), `runtimes` (o piso do Python em `Requires-Python` e a faixa do Node), `npm` (as ferramentas npm pinadas), `gitleaks` (o binário do gitleaks em `BOB_HOME/bin`), `skills` (as três skills em `.agents/skills`), `bob.yaml` (gravado só quando o arquivo falta) e `hook` (o hook pre-push). Um `bob.yaml` que já existe, o `.bob/waivers.yaml` e um hook pre-push que o bob não escreveu são preservados. Depois roda o `bob doctor` e imprime um resumo do que instalou, do que preservou e dos avisos.
+Prepara o projeto do diretório de trabalho, que tem de ser a raiz de um repositório git. Os passos rodam na ordem de `STEPS` em `src/bob_quality/setup_cmd.py`: `projeto` (o git e a raiz do repositório), `runtimes` (o piso do Python em `Requires-Python` e a faixa do Node), `npm` (as ferramentas npm pinadas), `gitleaks` (o binário do gitleaks em `BOB_HOME/bin`), `skills` (as três skills em `.agents/skills`), `bob.yaml` (gravado só quando o arquivo falta) e `hook` (o hook pre-push). Um `bob.yaml` que já existe, o `.bob/waivers.yaml` e um hook pre-push que o bob não escreveu são preservados. Depois verifica as versões das ferramentas gerenciadas pelo setup e imprime um resumo do que instalou, do que preservou e dos avisos.
 
-Um passo que falha para a execução, imprime o passo e o motivo no stderr e sai com `4`. Fora isso, o exit é `0` quando o `bob doctor` sai com `0`, e `4` quando não sai. O comando único de instalação roda este comando. Ver [Instalação](../getting-started/installation.md).
+Um passo que falha para a execução, imprime o passo e o motivo no stderr e sai com `4`. Fora isso, sai com `0` quando as versões das ferramentas do setup batem ou `4` quando não batem. O comando único de instalação roda este comando. Ver [Instalação](../getting-started/installation.md).
 
 ## bob update
 

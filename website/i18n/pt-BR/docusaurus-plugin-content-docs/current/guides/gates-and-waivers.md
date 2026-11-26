@@ -23,7 +23,7 @@ O código de saída do processo é o código mais alto entre os gates. Um aviso 
 | `secrets` | gitleaks 8.30.1 | um segredo novo no diff | `1` |
 | `dead_code` | vulture e knip | nada. Um símbolo não usado cuja definição está no diff avisa | `0` |
 
-Versões pinadas, de `pyproject.toml`, `package.json` e `PINS` em `src/bob_quality/doctor.py`: lizard 1.24.1, deptry 0.25.1, coverage 7.16.2, diff-cover 10.6.0, c8 12.0.0, vitest 5.0.5, jscpd 5.4.1, mutmut 3.8.0, complexipy 8.0.1, `@stryker-mutator/core` 10.0.0, `@stryker-mutator/vitest-runner` 10.0.0, import-linter 2.15, grimp 3.17, dependency-cruiser 18.6.0, eslint 9.39.5, eslint-plugin-sonarjs 2.0.4, bandit 1.9.4, gitleaks 8.30.1, vulture 2.16, knip 6.41.0. O Node para o `bob doctor` é `>=22.18.0 <23`. mypy, pyright e tsc são os executáveis do repositório. O doctor não os pina. O Semgrep 1.180.0 não está em `PINS`. O gate de segurança roda `uvx --from semgrep==1.180.0`.
+Versões pinadas, de `pyproject.toml`, `package.json` e `PINS` em `src/bob_quality/doctor.py`: lizard 1.24.1, deptry 0.25.1, coverage 7.16.2, diff-cover 10.6.0, c8 12.0.0, vitest 5.0.5, jscpd 5.4.1, mutmut 3.8.0, complexipy 8.0.1, `@stryker-mutator/core` 10.0.0, `@stryker-mutator/vitest-runner` 10.0.0, import-linter 2.15, grimp 3.17, dependency-cruiser 18.6.0, eslint 9.39.5, eslint-plugin-sonarjs 2.0.4, bandit 1.9.4, gitleaks 8.30.1, vulture 2.16, knip 6.41.0. O Node para o `bob doctor` é `>=22.18.0 <23`. mypy, pyright e tsc são os executáveis do repositório. O doctor não os pina. O doctor e o gate de segurança usam o Semgrep 1.180.0 pelo comando `uvx --from semgrep==1.180.0`.
 
 Um waiver fica em `.bob/waivers.yaml`. O formato do arquivo está em [Configuração](configuration.md). Cada gate lê ids com o próprio prefixo. O casamento da mutação ignora esses prefixos: um waiver de segredo ou um waiver de typing não casa com um mutante, a menos que o id inteiro já seja uma das chaves do mutante.
 
@@ -81,7 +81,7 @@ O bob muta Python com mutmut e TypeScript com Stryker. O mutmut roda em `<--out>
 
 A baseline roda primeiro. Se `crap` já mediu o pytest na mesma execução, esse código é reusado. Uma baseline quebrada deixa o gate `not_run` e sai com `2`.
 
-A execução muta funções alteradas e funções em cache que ainda têm um sobrevivente sem waiver. O cache é `.bob/mutation-cache.json`. Cada função guarda um sha256 do texto dela, a versão do mutmut e a impressão da suíte. Se a versão do mutmut ou a impressão da suíte difere da chave do arquivo, o cache não é reusado. `--since-last-run` não muda isso. O reuso já é o padrão. A flag só aparece na linha de reprodução do relatório quando foi passada.
+A execução muta funções alteradas e funções em cache que ainda têm um sobrevivente sem waiver. O cache é `.bob/mutation-cache.json`. Cada função guarda um sha256 do texto dela, a versão do mutmut e a impressão da suíte. Se a versão do mutmut ou a impressão da suíte difere da chave do arquivo, o cache não é reusado. `--since-last-run` limita a mutação ao que mudou desde a última execução registrada. Uma função em cache cujo hash ainda bate é reusada mesmo com um sobrevivente sem waiver, e o sobrevivente aparece de novo no relatório. Funções cujo texto mudou, ou que não estão num cache reusável, são remutadas. A flag só muda a corrida Python. Ela aparece na linha de reprodução do relatório quando foi passada.
 
 Um sobrevivente bloqueia quando é `survived`, não tem waiver e a linha dele está no lado novo do diff. Um sobrevivente sem arquivo, ou com uma linha em zero ou abaixo, também bloqueia. Qualquer um dos casos sai com `3`. Um sobrevivente sem waiver numa linha que o diff não mudou permanece na tabela, marcado fora do diff, e não muda o exit. `killed` e `timeout` não bloqueiam. Um waiver não cobre `no_coverage`. `no_coverage` numa função alterada também sai com `3`.
 
@@ -143,7 +143,7 @@ O id do waiver é `tests:<file>:<line>:<rule>`. Uma linha com waiver mantém a l
 
 Um nome direto conta quando o manifesto em `HEAD` o declara, o mesmo manifesto na base não declara, e a linha da declaração está no lado novo. Um bump de versão de um nome que a base já tem não conta. Imports não declarados são procurados sob `paths.include`. O pin direto permanece no manifesto da raiz (`pyproject.toml`, `requirements*.txt`, `package.json`), mesmo quando essa raiz está fora de `paths.include`. Um lockfile não acrescenta um nome.
 
-Python usa deptry 0.25.1. `DEP001` e `DEP003` são imports não declarados. `DEP002`, `DEP004` e `DEP005` ficam de fora. TypeScript usa knip 6.41.0, achados `unlisted` e `unresolved`. Um especificador que começa com `.` ou `/` não conta.
+Python usa deptry 0.25.1. `DEP001` e `DEP003` são imports não declarados. `DEP002`, `DEP004` e `DEP005` ficam de fora. TypeScript usa knip 6.41.0, achados `unlisted` e `unresolved`. O Bob só mantém achados do Knip em arquivos dentro de `paths.include` e fora de `paths.exclude`, sem mudar a configuração do Knip no projeto. Um especificador não resolvido que começa com `.` ou `/` não conta.
 
 O id do advisory vem de `POST https://api.osv.dev/v1/querybatch`. A severidade vem de `GET https://api.osv.dev/v1/vulns/{id}`, com o mesmo `supply.timeout_seconds`. Uma falha desse GET, ou um documento sem severidade publicada, avisa e permanece não verificado. osv-scanner não é executado.
 

@@ -269,7 +269,9 @@ def _measure_language(
             capture, "deptry", "pypi", _deptry_findings, cwd, config, diff_lines, base, transport, findings, versions
         )
     if language == "typescript":
-        capture = run_knip(cwd, config.supply_timeout_seconds, runner)
+        capture = run_knip(
+            cwd, config.supply_timeout_seconds, runner, include=config.include, exclude=config.exclude
+        )
         return _accept(
             capture, "knip", "npm", _knip_findings, cwd, config, diff_lines, base, transport, findings, versions
         )

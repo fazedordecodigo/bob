@@ -40,6 +40,7 @@ O resto desta página instala o bob a partir de um clone de <https://github.com/
 - Python 3.10 ou mais novo. O CI (`.github/workflows/ci.yml`) roda 3.10 e 3.12. `requires-python` em `pyproject.toml` é `>=3.10`.
 - Node `>=22.18.0 <23`. O `bob doctor` aceita essa faixa (`NODE` em `src/bob_quality/doctor.py`). O Node 20, o Node 24 e um sufixo `-rc` fazem o `doctor` sair com `4`. Um prerelease não casa com o padrão `X.Y.Z` que `_node_version` exige.
 - Para as ferramentas npm, `npm ci` na raiz do clone, ou `bob doctor --install` depois que o pacote está instalado.
+- Para `bob doctor` e o gate de segurança para TypeScript, [instale o uv](https://docs.astral.sh/uv/getting-started/installation/) e deixe `uvx` no `PATH`. O `bob setup` não instala nem exige uv.
 
 Num Ubuntu atual o Python do sistema recusa o `pip install` pela PEP 668. Use um venv. Para o Node, rode `fnm install 22.18.0` ou `nvm install 22.18.0`, ou baixe o `.tar.gz` de <https://nodejs.org/dist/v22.18.0/>. O [AGENTS.md](https://github.com/fazedordecodigo/bob/blob/main/AGENTS.md) prefere o `.tar.gz` ao `.tar.xz` quando a imagem não tem `xz`.
 
@@ -60,7 +61,7 @@ Num checkout, para desenvolvimento:
 
 ```bash
 python3 -m venv .venv && . .venv/bin/activate
-python -m pip install -e '.[dev]'
+python -m pip install -e '.[dev]' 'uv==0.13.0'
 npm ci
 bob doctor
 ```

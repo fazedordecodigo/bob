@@ -228,7 +228,7 @@ def test_run_knip_passes_the_argv_cwd_and_timeout(tmp_path: Path) -> None:
             return ProcessExit(0, "6.41.0\n", "")
         return ProcessExit(1, _ONE, "")
 
-    capture = run_knip(tmp_path, 17, runner)
+    capture = run_knip(tmp_path, 17, runner, include=("src",), exclude=())
 
     assert calls == [
         (["npx", "--no-install", "--prefix", prefix, "knip", "--version"], tmp_path, 17),
@@ -243,7 +243,7 @@ def test_run_knip_reads_unknown_when_the_banner_has_no_digits(tmp_path: Path) ->
             return ProcessExit(0, "knip\n", "preview")
         return ProcessExit(1, _ONE, "")
 
-    capture = run_knip(tmp_path, 17, runner)
+    capture = run_knip(tmp_path, 17, runner, include=("src",), exclude=())
 
     assert capture == KnipCapture(1, True, KnipDocument("unknown", _ONE_FILES), "")
 
@@ -254,7 +254,7 @@ def test_run_knip_reads_the_version_from_stderr(tmp_path: Path) -> None:
             return ProcessExit(0, "", "knip 6.41.0\n")
         return ProcessExit(0, _ONE, "")
 
-    capture = run_knip(tmp_path, 17, runner)
+    capture = run_knip(tmp_path, 17, runner, include=("src",), exclude=())
 
     assert capture.document is not None
     assert capture.document.version == "6.41.0"
@@ -266,7 +266,7 @@ def test_run_knip_reads_unknown_when_the_version_probe_fails(tmp_path: Path) -> 
             return ProcessFault("down")
         return ProcessExit(0, _ONE, "")
 
-    capture = run_knip(tmp_path, 17, runner)
+    capture = run_knip(tmp_path, 17, runner, include=("src",), exclude=())
 
     assert capture == KnipCapture(0, True, KnipDocument("unknown", _ONE_FILES), "")
 
@@ -277,7 +277,7 @@ def test_run_knip_reports_a_process_fault(tmp_path: Path) -> None:
             return ProcessExit(0, "6.41.0\n", "")
         return ProcessFault("knip missing")
 
-    capture = run_knip(tmp_path, 17, runner)
+    capture = run_knip(tmp_path, 17, runner, include=("src",), exclude=())
 
     assert capture == KnipCapture(None, False, None, "knip missing")
 
@@ -288,7 +288,7 @@ def test_run_knip_reports_unparseable_json(tmp_path: Path) -> None:
             return ProcessExit(0, "6.41.0\n", "")
         return ProcessExit(2, "not-json", "")
 
-    capture = run_knip(tmp_path, 17, runner)
+    capture = run_knip(tmp_path, 17, runner, include=("src",), exclude=())
 
     assert capture == KnipCapture(2, False, None, msg("supply.knip_json"))
     assert render(capture.detail, "en") == "knip did not write parseable JSON"
@@ -304,7 +304,7 @@ def test_run_knip_returns_the_first_tool_error_arg(
 
     monkeypatch.setattr("bob_quality.adapters.knip.npm_prefix", missing)
 
-    capture = run_knip(tmp_path, 17, _unused_runner)
+    capture = run_knip(tmp_path, 17, _unused_runner, include=("src",), exclude=())
 
     assert capture == KnipCapture(None, False, None, message)
     assert render(capture.detail, "en") == (
@@ -320,7 +320,7 @@ def test_run_knip_stringifies_a_tool_error_without_args(
 
     monkeypatch.setattr("bob_quality.adapters.knip.npm_prefix", missing)
 
-    capture = run_knip(tmp_path, 17, _unused_runner)
+    capture = run_knip(tmp_path, 17, _unused_runner, include=("src",), exclude=())
 
     assert capture == KnipCapture(None, False, None, "")
 

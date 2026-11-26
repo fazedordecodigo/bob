@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import subprocess
 import sys
+import time
 import zipfile
 from pathlib import Path
 
@@ -27,6 +29,7 @@ def test_sdist_and_wheel_pass_twine_check(tmp_path: Path) -> None:
     build = subprocess.run(
         [sys.executable, "-m", "build", "--outdir", str(dist)],
         cwd=ROOT,
+        env={**os.environ, "SOURCE_DATE_EPOCH": "946684802"},
         capture_output=True,
         text=True,
     )
@@ -35,6 +38,8 @@ def test_sdist_and_wheel_pass_twine_check(tmp_path: Path) -> None:
     names = [path.name for path in artifacts]
     assert any(name.endswith(".tar.gz") for name in names)
     assert any(name.endswith(".whl") for name in names)
+    with zipfile.ZipFile(next(dist.glob("*.whl"))) as wheel:
+        assert {entry.date_time for entry in wheel.infolist()} == {(2000, 1, 1, 0, 0, 2)}
 
     check = subprocess.run(
         [sys.executable, "-m", "twine", "check", "--strict", *(str(path) for path in artifacts)],
@@ -43,6 +48,40 @@ def test_sdist_and_wheel_pass_twine_check(tmp_path: Path) -> None:
         text=True,
     )
     assert check.returncode == 0, check.stdout + check.stderr
+
+
+def test_wheel_builds_have_the_same_sha256(tmp_path: Path) -> None:
+    _skip_under_mutmut()
+    sha = subprocess.check_output(
+        ["git", "rev-parse", "HEAD"], cwd=ROOT, text=True,
+    ).strip()
+    epoch = subprocess.check_output(
+        ["git", "log", "-1", "--format=%ct", sha], cwd=ROOT, text=True,
+    ).strip()
+    digests = []
+    for index in range(2):
+        source = tmp_path / f"source-{index}"
+        dist = tmp_path / f"dist-{index}"
+        subprocess.run(
+            ["git", "clone", "--quiet", "--no-checkout", "--", str(ROOT), str(source)],
+            check=True,
+        )
+        subprocess.run(
+            ["git", "checkout", "--quiet", "--detach", sha], cwd=source, check=True,
+        )
+        build = subprocess.run(
+            [sys.executable, "-m", "build", "--wheel", "--outdir", str(dist)],
+            cwd=source,
+            env={**os.environ, "SOURCE_DATE_EPOCH": epoch},
+            capture_output=True,
+            text=True,
+        )
+        assert build.returncode == 0, build.stdout + build.stderr
+        [wheel] = dist.glob("*.whl")
+        digests.append(hashlib.sha256(wheel.read_bytes()).hexdigest())
+        if index == 0:
+            time.sleep(3)
+    assert digests[0] == digests[1]
 
 
 def test_wheel_ships_npm_manifest_and_install_can_find_it(tmp_path: Path) -> None:
@@ -189,6 +228,8 @@ def test_installed_wheel_installs_agents_skills_without_a_clone(tmp_path: Path) 
 def test_package_workflow_checks_the_dist_and_does_not_publish() -> None:
     text = (ROOT / ".github" / "workflows" / "package.yml").read_text()
     assert "python -m build" in text
+    assert "SOURCE_DATE_EPOCH=$(git log -1 --format=%ct)" in text
+    assert "export SOURCE_DATE_EPOCH" in text
     assert "twine check --strict" in text
     for forbidden in (
         "twine upload",

@@ -6,6 +6,12 @@ The pip package is `bob-quality`. The command is `bob`. Marketplace listings use
 
 The pt-BR pages of the public site live in `website/i18n/pt-BR/`. These files are the English source.
 
+## v0.1.0 stable release
+
+- [GitHub release](https://github.com/fazedordecodigo/bob/releases/tag/v0.1.0) — installer, wheel, and checksums
+- [Changelog](changelog.md) — unreleased changes and the v0.1.0 entry
+- [Release verification record](release-checks/v0.1.0.md) — E0 and E1 workflow runs and results for all four platforms; see also the [template](release-checks/TEMPLATE.md)
+
 ## Why bob
 
 [Why bob](why-bob.md) states the problem the gates solve and what one command adds to running each tool on its own.
@@ -17,6 +23,7 @@ The pt-BR pages of the public site live in `website/i18n/pt-BR/`. These files ar
 | [Installation](getting-started/installation.md) | Python, Node, the `bob-quality` package, and `bob doctor` |
 | [First check](getting-started/first-check.md) | The first `bob check` and how to read the exit code |
 | [Agents](getting-started/agents.md) | Cursor, Claude Code, Codex, Devin, and GitHub Copilot |
+| Install prompts ([English](install-prompt.en.md), [Português (Brasil)](install-prompt.pt-BR.md)) | Step-by-step alternative for an AI agent |
 
 ## Guides
 

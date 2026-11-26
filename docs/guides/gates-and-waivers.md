@@ -23,7 +23,7 @@ The process exit code is the highest code among the gates. A warning contributes
 | `secrets` | gitleaks 8.30.1 | a new secret in the diff | `1` |
 | `dead_code` | vulture and knip | nothing. An unused symbol whose definition is in the diff warns | `0` |
 
-Pinned versions, from `pyproject.toml`, `package.json`, and `PINS` in `src/bob_quality/doctor.py`: lizard 1.24.1, deptry 0.25.1, coverage 7.16.2, diff-cover 10.6.0, c8 12.0.0, vitest 5.0.5, jscpd 5.4.1, mutmut 3.8.0, complexipy 8.0.1, `@stryker-mutator/core` 10.0.0, `@stryker-mutator/vitest-runner` 10.0.0, import-linter 2.15, grimp 3.17, dependency-cruiser 18.6.0, eslint 9.39.5, eslint-plugin-sonarjs 2.0.4, bandit 1.9.4, gitleaks 8.30.1, vulture 2.16, knip 6.41.0. Node for `bob doctor` is `>=22.18.0 <23`. mypy, pyright, and tsc are the repository's executables. Doctor does not pin them. Semgrep 1.180.0 is not in `PINS`. The security gate runs `uvx --from semgrep==1.180.0`.
+Pinned versions, from `pyproject.toml`, `package.json`, and `PINS` in `src/bob_quality/doctor.py`: lizard 1.24.1, deptry 0.25.1, coverage 7.16.2, diff-cover 10.6.0, c8 12.0.0, vitest 5.0.5, jscpd 5.4.1, mutmut 3.8.0, complexipy 8.0.1, `@stryker-mutator/core` 10.0.0, `@stryker-mutator/vitest-runner` 10.0.0, import-linter 2.15, grimp 3.17, dependency-cruiser 18.6.0, eslint 9.39.5, eslint-plugin-sonarjs 2.0.4, bandit 1.9.4, gitleaks 8.30.1, vulture 2.16, knip 6.41.0. Node for `bob doctor` is `>=22.18.0 <23`. mypy, pyright, and tsc are the repository's executables. Doctor does not pin them. Both doctor and the security gate use Semgrep 1.180.0 through `uvx --from semgrep==1.180.0`.
 
 A waiver lives in `.bob/waivers.yaml`. The file format is in [Configuration](configuration.md). Each gate reads ids with its own prefix. Mutation matching ignores those prefixes: a secret waiver or a typing waiver does not match a mutant unless the whole id is already one of the mutant's keys.
 
@@ -81,7 +81,7 @@ bob mutates Python with mutmut and TypeScript with Stryker. mutmut runs in `<--o
 
 The baseline runs first. If `crap` already measured pytest in the same run, that code is reused. A broken baseline leaves the gate `not_run` and exits `2`.
 
-The run mutates changed functions and cached functions that still have an unwaived survivor. The cache is `.bob/mutation-cache.json`. Each function stores a sha256 of its text, the mutmut version, and the suite fingerprint. If the mutmut version or the suite fingerprint differs from the file's key, the cache is not reused. `--since-last-run` does not change this. Reuse is already the default. The flag only appears on the report's reproduce line when it was passed.
+The run mutates changed functions and cached functions that still have an unwaived survivor. The cache is `.bob/mutation-cache.json`. Each function stores a sha256 of its text, the mutmut version, and the suite fingerprint. If the mutmut version or the suite fingerprint differs from the file's key, the cache is not reused. `--since-last-run` limits mutation to what changed since the last recorded run. A cached function whose hash still matches is reused even when it has an unwaived survivor, and the survivor is reported again. Functions whose text changed, or that are not in a reusable cache, are remutated. The flag only changes the Python run. It appears on the report's reproduce line when it was passed.
 
 A survivor blocks when it is `survived`, has no waiver, and its line is on the new side of the diff. A survivor with no file, or with a line at or below zero, also blocks. Either case exits `3`. An unwaived survivor on a line the diff did not change stays in the table, marked outside the diff, and does not change the exit. `killed` and `timeout` do not block. A waiver does not cover `no_coverage`. `no_coverage` on a changed function also exits `3`.
 
@@ -143,7 +143,7 @@ The waiver id is `tests:<file>:<line>:<rule>`. A waived row keeps the line in th
 
 A direct name counts when the manifest at `HEAD` declares it, the same manifest at the base does not, and the declaration's line is on the new side. A version bump of a name the base already has does not count. Undeclared imports are looked up under `paths.include`. The direct pin stays in the root manifest (`pyproject.toml`, `requirements*.txt`, `package.json`), even when that root is outside `paths.include`. A lockfile does not add a name.
 
-Python uses deptry 0.25.1. `DEP001` and `DEP003` are undeclared imports. `DEP002`, `DEP004`, and `DEP005` are left out. TypeScript uses knip 6.41.0, findings `unlisted` and `unresolved`. A specifier that starts with `.` or `/` does not count.
+Python uses deptry 0.25.1. `DEP001` and `DEP003` are undeclared imports. `DEP002`, `DEP004`, and `DEP005` are left out. TypeScript uses knip 6.41.0, findings `unlisted` and `unresolved`. Bob keeps Knip findings only from files within `paths.include` and outside `paths.exclude`, without changing the project's Knip configuration. An unresolved specifier that starts with `.` or `/` does not count.
 
 The advisory id comes from `POST https://api.osv.dev/v1/querybatch`. The severity comes from `GET https://api.osv.dev/v1/vulns/{id}`, with the same `supply.timeout_seconds`. A failure of that GET, or a document with no published severity, warns and stays unverified. osv-scanner is not executed.
 
