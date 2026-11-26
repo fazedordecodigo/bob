@@ -957,7 +957,7 @@ def _saved_diff_coverage(payload: dict[str, object], path: Path) -> DiffCoverage
         return None
     value = _saved_object(payload["diff_coverage"], path)
     uncovered = tuple(
-        DiffLine(_text(row.get("file"), path), _integer(row.get("line"), path))
+        _saved_uncovered_line(row, path)
         for row in _dicts(value.get("uncovered"), path)
     )
     languages = tuple(
@@ -968,6 +968,12 @@ def _saved_diff_coverage(payload: dict[str, object], path: Path) -> DiffCoverage
     return DiffCoverage(languages, unattributed=uncovered)
 
 
+def _saved_uncovered_line(row: dict[str, object], path: Path) -> DiffLine:
+    if row.keys() != {"file", "line"}:
+        raise _invalid_saved(path)
+    return DiffLine(_text(row["file"], path), _integer(row["line"], path))
+
+
 def _saved_test_smells(payload: dict[str, object], path: Path) -> tuple[TestSmell, ...] | None:
     if "test_smells" not in payload:
         return None
@@ -975,7 +981,9 @@ def _saved_test_smells(payload: dict[str, object], path: Path) -> tuple[TestSmel
 
 
 def _saved_smell(row: dict[str, object], path: Path) -> TestSmell:
-    waiver = row.get("waiver")
+    if "waiver" not in row:
+        raise _invalid_saved(path)
+    waiver = row["waiver"]
     return TestSmell(
         _text(row.get("file"), path),
         _integer(row.get("line"), path),

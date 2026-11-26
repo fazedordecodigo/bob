@@ -1209,6 +1209,16 @@ def test_report_renders_an_empty_secrets_list(tmp_path: Path) -> None:
             {**_MINIMAL, "diff_coverage": {"python": 85, "uncovered": [{"file": "a.py", "line": "2"}]}},
             id="diff-coverage-uncovered-line",
         ),
+        pytest.param(
+            {
+                **_MINIMAL,
+                "diff_coverage": {
+                    "python": 85,
+                    "uncovered": [{"file": "a.py", "line": 2, "extra": True}],
+                },
+            },
+            id="diff-coverage-uncovered-extra-field",
+        ),
         pytest.param({**_MINIMAL, "test_smells": None}, id="test-smells-list"),
         pytest.param(
             {**_MINIMAL, "test_smells": [{"file": 1, "line": 2, "rule": "smell", "waiver": None}]},
@@ -1225,6 +1235,10 @@ def test_report_renders_an_empty_secrets_list(tmp_path: Path) -> None:
         pytest.param(
             {**_MINIMAL, "test_smells": [{"file": "a.py", "line": 2, "rule": "smell", "waiver": 1}]},
             id="test-smell-waiver",
+        ),
+        pytest.param(
+            {**_MINIMAL, "test_smells": [{"file": "a.py", "line": 2, "rule": "smell"}]},
+            id="test-smell-missing-waiver",
         ),
         {
             **_MINIMAL,
