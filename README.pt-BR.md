@@ -88,6 +88,8 @@ O `bob update` lê a última release. Se ela for mais nova que o seu bob, baixa 
 
 ## Instalação (desenvolvimento)
 
+A checagem completa do `bob doctor` e o gate de segurança para TypeScript precisam do [uv](https://docs.astral.sh/uv/getting-started/installation/), com `uvx` no `PATH`. O comando único de instalação não precisa dele.
+
 Você precisa de Python 3.10 ou superior e do Node 22.18.0, as versões que o CI usa. O Python do sistema de um Ubuntu atual recusa o `pip install` pela PEP 668, então instale dentro de um venv. Para ter o Node 22.18.0, rode `fnm install 22.18.0` ou `nvm install 22.18.0`, ou baixe o `.tar.gz` de <https://nodejs.org/dist/v22.18.0/>. Prefira o `.tar.gz` ao `.tar.xz`, porque a imagem pode não ter o `xz`.
 
 ```bash

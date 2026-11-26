@@ -349,8 +349,8 @@ def _node_failure(key: str, found: str | None = None) -> StepResult:
 
 
 def _pass_doctor(code: int, text: str | None = None) -> Callable[..., int]:
-    def run(install: bool, lang: str) -> int:
-        run.seen.append((install, lang))
+    def run(lang: str) -> int:
+        run.seen.append(lang)
         if text is not None:
             print(text)
         return code
@@ -440,7 +440,7 @@ def test_all_steps_pass_and_doctor_0_exits_0(
         "STEPS",
         (("a", step_a), ("b", fake_step(StepResult("unchanged")))),
     )
-    monkeypatch.setattr(doctor, "run_doctor", doctor_run)
+    monkeypatch.setattr(doctor, "report_setup_pins", doctor_run)
     link = tmp_path / "link"
     link.symlink_to(project)
     assert run_setup(link, "en") == 0
@@ -457,7 +457,7 @@ def test_all_steps_pass_and_doctor_0_exits_0(
     assert seen[0].project == project.resolve()
     assert seen[0].version == "9.9.9"
     assert seen[0].lang == "en"
-    assert doctor_run.seen == [(False, "en")]
+    assert doctor_run.seen == ["en"]
     both = StepResult(
         "installed",
         installed=(msg("setup.item_npm"), msg("setup.item_skills", names="bob-check")),
@@ -475,10 +475,10 @@ def test_doctor_4_makes_setup_exit_4(
 ) -> None:
     project = _folder(tmp_path)
     monkeypatch.setattr(setup_cmd, "STEPS", (("a", fake_step(StepResult("unchanged"))),))
-    monkeypatch.setattr(doctor, "run_doctor", _pass_doctor(4))
+    monkeypatch.setattr(doctor, "report_setup_pins", _pass_doctor(4))
     assert run_setup(project, "en") == 4
     assert capsys.readouterr().out.splitlines()[-1] == "  bob doctor: 4"
-    monkeypatch.setattr(doctor, "run_doctor", _pass_doctor(1))
+    monkeypatch.setattr(doctor, "report_setup_pins", _pass_doctor(1))
     assert run_setup(project, "en") == 4
     assert capsys.readouterr().out.splitlines()[-1] == "  bob doctor: 1"
 
@@ -496,7 +496,7 @@ def test_first_failed_step_stops_and_prints_a_partial_summary(
         ran["c"] = True
         return StepResult("unchanged")
 
-    def run_doctor(install: bool = False, lang: str = "en") -> int:
+    def run_doctor(lang: str) -> int:
         ran["doctor"] = True
         return 0
 
@@ -509,7 +509,7 @@ def test_first_failed_step_stops_and_prints_a_partial_summary(
             ("c", step_c),
         ),
     )
-    monkeypatch.setattr(doctor, "run_doctor", run_doctor)
+    monkeypatch.setattr(doctor, "report_setup_pins", run_doctor)
     assert run_setup(_folder(tmp_path), lang) == 4
     assert ran == {"c": False, "doctor": False}
     captured = capsys.readouterr()
@@ -560,7 +560,7 @@ def test_nothing_installed_says_nothing(
     tmp_path: Path,
 ) -> None:
     monkeypatch.setattr(setup_cmd, "STEPS", (("a", fake_step(StepResult("unchanged"))),))
-    monkeypatch.setattr(doctor, "run_doctor", _pass_doctor(0))
+    monkeypatch.setattr(doctor, "report_setup_pins", _pass_doctor(0))
     assert run_setup(_folder(tmp_path), lang) == 0
     assert line in capsys.readouterr().out.splitlines()
 
@@ -574,7 +574,7 @@ def test_preserved_and_warnings_lines_follow_the_ct3_order(
     warnings = (msg("setup.warn_duplicate", path=".claude/skills/harden"),)
     step = fake_step(StepResult("unchanged", preserved=preserved, warnings=warnings))
     monkeypatch.setattr(setup_cmd, "STEPS", (("a", step),))
-    monkeypatch.setattr(doctor, "run_doctor", _pass_doctor(0))
+    monkeypatch.setattr(doctor, "report_setup_pins", _pass_doctor(0))
     project = _folder(tmp_path)
     assert run_setup(project, "en") == 0
     stdout = capsys.readouterr().out
@@ -1092,12 +1092,11 @@ def test_cli_setup_runs_in_the_cwd(
     monkeypatch.chdir(git_project)
     monkeypatch.setattr(setup_cmd, "STEPS", (("a", fake_step(StepResult("unchanged"))),))
 
-    def run_doctor(install: bool = False, lang: str = "en") -> int:
-        assert install is False
+    def run_doctor(lang: str) -> int:
         assert lang == "pt-BR"
         return 0
 
-    monkeypatch.setattr(doctor, "run_doctor", run_doctor)
+    monkeypatch.setattr(doctor, "report_setup_pins", run_doctor)
     assert cli.main(["setup", "--lang", "pt-BR"]) == 0
     assert "bob setup: resumo" in capsys.readouterr().out
 
@@ -1140,7 +1139,7 @@ def test_setup_does_not_touch_the_project_package_files(
 
     monkeypatch.setattr(npm_tools, "install_npm_dependencies", forbid)
     monkeypatch.setattr(gitleaks, "installed_version", lambda home: gitleaks.VERSION)
-    monkeypatch.setattr(doctor, "run_doctor", _pass_doctor(0))
+    monkeypatch.setattr(doctor, "report_setup_pins", _pass_doctor(0))
     assert run_setup(git_project, "en") == 0
     skills = git_project / ".agents" / "skills"
     stamped = _mtimes(skills)
@@ -1211,10 +1210,10 @@ def test_gitleaks_step_failure_stops_setup(
 
     monkeypatch.setattr(gitleaks, "ensure_gitleaks", fail)
 
-    def doctor_run(install: bool = False, lang: str = "en") -> int:
-        raise AssertionError((install, lang))
+    def doctor_run(lang: str) -> int:
+        raise AssertionError(lang)
 
-    monkeypatch.setattr(doctor, "run_doctor", doctor_run)
+    monkeypatch.setattr(doctor, "report_setup_pins", doctor_run)
     project = tmp_path / "p"
     project.mkdir()
     assert run_setup(project, lang) == 4
@@ -1257,7 +1256,7 @@ def test_gitleaks_step_reaches_the_summary(
     monkeypatch.setattr(setup_cmd, "STEPS", (("gitleaks", step_gitleaks),))
     monkeypatch.setattr(gitleaks, "installed_version", lambda home: None)
     monkeypatch.setattr(gitleaks, "ensure_gitleaks", lambda home: home)
-    monkeypatch.setattr(doctor, "run_doctor", _pass_doctor(0))
+    monkeypatch.setattr(doctor, "report_setup_pins", _pass_doctor(0))
     project = tmp_path / "p"
     project.mkdir()
     assert run_setup(project, "en") == 0
@@ -1425,10 +1424,10 @@ def test_bob_yaml_step_failure_stops_setup(
 
     monkeypatch.setattr(init_config, "write_default_config", fail)
 
-    def doctor_run(install: bool = False, lang: str = "en") -> int:
-        raise AssertionError((install, lang))
+    def doctor_run(lang: str) -> int:
+        raise AssertionError(lang)
 
-    monkeypatch.setattr(doctor, "run_doctor", doctor_run)
+    monkeypatch.setattr(doctor, "report_setup_pins", doctor_run)
     project = tmp_path / "p"
     project.mkdir()
     assert run_setup(project, lang) == 4
@@ -1452,7 +1451,7 @@ def test_bob_yaml_step_reaches_the_summary(
     git_project: Path,
 ) -> None:
     monkeypatch.setattr(setup_cmd, "STEPS", (("bob.yaml", step_bob_yaml),))
-    monkeypatch.setattr(doctor, "run_doctor", _pass_doctor(0))
+    monkeypatch.setattr(doctor, "report_setup_pins", _pass_doctor(0))
     waivers = git_project / ".bob" / "waivers.yaml"
     waivers.parent.mkdir()
     waivers.write_text("# w\n", encoding="utf-8")
@@ -1481,7 +1480,7 @@ def test_bob_yaml_step_no_code_warning_reaches_the_output(
     lang: Language,
 ) -> None:
     monkeypatch.setattr(setup_cmd, "STEPS", (("bob.yaml", step_bob_yaml),))
-    monkeypatch.setattr(doctor, "run_doctor", _pass_doctor(0))
+    monkeypatch.setattr(doctor, "report_setup_pins", _pass_doctor(0))
     empty_repo = _empty_repo(tmp_path)
     assert run_setup(empty_repo, lang) == 0
     stdout = capsys.readouterr().out.splitlines()
@@ -1698,10 +1697,10 @@ def test_hook_step_failure_stops_setup(
 
     monkeypatch.setattr(hook_install, "install_hook", fail)
 
-    def doctor_run(install: bool = False, lang: str = "en") -> int:
-        raise AssertionError((install, lang))
+    def doctor_run(lang: str) -> int:
+        raise AssertionError(lang)
 
-    monkeypatch.setattr(doctor, "run_doctor", doctor_run)
+    monkeypatch.setattr(doctor, "report_setup_pins", doctor_run)
     monkeypatch.setenv("BOB_HOME", str(tmp_path / "bh"))
     _isolate_git(monkeypatch, tmp_path)
     bob = str(tmp_path / "bh" / "bin" / "bob")
@@ -1725,7 +1724,7 @@ def test_hook_step_reaches_the_summary(
     _isolate_git(monkeypatch, tmp_path)
     monkeypatch.setenv("BOB_HOME", str(tmp_path / "bh"))
     monkeypatch.setattr(setup_cmd, "STEPS", (("hook", step_hook),))
-    monkeypatch.setattr(doctor, "run_doctor", _pass_doctor(0))
+    monkeypatch.setattr(doctor, "report_setup_pins", _pass_doctor(0))
     assert run_setup(git_project, "en") == 0
     stdout = capsys.readouterr().out
     assert "bob setup: hook: ok" in stdout.splitlines()
@@ -1750,7 +1749,7 @@ def test_hook_step_foreign_warning_reaches_the_output(
     _isolate_git(monkeypatch, tmp_path)
     monkeypatch.setenv("BOB_HOME", str(tmp_path / "bh"))
     monkeypatch.setattr(setup_cmd, "STEPS", (("hook", step_hook),))
-    monkeypatch.setattr(doctor, "run_doctor", _pass_doctor(0))
+    monkeypatch.setattr(doctor, "report_setup_pins", _pass_doctor(0))
     hook = git_project / ".git/hooks/pre-push"
     payload = b"#!/bin/sh\nexit 0\n"
     hook.write_bytes(payload)

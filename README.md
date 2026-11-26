@@ -88,6 +88,8 @@ bob --version
 
 ## Installation (development)
 
+The full `bob doctor` check and the TypeScript security gate need [uv](https://docs.astral.sh/uv/getting-started/installation/) with `uvx` on `PATH`. The one-line installation does not need it.
+
 You need Python 3.10 or later and Node 22.18.0, the versions the CI uses. The system Python of a current Ubuntu refuses `pip install` under PEP 668, so install inside a venv. To get Node 22.18.0, run `fnm install 22.18.0` or `nvm install 22.18.0`, or download the `.tar.gz` from <https://nodejs.org/dist/v22.18.0/>. Choose the `.tar.gz` over the `.tar.xz`, because the image may not have `xz`.
 
 ```bash

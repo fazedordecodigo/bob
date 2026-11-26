@@ -60,7 +60,6 @@ _GIT_TOPLEVEL = ("git", "rev-parse", "--show-toplevel")
 _NODE = "node"
 _NODE_FLAG = "--version"
 _NODE_TIMEOUT = 30
-_DOCTOR_INSTALL = False
 _PKG = "bob-quality"
 _PY_REQUIRES = "Requires-Python"
 _PY_FLOOR_RE = r">=(\d+)\.(\d+)"
@@ -318,7 +317,7 @@ def _run(ctx: SetupContext) -> int:
         installed.extend(result.installed)
         preserved.extend(result.preserved)
         warnings.extend(result.warnings)
-    code = doctor.run_doctor(install=_DOCTOR_INSTALL, lang=ctx.lang)
+    code = doctor.report_setup_pins(ctx.lang)
     _summary(ctx.lang, installed, preserved, warnings, str(code))
     if code == 0:
         return 0

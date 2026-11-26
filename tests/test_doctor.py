@@ -56,6 +56,7 @@ from bob_quality.doctor import (
 from bob_quality.install_skills import manifest_skill_names
 from bob_quality.messages import Language, msg, t
 from bob_quality.npm_tools import pinned_npm_versions
+from bob_quality.security_scanners import SEMGREP_VERSION
 
 ROOT = Path(__file__).resolve().parents[1]
 _PACKAGE = json.loads((ROOT / "package.json").read_text())
@@ -89,6 +90,7 @@ PINS = (
     ("knip", _NPM["knip"], None, None),
     ("stryker", _NPM["@stryker-mutator/core"], None, None),
     ("stryker-vitest-runner", _NPM["@stryker-mutator/vitest-runner"], None, None),
+    ("semgrep", SEMGREP_VERSION, "uvx", SEMGREP_VERSION),
 )
 
 INSTALL = {
@@ -221,6 +223,76 @@ def test_doctor_exits_4_and_prints_install_when_a_tool_is_missing(tmp_path: Path
     assert "node expected >=22.18.0 <23 found missing" in result.stdout
     assert INSTALL["node"] in result.stdout
     assert INSTALL["lizard"] not in result.stdout
+
+
+@pytest.mark.parametrize(
+    ("lang", "banner", "runner_exit", "expected_exit", "found", "hint"),
+    [
+        ("en", "pinned", 0, 0, "pinned", ""),
+        ("en", None, 0, 4, "missing", "Install uv if needed"),
+        ("pt-BR", None, 0, 4, "ausente", "Instale o uv se necessário"),
+        ("en", "9.9.9", 0, 4, "9.9.9", "Install uv if needed"),
+        ("en", "pinned", 1, 4, "missing", "Install uv if needed"),
+        ("en", "uv reports version 1.2.3", 0, 4, "missing", "Install uv if needed"),
+    ],
+)
+def test_doctor_reports_semgrep_run_by_uvx(
+    tmp_path: Path,
+    lang: Language,
+    banner: str | None,
+    runner_exit: int,
+    expected_exit: int,
+    found: str,
+    hint: str,
+) -> None:
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    _stub(bin_dir, "node", "v22.18.0")
+    _stub(bin_dir, "gitleaks", "8.30.1")
+    _stub(bin_dir, "semgrep", "9.9.9")
+    args = f"--from semgrep=={SEMGREP_VERSION} semgrep --version --disable-version-check --metrics=off"
+    if banner is not None:
+        version = SEMGREP_VERSION if banner == "pinned" else banner
+        uvx = bin_dir / "uvx"
+        uvx.write_text(
+            f'#!/bin/sh\n[ "$*" = "{args}" ] || exit 99\n'
+            f"printf '%s\\n' '  {version}  '\nexit {runner_exit}\n"
+        )
+        uvx.chmod(0o755)
+
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    result = _run_doctor(repo, bin_dir, "--lang", lang)
+
+    assert result.returncode == expected_exit, result.stdout + result.stderr
+    assert result.stderr == ""
+    version = SEMGREP_VERSION if found == "pinned" else found
+    if lang == "en":
+        assert f"semgrep expected {SEMGREP_VERSION} found {version}" in result.stdout
+    else:
+        assert f"semgrep esperada {SEMGREP_VERSION} encontrada {version}" in result.stdout
+    if hint:
+        assert hint in result.stdout
+        assert f"uvx {args}" in result.stdout
+    else:
+        assert "Install uv" not in result.stdout
+
+
+def test_doctor_handles_uvx_timeout(monkeypatch: pytest.MonkeyPatch) -> None:
+    def timeout(
+        command: list[str], **kwargs: object
+    ) -> subprocess.CompletedProcess[str]:
+        assert kwargs["timeout"] == 60
+        assert kwargs["stdin"] == subprocess.DEVNULL
+        raise subprocess.TimeoutExpired(command, 60)
+
+    monkeypatch.setattr(doctor.subprocess, "run", timeout)
+    row = doctor._assess_semgrep()
+    assert row.ok is False
+    assert row.npm_missing is False
+    assert row.line == msg(
+        "doctor.version", name="semgrep", expected=SEMGREP_VERSION, found=msg("doctor.missing")
+    )
 
 
 def test_doctor_follows_language_in_bob_yaml(tmp_path: Path) -> None:
@@ -379,7 +451,7 @@ def test_doctor_pins_match_pyproject_and_package_json() -> None:
             assert (pin.name, pin.expected, pin.executable) == ("gitleaks", "8.30.1", "gitleaks")
             assert pin.sha256 == "551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb"
         else:
-            assert isinstance(pin, (NpmPin, NodeSlot))
+            assert isinstance(pin, (NpmPin, NodeSlot, doctor.SemgrepSlot))
     assert sorted(npm_packages) == sorted(_NPM)
     assert pinned_npm_versions() == _NPM
     assert "node" not in npm_packages
@@ -417,7 +489,7 @@ def test_doctor_expected_versions_match_pip_and_npm_pins(tmp_path: Path) -> None
     assert requirements["complexipy"] == expected["complexipy"]
     assert requirements["bandit"] == expected["bandit"]
     assert "semgrep" not in requirements
-    assert "semgrep" not in expected
+    assert expected["semgrep"] == SEMGREP_VERSION
 
     package = json.loads((ROOT / "package.json").read_text())
     assert package["private"] is True
@@ -778,7 +850,7 @@ def test_doctor_exits_4_with_one_stderr_line_when_package_json_is_unreadable(
     )
 
 
-def test_doctor_runs_only_node_and_gitleaks(
+def test_doctor_runs_only_node_gitleaks_and_semgrep(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     names: list[str] = []
@@ -791,7 +863,7 @@ def test_doctor_runs_only_node_and_gitleaks(
     ) -> subprocess.CompletedProcess[str]:
         name = Path(args[0]).name
         names.append(name)
-        banner = {"node": "v22.18.0", "gitleaks": "8.30.1"}.get(name, "")
+        banner = {"node": "v22.18.0", "gitleaks": "8.30.1", "uvx": SEMGREP_VERSION}.get(name, "")
         return subprocess.CompletedProcess(args, 0, stdout=banner, stderr="")
 
     prefix = tmp_path / "empty-prefix"
@@ -800,8 +872,11 @@ def test_doctor_runs_only_node_and_gitleaks(
     monkeypatch.setattr("bob_quality.doctor.subprocess.run", fake_run)
     monkeypatch.setattr("bob_quality.doctor._npm_root", lambda: prefix)
     rows = _rows()
-    assert names == ["node", "gitleaks"]
+    assert names == ["node", "gitleaks", "uvx"]
     assert len(rows) == len(DOCTOR_PINS)
+    names.clear()
+    doctor.report_setup_pins("en")
+    assert names == ["node", "gitleaks"]
 
 
 _NODE_PRERELEASES = (
@@ -1119,7 +1194,7 @@ def test_doctor_last_line_is_the_project_skills(
     installed: bool,
     line: str,
 ) -> None:
-    monkeypatch.setattr(doctor, "_rows", lambda: [])
+    monkeypatch.setattr(doctor, "_rows", lambda pins: [])
     monkeypatch.chdir(tmp_path)
     if installed:
         for name in manifest_skill_names():

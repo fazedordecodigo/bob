@@ -5,6 +5,7 @@ from __future__ import annotations
 import importlib.metadata
 import json
 import re
+import shlex
 import shutil
 import subprocess
 import sys
@@ -27,6 +28,7 @@ from bob_quality.npm_tools import (
     pinned_npm_versions,
 )
 from bob_quality.npm_tools import node_range as packaged_node_range
+from bob_quality.security_scanners import SEMGREP_VERSION, semgrep_command
 from bob_quality.tools import ToolError
 
 # par que os workflows conferem (ci.yml, bob.yml, package.yml)
@@ -74,9 +76,14 @@ class BinaryPin:
     sha256: str
 
 
-Pin = RequiresDist | NpmPin | NodeSlot | BinaryPin
+@dataclass(frozen=True)
+class SemgrepSlot:
+    """Pin externo do gate de segurança, não instalado pelo setup."""
 
-PINS: tuple[Pin, ...] = (
+
+Pin = RequiresDist | NpmPin | NodeSlot | BinaryPin | SemgrepSlot
+
+_SETUP_PINS: tuple[Pin, ...] = (
     RequiresDist("lizard", "lizard"),
     RequiresDist("deptry", "deptry"),
     RequiresDist("coverage.py", "coverage"),
@@ -105,6 +112,7 @@ PINS: tuple[Pin, ...] = (
     NpmPin("stryker", "@stryker-mutator/core"),
     NpmPin("stryker-vitest-runner", "@stryker-mutator/vitest-runner"),
 )
+PINS: tuple[Pin, ...] = (*_SETUP_PINS, SemgrepSlot())
 
 
 @dataclass(frozen=True)
@@ -134,6 +142,10 @@ def run_doctor(install: bool = False, lang: Language = DEFAULT_LANGUAGE) -> int:
     return _report_pins(lang)
 
 
+def report_setup_pins(lang: Language) -> int:
+    return _report_pins(lang, _SETUP_PINS)
+
+
 def _install_then_report(lang: Language) -> int:
     code = install_npm_dependencies(lang)
     if code != 0:
@@ -154,9 +166,9 @@ def _install_then_report(lang: Language) -> int:
     return _report_pins(lang)
 
 
-def _report_pins(lang: Language) -> int:
+def _report_pins(lang: Language, pins: tuple[Pin, ...] = PINS) -> int:
     try:
-        rows = _rows()
+        rows = _rows(pins)
     except PinSourceError as exc:
         print(t(lang, "doctor.error", reason=reason(exc)), file=sys.stderr)
         return CONFIG_OR_TOOL
@@ -165,14 +177,14 @@ def _report_pins(lang: Language) -> int:
     return _verdict(rows)
 
 
-def _rows() -> list[_PinRow]:
+def _rows(pins: tuple[Pin, ...] = PINS) -> list[_PinRow]:
     expected = _Expected(
         python=unconditional_exact_pins(_own_requirements()),
         npm=pinned_npm_versions(),
         node=node_pin(),
     )
     rows: list[_PinRow] = []
-    for pin in PINS:
+    for pin in pins:
         rows.append(_assess(pin, expected))
     return rows
 
@@ -252,6 +264,8 @@ def _assess(pin: Pin, expected: _Expected) -> _PinRow:
         return _assess_node(expected.node)
     if isinstance(pin, BinaryPin):
         return _assess_binary(pin)
+    if isinstance(pin, SemgrepSlot):
+        return _assess_semgrep()
     return _assess_npm(pin, expected.npm.get(pin.npm_package))
 
 
@@ -336,6 +350,33 @@ def _binary_install(pin: BinaryPin) -> Text:
         url=pin.url,
         sha256=pin.sha256,
     )
+
+
+def _assess_semgrep() -> _PinRow:
+    command = semgrep_command("--version")
+    found = _semgrep_version(command)
+    line = msg("doctor.version", name="semgrep", expected=SEMGREP_VERSION, found=_shown(found))
+    if found == SEMGREP_VERSION:
+        return _PinRow(line, True, None, False)
+    return _PinRow(line, False, msg("doctor.install_semgrep", command=shlex.join(command)), False)
+
+
+def _semgrep_version(command: list[str]) -> str | None:
+    try:
+        completed = subprocess.run(
+            command,
+            check=True,
+            capture_output=True,
+            text=True,
+            stdin=subprocess.DEVNULL,
+            timeout=60,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return None
+    version = completed.stdout.strip()
+    if _VERSION.fullmatch(version) is None:
+        return None
+    return version
 
 
 def _shown(found: str | None) -> Text:
