@@ -5,6 +5,7 @@ from __future__ import annotations
 import re
 import subprocess
 from collections.abc import Mapping, Set
+from dataclasses import dataclass, field
 from pathlib import Path
 
 HUNK_RE = re.compile(r"^@@ -\d+(?:,\d+)? \+(\d+)(?:,(\d+))? @@")
@@ -31,19 +32,37 @@ class ChangedLines(set[int]):
     anchors: frozenset[int] = frozenset()
 
 
+@dataclass
+class _Hunk:
+    old: int
+    removed: int
+    new: int
+    added: int
+    same: dict[int, int] = field(default_factory=dict)
+
+
 def worktree_lines(cwd: Path, lines: dict[str, set[int]]) -> dict[str, set[int]]:
     """Leva as linhas do diff de HEAD para a árvore de trabalho, que é onde o gate mede.
 
-    Uma linha fora dos hunks locais só se move. Uma linha que um hunk local substitui vale o
-    bloco novo inteiro, porque o Git não diz qual linha nova corresponde a qual. Uma linha
-    apagada localmente sai do escopo, a não ser que marque uma remoção do commit: aí a âncora
-    vai para a linha anterior que sobrou.
+    Uma linha fora dos hunks locais só se move. Dentro de um hunk, ela vai para a linha nova de
+    mesmo texto; sem uma, vale o bloco novo inteiro. Uma linha apagada localmente sai do escopo,
+    a não ser que marque uma remoção do commit: aí a âncora vai para a linha anterior que sobrou.
     """
-    return {file: _shift(touched, _local_hunks(cwd, file)) for file, touched in lines.items()}
+    changed = _git_raw(
+        cwd, "diff", "--name-only", "-z", "--no-renames", "HEAD", "--", *map(_literal, lines)
+    ).split(b"\0")
+    edited = {name.decode(errors="surrogateescape") for name in changed}
+    return {
+        file: _shift(touched, _local_hunks(cwd, file)) if file in edited else touched
+        for file, touched in lines.items()
+    }
 
 
-def _local_hunks(cwd: Path, file: str) -> list[tuple[int, ...]]:
-    """Os cabeçalhos `@@` do diff local de um arquivo: nenhuma linha de conteúdo começa com `@`."""
+def _literal(file: str) -> str:
+    return f":(literal){file}"
+
+
+def _local_hunks(cwd: Path, file: str) -> list[_Hunk]:
     patch = _git_raw(
         cwd,
         "diff",
@@ -52,15 +71,35 @@ def _local_hunks(cwd: Path, file: str) -> list[tuple[int, ...]]:
         "--no-color",
         "--no-ext-diff",
         "--no-textconv",
+        "--no-renames",
         "HEAD",
         "--",
-        file,
+        _literal(file),
     ).decode(errors="surrogateescape")
-    return [
-        tuple(int(group or "1") for group in match.groups())
-        for match in map(FULL_HUNK_RE.match, patch.split("\n"))
-        if match
-    ]
+    hunks: list[_Hunk] = []
+    removed: list[str] = []
+    added: list[str] = []
+    for line in patch.split("\n"):
+        if match := FULL_HUNK_RE.match(line):
+            old, old_count, new, new_count = (int(group or "1") for group in match.groups())
+            hunks.append(_Hunk(old, old_count, new, new_count))
+            removed, added = [], []
+        elif hunks and line[:1] in ("+", "-"):
+            (added if line[0] == "+" else removed).append(line[1:])
+            hunks[-1].same = _same_text(removed, added)
+    return hunks
+
+
+def _same_text(removed: list[str], added: list[str]) -> dict[int, int]:
+    """Cada linha removida vai para a próxima linha nova de mesmo texto, na ordem do hunk."""
+    pairs: dict[int, int] = {}
+    start = 0
+    for index, text in enumerate(removed):
+        if text in added[start:]:
+            start = added.index(text, start)
+            pairs[index] = start
+            start += 1
+    return pairs
 
 
 def _git_raw(cwd: Path, *args: str) -> bytes:
@@ -70,7 +109,7 @@ def _git_raw(cwd: Path, *args: str) -> bytes:
         raise GitError(str(exc)) from exc
 
 
-def _shift(touched: set[int], hunks: list[tuple[int, ...]]) -> set[int]:
+def _shift(touched: set[int], hunks: list[_Hunk]) -> set[int]:
     anchors = getattr(touched, "anchors", frozenset())
     moved: set[int] = set()
     for line in touched:
@@ -78,17 +117,23 @@ def _shift(touched: set[int], hunks: list[tuple[int, ...]]) -> set[int]:
     return moved
 
 
-def _shift_line(line: int, hunks: list[tuple[int, ...]], anchor: bool) -> set[int]:
+def _shift_line(line: int, hunks: list[_Hunk], anchor: bool) -> set[int]:
     delta = 0
-    for old, removed, new, added in hunks:
-        if line < old + (removed == 0):
+    for hunk in hunks:
+        if line < hunk.old + (hunk.removed == 0):
             break
-        if line < old + removed:
-            if added:
-                return set(range(new, new + added))
-            return {max(new, 1)} if anchor else set()
-        delta += added - removed
+        if line < hunk.old + hunk.removed:
+            return _replaced(line - hunk.old, hunk, anchor)
+        delta += hunk.added - hunk.removed
     return {line + delta}
+
+
+def _replaced(index: int, hunk: _Hunk, anchor: bool) -> set[int]:
+    if index in hunk.same:
+        return {hunk.new + hunk.same[index]}
+    if hunk.added:
+        return set(range(hunk.new, hunk.new + hunk.added))
+    return {max(hunk.new, 1)} if anchor else set()
 
 
 def parse_unified_diff(patch: str) -> dict[str, set[int]]:

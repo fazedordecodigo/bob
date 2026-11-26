@@ -177,3 +177,25 @@ def test_a_branch_file_deleted_locally_leaves_the_scope(tmp_path: Path) -> None:
 def test_outside_a_repository_the_projection_fails_with_the_git_command(tmp_path: Path) -> None:
     with pytest.raises(GitError, match="'diff'"):
         worktree_lines(tmp_path, {FILE: {1}})
+
+
+def test_a_last_line_that_only_gains_its_newline_keeps_its_own_line(tmp_path: Path) -> None:
+    repo = _branch(
+        tmp_path,
+        "def f(n):\n    return n > 0",
+        "def f(n):\n    return n > 1",
+        "def f(n):\n    return n > 1\n\n\ndef g(n):\n    return n < 0\n",
+    )
+
+    assert _projected(repo) == {2}
+
+
+def test_a_path_with_brackets_takes_only_its_own_local_edits(tmp_path: Path) -> None:
+    repo = init_python_repo(tmp_path / "repo")
+    pattern, plain = "src/[ab]/app/flow.py", "src/a/app/flow.py"
+    commit_on_main(repo, pattern, "def f(n):\n    return n > 0\n", "pattern")
+    commit_on_main(repo, plain, "def f(n):\n    return n > 0\n", "plain")
+    commit_on_branch(repo, "work", pattern, "def f(n):\n    return n > 1\n", "branch")
+    (repo / plain).write_text("# note\ndef f(n):\n    return n > 0\n")
+
+    assert worktree_lines(repo, changed_lines(repo, "main")) == {pattern: {2}}
