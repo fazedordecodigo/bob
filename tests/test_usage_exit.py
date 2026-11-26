@@ -11,7 +11,6 @@ from pathlib import Path
 import pytest
 
 from bob_quality.cli import _stop_code, main
-from bob_quality.mutate import _SINCE_LAST_RUN
 from helpers import init_python_repo, run_bob
 
 _COMMAND_GROUP = re.compile(r"\{([^{}]+)\}")
@@ -471,22 +470,6 @@ def test_since_last_run_is_a_flag(tmp_path: Path) -> None:
     assert result.returncode == 4, result.stderr
     assert "usage:" not in result.stderr, result.stderr
     assert "baseline" not in result.stderr.lower()
-
-
-def test_since_last_run_reaches_the_gate_only_when_passed(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    seen: list[bool] = []
-
-    def fake(**_kwargs: object) -> int:
-        seen.append(_SINCE_LAST_RUN.get())
-        return 0
-
-    monkeypatch.setattr("bob_quality.cli.run_check", fake)
-
-    assert _invoke(tmp_path, "mutate", "--since-last-run").returncode == 0
-    assert _invoke(tmp_path, "mutate").returncode == 0
-    assert seen == [True, False]
 
 
 def test_mutate_dispatches_every_run_check_argument(

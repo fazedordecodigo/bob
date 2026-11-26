@@ -56,7 +56,7 @@ When more than one gate returns a code, the highest wins (`_worse` in `check.py`
 | `bob crap` | `--threshold` replaces `crap.max_per_function` for this run. It has to be a finite number greater than `0`. `--coverage-file` points at a coverage file that already exists |
 | `bob dry` | `--dry-fail` and `--max-new-clones`, the same flags as `bob check` |
 | `bob deps` | none beyond the shared flags |
-| `bob mutate` | `--max-workers` becomes mutmut's `--max-children` (`src/bob_quality/mutmut_tool.py`). `--since-last-run` limits the Python run to functions whose text changed since the last recorded run: a cached function with the same hash, mutmut version and suite fingerprint is reused, survivors included. TypeScript already uses Stryker's `--incremental`. The flag is added to the report's reproduce line only when it was passed |
+| `bob mutate` | `--max-workers` becomes mutmut's `--max-children` (`src/bob_quality/mutmut_tool.py`). `--since-last-run` limits the Python run to functions whose text changed since the last recorded run: a cached function with the same hash, mutmut version and suite fingerprint is reused, and its survivors too while no Python file outside the suite changed. TypeScript already uses Stryker's `--incremental`. The flag is added to the report's reproduce line only when it was passed |
 
 `--max-workers` accepts an integer from 1 to 64. The ceiling is `_WORKER_CEILING` in `src/bob_quality/cli.py`. A value outside that range exits `4`. The last stderr line is `bob mutate: error: argument --max-workers: invalid value: '65' (use an integer from 1 to 64)` when the value is `65`.
 

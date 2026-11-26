@@ -7,15 +7,17 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from typing import cast
 
 import pytest
 
 import bob_quality.mutate as mutate
 from bob_quality.config import Config
 from bob_quality.diff import changed_lines
-from bob_quality.models import GateResult
+from bob_quality.models import CyclomaticFunction, GateResult
 from bob_quality.mutate import CACHE_NAME, run_mutation_gate
 from bob_quality.tools import ToolError
+from bob_quality.waivers import Waiver
 from helpers import commit_on_branch, init_python_repo
 
 FIXTURE = Path(__file__).parent / "fixtures" / "python_app"
@@ -158,11 +160,65 @@ def test_since_last_run_reuses_an_unchanged_survivor_and_remutates_an_edited_one
     assert edited.summary["reused"] == []
 
 
-def test_since_last_run_only_holds_inside_its_block() -> None:
-    with mutate.since_last_run(True):
-        assert mutate._SINCE_LAST_RUN.get() is True
+def test_since_last_run_does_not_outlive_its_command(
+    repo: Path, runs: list[tuple[Path, list[str], int | None]]
+) -> None:
+    (repo / ".bob" / "waivers.yaml").unlink()
+    _gate(repo)
+    _gate(repo, since_last_run=True)
+    after = _gate(repo)
 
-    assert mutate._SINCE_LAST_RUN.get() is False
+    assert len(runs) == 2
+    assert after.summary["remutated"] == ["src/app/weak.py::classify"]
+
+
+def test_since_last_run_remeasures_a_survivor_when_other_production_code_changes(
+    repo: Path, runs: list[tuple[Path, list[str], int | None]], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    (repo / ".bob" / "waivers.yaml").unlink()
+    flags = repo / "src" / "app" / "flags.py"
+    flags.write_text("BLOCK = True\n")
+    first = _gate(repo)
+    flags.write_text("BLOCK = False\n")
+    monkeypatch.setattr(
+        mutate, "mutmut_results", lambda _cwd: RESULTS.replace("mutmut_1: survived", "mutmut_1: killed")
+    )
+    second = _gate(repo, since_last_run=True)
+
+    assert first.exit_code == 3
+    assert len(runs) == 2
+    assert second.exit_code == 0
+    assert second.summary["remutated"] == ["src/app/weak.py::classify"]
+    assert second.survivors == []
+
+
+def test_a_reused_waived_survivor_follows_its_function_down_the_file(
+    repo: Path, runs: list[tuple[Path, list[str], int | None]]
+) -> None:
+    first = _gate(repo)
+    weak = repo / "src" / "app" / "weak.py"
+    weak.write_text("# classify\n\n" + weak.read_text())
+    moved = _gate(repo, since_last_run=True)
+
+    assert len(runs) == 1
+    assert moved.summary["reused"] == ["src/app/weak.py::classify"]
+    assert [row["line"] for row in moved.survivors] == [row["line"] + 2 for row in first.survivors]
+
+
+def test_waived_rows_carried_past_a_cache_key_change_are_remeasured_later() -> None:
+    key = "src/app/weak.py::classify"
+    row = {key_: SURVIVOR[key_] for key_ in ("id", "function", "file", "line", "operator", "status")}
+    entry: dict[str, object] = {"hash": "h", "mutants": [row]}
+    waivers = [Waiver(**WAIVER)]
+    functions = cast("dict[str, CyclomaticFunction]", {key: None})
+
+    stale = mutate._carried_rows(mutate._CacheView({key: entry}, False), functions, waivers)
+    kept = mutate._carried_rows(mutate._CacheView({key: entry}, True), functions, waivers)
+
+    assert stale[key]["stale"] is True
+    assert "stale" not in kept[key]
+    assert mutate._needs_remutation(stale[key], "h", waivers, "") is True
+    assert mutate._needs_remutation(kept[key], "h", waivers, "") is False
 
 
 def test_a_mutmut_failure_keeps_the_versions_and_the_waivers(

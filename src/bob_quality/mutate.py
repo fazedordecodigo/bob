@@ -40,7 +40,7 @@ from bob_quality.mutmut_tool import (
     run_mutmut,
 )
 from bob_quality.probe import relative_path
-from bob_quality.suite_fingerprint import suite_fingerprint
+from bob_quality.suite_fingerprint import source_fingerprint, suite_fingerprint
 from bob_quality.tools import ToolError, run_lizard_csv
 from bob_quality.waivers import (
     SurvivorTargets,
@@ -72,7 +72,10 @@ _SINCE_LAST_RUN: ContextVar[bool] = ContextVar("since_last_run", default=False)
 
 @contextmanager
 def since_last_run(enabled: bool) -> Iterator[None]:
-    """Com `enabled`, o cache vale para toda função cujo texto não mudou, sobreviventes inclusive."""
+    """Com `enabled`, sobreviventes de função com texto igual são reusados se o código Python fora da suíte não mudou.
+
+    Quem chama o gate direto, sem `bob mutate`, abre este contexto para ter o modo incremental.
+    """
     token = _SINCE_LAST_RUN.set(enabled)
     try:
         yield
@@ -111,7 +114,7 @@ def run_mutation_gate(
     )
     if isinstance(fresh, MutationOutcome):
         return fresh
-    _write_cache(cache, _publish_body(plan, _cache_body(cwd, plan.remutate, fresh)))
+    _write_cache(cache, _publish_body(plan, _cache_body(cwd, plan.remutate, fresh, plan.source)))
     return _finish(
         fresh + plan.reused_mutants,
         diff_lines,
@@ -132,6 +135,7 @@ class _Cache:
 class _CacheView:
     held: dict[str, dict[str, object]]
     may_reuse: bool
+    source: str = ""
 
 
 class _CacheLineError(ValueError):
@@ -146,6 +150,7 @@ class _Plan:
     remutated_labels: list[str]
     reused_labels: list[str]
     carried: dict[str, dict[str, object]]
+    source: str = ""
 
 
 def _prepare_mutation(
@@ -171,6 +176,10 @@ def _prepare_mutation(
     cached, broken = _safe_cache(cache, versions, waiver_rows)
     if broken is not None:
         return broken
+    source = _safe_fingerprint(cwd, versions, waiver_rows, source_fingerprint)
+    if isinstance(source, MutationOutcome):
+        return source
+    cached = replace(cached, source=source)
     return versions, waivers, waiver_rows, cache, _plan_functions(
         measured, diff_lines, cached, cwd, waivers
     )
@@ -211,10 +220,13 @@ def _safe_measured(
 
 
 def _safe_fingerprint(
-    cwd: Path, versions: dict[str, str], waiver_rows: list[dict[str, object]]
+    cwd: Path,
+    versions: dict[str, str],
+    waiver_rows: list[dict[str, object]],
+    fingerprint: Callable[[Path], str] = suite_fingerprint,
 ) -> str | MutationOutcome:
     try:
-        return suite_fingerprint(cwd)
+        return fingerprint(cwd)
     except ToolError as exc:
         return _tool_outcome(reason(exc), versions, waiver_rows)
 
@@ -247,6 +259,7 @@ def _plan_functions(
         remutated_labels=[f"{item.file}::{item.name}" for item in remutate],
         reused_labels=[key for key, _entry in reuse],
         carried=_carried_rows(view, by_key, waivers),
+        source=view.source,
     )
 
 
@@ -256,7 +269,7 @@ def _carried_rows(
     waivers: list[Waiver],
 ) -> dict[str, dict[str, object]]:
     return {
-        name: entry
+        name: entry if view.may_reuse else {**entry, "stale": True}
         for name, entry in view.held.items()
         if name in by_key and _carry(entry, waivers)
     }
@@ -388,7 +401,7 @@ def _split_functions(
         item = by_key[key]
         entry = _reusable_entry(view, key)
         digest = _function_hash(cwd, item.file, item.start_line, item.end_line)
-        if entry is not None and not _needs_remutation(entry, digest, waivers):
+        if entry is not None and not _needs_remutation(entry, digest, waivers, view.source):
             reuse.append((key, entry))
         else:
             remutate.append(item)
@@ -416,10 +429,14 @@ def _candidate_keys(
     return keys
 
 
-def _needs_remutation(entry: dict[str, object], digest: str, waivers: list[Waiver]) -> bool:
-    if entry.get("hash") != digest:
+def _needs_remutation(
+    entry: dict[str, object], digest: str, waivers: list[Waiver], source: str
+) -> bool:
+    if entry.get("hash") != digest or entry.get("stale") is True:
         return True
-    return not _SINCE_LAST_RUN.get() and _has_unwaived_survivor(entry, waivers)
+    if not _has_unwaived_survivor(entry, waivers):
+        return False
+    return not _SINCE_LAST_RUN.get() or entry.get("source") != source
 
 
 def _has_unwaived_survivor(entry: dict[str, object], waivers: list[Waiver]) -> bool:
@@ -485,12 +502,19 @@ def _mutants_from_cache(
 def _reuse_start(
     key: str, entry: dict[str, object], functions: dict[str, CyclomaticFunction]
 ) -> int | None:
-    if entry.get("line_base") == "file":
-        return None
     current = functions.get(key)
+    if entry.get("line_base") == "file":
+        return _file_shift(entry, current)
     if current is not None and current.start_line > 0:
         return current.start_line
     return _cached_start(entry)
+
+
+def _file_shift(entry: dict[str, object], current: CyclomaticFunction | None) -> int | None:
+    recorded = entry.get("start_line")
+    if current is None or current.start_line <= 0 or not isinstance(recorded, int) or recorded <= 0:
+        return None
+    return current.start_line - recorded + 1
 
 
 def _cached_start(entry: dict[str, object]) -> int | None:
@@ -694,7 +718,7 @@ def _belongs(mutant: Mutant, functions: list[CyclomaticFunction]) -> bool:
 
 
 def _cache_body(
-    cwd: Path, functions: list[CyclomaticFunction], mutants: list[Mutant]
+    cwd: Path, functions: list[CyclomaticFunction], mutants: list[Mutant], source: str = ""
 ) -> dict[str, object]:
     body: dict[str, object] = {}
     for item in functions:
@@ -711,6 +735,7 @@ def _cache_body(
             "start_line": item.start_line,
             "end_line": item.end_line,
             "line_base": "file",
+            "source": source,
             "mutants": [_mutant_row(mutant) for mutant in own],
         }
     return body
