@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+`bob doctor` checks the Semgrep version through the security gate's pinned `uvx` command.
+`bob setup` and `bob doctor --install` still work without uv and check only the setup tools.
+
+O `bob doctor` verifica a versão do Semgrep pelo comando `uvx` fixado no gate de segurança.
+`bob setup` e `bob doctor --install` continuam funcionando sem uv e verificam apenas as ferramentas do setup.
+
 The `bob setup` help names everything the command installs (npm tools, gitleaks, skills, `bob.yaml`,
 pre-push hook), and the `bob mutate` help names Stryker next to mutmut; the docs list `setup`,
 `update` and `--version` in the CLI reference and stop saying the wheel lacks the skills.
