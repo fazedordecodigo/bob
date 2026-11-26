@@ -102,20 +102,28 @@ def _scoped_files(
 ) -> tuple[KnipFile, ...]:
     root = cwd.absolute()
     roots = tuple(Path(abspath(root / name)) for name in include)
-    excluded = tuple(Path(name).as_posix() for name in exclude if name)
+    excluded = _normalized_excludes(exclude)
     if "." in excluded:
         return ()
     scoped: list[KnipFile] = []
     for item in files:
-        path = root / item.file
-        if not path.is_relative_to(root) or as_diff_path(root, item.file) is None:
+        relative = _reported_path(root, item.file)
+        if relative is None or _excluded(relative, excluded):
             continue
-        relative = path.relative_to(root)
-        if _excluded(relative, excluded):
-            continue
-        if any(path.is_relative_to(allowed) for allowed in roots):
+        if any((root / relative).is_relative_to(allowed) for allowed in roots):
             scoped.append(KnipFile(relative.as_posix(), item.by_type))
     return tuple(scoped)
+
+
+def _normalized_excludes(exclude: tuple[str, ...]) -> tuple[str, ...]:
+    return tuple(Path(name).as_posix() for name in exclude if name)
+
+
+def _reported_path(root: Path, raw: str) -> Path | None:
+    path = root / raw
+    if path.is_relative_to(root) and as_diff_path(root, raw) is not None:
+        return path.relative_to(root)
+    return None
 
 
 def _version(cwd: Path, timeout: int, runner: Runner, prefix: str) -> str:

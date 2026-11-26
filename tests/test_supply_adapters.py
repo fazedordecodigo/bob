@@ -135,19 +135,31 @@ def test_run_knip_returns_exit_1_without_an_include_filter(tmp_path: Path) -> No
 
 
 @pytest.mark.parametrize(
-    ("file", "exclude", "expected"),
+    ("file", "include", "exclude", "expected"),
     [
-        ("src/app.ts", (".",), ()),
-        ("linked/app.ts", ("./linked/",), ()),
-        ("linked/app.ts", (), ("linked/app.ts",)),
+        ("src/app.ts", (".",), (".",), ()),
+        ("linked/app.ts", ("linked",), ("./linked/",), ()),
+        ("linked/app.ts", ("linked",), (), ("linked/app.ts",)),
+        ("src/app.ts", ("linked",), (), ()),
+        ("linked/app.ts", ("src",), (), ()),
+        ("external/app.ts", (".",), (), ()),
+        ("src/../linked/app.ts", (".",), (), ()),
+        ("", (".",), (), ()),
     ],
 )
 def test_run_knip_scopes_the_reported_path_without_following_aliases(
-    tmp_path: Path, file: str, exclude: tuple[str, ...], expected: tuple[str, ...]
+    tmp_path: Path,
+    file: str,
+    include: tuple[str, ...],
+    exclude: tuple[str, ...],
+    expected: tuple[str, ...],
 ) -> None:
-    (tmp_path / "src").mkdir()
-    (tmp_path / "src/app.ts").touch()
-    (tmp_path / "linked").symlink_to("src", target_is_directory=True)
+    repo = tmp_path / "repo"
+    (repo / "src").mkdir(parents=True)
+    (repo / "src/app.ts").touch()
+    (repo / "linked").symlink_to("src", target_is_directory=True)
+    (repo / "external").symlink_to(tmp_path, target_is_directory=True)
+    (tmp_path / "app.ts").touch()
     report = json.dumps({"issues": [{"file": file, "unresolved": [{"name": "left-pad"}]}]})
 
     def runner(args: list[str], cwd: Path, timeout: int) -> ProcessExit:
@@ -155,7 +167,7 @@ def test_run_knip_scopes_the_reported_path_without_following_aliases(
             return ProcessExit(0, "6.41.0\n", "")
         return ProcessExit(1, report, "")
 
-    capture = run_knip(tmp_path, 30, runner, include=(".", "linked"), exclude=exclude)
+    capture = run_knip(repo, 30, runner, include=include, exclude=exclude)
 
     assert capture.exit_code == 1
     assert capture.document is not None
