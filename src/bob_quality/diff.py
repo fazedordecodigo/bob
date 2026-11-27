@@ -43,7 +43,7 @@ class _Hunk:
     added: int
     old_text: list[str] = field(default_factory=list)
     new_text: list[str] = field(default_factory=list)
-    at_eof: bool = False
+    old_lacks_newline: bool = False
 
     def take(self, line: str) -> None:
         if line.startswith("+"):
@@ -51,7 +51,7 @@ class _Hunk:
         elif line.startswith("-"):
             self.old_text.append(line[1:])
         elif line.startswith(_NO_NEWLINE):
-            self.at_eof = True
+            self.old_lacks_newline = not self.new_text
 
 
 def worktree_lines(cwd: Path, lines: dict[str, set[int]]) -> dict[str, set[int]]:
@@ -93,9 +93,9 @@ def _local_hunks(cwd: Path, file: str) -> list[_Hunk]:
 
 
 def _gained_newline(index: int, hunk: _Hunk) -> bool:
-    """A última linha de HEAD, num hunk que muda a quebra final, com o mesmo texto e posição."""
+    """A última linha de HEAD, sem quebra final, que segue com o mesmo texto na mesma posição."""
     return (
-        hunk.at_eof
+        hunk.old_lacks_newline
         and index == len(hunk.old_text) - 1
         and hunk.new_text[index : index + 1] == hunk.old_text[index:]
     )

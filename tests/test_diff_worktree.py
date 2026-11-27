@@ -272,3 +272,10 @@ def test_the_newline_exception_keeps_the_position_of_a_later_last_line(tmp_path:
     repo = _branch(tmp_path, None, "a = 1\nb = 2", "a = 9\nb = 2\nc = 3\n")
 
     assert _projected(repo) == {1, 2, 3}
+
+
+def test_a_last_line_that_loses_its_newline_takes_the_whole_block(tmp_path: Path) -> None:
+    repo = _branch(tmp_path, "a = 1\nb = 1\n", "a = 1\nb = 2\n", "a = 9\nb = 2")
+
+    assert _projected(repo) == {1, 2}
+
