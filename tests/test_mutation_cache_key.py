@@ -32,7 +32,7 @@ from bob_quality.mutate import (
     _view_cache,
     _write_cache,
 )
-from bob_quality.suite_fingerprint import suite_fingerprint
+from bob_quality.suite_fingerprint import source_fingerprint, suite_fingerprint
 from bob_quality.tools import ToolError
 from helpers import (
     commit_on_branch,
@@ -244,7 +244,7 @@ def test_a_new_suite_file_remutates_an_unwaived_survivor_outside_the_diff(
     assert sorted(cache["functions"]) == [ADD, CLAMP, SCALE]
     assert _operators(cache, ADD) == [""]
     assert "SENTINEL" not in _operators(cache, SCALE)
-    assert cache["functions"][CLAMP] == _cached_row("clamp", "survived")
+    assert cache["functions"][CLAMP] == {**_cached_row("clamp", "survived"), "stale": True}
     assert cache["suite"] == suite_fingerprint(repo)
     assert cache["mutmut"] == first_cache["mutmut"]
     assert OFFSET not in report["mutation"]["remutated"]
@@ -260,7 +260,7 @@ def test_a_new_suite_file_remutates_an_unwaived_survivor_outside_the_diff(
     assert again_report["mutation"]["remutated"] == []
     assert again_report["mutation"]["reused"] == [ADD]
     assert sorted(again_cache["functions"]) == [ADD, CLAMP]
-    assert again_cache["functions"][CLAMP] == _cached_row("clamp", "survived")
+    assert again_cache["functions"][CLAMP] == {**_cached_row("clamp", "survived"), "stale": True}
     assert _operators(again_cache, ADD) == [""]
     assert OFFSET not in again_cache["functions"]
     assert SCALE not in again_cache["functions"]
@@ -730,3 +730,24 @@ def test_the_gate_stops_with_exit_4_when_the_fingerprint_fails(tmp_path: Path) -
     )
     assert failed.versions == versions
     assert failed.waivers == waivers
+
+
+def test_source_fingerprint_tracks_production_python_only(tmp_path: Path) -> None:
+    repo = init_python_repo(tmp_path / "repo")
+    before = source_fingerprint(repo)
+    _write(
+        repo,
+        {
+            "tests/test_extra.py": EXTRA_TEST,
+            "mutants/src/app/copy.py": "x = 1\n",
+            ".bob/mutmut/src/app/copy.py": "x = 1\n",
+            "src/app/__pycache__/note.py": "x = 1\n",
+            "README.md": "notes\n",
+        },
+    )
+
+    assert source_fingerprint(repo) == before
+
+    _write(repo, {"src/app/flags.py": "BLOCK = True\n"})
+
+    assert source_fingerprint(repo) != before

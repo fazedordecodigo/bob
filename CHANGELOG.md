@@ -28,12 +28,14 @@ O resumo identifica essa checagem como `ferramentas do setup`, não `bob doctor`
 
 `bob mutate --since-last-run` limits the Python run to functions whose text changed since the last
 recorded run: a cached function with the same hash, mutmut version and suite fingerprint is reused,
-survivors included, instead of being remutated. Before, the flag only reached the reproduce line.
+survivors included while no Python file outside the suite changed, instead of being remutated. Before, the flag only reached the reproduce line.
+A reused mutant keeps pointing at its function's current lines after code above it moves.
 
 `bob mutate --since-last-run` limita a corrida Python às funções cujo texto mudou desde a última
 execução registrada: uma função em cache com o mesmo hash, a mesma versão do mutmut e a mesma
-impressão da suíte é reusada, sobreviventes inclusive, em vez de ser remutada. Antes, a flag só
-chegava à linha de reprodução.
+impressão da suíte é reusada, sobreviventes inclusive enquanto nenhum arquivo Python fora da suíte
+mudar, em vez de ser remutada. Antes, a flag só chegava à linha de reprodução.
+Um mutante reusado continua apontando para as linhas atuais da função depois que o código acima dela se move.
 
 ## v0.1.0
 

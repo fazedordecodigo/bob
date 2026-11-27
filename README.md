@@ -126,7 +126,7 @@ Each command accepts these flags:
 | `bob crap` | `--base`, `--config`, `--out`, `--threshold`, `--coverage-file` |
 | `bob dry` | `--base`, `--config`, `--out`, `--dry-fail`, `--max-new-clones` |
 | `bob deps` | `--base`, `--config`, `--out` |
-| `bob mutate` | `--base`, `--config`, `--out`, `--max-workers` (sets mutmut's `--max-children` for Python and Stryker's `--concurrency` for TypeScript), `--since-last-run` (remutates only functions whose text changed since the last recorded run) |
+| `bob mutate` | `--base`, `--config`, `--out`, `--max-workers` (sets mutmut's `--max-children` for Python and Stryker's `--concurrency` for TypeScript), `--since-last-run` (remutates only functions whose text, or the production code around them, changed since the last recorded run) |
 | `bob waive` | `file::function` or a Target from the mutation report, or a prefixed gate id, `--reason` |
 | `bob doctor` | `--install` |
 

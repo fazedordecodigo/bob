@@ -217,6 +217,15 @@ def test_gate_keeps_deleted_outer_body_anchored_inside_annotation_only_inner(
     assert "outer" in _selected(scope_repo)
 
 
+def test_gate_keeps_a_body_deletion_when_its_anchor_is_removed_locally(scope_repo: Path) -> None:
+    before = "def f(x):\n    value = x\n    record()\n    return x\n"
+    after = before.replace("    record()\n", "")
+    _commit_edit(scope_repo, before, after)
+    (scope_repo / _FILE).write_text(after.replace("    value = x\n", ""))
+
+    assert _selected(scope_repo) == ["f"]
+
+
 def test_gate_keeps_a_hunk_that_starts_before_an_annotation_only_function(scope_repo: Path) -> None:
     before = _FUTURE + "setting = 1\ndef f(x: int):\n    return x\n"
     _commit_edit(scope_repo, before, before.replace("= 1", "= 2").replace("x: int", "x: str"))

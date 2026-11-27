@@ -6,6 +6,7 @@ import configparser
 import hashlib
 import subprocess
 import sys
+from collections.abc import Callable
 from fnmatch import fnmatchcase
 from pathlib import Path, PurePosixPath
 
@@ -38,10 +39,20 @@ _BOB_OUTPUT = frozenset({"mutants", ".bob"})
 def suite_fingerprint(cwd: Path) -> str:
     """sha256 dos arquivos que a suíte lê, por caminho e conteúdo."""
     also_copy = _also_copy(cwd)
+    return _fingerprint(cwd, lambda path: _read_by_suite(path, also_copy))
+
+
+def source_fingerprint(cwd: Path) -> str:
+    """sha256 do Python fora da suíte: o código de que o resultado de um mutante pode depender."""
+    also_copy = _also_copy(cwd)
+    return _fingerprint(cwd, lambda path: _is_source(path, also_copy))
+
+
+def _fingerprint(cwd: Path, keep: Callable[[PurePosixPath], bool]) -> str:
     digest = hashlib.sha256()
     for name in sorted(_listed_files(cwd)):
         file = cwd / name
-        if _read_by_suite(PurePosixPath(name), also_copy) and file.is_file():
+        if keep(PurePosixPath(name)) and file.is_file():
             digest.update(f"{name}\0{hashlib.sha256(file.read_bytes()).hexdigest()}\n".encode())
     return digest.hexdigest()
 
@@ -67,6 +78,12 @@ def _read_by_suite(path: PurePosixPath, also_copy: list[PurePosixPath]) -> bool:
     if path.parts[0] in _BOB_OUTPUT or "__pycache__" in path.parts:
         return False
     return _is_test_file(path) or any(entry in (path, *path.parents) for entry in also_copy)
+
+
+def _is_source(path: PurePosixPath, also_copy: list[PurePosixPath]) -> bool:
+    if path.suffix != ".py" or path.parts[0] in _BOB_OUTPUT or "__pycache__" in path.parts:
+        return False
+    return not _read_by_suite(path, also_copy)
 
 
 def _is_test_file(path: PurePosixPath) -> bool:

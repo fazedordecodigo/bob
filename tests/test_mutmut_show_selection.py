@@ -2,12 +2,13 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
 from pathlib import Path
 
 import bob_quality.mutate as mutate_module
 from bob_quality.adapters.mutmut import MutmutParseError, mutants_from_raw
 from bob_quality.models import CyclomaticFunction, GateResult
-from bob_quality.mutate import _cached_start, _mutants_from_cache, _run_and_parse
+from bob_quality.mutate import _cached_start, _mutants_from_cache, _reuse_start, _run_and_parse
 from bob_quality.tools import ToolError
 
 VERSIONS = {"mutmut": "3.8.0"}
@@ -343,7 +344,7 @@ def test_a_cached_file_line_is_not_shifted_again() -> None:
         "id": "bob_quality.mutate.x_prepare_mutmut_workspace__mutmut_16",
         "function": "prepare_mutmut_workspace",
         "file": "src/bob_quality/mutate.py",
-        "line": 40,
+        "line": 480,
         "operator": "a -> b",
         "status": "killed",
     }
@@ -364,7 +365,7 @@ def test_a_cached_file_line_is_not_shifted_again() -> None:
         "status": "killed",
     }
     file_rows = _mutants_from_cache(
-        [("kept", {"line_base": "file", "start_line": 100, "mutants": [already_file]})],
+        [("kept", {"line_base": "file", "start_line": 474, "mutants": [already_file]})],
         {
             "kept": CyclomaticFunction(
                 file="src/bob_quality/mutate.py",
@@ -399,7 +400,7 @@ def test_a_cached_file_line_is_not_shifted_again() -> None:
             )
         },
     )
-    assert file_rows[0].line == 40
+    assert file_rows[0].line == 480
     assert top_rows[0].line == 4
     assert zero_rows[0].line == 7
     assert mutants[0].line == 480
@@ -446,3 +447,14 @@ def test_a_bad_diff_keeps_the_message_and_the_waivers(monkeypatch, tmp_path: Pat
     assert failed.exit_code == 4
     assert failed.versions == VERSIONS
     assert failed.waivers == WAIVERS
+
+
+def test_a_file_line_without_a_known_start_is_not_shifted() -> None:
+    entry = {"start_line": 10, "line_base": "file"}
+    here = CyclomaticFunction(file="src/a.py", name="f", start_line=12, end_line=20, cc=1)
+
+    assert _reuse_start("src/a.py::f", entry, {"src/a.py::f": here}) == 3
+    assert _reuse_start("src/a.py::f", entry, {}) is None
+    assert _reuse_start("src/a.py::f", {"line_base": "file"}, {"src/a.py::f": here}) is None
+    assert _reuse_start("src/a.py::f", {**entry, "start_line": 0}, {"src/a.py::f": here}) is None
+    assert _reuse_start("src/a.py::f", entry, {"src/a.py::f": replace(here, start_line=0)}) is None
