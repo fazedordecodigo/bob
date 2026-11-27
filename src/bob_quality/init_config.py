@@ -10,7 +10,8 @@ from typing import Literal
 import yaml
 
 from bob_quality import suite_fingerprint
-from bob_quality.config import DEFAULT_EXCLUDE, _SUFFIX_LANGUAGE, _excluded, load_config
+from bob_quality.config import DEFAULT_EXCLUDE, _SUFFIX_LANGUAGE, load_config
+from bob_quality.diff import path_is_excluded
 from bob_quality.yaml_text import parse_yaml
 
 CONFIG_NAME = "bob.yaml"
@@ -123,7 +124,7 @@ def _is_code(project: Path, name: str) -> bool:
         return False
     if not path.is_file() or path.is_symlink():
         return False
-    return not _excluded(Path(name), tuple(DEFAULT_EXCLUDE))
+    return not path_is_excluded(Path(name), tuple(DEFAULT_EXCLUDE))
 
 
 def _publish(project: Path, target: Path, include: tuple[str, ...]) -> None:

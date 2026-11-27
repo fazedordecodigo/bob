@@ -3,12 +3,13 @@
 from __future__ import annotations
 
 import ast
-from collections.abc import Iterator
+from collections.abc import Iterator, Sequence
 from copy import copy
+from fnmatch import fnmatchcase
 from pathlib import Path
 from typing import TypeVar
 
-from bob_quality.diff import GitError, _git
+from bob_quality.diff import DiffHunk, GitError, _git, parse_diff_hunks
 
 _Function = ast.FunctionDef | ast.AsyncFunctionDef
 _FUNCTIONS = (ast.FunctionDef, ast.AsyncFunctionDef)
@@ -17,18 +18,33 @@ _SUITES = ("body", "orelse", "finalbody", "handlers", "cases")
 _Position = tuple[tuple[str, str, int], ...]
 
 
-def mutation_lines(cwd: Path, base: str, lines: dict[str, set[int]]) -> dict[str, set[int]]:
-    python = [file for file in lines if file.endswith(".py")]
+def mutation_lines(
+    cwd: Path, base: str, lines: dict[str, set[int]], runtime_globs: tuple[str, ...]
+) -> dict[str, set[int]]:
+    python = [
+        file
+        for file in lines
+        if file.endswith(".py") and not any(fnmatchcase(file, glob) for glob in runtime_globs)
+    ]
     if not python:
         return lines
     try:
         ancestor = _git(cwd, "merge-base", base, "HEAD").strip()
+        hunks = parse_diff_hunks(_git(cwd, "diff", "--unified=0", f"{ancestor}..HEAD"))
     except GitError:
         return lines
-    return {**lines, **{file: _file_lines(cwd, ancestor, file, lines[file]) for file in python}}
+    return {
+        **lines,
+        **{
+            file: _file_lines(cwd, ancestor, file, lines[file], hunks[file])
+            for file in set(python).intersection(hunks)
+        },
+    }
 
 
-def _file_lines(cwd: Path, ancestor: str, file: str, touched: set[int]) -> set[int]:
+def _file_lines(
+    cwd: Path, ancestor: str, file: str, touched: set[int], hunks: Sequence[DiffHunk]
+) -> set[int]:
     try:
         head = _git(cwd, "show", f"HEAD:{file}")
         if head != (cwd / file).read_text():
@@ -37,10 +53,12 @@ def _file_lines(cwd: Path, ancestor: str, file: str, touched: set[int]) -> set[i
         after = ast.parse(head)
     except (GitError, OSError, SyntaxError, UnicodeError, ValueError):
         return touched
-    return _runtime_lines(before, after, touched)
+    return _runtime_lines(before, after, touched, hunks)
 
 
-def _runtime_lines(before: ast.Module, after: ast.Module, touched: set[int]) -> set[int]:
+def _runtime_lines(
+    before: ast.Module, after: ast.Module, touched: set[int], hunks: Sequence[DiffHunk]
+) -> set[int]:
     deferred = _deferred(before)
     if deferred != _deferred(after):
         return touched
@@ -53,7 +71,19 @@ def _runtime_lines(before: ast.Module, after: ast.Module, touched: set[int]) -> 
     new = _normalize(after, deferred)
     if ast.dump(before) == ast.dump(after):
         return set()
-    return touched.difference(_annotation_lines(old, new))
+    return touched.difference(_typing_hunk_lines(hunks, list(_annotation_scopes(old, new))))
+
+
+def _typing_hunk_lines(
+    hunks: Sequence[DiffHunk], scopes: Sequence[tuple[range, range]]
+) -> Iterator[int]:
+    for hunk in hunks:
+        if any(
+            all(line in previous for line in hunk.old)
+            and all(line in current for line in hunk.new_lines)
+            for previous, current in scopes
+        ):
+            yield from hunk.new_lines
 
 
 def _deferred(tree: ast.Module) -> bool:
@@ -177,16 +207,20 @@ def _normalize(tree: ast.Module, deferred: bool) -> dict[_Position, tuple[str, _
     return {path: (original[id(node)], node) for path, node in _definitions(tree)}
 
 
-def _annotation_lines(
+def _annotation_scopes(
     before: dict[_Position, tuple[str, _Function]],
     after: dict[_Position, tuple[str, _Function]],
-) -> Iterator[int]:
+) -> Iterator[tuple[range, range]]:
     for path in before.keys() & after.keys():
         old, old_node = before[path]
         new, new_node = after[path]
         if old != new and ast.dump(old_node) == ast.dump(new_node):
-            start = min((d.lineno for d in new_node.decorator_list), default=new_node.lineno)
-            yield from range(start, (new_node.end_lineno or new_node.lineno) + 1)
+            yield _function_lines(old_node), _function_lines(new_node)
+
+
+def _function_lines(node: _Function) -> range:
+    assert node.end_lineno is not None
+    return range(node.lineno, node.end_lineno + 1)
 
 
 class _WithoutAnnotations(ast.NodeTransformer):
@@ -199,12 +233,12 @@ class _WithoutAnnotations(ast.NodeTransformer):
             return None
         return node
 
-    def visit_arg(self, node: ast.arg) -> ast.arg:
-        node.annotation = self._annotation(node.annotation)
-        return node
-
     def _function(self, node: _Function) -> _Function:
-        node.returns = self._annotation(node.returns)
+        if not node.decorator_list:
+            node.returns = self._annotation(node.returns)
+            for part in ast.iter_child_nodes(node.args):
+                if isinstance(part, ast.arg):
+                    part.annotation = self._annotation(part.annotation)
         return self._with_scope(node)
 
     visit_FunctionDef = _function

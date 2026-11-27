@@ -152,6 +152,8 @@ A gate with nothing to measure does not raise the exit code. With no code under 
 
 A local `bob check` does not run mutation. `bob check --gates mutate` and `bob mutate` run it, only on the changed functions and on the functions that still have survivors.
 
+Python mutation skips typing-only diff changes, but keeps decorated signature annotations and can keep full diff scope for reflective modules via `mutation.runtime_annotation_globs` in `bob.yaml`. An annotation-only edit still remutates a function with an unwaived cached survivor, even with `--since-last-run`. See [Gates and waivers](docs/guides/gates-and-waivers.md).
+
 ## How it works
 
 ### Only the diff blocks

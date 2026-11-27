@@ -8,6 +8,7 @@ from typing import Any, Callable, Literal, TypeGuard
 
 import yaml
 
+from bob_quality.diff import path_is_excluded
 from bob_quality.messages import DEFAULT_LANGUAGE, LANGUAGES, Language, msg
 from bob_quality.security_scanners import severity_vocabulary
 from bob_quality.yaml_text import parse_yaml
@@ -128,6 +129,19 @@ _SCHEMA = _Node(
                     "crap_scope",
                     (_Check("string"), _Check("one_of", choices=CRAP_SCOPES)),
                     empty_is_default=True,
+                ),
+            ),
+        ),
+        _Node(
+            "mutation",
+            "",
+            (),
+            children=(
+                _Node(
+                    "runtime_annotation_globs",
+                    "runtime_annotation_globs",
+                    (_Check("string_list"),),
+                    null_is_default=False,
                 ),
             ),
         ),
@@ -295,9 +309,17 @@ class Config:
     osv_fail_severities: tuple[str, ...] = FAIL_SEVERITIES
     supply_timeout_seconds: int = 30
     fail_severities: tuple[str, ...] = ("HIGH", "CRITICAL", "ERROR")
+    runtime_annotation_globs: tuple[str, ...] = ()
 
     def __post_init__(self) -> None:
-        for name in ("languages", "include", "exclude", "osv_fail_severities", "fail_severities"):
+        for name in (
+            "languages",
+            "include",
+            "exclude",
+            "osv_fail_severities",
+            "fail_severities",
+            "runtime_annotation_globs",
+        ):
             value = getattr(self, name)
             if isinstance(value, list):
                 object.__setattr__(self, name, tuple(value))
@@ -389,7 +411,7 @@ def _scan(
 ) -> None:
     if base.is_symlink():
         return
-    if _excluded(_inside(base, cwd), exclude):
+    if path_is_excluded(_inside(base, cwd), exclude):
         return
     if base.is_file():
         _note(base, found)
@@ -412,17 +434,6 @@ def _note(path: Path, found: set[SourceLanguage]) -> None:
     if suffix not in _SUFFIX_LANGUAGE:
         return
     found.add(_SUFFIX_LANGUAGE[suffix])
-
-
-def _excluded(relative: Path, exclude: tuple[str, ...]) -> bool:
-    text = relative.as_posix()
-    for item in exclude:
-        pattern = item.strip("/")
-        if text == pattern or text.startswith(pattern + "/"):
-            return True
-        if pattern in relative.parts:
-            return True
-    return False
 
 
 def _reject_missing_include(include: object, label: str, cwd: Path) -> None:

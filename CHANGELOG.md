@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+Python mutation skips annotation-only edits and typing-only `TYPE_CHECKING` imports. Runtime changes, including body deletions and annotations on decorated signatures, stay in scope. Use `mutation.runtime_annotation_globs` in `bob.yaml` for other modules that read annotations at runtime. An annotation-only edit still remutates a function with an unwaived cached survivor, even with `--since-last-run`.
+
+A mutação Python ignora edições só de anotação e imports de `TYPE_CHECKING` usados só para tipagem. Mudanças de comportamento, incluindo remoções no corpo e anotações de assinatura em funções decoradas, continuam no escopo. Use `mutation.runtime_annotation_globs` no `bob.yaml` para outros módulos que leem anotações em execução. Uma edição só de anotação ainda remuta funções com sobrevivente sem waiver no cache, mesmo com `--since-last-run`.
+
 `bob mutate --max-workers N` now passes `--concurrency N` to Stryker for TypeScript mutation runs.
 Without the flag, Stryker keeps its default concurrency.
 
