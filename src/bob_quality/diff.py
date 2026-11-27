@@ -54,6 +54,14 @@ class _Hunk:
     new_text: list[str] = field(default_factory=list)
     old_lacks_newline: bool = False
 
+    def take(self, line: str) -> None:
+        if line.startswith("+"):
+            self.new_text.append(line[1:])
+        elif line.startswith("-"):
+            self.old_text.append(line[1:])
+        elif line.startswith(_NO_NEWLINE):
+            self.old_lacks_newline |= not self.new_text
+
 
 def worktree_lines(cwd: Path, lines: dict[str, set[int]]) -> dict[str, set[int]]:
     """Leva as linhas do diff de HEAD para a árvore de trabalho, que é onde o gate mede.
@@ -64,11 +72,10 @@ def worktree_lines(cwd: Path, lines: dict[str, set[int]]) -> dict[str, set[int]]
     commit: aí a âncora vai para a linha anterior que sobrou.
     """
     names = _git_raw(cwd, "diff", "--name-only", "-z", "--no-renames", "HEAD").split(b"\0")
-    edited = {name.decode(errors="surrogateescape") for name in names}
-    return {
-        file: _shift(touched, _local_hunks(cwd, file)) if file in edited else touched
-        for file, touched in lines.items()
-    }
+    projected = dict(lines)
+    for file in {os.fsdecode(name) for name in names} & lines.keys():
+        projected[file] = _shift(lines[file], _local_hunks(cwd, file))
+    return projected
 
 
 def _local_hunks(cwd: Path, file: str) -> list[_Hunk]:
@@ -84,18 +91,14 @@ def _local_hunks(cwd: Path, file: str) -> list[_Hunk]:
         "HEAD",
         "--",
         file,
-    ).decode(errors="surrogateescape")
+    )
     hunks: list[_Hunk] = []
-    previous = ""
-    for line in patch.split("\n"):
+    for line in os.fsdecode(patch).split("\n"):
         if match := FULL_HUNK_RE.match(line):
             old, old_count, new, new_count = (int(group or "1") for group in match.groups())
             hunks.append(_Hunk(old, old_count, new, new_count))
-        elif hunks and line[:1] in ("+", "-"):
-            (hunks[-1].new_text if line[0] == "+" else hunks[-1].old_text).append(line[1:])
-        elif hunks and line.startswith(_NO_NEWLINE) and previous[:1] == "-":
-            hunks[-1].old_lacks_newline = True
-        previous = line
+        elif hunks:
+            hunks[-1].take(line)
     return hunks
 
 
