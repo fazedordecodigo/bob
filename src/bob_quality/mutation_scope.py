@@ -35,7 +35,10 @@ def mutation_lines(
         return lines
     return {
         **lines,
-        **{file: _file_lines(cwd, ancestor, file, lines[file], hunks.get(file, ())) for file in python},
+        **{
+            file: _file_lines(cwd, ancestor, file, lines[file], hunks[file])
+            for file in set(python).intersection(hunks)
+        },
     }
 
 
@@ -68,16 +71,19 @@ def _runtime_lines(
     new = _normalize(after, deferred)
     if ast.dump(before) == ast.dump(after):
         return set()
-    scopes = list(_annotation_scopes(old, new))
-    annotations: set[int] = set()
+    return touched.difference(_typing_hunk_lines(hunks, list(_annotation_scopes(old, new))))
+
+
+def _typing_hunk_lines(
+    hunks: Sequence[DiffHunk], scopes: Sequence[tuple[range, range]]
+) -> Iterator[int]:
     for hunk in hunks:
         if any(
             all(line in previous for line in hunk.old)
             and all(line in current for line in hunk.new_lines)
             for previous, current in scopes
         ):
-            annotations.update(hunk.new_lines)
-    return touched.difference(annotations)
+            yield from hunk.new_lines
 
 
 def _deferred(tree: ast.Module) -> bool:

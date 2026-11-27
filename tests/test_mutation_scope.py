@@ -115,6 +115,7 @@ def test_python_gate_scopes_mutation_to_runtime_edits(
     [
         ("def f() -> 'int':\n    return 1\n", "def f() -> 'str':\n    return 1\n", []),
         ("def f() -> int:\n    return 1\n", "def f() -> int():\n    return 1\n", ["f"]),
+        ("def f(x: marker(1)):\n    return x\n", "def f(x: marker(2)):\n    return x\n", ["f"]),
         ("def f() -> int:\n    return 1\n", _FUTURE + "def f() -> str:\n    return 1\n", ["f"]),
         ("def f():\n    return 1\n", "def f():\n    return 1  # touched\n", ["f"]),
         (_FUTURE + "async def f(x: int):\n    return x\n",
@@ -214,6 +215,13 @@ def test_gate_keeps_deleted_outer_body_anchored_inside_annotation_only_inner(
     _commit_edit(scope_repo, before, before.replace("x: int", "x: str").replace("    record()\n", ""))
 
     assert "outer" in _selected(scope_repo)
+
+
+def test_gate_keeps_a_hunk_that_starts_before_an_annotation_only_function(scope_repo: Path) -> None:
+    before = _FUTURE + "setting = 1\ndef f(x: int):\n    return x\n"
+    _commit_edit(scope_repo, before, before.replace("= 1", "= 2").replace("x: int", "x: str"))
+
+    assert _selected(scope_repo) == ["f"]
 
 
 def test_gate_skips_deletion_of_an_annotation_in_a_mixed_diff(scope_repo: Path) -> None:
