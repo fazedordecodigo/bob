@@ -279,3 +279,12 @@ def test_a_last_line_that_loses_its_newline_takes_the_whole_block(tmp_path: Path
 
     assert _projected(repo) == {1, 2}
 
+
+def test_a_file_moved_under_a_directory_with_its_name_leaves_the_scope(tmp_path: Path) -> None:
+    repo = _branch(tmp_path, None, FLOW, FLOW)
+    (repo / FILE).unlink()
+    (repo / FILE).mkdir()
+    (repo / FILE / "flow.py").write_text(FLOW)
+    subprocess.run(["git", "add", "-A"], cwd=repo, check=True)
+
+    assert _projected(repo) == set()

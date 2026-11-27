@@ -78,6 +78,7 @@ def _local_hunks(cwd: Path, file: str) -> list[_Hunk]:
         "--no-color",
         "--no-ext-diff",
         "--no-textconv",
+        "--no-renames",
         "HEAD",
         "--",
         file,
