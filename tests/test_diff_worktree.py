@@ -288,3 +288,14 @@ def test_a_file_moved_under_a_directory_with_its_name_leaves_the_scope(tmp_path:
     subprocess.run(["git", "add", "-A"], cwd=repo, check=True)
 
     assert _projected(repo) == set()
+
+
+def test_code_appended_to_a_file_still_without_final_newline_stays_out(tmp_path: Path) -> None:
+    repo = _branch(
+        tmp_path,
+        "def f(n):\n    return n > 0",
+        "def f(n):\n    return n > 1",
+        "def f(n):\n    return n > 1\n\n\ndef g(n):\n    return n",
+    )
+
+    assert _projected(repo) == {2}

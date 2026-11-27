@@ -51,7 +51,7 @@ class _Hunk:
         elif line.startswith("-"):
             self.old_text.append(line[1:])
         elif line.startswith(_NO_NEWLINE):
-            self.old_lacks_newline = not self.new_text
+            self.old_lacks_newline |= not self.new_text
 
 
 def worktree_lines(cwd: Path, lines: dict[str, set[int]]) -> dict[str, set[int]]:
