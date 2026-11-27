@@ -359,6 +359,23 @@ def test_since_last_run_reuses_the_cached_survivors_of_an_unchanged_function(
     assert payload["reproduce"] == "bob mutate --base main --since-last-run"
 
 
+def test_since_last_run_keeps_an_uncommitted_move_blocking_on_the_current_line(
+    tmp_path: Path,
+) -> None:
+    repo = _repo_with_surviving_mutant(tmp_path)
+
+    first = run_bob(repo, "mutate", "--base", "main")
+    before = json.loads((repo / ".bob" / "report.json").read_text())["survivors"]
+    (repo / "src" / "app" / "weak.py").write_text("# one\n# two\n# three\n" + CLASSIFY)
+    second = run_bob(repo, "mutate", "--base", "main", "--since-last-run")
+    after = json.loads((repo / ".bob" / "report.json").read_text())["survivors"]
+
+    assert first.returncode == 3
+    assert second.returncode == 3
+    assert [row["line"] for row in after] == [row["line"] + 3 for row in before]
+    assert all(row["blocking"] for row in after)
+
+
 def test_hand_written_waiver_without_author_is_rejected(tmp_path: Path) -> None:
     repo = init_python_repo(tmp_path / "repo")
     bob = repo / ".bob"

@@ -22,7 +22,7 @@ from bob_quality.adapters.mutmut import (
     mutmut_run_patterns,
 )
 from bob_quality.config import Config
-from bob_quality.diff import function_is_changed
+from bob_quality.diff import GitError, function_is_changed, worktree_lines
 from bob_quality.exit_codes import (
     BASELINE_BROKEN,
     CONFIG_OR_TOOL,
@@ -40,7 +40,7 @@ from bob_quality.mutmut_tool import (
     run_mutmut,
 )
 from bob_quality.probe import relative_path
-from bob_quality.suite_fingerprint import suite_fingerprint
+from bob_quality.suite_fingerprint import source_fingerprint, suite_fingerprint
 from bob_quality.tools import ToolError, run_lizard_csv
 from bob_quality.waivers import (
     SurvivorTargets,
@@ -72,7 +72,10 @@ _SINCE_LAST_RUN: ContextVar[bool] = ContextVar("since_last_run", default=False)
 
 @contextmanager
 def since_last_run(enabled: bool) -> Iterator[None]:
-    """Com `enabled`, o cache vale para toda função cujo texto não mudou, sobreviventes inclusive."""
+    """Com `enabled`, sobreviventes de função com texto igual são reusados se o código Python fora da suíte não mudou.
+
+    Quem chama o gate direto, sem `bob mutate`, abre este contexto para ter o modo incremental.
+    """
     token = _SINCE_LAST_RUN.set(enabled)
     try:
         yield
@@ -89,6 +92,7 @@ def run_mutation_gate(
     baseline: int | None = None,
 ) -> MutationOutcome:
     """`baseline` é o exit do pytest que o gate crap já rodou. Sem ele, o gate roda o pytest."""
+    diff_lines = _local_diff(cwd, diff_lines)
     prepared = _prepare_mutation(cwd, config, diff_lines, out_dir)
     if isinstance(prepared, MutationOutcome):
         return prepared
@@ -111,7 +115,7 @@ def run_mutation_gate(
     )
     if isinstance(fresh, MutationOutcome):
         return fresh
-    _write_cache(cache, _publish_body(plan, _cache_body(cwd, plan.remutate, fresh)))
+    _write_cache(cache, _publish_body(plan, _cache_body(cwd, plan.remutate, fresh, plan.source)))
     return _finish(
         fresh + plan.reused_mutants,
         diff_lines,
@@ -132,6 +136,7 @@ class _Cache:
 class _CacheView:
     held: dict[str, dict[str, object]]
     may_reuse: bool
+    source: str | None = None
 
 
 class _CacheLineError(ValueError):
@@ -146,6 +151,22 @@ class _Plan:
     remutated_labels: list[str]
     reused_labels: list[str]
     carried: dict[str, dict[str, object]]
+    source: str | None = None
+
+
+def _local_diff(cwd: Path, diff_lines: dict[str, set[int]]) -> dict[str, set[int]]:
+    try:
+        return worktree_lines(cwd, diff_lines)
+    except GitError:
+        return diff_lines
+
+
+def _source_or_none(cwd: Path) -> str | None:
+    """Sem a impressão, nenhum sobrevivente é reusado por ela: o gate mede de novo."""
+    try:
+        return source_fingerprint(cwd)
+    except (ToolError, OSError):
+        return None
 
 
 def _prepare_mutation(
@@ -238,6 +259,7 @@ def _plan_functions(
     cwd: Path,
     waivers: list[Waiver],
 ) -> _Plan:
+    view = replace(view, source=_source_or_none(cwd))
     remutate, reuse = _split_functions(measured, diff_lines, view, cwd, waivers)
     by_key = {f"{item.file}::{item.name}": item for item in measured}
     return _Plan(
@@ -247,6 +269,7 @@ def _plan_functions(
         remutated_labels=[f"{item.file}::{item.name}" for item in remutate],
         reused_labels=[key for key, _entry in reuse],
         carried=_carried_rows(view, by_key, waivers),
+        source=view.source,
     )
 
 
@@ -256,7 +279,7 @@ def _carried_rows(
     waivers: list[Waiver],
 ) -> dict[str, dict[str, object]]:
     return {
-        name: entry
+        name: entry if view.may_reuse else {**entry, "stale": True}
         for name, entry in view.held.items()
         if name in by_key and _carry(entry, waivers)
     }
@@ -388,7 +411,7 @@ def _split_functions(
         item = by_key[key]
         entry = _reusable_entry(view, key)
         digest = _function_hash(cwd, item.file, item.start_line, item.end_line)
-        if entry is not None and not _needs_remutation(entry, digest, waivers):
+        if entry is not None and not _needs_remutation(entry, digest, waivers, view.source):
             reuse.append((key, entry))
         else:
             remutate.append(item)
@@ -416,10 +439,14 @@ def _candidate_keys(
     return keys
 
 
-def _needs_remutation(entry: dict[str, object], digest: str, waivers: list[Waiver]) -> bool:
-    if entry.get("hash") != digest:
+def _needs_remutation(
+    entry: dict[str, object], digest: str, waivers: list[Waiver], source: str | None
+) -> bool:
+    if entry.get("hash") != digest or entry.get("stale") is True:
         return True
-    return not _SINCE_LAST_RUN.get() and _has_unwaived_survivor(entry, waivers)
+    if not _has_unwaived_survivor(entry, waivers):
+        return False
+    return not _SINCE_LAST_RUN.get() or source is None or entry.get("source") != source
 
 
 def _has_unwaived_survivor(entry: dict[str, object], waivers: list[Waiver]) -> bool:
@@ -485,12 +512,19 @@ def _mutants_from_cache(
 def _reuse_start(
     key: str, entry: dict[str, object], functions: dict[str, CyclomaticFunction]
 ) -> int | None:
-    if entry.get("line_base") == "file":
-        return None
     current = functions.get(key)
+    if entry.get("line_base") == "file":
+        return _file_shift(entry, current)
     if current is not None and current.start_line > 0:
         return current.start_line
     return _cached_start(entry)
+
+
+def _file_shift(entry: dict[str, object], current: CyclomaticFunction | None) -> int | None:
+    recorded = entry.get("start_line")
+    if current is None or not isinstance(recorded, int) or min(current.start_line, recorded) <= 0:
+        return None
+    return current.start_line - recorded + 1
 
 
 def _cached_start(entry: dict[str, object]) -> int | None:
@@ -694,7 +728,7 @@ def _belongs(mutant: Mutant, functions: list[CyclomaticFunction]) -> bool:
 
 
 def _cache_body(
-    cwd: Path, functions: list[CyclomaticFunction], mutants: list[Mutant]
+    cwd: Path, functions: list[CyclomaticFunction], mutants: list[Mutant], source: str | None = None
 ) -> dict[str, object]:
     body: dict[str, object] = {}
     for item in functions:
@@ -711,6 +745,7 @@ def _cache_body(
             "start_line": item.start_line,
             "end_line": item.end_line,
             "line_base": "file",
+            "source": source,
             "mutants": [_mutant_row(mutant) for mutant in own],
         }
     return body
