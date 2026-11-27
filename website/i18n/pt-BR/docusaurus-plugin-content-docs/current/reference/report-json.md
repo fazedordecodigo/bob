@@ -10,6 +10,8 @@ O schema exige `schema_version`, `commit`, `base`, `generated_at`, `tool_version
 
 `gates[]` exige `name` e `status`. `status` é `passed`, `warn`, `failed` ou `not_run`. `reason` é uma string ou null, e é renderizado em inglês.
 
+`bob report` aceita rótulos legados de `focus[].risk`, como `"high"`, mesmo o schema exigindo um número; se presente, `focus[].clone` tem de ser booleano.
+
 `reproduce` no JSON omite `--lang`. A linha de reprodução no `report.md` inclui o `--lang` que a produziu.
 
 ## Campos que o renderer grava
