@@ -244,3 +244,31 @@ def test_a_diff_with_more_paths_than_fit_in_a_command_line_is_still_projected(
     projected = worktree_lines(repo, {**lines, FILE: {2}})
 
     assert projected[FILE] == {3}
+
+
+def test_a_file_renamed_locally_leaves_the_scope(tmp_path: Path) -> None:
+    repo = _branch(tmp_path, None, FLOW, FLOW)
+    subprocess.run(["git", "mv", FILE, "src/app/moved.py"], cwd=repo, check=True)
+
+    assert _projected(repo) == set()
+
+
+def test_a_local_edit_to_a_file_outside_the_diff_leaves_it_out(tmp_path: Path) -> None:
+    repo = _branch(tmp_path, None, "a = 1\nb = 2\n", "# note\na = 1\nb = 2\n")
+    commit_on_branch(repo, "work", "src/app/other.py", "c = 3\n", "other")
+    lines = changed_lines(repo, "main")
+    (repo / "src" / "app" / "other.py").write_text("c = 4\n")
+
+    assert worktree_lines(repo, {FILE: lines[FILE]}) == {FILE: {2, 3}}
+
+
+def test_a_one_letter_last_line_that_changes_takes_the_whole_block(tmp_path: Path) -> None:
+    repo = _branch(tmp_path, "x = 0", "a", "b\nc\n")
+
+    assert _projected(repo) == {1, 2}
+
+
+def test_the_newline_exception_keeps_the_position_of_a_later_last_line(tmp_path: Path) -> None:
+    repo = _branch(tmp_path, None, "a = 1\nb = 2", "a = 9\nb = 2\nc = 3\n")
+
+    assert _projected(repo) == {1, 2, 3}
