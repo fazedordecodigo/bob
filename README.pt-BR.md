@@ -2,7 +2,7 @@
 
 [English](README.md) | Português
 
-O bob dá aos agentes de código (Cursor, Claude Code, GitHub Copilot, Devin) gates de qualidade determinísticos para o código que eles alteram, mais skills que dizem ao agente quando rodá-los. Os gates medem CRAP, duplicação, mutação e dependências, só nas funções do diff. Cada execução sai com um código que o agente consegue usar e grava um relatório de uma página que diz ao revisor humano onde olhar primeiro. Os gates seguem o fluxo do Uncle Bob (ver [Créditos](#créditos)).
+O bob dá aos agentes de código (Cursor, Claude Code, GitHub Copilot, Devin) gates de qualidade determinísticos para o código que eles alteram, mais skills que dizem ao agente quando rodá-los. Os gates medem CRAP, duplicação, mutação e dependências. Por padrão, o diff limita quais achados podem bloquear uma mudança. Cada execução sai com um código que o agente consegue usar e grava um relatório de uma página que diz ao revisor humano onde olhar primeiro. Os gates seguem o fluxo do Uncle Bob (ver [Créditos](#créditos)).
 
 - CLI: `bob` (`bob check | crap | dry | deps | mutate | report | waive | doctor | setup | update`)
 - Pacote PyPI: `bob-quality` (sdist e wheel prontos, ainda não publicado)
@@ -35,7 +35,7 @@ Estas partes estão planejadas (planned):
 
 ## Fluxo
 
-O agente altera o código. O hook pre-push roda os gates rápidos na máquina de quem desenvolve, e a GitHub Action roda os quatro gates no pull request. Os dois medem só as funções do diff, gravam o mesmo relatório e saem com os mesmos códigos.
+O agente altera o código. O hook pre-push roda os gates rápidos na máquina de quem desenvolve, e a GitHub Action roda os quatro gates no pull request. CRAP, DRY e dependências analisam os caminhos de código configurados, não só as linhas do diff. Os dois usam os mesmos formatos de relatório e códigos de saída.
 
 ```mermaid
 flowchart TD
@@ -43,8 +43,9 @@ flowchart TD
     agent --> hook["hook pre-push<br/>bob check --gates crap,dry,deps"]
     agent --> pr["Pull request"]
     pr --> action["GitHub Action<br/>bob check --gates crap,dry,deps,mutate"]
-    hook --> diff["Os gates medem só as funções do diff"]
-    action --> diff
+    hook --> measure["Rodar os gates<br/>O escopo da análise depende do gate"]
+    action --> measure
+    measure --> diff["Por padrão, o diff limita quais achados podem bloquear"]
     diff --> report[".bob/report.md<br/>.bob/report.json"]
     report --> code{"Exit code"}
     code -->|"0 passou"| done["O push ou o check do merge passa"]
@@ -156,9 +157,9 @@ A mutação Python ignora mudanças do diff que só afetam a tipagem, mas manté
 
 ## Como funciona
 
-### Só o diff bloqueia
+### O que o diff filtra
 
-O bob roda `git diff <base>...HEAD` e mapeia as linhas alteradas para funções. Uma função conta como alterada quando o diff toca uma das linhas dela. Só funções alteradas, violações de dependência que tocam arquivos alterados e, no modo fail do DRY, clones que tocam linhas alteradas podem reprovar um gate. A dívida antiga vai para as seções informativas do relatório, marcada `fora do diff; não bloqueia`, e não muda o exit code. `--base` substitui a chave `base` do `bob.yaml`.
+O bob roda `git diff <base>...HEAD`. Uma função conta como alterada quando o diff toca uma das linhas dela. Por padrão, uma função não alterada pode aparecer como dívida antiga de CRAP no relatório sem reprovar a verificação. Com `crap.scope: all`, qualquer função medida pode reprovar o gate de CRAP. O gate de dependências usa os arquivos alterados, e o DRY em modo fail conta os clones que tocam linhas alteradas. `--base` substitui a chave `base` do `bob.yaml`.
 
 ### Ferramentas pinadas por linguagem
 
