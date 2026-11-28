@@ -8,11 +8,20 @@ import subprocess
 from collections.abc import Mapping, Set
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import NamedTuple
 
-HUNK_RE = re.compile(r"^@@ -\d+(?:,\d+)? \+(\d+)(?:,(\d+))? @@")
 FULL_HUNK_RE = re.compile(r"^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@")
 _NO_NEWLINE = chr(92)
 _PATHSPEC_MODES = ("GIT_GLOB_PATHSPECS", "GIT_NOGLOB_PATHSPECS", "GIT_ICASE_PATHSPECS")
+
+
+class DiffHunk(NamedTuple):
+    old: range
+    new: range
+
+    @property
+    def new_lines(self) -> range:
+        return self.new or range(self.new.start, self.new.start + 1)
 
 
 class GitError(Exception):
@@ -45,6 +54,14 @@ class _Hunk:
     new_text: list[str] = field(default_factory=list)
     old_lacks_newline: bool = False
 
+    def take(self, line: str) -> None:
+        if line.startswith("+"):
+            self.new_text.append(line[1:])
+        elif line.startswith("-"):
+            self.old_text.append(line[1:])
+        elif line.startswith(_NO_NEWLINE):
+            self.old_lacks_newline |= not self.new_text
+
 
 def worktree_lines(cwd: Path, lines: dict[str, set[int]]) -> dict[str, set[int]]:
     """Leva as linhas do diff de HEAD para a árvore de trabalho, que é onde o gate mede.
@@ -55,11 +72,10 @@ def worktree_lines(cwd: Path, lines: dict[str, set[int]]) -> dict[str, set[int]]
     commit: aí a âncora vai para a linha anterior que sobrou.
     """
     names = _git_raw(cwd, "diff", "--name-only", "-z", "--no-renames", "HEAD").split(b"\0")
-    edited = {name.decode(errors="surrogateescape") for name in names}
-    return {
-        file: _shift(touched, _local_hunks(cwd, file)) if file in edited else touched
-        for file, touched in lines.items()
-    }
+    projected = dict(lines)
+    for file in {os.fsdecode(name) for name in names} & lines.keys():
+        projected[file] = _shift(lines[file], _local_hunks(cwd, file))
+    return projected
 
 
 def _local_hunks(cwd: Path, file: str) -> list[_Hunk]:
@@ -75,18 +91,14 @@ def _local_hunks(cwd: Path, file: str) -> list[_Hunk]:
         "HEAD",
         "--",
         file,
-    ).decode(errors="surrogateescape")
+    )
     hunks: list[_Hunk] = []
-    previous = ""
-    for line in patch.split("\n"):
+    for line in os.fsdecode(patch).split("\n"):
         if match := FULL_HUNK_RE.match(line):
             old, old_count, new, new_count = (int(group or "1") for group in match.groups())
             hunks.append(_Hunk(old, old_count, new, new_count))
-        elif hunks and line[:1] in ("+", "-"):
-            (hunks[-1].new_text if line[0] == "+" else hunks[-1].old_text).append(line[1:])
-        elif hunks and line.startswith(_NO_NEWLINE) and previous[:1] == "-":
-            hunks[-1].old_lacks_newline = True
-        previous = line
+        elif hunks:
+            hunks[-1].take(line)
     return hunks
 
 
@@ -141,7 +153,16 @@ def _replaced(index: int, hunk: _Hunk, anchor: bool) -> set[int]:
 
 
 def parse_unified_diff(patch: str) -> dict[str, set[int]]:
-    files: dict[str, ChangedLines] = {}
+    files: dict[str, set[int]] = {}
+    for file, hunks in parse_diff_hunks(patch).items():
+        touched = ChangedLines(line for hunk in hunks for line in hunk.new_lines)
+        touched.anchors = frozenset(hunk.new.start for hunk in hunks if not hunk.new)
+        files[file] = touched
+    return files
+
+
+def parse_diff_hunks(patch: str) -> dict[str, list[DiffHunk]]:
+    files: dict[str, list[DiffHunk]] = {}
     current: str | None = None
     for line in patch.splitlines():
         if line.startswith("+++ "):
@@ -155,18 +176,15 @@ def parse_unified_diff(patch: str) -> dict[str, set[int]]:
             continue
         if current is None:
             continue
-        match = HUNK_RE.match(line)
+        match = FULL_HUNK_RE.match(line)
         if not match:
             continue
-        start = int(match.group(1))
-        count = int(match.group(2) or "1")
-        touched = files.setdefault(current, ChangedLines())
-        if count == 0:
-            touched.add(start)
-            touched.anchors = touched.anchors | {start}
-            continue
-        touched.update(range(start, start + count))
-    return dict(files)
+        old_start, old_count, new_start, new_count = match.groups()
+        old = range(int(old_start), int(old_start) + int(old_count or "1"))
+        anchor = int(new_start)
+        new = range(anchor, anchor + int(new_count or "1"))
+        files.setdefault(current, []).append(DiffHunk(old, new))
+    return files
 
 
 def function_is_changed(file: str, start: int, end: int, lines: dict[str, set[int]]) -> bool:
@@ -178,6 +196,17 @@ def function_is_changed(file: str, start: int, end: int, lines: dict[str, set[in
 
 def line_is_changed(file: str, line: int, changed: Mapping[str, Set[int]]) -> bool:
     return line in changed.get(file, ())
+
+
+def path_is_excluded(relative: Path, exclude: tuple[str, ...]) -> bool:
+    text = relative.as_posix()
+    for item in exclude:
+        pattern = item.strip("/")
+        if text == pattern or text.startswith(pattern + "/"):
+            return True
+        if pattern in relative.parts:
+            return True
+    return False
 
 
 def normalize_include_root(path: Path) -> Path:

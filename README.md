@@ -152,6 +152,8 @@ A gate with nothing to measure does not raise the exit code. With no code under 
 
 A local `bob check` does not run mutation. `bob check --gates mutate` and `bob mutate` run it, only on the changed functions and on the functions that still have survivors.
 
+Python mutation skips typing-only diff changes, but keeps decorated signature annotations and can keep full diff scope for reflective modules via `mutation.runtime_annotation_globs` in `bob.yaml`. An annotation-only edit still remutates a function with an unwaived cached survivor, even with `--since-last-run`. See [Gates and waivers](docs/guides/gates-and-waivers.md).
+
 ## How it works
 
 ### Only the diff blocks
@@ -299,7 +301,7 @@ Coverage shows that a line ran. It does not show that a test checks the result. 
 
 For example, a mutant changes `if total > limit:` to `if total >= limit:`. If no test uses `total == limit`, the mutant survives. Write that test, or run `bob waive` with a reason.
 
-bob mutates Python with mutmut and TypeScript with Stryker. It runs the baseline tests first and exits with `2` if they fail. It mutates the changed functions, plus the functions that still have survivors without a waiver. In Python, edits limited to deferred annotations or `typing.TYPE_CHECKING`-guarded typing imports do not pull a function into mutation scope; runtime changes (including defaults, decorators, and runtime-evaluated annotations) stay in scope. The cache `.bob/mutation-cache.json` stores a hash of each function's text. Reuse also requires the mutmut version and the suite fingerprint to match. A mismatch still remutates an unwaived survivor outside the diff. The GitHub Action restores and publishes the cache as the `bob-mutation-cache` artifact. TypeScript keeps Stryker's incremental file at `.bob/stryker-incremental.json`. The Action restores and publishes that file in the same artifact. mutmut runs in `.bob/mutmut/` and never writes the repository's `setup.cfg` or `mutants/`.
+bob mutates Python with mutmut and TypeScript with Stryker. It runs the baseline tests first and exits with `2` if they fail. It mutates the changed functions, plus the functions that still have survivors without a waiver. The cache `.bob/mutation-cache.json` stores a hash of each function's text. Reuse also requires the mutmut version and the suite fingerprint to match. A mismatch still remutates an unwaived survivor outside the diff. The GitHub Action restores and publishes the cache as the `bob-mutation-cache` artifact. TypeScript keeps Stryker's incremental file at `.bob/stryker-incremental.json`. The Action restores and publishes that file in the same artifact. mutmut runs in `.bob/mutmut/` and never writes the repository's `setup.cfg` or `mutants/`.
 
 The limit is zero unwaived survivors on a changed line, and zero `no_coverage` mutants on a changed function. Either one fails the gate with exit `3`. An unwaived survivor on a line the diff did not change stays in the report and does not change the exit. The report lists survivors, and it lists `no_coverage` mutants by function and file. `killed` and `timeout` do not block. A waiver does not cover `no_coverage`.
 

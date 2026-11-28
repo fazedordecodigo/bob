@@ -261,7 +261,7 @@ def _absorb(
         mutation = run_mutate_gate(
             cwd=cwd,
             config=config,
-            diff_lines=mutation_lines(cwd, base, diff_lines),
+            diff_lines=mutation_lines(cwd, base, diff_lines, config.runtime_annotation_globs),
             out_dir=out_dir,
             max_workers=max_workers,
             baseline=state.baseline,

@@ -26,6 +26,7 @@ These values apply when the key is omitted. `language: en` in prose is the resul
 | `coverage.min_percent` | finite number from 0 to 100 | `80` | Floor for the diff-coverage gate. A percent equal to the floor passes. `null` is rejected. |
 | `dependencies.python` | string | `.importlinter` | import-linter config path. |
 | `dependencies.typescript` | string | `.dependency-cruiser.cjs` | dependency-cruiser config path. |
+| `mutation.runtime_annotation_globs` | list of strings | `[]` | Python paths whose full diff stays in mutation scope. Matches case-sensitive shell patterns against repository-relative paths; `null` is rejected. |
 | `test_smells` | `true` only | `true` | The loader accepts `true`. The gate does not read the field. |
 | `typing` | mapping with no children | unset | Accepted and ignored. It does not turn the typing gate on. |
 | `secrets` | mapping with no children | unset | No threshold and no children. It does not turn the secrets gate on. |
@@ -73,7 +74,7 @@ YAML that is not a mapping, and YAML with a syntax error, exit `4`. The syntax m
 
 `_reject_unknown` refuses every key that is not in the table above. These three show up in older notes and are rejected:
 
-- `mutation`, including `require_zero_unwaived_survivors`, `scope`, or `differential`. The error is `bob.yaml: unknown key mutation`.
+- `mutation.require_zero_unwaived_survivors`, `mutation.scope`, and `mutation.differential`. The error names the unknown key.
 - `duplication.tool`. The error is `bob.yaml: unknown key duplication.tool`.
 - `dependencies.violation`. The error is `bob.yaml: unknown key dependencies.violation`.
 
