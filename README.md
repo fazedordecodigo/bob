@@ -234,7 +234,7 @@ In CI, set `language: pt-BR` in `bob.yaml`, or `BOB_LANG: pt-BR` in the job `env
 
 Waivers live in `.bob/waivers.yaml`, which you commit with the code. `bob waive` writes one entry with these fields:
 
-- `id`, `file::function` for every survivor of that function, or `file::function::<description>` for one survivor.
+- `id`, `file::function` for every survivor of that function, `file::function::<description>` for one survivor, or a prefixed gate id for other gates.
 - `reason`, one line of text.
 - `author`, from `git config user.name`, or `$USER`.
 - `date`, the UTC date.

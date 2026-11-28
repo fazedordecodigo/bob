@@ -83,6 +83,16 @@ A baseline roda primeiro. Se `crap` já mediu o pytest na mesma execução, esse
 
 A execução muta funções alteradas e funções em cache que ainda têm um sobrevivente sem waiver. O cache é `.bob/mutation-cache.json`. Cada função guarda um sha256 do texto dela, a versão do mutmut e a impressão da suíte. Se a versão do mutmut ou a impressão da suíte difere da chave do arquivo, o cache não é reusado. `--since-last-run` limita a mutação ao que mudou desde a última execução registrada. Uma função em cache cujo hash ainda bate é reusada mesmo com um sobrevivente sem waiver, desde que nenhum arquivo Python fora da suíte tenha mudado desde aquela medição, e o sobrevivente aparece de novo no relatório nas linhas atuais da função. Uma mudança em outro código de produção remuta esses sobreviventes, porque o código que eles chamam pode passar a matá-los. Linhas com waiver carregadas através de uma troca do mutmut ou da suíte são medidas de novo quando a função volta ao escopo. Funções cujo texto mudou, ou que não estão num cache reusável, são remutadas. A flag só muda a corrida Python. Ela aparece na linha de reprodução do relatório quando foi passada.
 
+Em Python, alterar só anotações postergadas de parâmetros ou retorno, anotações de variáveis locais ou imports de módulo usados só para tipagem sob `typing.TYPE_CHECKING` não seleciona uma função do diff. Mudanças de comportamento, incluindo código removido no corpo e anotações de assinatura em funções decoradas, continuam no escopo. Para módulos cujas anotações são lidas em tempo de execução fora de decoradores, defina `mutation.runtime_annotation_globs` no `bob.yaml`. Ele recebe uma lista de padrões de shell sensíveis a maiúsculas e minúsculas casados com caminhos relativos à raiz separados por `/`; os arquivos Python que casam mantêm o escopo completo do diff. Por exemplo:
+
+```yaml
+mutation:
+  runtime_annotation_globs:
+    - "src/app/api/*.py"
+```
+
+Uma função com sobrevivente sem waiver no cache continua sendo remutada depois de uma edição só de anotação, mesmo com `--since-last-run`, porque a edição muda o hash do texto da função. Nenhuma dessas regras muda o escopo dos outros gates.
+
 Um sobrevivente bloqueia quando é `survived`, não tem waiver e a linha dele está no lado novo do diff. Um sobrevivente sem arquivo, ou com uma linha em zero ou abaixo, também bloqueia. Qualquer um dos casos sai com `3`. Um sobrevivente sem waiver numa linha que o diff não mudou permanece na tabela, marcado fora do diff, e não muda o exit. `killed` e `timeout` não bloqueiam. Um waiver não cobre `no_coverage`. `no_coverage` numa função alterada também sai com `3`.
 
 O id do waiver é `file::function` para todo sobrevivente dessa função, ou `file::function::<description>` para um sobrevivente. A descrição é o operador do mutante com os espaços externos removidos. Para Python é o diff do `mutmut show`. Para TypeScript é `{mutatorName}@{line}:{column}-{line}:{column}`, mais ` -> {replacement}` quando o Stryker reporta um. A forma exata só existe quando nenhum outro sobrevivente da função tem a mesma descrição. Ver [ADR 0006](adr/0006-chave-estavel-do-waiver.md).

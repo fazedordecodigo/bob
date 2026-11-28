@@ -73,7 +73,7 @@ O foco de um arquivo é o maior CRAP entre as funções alteradas dele. Clone ma
 
 Waivers ficam em `.bob/waivers.yaml`. O casamento usa `arquivo::função` e `arquivo::função::<descrição>`, como a [0006](0006-chave-estavel-do-waiver.md) fixa. O primeiro item da lista cujo id está nesse conjunto ganha. O id do mutante e o nome nu da função não casam mais.
 
-`--since-last-run` reusa toda função em cache cujo hash bate, sobreviventes inclusive, e remuta só as que mudaram desde a última execução. A flag também entra na string de reprodução.
+`--since-last-run` reusa funções em cache cujo hash bate, e os sobreviventes delas também enquanto nenhum arquivo Python fora da suíte mudar (acompanhando a linha atual da função movida); mudanças em outro código de produção remutam esses sobreviventes. A flag também entra na string de reprodução.
 
 A ordem do Markdown é waivers, cabeçalho, veredito, foco, top 5, dívida antiga, dependências, clones, sobreviventes, `no_coverage`, reproduzir. A decisão 5 manda os waivers no topo. A lista numerada da spec põe os clones antes das dependências.
 

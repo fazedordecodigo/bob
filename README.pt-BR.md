@@ -234,7 +234,7 @@ No CI, defina `language: pt-BR` no `bob.yaml`, ou `BOB_LANG: pt-BR` no `env` do 
 
 Os waivers ficam em `.bob/waivers.yaml`, versionado junto com o código. `bob waive` grava uma entrada com estes campos:
 
-- `id`, `arquivo::função` para todo sobrevivente da função, ou `arquivo::função::<descrição>` para um sobrevivente.
+- `id`, `arquivo::função` para todo sobrevivente da função, `arquivo::função::<descrição>` para um sobrevivente, ou um id de gate com prefixo para outros gates.
 - `reason`, uma linha de texto.
 - `author`, de `git config user.name`, ou `$USER`.
 - `date`, a data em UTC.
